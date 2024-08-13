@@ -8,6 +8,7 @@ const server = express()
 
 const reportRouter = require("./router/reportRouter")
 
+
 require('./database/connection/connection')
 
 server.use(cors())
