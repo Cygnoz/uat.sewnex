@@ -8,7 +8,7 @@ pipeline {
         IMAGE_NAME = 'report'
         AWS_CREDENTIALS_ID = '2157424a-b8a7-45c0-90c2-bc0d407f6cea'
         AWS_ACCOUNT_ID = '654654462146' // Add your AWS account ID here
-        SONARQUBE_PROJECT_KEY = 'billbizz-organization '
+        SONARQUBE_PROJECT_KEY = 'billbizz-report'
         SONARQUBE_SCANNER_CREDENTIALS_ID = '3ce8b7b3-1c06-46cf-955c-552bf6e9e049' // Jenkins credentials ID for SonarQube token
         ECS_CLUSTER_NAME = 'dev-billbizz' // Replace with your ECS cluster name
         ECS_SERVICE_NAME = 'billbizz-report' // Replace with your ECS service name
