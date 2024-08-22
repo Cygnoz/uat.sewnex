@@ -6,6 +6,7 @@ const router = new express.Router()
 const purchaseOrderController = require('../controller/purchaseOrderController');
 const debitNoteController = require('../controller/debitNoteController'); 
 const PaymentMadeController = require('../controller/paymentMadeController');
+const purchaseSettingsController = require('../controller/purchaseSettingsController')
 //paymentmade
 
 router.post('/addPayment', PaymentMadeController.addPurchasePayment);
@@ -27,5 +28,8 @@ router.get('/getAllDebitNotes/:id', debitNoteController.getAllDebitNotes);
 router.get('/getDebitNote/:id', debitNoteController.getDebitNoteById);
 router.put('/updateDebitNote/:id', debitNoteController.updateDebitNote);
 router.delete('/deleteDebitNote/:id', debitNoteController.deleteDebitNote);
+
+// purchase settings
+router.put('/add-purchase-settings',purchaseSettingsController.updatePurchaseSettings)
 
 module.exports = router
