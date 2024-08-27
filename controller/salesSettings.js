@@ -40,12 +40,12 @@ exports.updateCreditNoteSettings = async (req, res) => {
     try {
       const { organizationId } = req.body;
       console.log(req.body);
-  
+      
       const creditNoteSettings = {
-        overrideCostPrice: req.body.overrideCostPrice, // default to false
+        overideCostPrice: req.body.overideCostPrice, // default to false
         creditNoteQr: req.body.creditNoteQr, // default to false
         creditNoteQrType: req.body.creditNoteQrType,
-        creditNoteQrDescription: req.body.creditNoteQrDescription,
+        creditNoteQrDespriction: req.body.creditNoteQrDespriction,
         recordLocking: req.body.recordLocking, // default to false
         creditNoteTC: req.body.creditNoteTC,
         creditNoteCN: req.body.creditNoteCN,
@@ -78,9 +78,42 @@ exports.addDeliveryChellans = async (req, res) => {
     const { organizationId } = req.body;
     console.log("Delivery Chellans:", req.body);
 
-    const deliveryChellansSettings = {
+    const deliveryChellans = {
       deliveryChellanTC: req.body.deliveryChellanTC,
       deliveryChellanCN: req.body.deliveryChellanCN,
+    };
+
+    // Find the document by organizationId
+    const existingDeliveryChellans = await Settings.findOne({ organizationId });
+
+    if (!existingDeliveryChellans) {
+      return res.status(404).json({ message: "Delivery Chellans not found" });
+    }
+
+    // Update the document with the new Delivery Chellans
+    Object.assign(existingDeliveryChellans, deliveryChellans);
+
+    // Save the updated document
+    await existingDeliveryChellans.save();
+
+    res.status(200).json("Delivery Chellans updated successfully");
+  } catch (error) {
+    console.error("Error updating Delivery Chellans:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+
+  
+  //shipment
+exports.addShipmentAddressSettings = async (req, res) => {
+  try {
+    const { organizationId } = req.body;
+    console.log("Shipment Address Settings:", req.body);
+
+    const updatedSettings = {
+      carrierNotification: req.body.carrierNotification,
+      manualNotification: req.body.manualNotification,
     };
 
     // Find the document by organizationId
@@ -90,89 +123,53 @@ exports.addDeliveryChellans = async (req, res) => {
       return res.status(404).json({ message: "Settings not found" });
     }
 
-    // Update the document with the new Delivery Chellans
-    Object.assign(existingSettings, deliveryChellansSettings);
+    // Update the document with the new shipment address settings
+    Object.assign(existingSettings, updatedSettings);
 
     // Save the updated document
     await existingSettings.save();
 
-    res.status(200).json("Delivery chellans settings updated successfully");
+    res.status(200).json("Shipment address settings updated successfully");
   } catch (error) {
-    console.error("Error updating Delivery Chellans:", error);
+    console.error("Error updating shipment address settings:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
 
-  
-  //shipment
-  exports.addShipmentAddressSettings = async (req, res) => {
-    try {
-      const { organizationId } = req.body;
-      console.log("Sales setting:", req.body);
-  
-      const updatedSettings = {
-        carrierNotification: req.body.carrierNotification,
-        manualNotification: req.body.manualNotification,
-        shippingAddress: req.body.shippingAddress,
-      };
-  
-      // Find the document by organizationId
-      const existingSettings = await Settings.findOne({ organizationId });
-  
-      if (!existingSettings) {
-        return res.status(404).json({ message: "Settings not found" });
-      }
-  
-      // Update the document with the new settings
-      Object.assign(existingSettings, updatedSettings);
-  
-      // Save the updated document
-      await existingSettings.save();
-  
-      res.status(200).json("Settings updated successfully");
-    } catch (error) {
-      console.error("Error updating settings:", error);
-      res.status(500).json({ message: "Internal server error" });
-    }
-  };
+exports.addInvoiceSettings = async (req, res) => {
+  try {
+    const { organizationId } = req.body;
+    console.log("Invoice Settings:", req.body);
 
+    const updatedSettings = {
+      invoiceEdit: req.body.invoiceEdit,
+      displayExpenseReceipt: req.body.displayExpenseReceipt,
+      salesOrderNumber: req.body.salesOrserNumber,
+      paymentReceipt: req.body.paymentReceipt,
+      invoiceQrCode: req.body.invoiceQrCode,
+      invoiceQrType: req.body.invoiceQrType,
+      invoiceQrDescription: req.body.invoiceQrDescription,
+      zeroValue: req.body.zeroValue,
+      salesInvoiceTC: req.body.salesInvoiceTC,
+      salesInvoiceCN: req.body.salesInvoiceCN,
+    };
 
-  //Invoice
-  exports.addInvoiceSettings = async (req, res) => {
-    try {
-      const { organizationId } = req.body;
-      console.log("Invoice Settings:", req.body);
-   
-      const updatedSettings = {
-        invoiceEdit: req.body.invoiceEdit,
-        displayExpenseReceipt: req.body.displayExpenseReceipt,
-        salesOrserNumber: req.body.salesOrserNumber,
-        paymentReceipt: req.body.paymentReceipt,
-        invoiceQrCode: req.body.invoiceQrCode,
-        invoiceQrType: req.body.invoiceQrType,
-        invoiceQrDescription: req.body.invoiceQrDescription,
-        zeroValue: req.body.zeroValue,
-        salesInvoiceTC: req.body.salesInvoiceTC,
-        salesInvoiceCN: req.body.salesInvoiceCN,
-      };
-   
-      // Find the document by organizationId
-      const existingSettings = await Settings.findOne({ organizationId });
-   
-      if (!existingSettings) {
-        return res.status(404).json({ message: "Settings not found" });
-      }
-   
-      // Update the document with the new invoice settings
-      Object.assign(existingSettings, updatedSettings);
-   
-      // Save the updated document
-      await existingSettings.save();
-   
-      res.status(200).json("Invoice settings updated successfully");
-    } catch (error) {
-      console.error("Error updating invoice settings:", error);
-      res.status(500).json({ message: "Internal server error" });
+    // Find the document by organizationId
+    const existingSettings = await Settings.findOne({ organizationId });
+
+    if (!existingSettings) {
+      return res.status(404).json({ message: "Settings not found" });
     }
-  };
-  
+
+    // Update the document with the new invoice settings
+    Object.assign(existingSettings, updatedSettings);
+
+    // Save the updated document
+    await existingSettings.save();
+
+    res.status(200).json("Invoice settings updated successfully");
+  } catch (error) {
+    console.error("Error updating invoice settings:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
