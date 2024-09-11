@@ -42,11 +42,11 @@ exports.updateCreditNoteSettings = async (req, res) => {
       console.log(req.body);
       
       const creditNoteSettings = {
-        overideCostPrice: req.body.overideCostPrice, // default to false
-        creditNoteQr: req.body.creditNoteQr, // default to false
+        overideCostPrice: req.body.overideCostPrice, 
+        creditNoteQr: req.body.creditNoteQr, 
         creditNoteQrType: req.body.creditNoteQrType,
         creditNoteQrDespriction: req.body.creditNoteQrDespriction,
-        recordLocking: req.body.recordLocking, // default to false
+        recordLocking: req.body.recordLocking, 
         creditNoteTC: req.body.creditNoteTC,
         creditNoteCN: req.body.creditNoteCN,
       };
