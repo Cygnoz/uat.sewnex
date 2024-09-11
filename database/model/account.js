@@ -6,11 +6,14 @@ const accountSchema = new Schema({
     organizationId: {type:String},
     accountName: {type:String},
     accountCode: {type:String},
-    accountType: {type:String},
+
+    accountSubhead: {type:String},
+    accountHead: {type:String},
     accountGroup: {type:String},
-    accountHeads: {type:String},
-    openingBalance: {type:Number},
-    openingBalanceDate: {type:String},
+
+    //balance: {type:Number},
+
+    openingDate: {type:String},
     description: {type:String},
 
     bankAccNum: {type:String},
@@ -20,10 +23,4 @@ const accountSchema = new Schema({
 
 const Accounts = mongoose.model("Accounts", accountSchema);
 
-module.exports = Accounts
-
-;
-
-
-
-
+module.exports = Accounts;
