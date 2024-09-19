@@ -1,20 +1,34 @@
 const mongoose = require('mongoose')
 const { Schema } = mongoose
 
-
+const itemsSchema = new Schema({
+    itemName: {type:String},
+    quantity: {type:String},
+    rate: {type:String},
+    tax: {type:String},
+    discount: {type:String},
+    amount: {type:String},
+  }, { _id: false });
 
 const SalesOrderAndQuotesSchema = new Schema ({
 
+    //Customer Details
     salesOrder: { type: String },
-    selectCustomer: { type: String },
-    salesOrderReference: { type: String },
+    customer: { type: String },
+
+    reference: { type: String },
     salesOrderDate: { type: Date },
+
     expectedShipmentDate: { type: Date },
     paymentTerms: { type: String },
+
     deliveryMethod: { type: String },
     salesPerson: { type: String },
-    salesOrderAddNotes: { type: String },
-    salesOrderTermsAndConditions: { type: String },
+
+    items: [itemsSchema],
+
+    notes: { type: String },
+    tc: { type: String },
 
     //quotes
     salesPerson: { type: String },
@@ -32,3 +46,6 @@ const SalesOrderAndQuotesSchema = new Schema ({
 const SalesOrderAndQuotes = mongoose.model("SalesOrderAndQuotes", SalesOrderAndQuotesSchema);
 
 module.exports = SalesOrderAndQuotes;
+
+
+

@@ -11,6 +11,6 @@ const quotesSchema = new mongoose.Schema({
   addNotes: { type: String },
   addTermsAndConditions: { type: String },
 });
-const 
+
 
 module.exports = mongoose.model('Quotes', quotesSchema);
