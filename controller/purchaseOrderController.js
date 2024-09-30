@@ -6,56 +6,126 @@ exports.addPurchaseOrder = async (req, res) => {
   console.log("Add purchase order:", req.body);
   const {
     organizationId,
-    orderId,
+    taxMode,
+    supplierId,
+    supplierDisplayName,
+
+    //supplierBillingAddress
+    supplierBillingAttention,
+    supplierBillingCountry,
+    supplierBillingAddressStreet1,
+    supplierBillingAddressStreet2,
+    supplierBillingCity,
+    supplierBillingState,
+    supplierBillingPinCode,
+    supplierBillingPhone,
+    supplierBillingFaxNum,
+
+    supplierGstNo,
+    supplierMobile,
+
+    sourceOfSupply,
+    destinationOfSupply,
+    
     deliveryAddress,
     customer,
-    warehouse,
-    warehouseToBeUpdated,
+    organization,
+
     reference,
+    purchaseOrder,
     shipmentPreference,
     purchaseOrderDate,
     expectedShipmentDate,
     paymentTerms,
+    paymentMode,
+    subTotal,
+    cashDiscount,
+    discountType,
+    grandTotal,
+
+    //Item Table
+    itemTable,
+
+    // Other details
+    expense,
+    freight,
+    remark,
+    roundoff,
+    vehicleNoORcontainerNo,
+    destination,
+    transportMode,
     addNotes,
     termsAndConditions,
-    purchaseOrder
+    attachFiles,
   } = req.body;
 
   try {
     // Validate organizationId
-    const organizationExists = await Organization.findOne({ organizationId: organizationId });
+    const organizationExists = await Organization.findOne({ organizationId });
     if (!organizationExists) {
       return res.status(404).json({ message: "Organization not found" });
     }
 
-    // Check if a purchase order with the same orderId and organizationId already exists
-    const existingPurchaseOrder = await PurchaseOrder.findOne({ orderId: orderId, organizationId: organizationId });
+    // Check if a purchase order in this organizationId already exists
+    const existingPurchaseOrder = await PurchaseOrder.findOne({ purchaseOrder, organizationId });
     if (existingPurchaseOrder) {
-      return res.status(409).json({ message: "Purchase order with the provided orderId already exists." });
+      return res.status(409).json({ message: "Purchase order already exists." });
     }
-    const currentDate = new Date();
-    const day = String(currentDate.getDate()).padStart(2, "0");
-    const month = String(currentDate.getMonth() + 1).padStart(2, "0");
-    const year = currentDate.getFullYear();
-    const formattedDate = `${day}-${month}-${year}`;
 
     // Create a new purchase order
     const newPurchaseOrder = new PurchaseOrder({
       organizationId,
-      orderId,
-      createdDate: formattedDate,
+      taxMode,
+      supplierId,
+      supplierDisplayName,
+
+      //supplierBillingAddress
+      supplierBillingAttention,
+      supplierBillingCountry,
+      supplierBillingAddressStreet1,
+      supplierBillingAddressStreet2,
+      supplierBillingCity,
+      supplierBillingState,
+      supplierBillingPinCode,
+      supplierBillingPhone,
+      supplierBillingFaxNum,
+
+      supplierGstNo,
+      supplierMobile,
+
+      sourceOfSupply,
+      destinationOfSupply,
+      
       deliveryAddress,
       customer,
-      warehouse,
-      warehouseToBeUpdated,
+      organization,
+
       reference,
+      purchaseOrder,
       shipmentPreference,
       purchaseOrderDate,
       expectedShipmentDate,
       paymentTerms,
+      paymentMode,
+      subTotal,
+      cashDiscount,
+      discountType,
+      grandTotal,
+
+      //Item Table
+      itemTable,
+
+      // Other details
+      expense,
+      freight,
+      remark,
+      roundoff,
+      vehicleNoORcontainerNo,
+      destination,
+      transportMode,
       addNotes,
       termsAndConditions,
-      purchaseOrder
+      attachFiles,
     });
 
     // Save the purchase order to the database
@@ -69,12 +139,22 @@ exports.addPurchaseOrder = async (req, res) => {
   }
 };
 
+
 // Get all purchase orders for a given organizationId
 exports.getAllPurchaseOrders = async (req, res) => {
-  const organizationId = req.params.id;
+  const {organizationId} = req.body;
   try {
+    // Check if the Organization exists
+    const existingOrganization = await Organization.findOne({ organizationId });
+
+    if (!existingOrganization) {
+        return res.status(404).json({
+            message: "No Organization Found.",
+        });
+    }
+
     // Find all purchase orders where organizationId matches
-    const purchaseOrders = await PurchaseOrder.find({ organizationId: organizationId });
+    const purchaseOrders = await PurchaseOrder.find({ organizationId });
     if (!purchaseOrders.length) {
       return res.status(404).json({ message: "No purchase orders found for the provided organization ID." });
     }
@@ -90,16 +170,12 @@ exports.getAllPurchaseOrders = async (req, res) => {
 exports.getPurchaseOrder = async (req, res) => {
   try {
     const purchaseOrderId = req.params.id;
-    const { organizationId } = req.body;
-
-    const purchaseOrder = await PurchaseOrder.findById({
-      _id: purchaseOrderId,
-      organizationId: organizationId
-    });
+    const purchaseOrder = await PurchaseOrder.findById(purchaseOrderId);
 
     if (!purchaseOrder) {
       return res.status(404).json({ message: "Purchase order not found" });
     }
+
     res.status(200).json(purchaseOrder);
   } catch (error) {
     console.error("Error fetching purchase order:", error);
@@ -115,19 +191,57 @@ exports.updatePurchaseOrder = async (req, res) => {
     const purchaseOrderId = req.params.id;
     const {
       organizationId,
-      orderId,
-      deliveryAddress,
-      customer,
-      warehouse,
-      warehouseToBeUpdated,
-      reference,
-      shipmentPreference,
-      purchaseOrderDate,
-      expectedShipmentDate,
-      paymentTerms,
-      addNotes,
-      termsAndConditions,
-      purchaseOrder
+    taxMode,
+    supplierId,
+    supplierDisplayName,
+
+    //supplierBillingAddress
+    supplierBillingAttention,
+    supplierBillingCountry,
+    supplierBillingAddressStreet1,
+    supplierBillingAddressStreet2,
+    supplierBillingCity,
+    supplierBillingState,
+    supplierBillingPinCode,
+    supplierBillingPhone,
+    supplierBillingFaxNum,
+
+    supplierGstNo,
+    supplierMobile,
+
+    sourceOfSupply,
+    destinationOfSupply,
+    
+    deliveryAddress,
+    customer,
+    organization,
+
+    reference,
+    purchaseOrder,
+    shipmentPreference,
+    purchaseOrderDate,
+    expectedShipmentDate,
+    paymentTerms,
+    paymentMode,
+    subTotal,
+    cashDiscount,
+    discountType,
+    grandTotal,
+
+    //Item Table
+    itemTable,
+
+    // Other details
+    expense,
+    freight,
+    remark,
+    roundoff,
+    vehicleNoORcontainerNo,
+    destination,
+    transportMode,
+    addNotes,
+    termsAndConditions,
+    attachFiles,
     } = req.body;
 
     const currentDate = new Date();
@@ -142,31 +256,63 @@ exports.updatePurchaseOrder = async (req, res) => {
       return res.status(404).json({ message: "Organization not found" });
     }
 
-    // Check if orderId already exists for another purchase order
-    const existingPurchaseOrder = await PurchaseOrder.findOne({ orderId });
-    if (existingPurchaseOrder && existingPurchaseOrder._id.toString() !== purchaseOrderId) {
-      return res.status(400).json({ message: "Order ID already exists for another purchase order" });
-    }
-
     // Find and update the purchase order
     const updatedPurchaseOrder = await PurchaseOrder.findByIdAndUpdate(
       purchaseOrderId,
       {
         organizationId,
-        orderId,
         updatedDate: formattedDate,
+        taxMode,
+        supplierId,
+        supplierDisplayName,
+
+        //supplierBillingAddress
+        supplierBillingAttention,
+        supplierBillingCountry,
+        supplierBillingAddressStreet1,
+        supplierBillingAddressStreet2,
+        supplierBillingCity,
+        supplierBillingState,
+        supplierBillingPinCode,
+        supplierBillingPhone,
+        supplierBillingFaxNum,
+
+        supplierGstNo,
+        supplierMobile,
+
+        sourceOfSupply,
+        destinationOfSupply,
+    
         deliveryAddress,
         customer,
-        warehouse,
-        warehouseToBeUpdated,
-        reference,
+        organization,
+
+        referenceNumber,
+        purchaseOrder,
         shipmentPreference,
         purchaseOrderDate,
         expectedShipmentDate,
         paymentTerms,
+        paymentMode,
+        subTotal,
+        cashDiscount,
+        discountType,
+        grandTotal,
+
+        //Item Table
+        itemTable,
+
+        // Other details
+        expense,
+        freight,
+        remark,
+        roundoff,
+        vehicleNoORcontainerNo,
+        destination,
+        transportMode,
         addNotes,
         termsAndConditions,
-        purchaseOrder
+        attachFiles,
       },
       { new: true, runValidators: true }
     );
@@ -181,6 +327,8 @@ exports.updatePurchaseOrder = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
+
 
 // Delete a purchase order
 exports.deletePurchaseOrder = async (req, res) => {
