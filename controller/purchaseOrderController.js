@@ -191,57 +191,57 @@ exports.updatePurchaseOrder = async (req, res) => {
     const purchaseOrderId = req.params.id;
     const {
       organizationId,
-    taxMode,
-    supplierId,
-    supplierDisplayName,
+      taxMode,
+      supplierId,
+      supplierDisplayName,
 
-    //supplierBillingAddress
-    supplierBillingAttention,
-    supplierBillingCountry,
-    supplierBillingAddressStreet1,
-    supplierBillingAddressStreet2,
-    supplierBillingCity,
-    supplierBillingState,
-    supplierBillingPinCode,
-    supplierBillingPhone,
-    supplierBillingFaxNum,
+      //supplierBillingAddress
+      supplierBillingAttention,
+      supplierBillingCountry,
+      supplierBillingAddressStreet1,
+      supplierBillingAddressStreet2,
+      supplierBillingCity,
+      supplierBillingState,
+      supplierBillingPinCode,
+      supplierBillingPhone,
+      supplierBillingFaxNum,
 
-    supplierGstNo,
-    supplierMobile,
+      supplierGstNo,
+      supplierMobile,
 
-    sourceOfSupply,
-    destinationOfSupply,
-    
-    deliveryAddress,
-    customer,
-    organization,
+      sourceOfSupply,
+      destinationOfSupply,
+      
+      deliveryAddress,
+      customer,
+      organization,
 
-    reference,
-    purchaseOrder,
-    shipmentPreference,
-    purchaseOrderDate,
-    expectedShipmentDate,
-    paymentTerms,
-    paymentMode,
-    subTotal,
-    cashDiscount,
-    discountType,
-    grandTotal,
+      reference,
+      purchaseOrder,
+      shipmentPreference,
+      purchaseOrderDate,
+      expectedShipmentDate,
+      paymentTerms,
+      paymentMode,
+      subTotal,
+      cashDiscount,
+      discountType,
+      grandTotal,
 
-    //Item Table
-    itemTable,
+      //Item Table
+      itemTable,
 
-    // Other details
-    expense,
-    freight,
-    remark,
-    roundoff,
-    vehicleNoORcontainerNo,
-    destination,
-    transportMode,
-    addNotes,
-    termsAndConditions,
-    attachFiles,
+      // Other details
+      expense,
+      freight,
+      remark,
+      roundoff,
+      vehicleNoORcontainerNo,
+      destination,
+      transportMode,
+      addNotes,
+      termsAndConditions,
+      attachFiles,
     } = req.body;
 
     const currentDate = new Date();
@@ -251,7 +251,7 @@ exports.updatePurchaseOrder = async (req, res) => {
     const formattedDate = `${day}-${month}-${year}`;
 
     // Validate organizationId
-    const organizationExists = await Organization.findOne({ organizationId: organizationId });
+    const organizationExists = await Organization.findOne({ organizationId });
     if (!organizationExists) {
       return res.status(404).json({ message: "Organization not found" });
     }
@@ -287,7 +287,7 @@ exports.updatePurchaseOrder = async (req, res) => {
         customer,
         organization,
 
-        referenceNumber,
+        reference,
         purchaseOrder,
         shipmentPreference,
         purchaseOrderDate,
@@ -341,7 +341,7 @@ exports.deletePurchaseOrder = async (req, res) => {
       return res.status(404).json({ error: 'Purchase order not found' });
     }
 
-    res.status(200).json({ message: 'Purchase order deleted successfully', deletedPurchaseOrder });
+    res.status(200).json({ message: 'Purchase order deleted successfully' });
   } catch (error) {
     console.error("Error deleting purchase order:", error);
     res.status(500).json({ error: 'Server error' });
