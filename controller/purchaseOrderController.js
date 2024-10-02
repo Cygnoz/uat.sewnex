@@ -6,30 +6,16 @@ exports.addPurchaseOrder = async (req, res) => {
   console.log("Add purchase order:", req.body);
   const {
     organizationId,
-    taxMode,
     supplierId,
     supplierDisplayName,
 
-    //supplierBillingAddress
-    supplierBillingAttention,
-    supplierBillingCountry,
-    supplierBillingAddressStreet1,
-    supplierBillingAddressStreet2,
-    supplierBillingCity,
-    supplierBillingState,
-    supplierBillingPinCode,
-    supplierBillingPhone,
-    supplierBillingFaxNum,
-
-    supplierGstNo,
-    supplierMobile,
+    taxMode,
 
     sourceOfSupply,
     destinationOfSupply,
     
     deliveryAddress,
-    customer,
-    organization,
+    customerId,
 
     reference,
     purchaseOrder,
@@ -38,25 +24,33 @@ exports.addPurchaseOrder = async (req, res) => {
     expectedShipmentDate,
     paymentTerms,
     paymentMode,
-    subTotal,
-    cashDiscount,
+
+
     discountType,
-    grandTotal,
+    taxType,
 
     //Item Table
     itemTable,
 
     // Other details
-    expense,
+    otherExpense,
+    otherExpenseReason,
     freight,
-    remark,
-    roundoff,
-    vehicleNoORcontainerNo,
-    destination,
-    transportMode,
+    vehicleNo,
+    transportationMode,
     addNotes,
     termsAndConditions,
     attachFiles,
+
+    subTotal,
+    totalItem,
+    sgst,
+    cgst,
+    transactionDiscount,
+    totalTaxAmount,
+    roundOff,
+    grandTotal,
+
   } = req.body;
 
   try {
@@ -75,30 +69,25 @@ exports.addPurchaseOrder = async (req, res) => {
     // Create a new purchase order
     const newPurchaseOrder = new PurchaseOrder({
       organizationId,
-      taxMode,
       supplierId,
       supplierDisplayName,
 
       //supplierBillingAddress
-      supplierBillingAttention,
       supplierBillingCountry,
-      supplierBillingAddressStreet1,
-      supplierBillingAddressStreet2,
-      supplierBillingCity,
       supplierBillingState,
-      supplierBillingPinCode,
-      supplierBillingPhone,
-      supplierBillingFaxNum,
 
-      supplierGstNo,
-      supplierMobile,
+      taxMode,
 
       sourceOfSupply,
       destinationOfSupply,
       
       deliveryAddress,
-      customer,
-      organization,
+      customerId,
+
+      sgst,
+      cgst,
+      igst,
+      vat,
 
       reference,
       purchaseOrder,
@@ -107,25 +96,33 @@ exports.addPurchaseOrder = async (req, res) => {
       expectedShipmentDate,
       paymentTerms,
       paymentMode,
-      subTotal,
-      cashDiscount,
+
       discountType,
-      grandTotal,
+      taxType,
 
       //Item Table
       itemTable,
 
       // Other details
-      expense,
+      otherExpense,
+      otherExpenseReason,
       freight,
-      remark,
-      roundoff,
-      vehicleNoORcontainerNo,
-      destination,
-      transportMode,
+      vehicleNo,
+      transportationMode,
       addNotes,
       termsAndConditions,
       attachFiles,
+
+      //transaction details
+      subTotal,
+      totalItem,
+      sgst,
+      cgst,
+      transactionDiscount,
+      totalTaxAmount,
+      roundOff,
+      grandTotal,
+
     });
 
     // Save the purchase order to the database

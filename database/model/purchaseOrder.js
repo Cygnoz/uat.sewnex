@@ -41,9 +41,7 @@ const purchaseOrderSchema = new mongoose.Schema({
   sourceOfSupply: { type: String },
   destinationOfSupply: { type: String },
 
-  deliveryAddress: { type: Boolean}, 
-  customer: { type: String},
-  organization: { type: String},
+  deliveryAddress: { type: String},  // customer / organization 
 
   sgst: { type: Number },
   cgst: { type: Number },
