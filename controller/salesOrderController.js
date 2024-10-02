@@ -1,4 +1,4 @@
-const salesOrderAndQuotes = require('../database/model/salesOrderAndQuotes');
+// const salesOrderAndQuotes = require('../database/model/salesOrderAndQuotes');
 
 // Example function to add a sales order or quote
 exports.addSalesOrder = async (req, res) => {
