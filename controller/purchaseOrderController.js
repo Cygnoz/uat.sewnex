@@ -3,6 +3,8 @@ const Organization = require('../database/model/organization');
 const Item = require('../database/model/item');
 const Supplier = require('../database/model/supplier');
 const Customer = require('../database/model/customer');
+const Prefix = require("../database/model/prefix");
+
 
 
 // Fetch existing data
@@ -46,6 +48,32 @@ exports.addPurchaseOrder = async (req, res) => {
       res.status(201).json({ message: "Purchase order added successfully.", purchaseOrder: savedPurchaseOrder });
   } catch (error) {
       console.error("Error adding purchase order:", error);
+      res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+
+// Get Last Journal Prefix
+exports.getLastPurchaseOrderPrefix = async (req, res) => {
+  try {
+      const organizationId = req.user.organizationId;
+
+      // Find all accounts where organizationId matches
+      const prefix = await Prefix.findOne({ organizationId:organizationId,'series.status': true });
+
+      if (!prefix) {
+          return res.status(404).json({
+              message: "No Prefix found for the provided organization ID.",
+          });
+      }
+      
+      const series = prefix.series[0];     
+      const lastPrefix = series.purchaseOrder + series.purchaseOrderNum;
+      console.log(lastPrefix);
+
+      res.status(200).json(lastPrefix);
+  } catch (error) {
+      console.error("Error fetching accounts:", error);
       res.status(500).json({ message: "Internal server error." });
   }
 };

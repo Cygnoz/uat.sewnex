@@ -15,6 +15,8 @@ const { verifyToken } = require('../controller/middleware');
 //Purchase Order
 
 router.post('/add-purchaseOrder', purchaseOrderController.addPurchaseOrder);
+router.get('/get-last-purchase-order-prefix',purchaseOrderController.getLastPurchaseOrderPrefix)
+
 // router.put('/get-all-purchaseOrders', purchaseOrderController.getAllPurchaseOrders);
 // router.get('/get-purchaseOrder/:id', purchaseOrderController.getPurchaseOrder);
 // router.put('/update-purchaseOrder/:id', purchaseOrderController.updatePurchaseOrder);
