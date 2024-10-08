@@ -56,7 +56,15 @@ const settingSchema = new Schema({
   notifyReorderPoint: { type: Boolean }, //default:false
   trackCostOnItems: { type: Boolean }, //default:false
 
+  // supplier
+  duplicateSupplierDisplayName: { type: Boolean },
+  duplicateSupplierEmail: { type: Boolean },
+  duplicateSupplierMobile: { type: Boolean },
 
+  // customer
+  duplicateCustomerDisplayName: { type: Boolean },
+  duplicateCustomerEmail: { type: Boolean },
+  duplicateCustomerMobile: { type: Boolean },
 
   //Sales Order
   salesOrderAddress: { type: Boolean },//deafult=false

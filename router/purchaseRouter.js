@@ -6,15 +6,27 @@ const purchaseOrderController = require('../controller/purchaseOrderController')
 const debitNoteController = require('../controller/debitNoteController'); 
 const PaymentMadeController = require('../controller/paymentMadeController');
 const purchaseSettingsController = require('../controller/purchaseSettingsController')
+const billsCont = require('../controller/billsCont')
 
-
+const checkPermission = require('../controller/permission')
+const { verifyToken } = require('../controller/middleware');
+// router.post('/add-purchaseOrder',verifyToken,checkPermission('Created a New Supplier'), purchaseOrderController.addPurchaseOrder);
 
 //Purchase Order
+
 router.post('/add-purchaseOrder', purchaseOrderController.addPurchaseOrder);
-router.put('/get-all-purchaseOrders', purchaseOrderController.getAllPurchaseOrders);
-router.get('/get-purchaseOrder/:id', purchaseOrderController.getPurchaseOrder);
-router.put('/update-purchaseOrder/:id', purchaseOrderController.updatePurchaseOrder);
-router.delete('/delete-purchaseOrder/:id', purchaseOrderController.deletePurchaseOrder);
+// router.put('/get-all-purchaseOrders', purchaseOrderController.getAllPurchaseOrders);
+// router.get('/get-purchaseOrder/:id', purchaseOrderController.getPurchaseOrder);
+// router.put('/update-purchaseOrder/:id', purchaseOrderController.updatePurchaseOrder);
+// router.delete('/delete-purchaseOrder/:id', purchaseOrderController.deletePurchaseOrder);
+
+//Bills
+router.post('/add-Bills',billsCont.addBill);
+// router.put('/get-all-Bills',billsController.getAllPurchaseBills);
+// router.get('/get-a-Bill/:id',billsController.getPurchaseBill)
+// router.put('/update-Bill/:id',billsController.updatePurchaseBill)
+// router.delete('/delete-Bill/:id',billsController.deletePurchaseBill)
+
 
 //paymentmade
 router.post('/addPayment', PaymentMadeController.addPurchasePayment);
