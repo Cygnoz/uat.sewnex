@@ -3,19 +3,21 @@ const PurchaseOrder = require('../database/model/purchaseOrder');
 const Organization = require('../database/model/organization');
 const Supplier = require('../database/model/supplier');
 const Item = require('../database/model/item');
-const Settings = require("../database/model/settings"); // Added settings model
+const Settings = require("../database/model/settings");
 const ItemTrack = require("../database/model/itemTrack");
+const Tax = require('../database/model/tax');  // Add tax model
 
-// Fetch existing data including settings
+// Fetch existing data including tax and settings
 const dataExistForBill = async (organizationId, supplierId, itemTable, orderNumber) => {
-  const [organizationExists, supplierExists, purchaseOrderExists, items, settings] = await Promise.all([
+  const [organizationExists, supplierExists, purchaseOrderExists, items, settings, taxDetails] = await Promise.all([
     Organization.findOne({ organizationId }),
     Supplier.findOne({ _id: supplierId }),
-    PurchaseOrder.findOne({ orderNumber, organizationId }),  // Check if purchase order exists
+    PurchaseOrder.findOne({ orderNumber, organizationId }),
     Promise.all(itemTable.map(item => Item.findOne({ _id: item.itemId }))),
-    Settings.findOne({ organizationId })  // Fetch settings for the organization
+    Settings.findOne({ organizationId }),
+    Tax.findOne({ organizationId }) // Fetch tax details for the organization
   ]);
-  return { organizationExists, supplierExists, purchaseOrderExists, items, settings };
+  return { organizationExists, supplierExists, purchaseOrderExists, items, settings, taxDetails };
 };
 
 // Add a new bill
@@ -28,20 +30,71 @@ exports.addBill = async (req, res) => {
     // Clean Data
     const cleanedData = cleanBillData(req.body);
 
-    // Fetch existing data including settings
-    const { organizationExists, supplierExists, purchaseOrderExists, items, settings } = await dataExistForBill(organizationId, supplierId, itemTable, orderNumber);
+    // Fetch existing data including tax and settings
+    const { organizationExists, supplierExists, items, settings, taxDetails } = await dataExistForBill(organizationId, supplierId, itemTable, orderNumber);
 
     // Validate Inputs
-    if (!validateBillInputs(organizationExists, supplierExists, purchaseOrderExists, items, settings, res)) return;
+    if (!validateBillInputs(organizationExists, supplierExists, items, settings, taxDetails, res)) return;
+
+    
 
     // Check for existing bill
     if (await checkExistingBill(cleanedData.billNumber, organizationId, res)) return;
 
+    // **Tax Calculation & Validation Logic** - GST/VAT Calculation for taxable items
+    for (let i = 0; i < items.length; i++) {
+      const currentItem = items[i];
+      const billItem = itemTable[i];
+      const itemPrice = billItem.itemPrice;
+ 
+      // Determine source and destination of supply
+      const { sourceOfSupply, destinationOfSupply } = cleanedData; // Ensure these fields are in the cleanedData
+
+      // Tax calculations based on tax type (GST or VAT)
+      if (taxDetails.taxType === "GST") {
+
+       // Determine if the source of supply and destination of supply are the same
+        const isInterState = sourceOfSupply !== destinationOfSupply;
+        
+        const gstTaxRate = taxDetails.gstTaxRate[0]; // Get the GST rate from the tax details
+
+        // Calculate GST
+        const gstCalculation = calculateGST(itemPrice, gstTaxRate.taxRate, isInterState);
+
+        // Update billItem with calculated GST details
+        if (isInterState) {
+          billItem.itemIgst = gstCalculation.igst;
+        } else {
+          billItem.itemCgst = gstCalculation.cgst;
+          billItem.itemSgst = gstCalculation.sgst;
+        }
+
+        // Ensure GST fields are valid
+        if (!billItem.itemSgst && !billItem.itemCgst && !billItem.itemIgst) {
+          return res.status(400).json({ message: `GST details missing for item: ${currentItem.itemName}` });
+        }
+
+      } else if (taxDetails.taxType === "VAT") {
+        const vatTaxRate = taxDetails.vatTaxRate[0]; // Get the VAT rate from the tax details
+
+        // Calculate VAT
+        const vatCalculation = calculateVAT(itemPrice, vatTaxRate.taxRate);
+
+        // Update billItem with calculated VAT details
+        billItem.itemVat = vatCalculation.vat;
+
+        // Ensure VAT field is valid
+        if (!billItem.itemVat) {
+          return res.status(400).json({ message: `VAT details missing for item: ${currentItem.itemName}` });
+        }
+      }
+    }
+
     // Create new bill
     const savedBill = await createNewBill(cleanedData, organizationId);
 
-      // Track the items from the bill
-      await trackItemsFromBill(organizationId, itemTable, billDate , savedBill);
+    // Track the items from the bill
+    await trackItemsFromBill(organizationId, itemTable, billDate, savedBill);
 
     // Send success response
     res.status(201).json({ message: "Bill added successfully.", bill: savedBill });
@@ -51,47 +104,31 @@ exports.addBill = async (req, res) => {
   }
 };
 
-// Add purchased items from the bill to item tracking
-const trackItemsFromBill = async (organizationId, itemTable, billDate , savedBill) => {
-  for (const billItem of itemTable) {
-    const { itemId, itemName, itemQuantity } = billItem;
+// GST Calculation
+function calculateGST(itemPrice, gstRate, isInterState) {
+  let cgst = 0, sgst = 0, igst = 0, totalTax = 0;
 
-    // Find the item to update its stock (credit the quantity from the bill)
-    const savedItem = await Item.findOne({ _id: itemId, organizationId });
-
-    if (savedItem) {
-      // Update the current stock based on the quantity from the bill
-      const newStock = (savedItem.currentStock || 0) + Number(itemQuantity);
-
-      // Assuming you need to log or use itemName somewhere:
-      console.log(`Processing item: ${itemName}`); // Add usage here
-
-      // Create a new tracking entry for the item in the bill
-      const trackEntry = new ItemTrack({
-        organizationId,
-        operationId:savedBill._id, // Reference to the item
-        action: "Purchase", // Action representing the bill
-        date: billDate,
-        itemId: savedItem._id,
-        itemName: savedItem.itemName,
-        creditQuantity: Number(itemQuantity), // Credit the quantity from the bill
-        currentStock: newStock, // Updated stock after bill
-        remark: `Bill of ${itemQuantity} units`,
-      });
-
-      // Save the tracking entry
-      await trackEntry.save();
-
-      // Update the item's stock in the `Item` collection
-      savedItem.currentStock = newStock;
-      await savedItem.save();
-
-      console.log("Item Track Added for Bill:", trackEntry);
-    } else {
-      console.log(`Item with ID ${itemId} not found.`);
-    }
+  if (isInterState) {
+    // For Inter-state sales, apply IGST
+    igst = (gstRate / 100) * itemPrice;
+    totalTax = igst;
+  } else {
+    // For Intra-state sales, apply CGST + SGST
+    cgst = (gstRate / 2 / 100) * itemPrice;
+    sgst = (gstRate / 2 / 100) * itemPrice;
+    totalTax = cgst + sgst;
   }
-};
+
+  const totalPrice = itemPrice + totalTax;
+  return { cgst, sgst, igst, totalTax, totalPrice };
+}
+
+// VAT Calculation
+function calculateVAT(itemPrice, vatRate) {
+  const vat = (vatRate / 100) * itemPrice;
+  const totalPrice = itemPrice + vat;
+  return { vat, totalPrice };
+}
 
 // Clean data for bill
 function cleanBillData(data) {
@@ -103,19 +140,15 @@ function cleanBillData(data) {
 }
 
 // Validate inputs for bill, including settings validation
-function validateBillInputs(organizationExists, supplierExists, purchaseOrderExists, items, settings, res) {
+function validateBillInputs(organizationExists, supplierExists, items, settings, taxDetails, res) {
   if (!organizationExists) {
     res.status(404).json({ message: "Organization not found" });
-    return false;
+    return false; 
   }
   if (!supplierExists) {
     res.status(404).json({ message: "Supplier not found" });
     return false;
   }
-  // if (!purchaseOrderExists) {
-  //   res.status(404).json({ message: "Purchase order not found" });
-  //   return false;
-  // }
   if (items.some(item => !item)) {
     res.status(404).json({ message: "Items not found" });
     return false;
@@ -124,12 +157,10 @@ function validateBillInputs(organizationExists, supplierExists, purchaseOrderExi
     res.status(404).json({ message: "Settings not found for this organization." });
     return false;
   }
-  // You can add further validation logic using `settings` here, for example:
-  // if (!settings.allowBillCreation) {
-  //   res.status(403).json({ message: "Bill creation is disabled in settings." });
-  //   return false;
-  // }
-
+  if (!taxDetails) {
+    res.status(404).json({ message: "Tax details not found for this organization." });
+    return false;
+  }
   return true;
 }
 
@@ -148,3 +179,38 @@ async function createNewBill(data, organizationId) {
   const newBill = new PurchaseBill({ ...data, organizationId, paidStatus: "Pending" });
   return newBill.save();
 }
+
+// Add purchased items from the bill to item tracking
+const trackItemsFromBill = async (organizationId, itemTable, billDate, savedBill) => {
+  for (const billItem of itemTable) {
+    const { itemId, itemName, itemQuantity } = billItem;
+
+    // Find the item to update its stock (credit the quantity from the bill)
+    const savedItem = await Item.findOne({ _id: itemId, organizationId });
+
+    if (savedItem) {
+      const newStock = (savedItem.currentStock || 0) + Number(itemQuantity);
+      console.log(`Processing item: ${itemName}`);
+
+      const trackEntry = new ItemTrack({
+        organizationId,
+        operationId: savedBill._id,
+        action: "Purchase",
+        date: billDate,
+        itemId: savedItem._id,
+        itemName: savedItem.itemName,
+        creditQuantity: Number(itemQuantity),
+        currentStock: newStock,
+        remark: `Bill of ${itemQuantity} units`,
+      });
+
+      await trackEntry.save();
+      savedItem.currentStock = newStock;
+      await savedItem.save();
+
+      console.log("Item Track Added for Bill:", trackEntry);
+    } else {
+      console.log(`Item with ID ${itemId} not found.`);
+    }
+  }
+};

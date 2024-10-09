@@ -45,11 +45,11 @@ const purchaseOrderSchema = new mongoose.Schema({
 
   purchaseOrder: { type: String },  //prefix
   reference: { type: String },
-  shipmentPreference: { type: String },   //*
+  shipmentPreference: { type: String },   // e.g., 'Road', 'Rail', 'Air', 'Sea'
   purchaseOrderDate: { type: String },
   expectedShipmentDate: { type: String },
   paymentTerms: { type: String },
-  paymentMode: { type: String },  //*
+  paymentMode: { type: String },  //
   
   discountType: { type: String}, // item line / transaction line / both
   taxType: { type: String },  //GST/VAT
@@ -62,7 +62,6 @@ const purchaseOrderSchema = new mongoose.Schema({
   otherExpenseReason: { type: String },
   freight: { type: Number },
   vehicleNo: { type: String }, 
-  // transportationMode: { type: String }, // e.g., 'Road', 'Rail', 'Air', 'Sea'
   addNotes: { type: String },
   termsAndConditions: { type: String },
   attachFiles: { type: String }, 
@@ -76,8 +75,9 @@ const purchaseOrderSchema = new mongoose.Schema({
   igst: { type: Number },
   vat: { type: Number },
 
-  transactionDiscount: { type: String },
   transactionDiscountType: { type: String }, //percentage/rupee
+  transactionDiscount: { type: String },
+  totalDiscount: { type: String }, 
   totalTaxAmount: { type: Number },
   roundOff: { type: Number },
   grandTotal: { type: Number },
