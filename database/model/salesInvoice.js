@@ -22,7 +22,7 @@ const itemsSchema = new Schema({
 
   }, { _id: false });
 
-const SalesOderSchema = new Schema ({
+const SalesInvoiceSchema = new Schema ({
 
   organizationId: { type: String, index: true },
   
@@ -71,9 +71,9 @@ const SalesOderSchema = new Schema ({
 })
 
 
-const SalesOder = mongoose.model("SalesOder", SalesOderSchema);
+const SalesInvoice = mongoose.model("SalesInvoice", SalesInvoiceSchema);
 
-module.exports = SalesOder;
+module.exports = SalesInvoice;
 
 
 
