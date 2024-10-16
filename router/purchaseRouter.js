@@ -30,12 +30,12 @@ router.post('/add-Bills',billsCont.addBill);
 // router.delete('/delete-Bill/:id',billsController.deletePurchaseBill)
 
 
-//paymentmade
-router.post('/addPayment', PaymentMadeController.addPurchasePayment);
-router.get('/getAllPayments/:id', PaymentMadeController.getAllPurchasePayments );
-router.get('/getPayment/:id', PaymentMadeController.getPurchasePayment);
-router.put('/updatePayment/:id', PaymentMadeController.updatePurchasePayment);
-router.delete('/deletePayment/:id', PaymentMadeController.deletePurchasePayment);
+// //paymentmade
+// router.post('/addPayment', PaymentMadeController.addPayment);
+// router.get('/getAllPayments/:id', PaymentMadeController.getAllPurchasePayments );
+// router.get('/getPayment/:id', PaymentMadeController.getPurchasePayment);
+// router.put('/updatePayment/:id', PaymentMadeController.updatePurchasePayment);
+// router.delete('/deletePayment/:id', PaymentMadeController.deletePurchasePayment);
 
 //Debit Note
 router.post('/addDebitNote', debitNoteController.addDebitNote);

@@ -3,12 +3,13 @@ const { Schema } = mongoose;
 
 const itemTableSchema = new Schema({
   itemId: { type: String },
-  itemProduct: { type: String },
+  itemName: { type: String },
   itemQuantity: { type: String },
   itemSellingPrice: { type: String },
-  itemDiscount: { type: String },
+  itemTax: { type: String },
   itemDiscountType: { type: String }, //percentage/rupees
-  itemAmount: { type: String },
+  itemDiscount: { type: String },
+  itemAmount: { type: Number },
 
   itemSgst: { type: String },
   itemCgst: { type: String },
@@ -19,21 +20,11 @@ const itemTableSchema = new Schema({
 const purchaseOrderSchema = new mongoose.Schema({
   organizationId: {type:String},
   supplierId: { type: String},
-  supplierDisplayName: { type: String },
+  // supplierDisplayName: { type: String },
   
   //supplierBillingAddress:
-  // supplierBillingAttention: { type: String },
   supplierBillingCountry: { type: String },
-  // supplierBillingAddressStreet1: { type: String },
-  // supplierBillingAddressStreet2: { type: String },
-  // supplierBillingCity: { type: String },
   supplierBillingState: { type: String },
-  // supplierBillingPinCode: { type: String },
-  // supplierBillingPhone: { type: String },
-  // supplierBillingFaxNum: { type: String },
-
-  // supplierGstNo: { type: String },
-  // supplierMobile: { type: String },
 
   taxMode: { type: String }, // intra/inter/None
 
@@ -52,7 +43,7 @@ const purchaseOrderSchema = new mongoose.Schema({
   paymentMode: { type: String },  //
   
   discountType: { type: String}, // item line / transaction line / both
-  taxType: { type: String },  //GST/VAT
+  // taxType: { type: String },  //GST/VAT
 
   // Item table
   itemTable: [itemTableSchema],
@@ -77,8 +68,11 @@ const purchaseOrderSchema = new mongoose.Schema({
 
   transactionDiscountType: { type: String }, //percentage/rupee
   transactionDiscount: { type: String },
-  totalDiscount: { type: String }, 
+  transactionDiscountAmount: { type: String },
+  beforeTaxDiscountAmount: { type: String },
+  totalDiscount: { type: String },
   totalTaxAmount: { type: Number },
+  afterTaxDiscountAmount: { type: String },
   roundOff: { type: Number },
   grandTotal: { type: Number },
   status: { type: String }, // Open/Converted to bills

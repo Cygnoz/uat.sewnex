@@ -7,6 +7,7 @@ const itemTableSchema = new Schema({
   itemQuantity: { type: String },
   itemSellingPrice: { type: String },
   itemDiscount: { type: String },
+  itemDiscountType: { type: String }, //percentage/currency
   itemAmount: { type: String },
 
   itemSgst: { type: String },
@@ -23,10 +24,13 @@ const PurchaseBillSchema = new Schema({
   billDate: { type: String }, // Changed to String, use date format when parsing
   dueDate: { type: String },  // Changed to String, use date format when parsing
   orderNumber: { type: String },//prefix
-
+  reference: { type: String },
+  shipmentPreference: { type: String },   // e.g., 'Road', 'Rail', 'Air', 'Sea'
+  
   //supplierBillingAddress
   supplierBillingCountry: { type: String },
   supplierBillingState: { type: String },
+  expectedShipmentDate: { type: String },
 
 
   taxMode: { type: String },  // 'intra' or 'inter'
@@ -56,6 +60,7 @@ const PurchaseBillSchema = new Schema({
   subTotal: { type: String },
   totalItem: { type: String },
   transactionDiscount: { type: String },
+  transactionDiscountType: { type: String }, //percentage/rupee
   totalTaxAmount: { type: String },
   roundOff: { type: String },
   grandTotal: { type: String },
