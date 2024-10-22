@@ -443,7 +443,7 @@ const isDuplicateSKUExist = async (sku, organizationId, itemId, res) => {
 
 //Clean Data 
 function cleanCustomerData(data) {
-    const cleanData = (value) => (value === null || value === undefined || value === "" || value === 0 ? undefined : value);
+    const cleanData = (value) => (value === null || value === undefined || value === "" ? undefined : value);
     return Object.keys(data).reduce((acc, key) => {
       acc[key] = cleanData(data[key]);
       return acc;
@@ -577,16 +577,10 @@ function validateReqFields( data, errors ) {
   }
   if (typeof data.sellingPrice === 'undefined' ) {
   errors.push(" Selling Price required");
-  }
-  if (typeof data.costPrice === 'undefined' ) {
-    errors.push(" Cost Price required");
-    }
+  }  
   if (typeof data.taxPreference === 'undefined' ) {
   errors.push("Tax Preference required");
   }
-  if (typeof data.openingStock === 'undefined' ) {
-    errors.push("Opening Stock required");
-    }
   if (data.taxPreference ==='Taxable' && typeof data.taxRate === 'undefined' ) {
   errors.push("Tax Rate required");
   }
