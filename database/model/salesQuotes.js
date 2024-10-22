@@ -52,11 +52,8 @@ const SalesQuotesSchema = new Schema ({
   tc: { type: String },
 
 
-  //not in ui
-  //discountType: { type: String }, // Item Line, Transaction Line, Both
   discountTransactionType: { type: String }, //Currency,Percentage
   discountTransactionAmount: { type: Number },
-  //discountTax: { type: String }, // After, Before
   taxType: { type: String }, //Intra, Inter, Non-tax, VAT   
   
   subTotal: { type: Number },

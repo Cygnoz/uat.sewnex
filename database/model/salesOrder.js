@@ -6,7 +6,7 @@ const itemsSchema = new Schema({
     itemId: {type:String},
     itemName: {type:String},
 
-    quantity: {type:String},
+    quantity: {type:Number},
     sellingPrice: {type:Number},
 
     taxGroup: {type:String},
@@ -66,11 +66,8 @@ const SalesOrderSchema = new Schema ({
   roundOffAmount: { type: Number },
 
 
-  //not in ui
-  // discountType: { type: String }, // item, tran, both 
   discountTransactionType: { type: String }, // Currency,Percentage
   discountTransactionAmount: { type: Number },
-  // discountTax: { type: String }, // after, before
   taxtype: { type: String }, //Intra, Inter, Non-tax, VAT   
   
   subTotal: { type: Number },

@@ -210,19 +210,19 @@ function cleanCustomerData(data) {
   
 // Validate Organization Tax Currency
 function validateOrganizationTaxCurrency( organizationExists, customerExist, existingPrefix, res ) {
-    if (!organizationExists) {
-      res.status(404).json({ message: "Organization not found" });
-      return false;
-    }
-    if (!customerExist) {
-      res.status(404).json({ message: "Customer not found" });
-      return false;
-    }
-    if (!existingPrefix) {
-      res.status(404).json({ message: "Prefix not found" });
-      return false;
-    }
-    return true;
+  if (!organizationExists) {
+    res.status(404).json({ message: "Organization not found" });
+    return false;
+  }
+  if (!customerExist) {
+    res.status(404).json({ message: "Customer not found" });
+    return false;
+  }
+  if (!existingPrefix) {
+    res.status(404).json({ message: "Prefix not found" });
+    return false;
+  }
+  return true;
 }
   
 
