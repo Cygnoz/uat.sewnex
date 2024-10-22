@@ -533,7 +533,7 @@ function validateItemData( data, taxExists, organizationId, bmcr ) {
   //OtherDetails
   validateItemType(data.itemType, errors);
   validateTaxPreference(data.taxPreference, errors);
-  validateReqFields( data.itemName, data.sellingPrice, data.taxPreference, data.taxRate , errors);
+  validateReqFields( data, errors);
   validateBMCRFields( data.brand, data.manufacturer, data.categories, data.rack, bmcr, errors);
 
 
@@ -571,23 +571,29 @@ function validateTaxPreference(taxPreference, errors) {
 }
 
 //Valid Req Fields
-function validateReqFields( itemName, sellingPrice, taxPreference, taxRate , errors ) {
-  if (typeof itemName === 'undefined' ) {
+function validateReqFields( data, errors ) {
+  if (typeof data.itemName === 'undefined' ) {
     errors.push("Item Name required");
   }
-  if (typeof sellingPrice === 'undefined' ) {
+  if (typeof data.sellingPrice === 'undefined' ) {
   errors.push(" Selling Price required");
   }
-  if (typeof taxPreference === 'undefined' ) {
+  if (typeof data.costPrice === 'undefined' ) {
+    errors.push(" Cost Price required");
+    }
+  if (typeof data.taxPreference === 'undefined' ) {
   errors.push("Tax Preference required");
   }
-  if (taxPreference =='Taxable' && typeof taxRate === 'undefined' ) {
+  if (typeof data.openingStock === 'undefined' ) {
+    errors.push("Opening Stock required");
+    }
+  if (data.taxPreference ==='Taxable' && typeof data.taxRate === 'undefined' ) {
   errors.push("Tax Rate required");
   }
-  if (taxPreference =='Non-Taxable' && typeof taxExemptReason === 'undefined' ) {
+  if (data.taxPreference ==='Non-taxable' && typeof data.taxExemptReason === 'undefined' ) {
     errors.push("Tax Exemption Reason required");
   }
-  if (taxPreference =='Non-Taxable' && typeof taxRate !== 'undefined' ) {
+  if (data.taxPreference ==='Non-taxable' && typeof data.taxRate !== 'undefined' ) {
     errors.push("Invalid Tax Preference");
   }
 }
