@@ -24,6 +24,9 @@ router.post('/add-sales-quotes',verifyToken,salesQuotes.addQuotes)
 
 router.get('/get-last-sales-quotes-prefix',verifyToken,salesQuotes.getLastQuotesPrefix)
 
+router.get('/get-all-sales-quotes',verifyToken,salesQuotes.getAllSalesQuote)
+
+router.get('/get-one-sales-quotes/:quoteId',verifyToken,salesQuotes.getOneSalesQuote)
 
 
 

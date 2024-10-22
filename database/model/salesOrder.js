@@ -49,7 +49,7 @@ const SalesOrderSchema = new Schema ({
   expectedShipmentDate: { type: String },
 
   salesOrderDate: { type: String },  
-  expiryDate: { type: String },
+  //expiryDate: { type: String },
 
   //subject: { type: String },
   

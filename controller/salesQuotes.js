@@ -26,17 +26,27 @@ const dataExist = async ( organizationId, items, customerId, customerName ) => {
     ]);
     return { organizationExists, customerExist , settings, itemTable, itemTrack, existingPrefix };
   };
+
+  const salesDataExist = async ( organizationId, quoteId ) => {    
+    
+      const [organizationExists, allQuotes, quotes ] = await Promise.all([
+        Organization.findOne({ organizationId }, { organizationId: 1}),
+        Quotes.find({ organizationId }),
+        Quotes.findOne({ organizationId , _id: quoteId },)
+      ]);
+      return { organizationExists, allQuotes, quotes };
+    };
   
 // Add Sales Quotes
 exports.addQuotes = async (req, res) => {
-    //console.log("Add Quotes:", req.body);
+    console.log("Add Quotes:", req.body);
     try {
       const { organizationId, id: userId, userName } = req.user;
 
       //Clean Data
       const cleanedData = cleanCustomerData(req.body);
 
-      console.log("Cleaned Data :", cleanedData);
+      // console.log("Cleaned Data :", cleanedData);
       
 
       const { items } = cleanedData;
@@ -120,9 +130,60 @@ exports.getLastQuotesPrefix = async (req, res) => {
 };
 
 
+// Get All Sales Quote
+exports.getAllSalesQuote = async (req, res) => {
+    try {
+      const organizationId = req.user.organizationId;
+  
+      const { organizationExists, allQuotes } = await salesDataExist(organizationId);
+  
+      if (!organizationExists) {
+        return res.status(404).json({
+          message: "Organization not found",
+        });
+      }
+  
+      if (!allQuotes.length) {
+        return res.status(404).json({
+          message: "No Quotes found",
+        });
+      }
+  
+      res.status(200).json(allQuotes);
+    } catch (error) {
+      console.error("Error fetching Quotes:", error);
+      res.status(500).json({ message: "Internal server error." });
+    }
+  };
 
 
 
+// Get One Sales Quote
+exports.getOneSalesQuote = async (req, res) => {
+  try {
+    const organizationId = req.user.organizationId;
+    const  quoteId = req.params.quoteId;
+
+    const { organizationExists, allQuotes, quotes } = await salesDataExist(organizationId,quoteId);
+
+    if (!organizationExists) {
+      return res.status(404).json({
+        message: "Organization not found",
+      });
+    }
+
+    if (!quotes) {
+      return res.status(404).json({
+        message: "No Quotes found",
+      });
+    }
+
+    res.status(200).json(quotes);
+  } catch (error) {
+    console.error("Error fetching Quotes:", error);
+    res.status(500).json({ message: "Internal server error." });
+  }
+};
 
 
 
@@ -257,7 +318,7 @@ function generateOpeningDate(organizationExists) {
 
 
 //Validate inputs
-  function validateInputs( data, customerExist, items, itemExists, organizationExists, res) {
+function validateInputs( data, customerExist, items, itemExists, organizationExists, res) {
     const validationErrors = validateQuoteData(data, customerExist, items, itemExists, organizationExists);
   
     if (validationErrors.length > 0) {
@@ -265,7 +326,7 @@ function generateOpeningDate(organizationExists) {
       return false;
     }
     return true;
-  }
+}
 
 // Create New Quotes
 function createNewQuote( data, openingDate, organizationId, userId, userName ) {
@@ -359,7 +420,7 @@ function generateTimeAndDateForDB(
       time: `${formattedTime} (${timeZoneName})`,
       dateTime: dateTime,
     };
-  }
+}
 
 
 
@@ -553,6 +614,7 @@ function isValidEmail(value) {
 
 
 function calculateSalesOrder(cleanedData, res) {
+  const errors = [];
   let totalAmount = 0;
   let subTotal = 0;
   let totalTax = 0;
@@ -606,24 +668,32 @@ function calculateSalesOrder(cleanedData, res) {
       console.log(`Item: ${item.itemName}, Calculated IGST: ${calculatedIgstAmount}, IGST from data: ${item.igstAmount}`);
       console.log(`Item: ${item.itemName}, Calculated VAT: ${calculatedVatAmount}, VAT from data: ${item.vatAmount}`);
 
+
       // Check tax amounts
       if (Math.abs(calculatedCgstAmount - item.cgstAmount) > 0.01) {
+        errors.push(`Mismatch in CGST for item ${item.itemName}: Calculated ${calculatedCgstAmount}, Provided ${item.cgstAmount}`);
         console.log(`Mismatch in CGST for item ${item.itemName}: Calculated ${calculatedCgstAmount}, Provided ${item.cgstAmount}`);
       }
       if (Math.abs(calculatedSgstAmount - item.sgstAmount) > 0.01) {
+        errors.push(`Mismatch in SGST for item ${item.itemName}: Calculated ${calculatedSgstAmount}, Provided ${item.sgstAmount}`);
         console.log(`Mismatch in SGST for item ${item.itemName}: Calculated ${calculatedSgstAmount}, Provided ${item.sgstAmount}`);
       }
       if (Math.abs(calculatedIgstAmount - item.igstAmount) > 0.01) {
+        errors.push(`Mismatch in IGST for item ${item.itemName}: Calculated ${calculatedIgstAmount}, Provided ${item.igstAmount}`);
         console.log(`Mismatch in IGST for item ${item.itemName}: Calculated ${calculatedIgstAmount}, Provided ${item.igstAmount}`);
       }
       if (Math.abs(calculatedVatAmount - item.vatAmount) > 0.01) {
+        errors.push(`Mismatch in VAT for item ${item.itemName}: Calculated ${calculatedVatAmount}, Provided ${item.vatAmount}`);
         console.log(`Mismatch in VAT for item ${item.itemName}: Calculated ${calculatedVatAmount}, Provided ${item.vatAmount}`);
       }
       if (Math.abs(calculatedTaxAmount - item.itemTotaltax) > 0.01) {
-        console.log(`Mismatch in Total tax for item ${item.itemName}: Calculated ${calculatedVatAmount}, Provided ${item.vatAmount}`);
+        errors.push(`Mismatch in Total tax for item ${item.itemName}: Calculated ${calculatedTaxAmount}, Provided ${item.itemTotaltax}`);
+        console.log(`Mismatch in Total tax for item ${item.itemName}: Calculated ${calculatedTaxAmount}, Provided ${item.itemTotaltax}`);
       }
     } else {
       console.log(`Skipping tax for non-taxable item: ${item.itemName}`);
+      console.log(`Item: ${item.itemName}, Calculated Discount: ${totalDiscount}`);
+
     }
 
     // Update total values
@@ -636,6 +706,7 @@ function calculateSalesOrder(cleanedData, res) {
 
     console.log(`${item.itemName} Item Total: ${itemTotal} , Provided ${item.amount}`);
     console.log(`${item.itemName} Total Tax: ${calculatedTaxAmount} , Provided ${item.itemTotaltax || 0 }`);
+    console.log("");
   });
 
   let transactionDiscount = 0;
@@ -694,31 +765,25 @@ function calculateSalesOrder(cleanedData, res) {
 
 
 
-  console.log({
-    calculatedSubTotal,
-    calculatedTotalTax,
-    calculatedTotalAmount,
-    isSubTotalCorrect,
-    isTotalTaxCorrect,
-    isTotalAmountCorrect,
-  });
-
-  const errors = [];
-
   if (!isSubTotalCorrect) {
     errors.push(`SubTotal is incorrect: ${cleanedData.subTotal}`);
+    console.log(`SubTotal is incorrect: ${cleanedData.subTotal}`);    
   }
   if (!isTotalTaxCorrect) {
     errors.push(`Total Tax is incorrect: ${cleanedData.totalTax}`);
+    console.log(`Total Tax is incorrect: ${cleanedData.totalTax}`);   
   }
   if (!isTotalAmountCorrect) {
     errors.push(`Total Amount is incorrect: ${cleanedData.totalAmount}`);
+    console.log(`Total Amount is incorrect: ${cleanedData.totalAmount}`);   
   }
   if (!isTotalDiscount) {
     errors.push(`Total Discount Amount is incorrect: ${cleanedData.totalDiscount}`);
+    console.log(`Total Discount Amount is incorrect: ${cleanedData.totalDiscount}`);   
   }
   if (!isTotalItemCount) {
     errors.push(`Total Item count is incorrect: ${cleanedData.totalItem}`);
+    console.log(`Total Item count is incorrect: ${cleanedData.totalItem}`);   
   }
 
   if (errors.length > 0) {
