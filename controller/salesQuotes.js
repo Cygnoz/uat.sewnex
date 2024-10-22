@@ -627,7 +627,7 @@ function calculateSalesOrder(cleanedData, res) {
     }
 
     // Update total values
-    subTotal += itemTotal;
+    subTotal += parseFloat(itemTotal);
 
     // Only add to totalTax if the item is taxable
     if (item.taxPreference === 'Taxable') {
@@ -649,7 +649,7 @@ function calculateSalesOrder(cleanedData, res) {
       transactionDiscount = (subTotal * cleanedData.discountTransactionAmount) / 100;
     }
 
-  totalDiscount +=  transactionDiscount;
+  totalDiscount +=  parseFloat(transactionDiscount);
 
   
 
