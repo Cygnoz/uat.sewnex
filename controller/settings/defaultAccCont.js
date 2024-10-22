@@ -87,7 +87,23 @@ exports.addDefaultAccount = async (req, res) => {
 };
   
 
+// Get Default Account 
+exports.getDefaultAccount  = async (req, res) => {
+  try {
+    const organizationId = req.user.organizationId;
 
+    const defaultAccount = await DefAcc.findOne({organizationId});
+
+    if (defaultAccount) {
+      res.status(200).json(defaultAccount);
+    } else {
+      res.status(404).json({ message: "Default Account not found" });
+    }
+  } catch (error) {
+    console.error("Error fetching Default Account:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
 
 
 //Clean Data 
@@ -101,7 +117,7 @@ function cleanCustomerData(data) {
 
 
 
-// Validate Organization Tax Currency
+// Validate Organization Tax 
 function validateOrganizationTaxCurrency( organizationExists, taxExist, res ) {
   if (!organizationExists) {
     res.status(404).json({ message: "Organization not found" });
@@ -176,20 +192,3 @@ const validateAccountsExist = (accounts, accountIds) => {
 
 
 
-// Get Default Account 
-exports.getDefaultAccount  = async (req, res) => {
-  try {
-    const organizationId = req.user.organizationId;
-
-    const defaultAccount = await DefAcc.findOne({organizationId});
-
-    if (defaultAccount) {
-      res.status(200).json(defaultAccount);
-    } else {
-      res.status(404).json({ message: "Default Account not found" });
-    }
-  } catch (error) {
-    console.error("Error fetching Default Account:", error);
-    res.status(500).json({ message: "Internal server error" });
-  }
-};
