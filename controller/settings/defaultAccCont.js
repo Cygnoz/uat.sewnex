@@ -181,7 +181,7 @@ exports.getDefaultAccount  = async (req, res) => {
   try {
     const organizationId = req.user.organizationId;
 
-    const defaultAccount = await DefAcc.find({organizationId});
+    const defaultAccount = await DefAcc.findOne({organizationId});
 
     if (defaultAccount) {
       res.status(200).json(defaultAccount);
