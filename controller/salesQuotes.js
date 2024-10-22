@@ -569,8 +569,8 @@ function calculateSalesOrder(cleanedData, res) {
         : (item.sellingPrice * item.quantity * item.discountAmount) / 100;
     // }
 
-    totalDiscount +=  discountAmount;
-    totalItemCount +=  item.quantity;
+    totalDiscount +=  parseFloat(discountAmount);
+    totalItemCount +=  parseFloat(item.quantity);
 
 
     let itemTotal = (item.sellingPrice * item.quantity) - discountAmount;
@@ -640,7 +640,7 @@ function calculateSalesOrder(cleanedData, res) {
   let transactionDiscount = 0;
 
   // Apply transaction level discount if applicable
-  // if (cleanedData.discountType === 'Transaction Line' || cleanedData.discountType === 'Both') {
+  
     if (cleanedData.discountTransactionType === 'Currency') {
       transactionDiscount = cleanedData.discountTransactionAmount;
     } else {
@@ -648,11 +648,6 @@ function calculateSalesOrder(cleanedData, res) {
       transactionDiscount = (subTotal * cleanedData.discountTransactionAmount) / 100;
     }
 
-    // if (cleanedData.discountTax === 'Before') {
-    //   // Apply discount before tax
-    //   subTotal -= transactionDiscount;
-    // }
-  // }
   totalDiscount +=  transactionDiscount;
 
   
@@ -690,11 +685,11 @@ function calculateSalesOrder(cleanedData, res) {
 
   const cleanedDataTotalTax = cleanedData.totalTax || 0;
 
-  const isSubTotalCorrect = roundedSubTotal === cleanedData.subTotal;
-  const isTotalTaxCorrect = roundedTotalTax === cleanedDataTotalTax;
-  const isTotalAmountCorrect = roundedTotalAmount === cleanedData.totalAmount;
-  const isTotalDiscount = totalDiscount === cleanedData.totalDiscount;
-  const isTotalItemCount = totalItemCount === cleanedData.totalItem;
+  const isSubTotalCorrect = roundedSubTotal === parseFloat(cleanedData.subTotal);
+  const isTotalTaxCorrect = roundedTotalTax === parseFloat(cleanedDataTotalTax);
+  const isTotalAmountCorrect = roundedTotalAmount === parseFloat(cleanedData.totalAmount);
+  const isTotalDiscount = totalDiscount === parseFloat(cleanedData.totalDiscount);
+  const isTotalItemCount = totalItemCount === parseFloat(cleanedData.totalItem);
 
 
 
