@@ -127,9 +127,7 @@ exports.getLastQuotesPrefix = async (req, res) => {
 
 
 // Utility Functions
-//const validDiscountType = ["Item Line", "Transaction Line", "Both"];
 const validDiscountTransactionType = ["Currency", "Percentage"];
-//const validDiscountTax = ["After", "Before"];
 
 const validCountries = {
   "United Arab Emirates": [
@@ -201,7 +199,7 @@ const validCountries = {
   
 //Clean Data 
 function cleanCustomerData(data) {
-    const cleanData = (value) => (value === null || value === undefined || value === "" || value === 0 ? undefined : value);
+    const cleanData = (value) => (value === null || value === undefined || value === "" ? undefined : value);
     return Object.keys(data).reduce((acc, key) => {
       acc[key] = cleanData(data[key]);
       return acc;
@@ -392,7 +390,7 @@ function validateQuoteData( data, customerExist, items, itemTable, organizationE
     //OtherDetails
     //validateAlphanumericFields([''], data, errors);
     validateIntegerFields(['totalItem'], data, errors);
-    validateFloatFields(['discountTransactionAmount', 'subTotal','cgst','sgst','igst','vat','totalTax','totalAmount'], data, errors);
+    validateFloatFields(['discountTransactionAmount', 'subTotal','cgst','sgst','igst','vat','totalTax','totalAmount','totalDiscount'], data, errors);
     //validateAlphabetsFields([''], data, errors);
 
     //Tax Details
