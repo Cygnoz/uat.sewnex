@@ -36,6 +36,9 @@ exports.addQuotes = async (req, res) => {
       //Clean Data
       const cleanedData = cleanCustomerData(req.body);
 
+      console.log("Cleaned Data :", cleanedData);
+      
+
       const { items } = cleanedData;
       const { customerId, customerName } = cleanedData;
       const itemIds = items.map(item => item.itemId);
