@@ -698,6 +698,10 @@ function calculateSalesOrder(cleanedData, res) {
       totalTax += calculatedCgstAmount + calculatedSgstAmount + calculatedIgstAmount + calculatedVatAmount || 0 ;
     }
 
+    if (Math.abs(itemTotal - item.amount) > 0.01) {
+      errors.push(`Mismatch in Item Total for item ${item.itemName} Item Total: ${itemTotal} , Provided ${item.amount}`);
+    }
+
     console.log(`${item.itemName} Item Total: ${itemTotal} , Provided ${item.amount}`);
     console.log(`${item.itemName} Total Tax: ${calculatedTaxAmount} , Provided ${item.itemTotaltax || 0 }`);
     console.log("");
