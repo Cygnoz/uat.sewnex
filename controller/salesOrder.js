@@ -19,7 +19,7 @@ const dataExist = async ( organizationId, items, customerId, customerName ) => {
     const [organizationExists, customerExist , settings, itemTable, itemTrack, existingPrefix  ] = await Promise.all([
       Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
       Customer.findOne({ organizationId , _id:customerId, customerDisplayName: customerName}, { _id: 1, customerDisplayName: 1, taxType: 1 }),
-      Settings.findOne({ organizationId }),
+      Settings.findOne({ organizationId },{ salesOrderAddress: 1, salesOrderCustomerNote: 1, salesOrderTermsCondition: 1, salesOrderClose: 1, restrictSalesOrderClose: 1, termCondition: 1 ,customerNote: 1 }),
       Item.find({ organizationId, _id: { $in: itemIds } }, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }),
       ItemTrack.find({ itemId: { $in: itemIds } }),
       Prefix.findOne({ organizationId })
@@ -200,7 +200,7 @@ const validCountries = {
   
 //Clean Data 
 function cleanCustomerData(data) {
-  const cleanData = (value) => (value === null || value === undefined || value === "" || value === 0 ? undefined : value);
+  const cleanData = (value) => (value === null || value === undefined || value === "" ? undefined : value);
   return Object.keys(data).reduce((acc, key) => {
     acc[key] = cleanData(data[key]);
     return acc;
@@ -392,7 +392,7 @@ function validateQuoteData( data, customerExist, items, itemTable, organizationE
   //OtherDetails
   //validateAlphanumericFields([''], data, errors);
   validateIntegerFields(['totalItem'], data, errors);
-  validateFloatFields(['discountTransactionAmount', 'subTotal','cgst','sgst','igst','vat','totalTax','totalAmount','totalDiscount'], data, errors);
+  validateFloatFields(['discountTransactionAmount', 'subTotal','cgst','sgst','igst','vat','totalTax','totalAmount','totalDiscount','otherExpenseAmount','freightAmount','roundOffAmount'], data, errors);
   //validateAlphabetsFields([''], data, errors);
 
   //Tax Details
@@ -411,6 +411,7 @@ validateField( typeof data.customerId === 'undefined' || typeof data.customerNam
 validateField( typeof data.placeOfSupply === 'undefined', "Place of supply required", errors  );
 validateField( typeof data.items === 'undefined', "Select an item", errors  );
 validateField( typeof data.otherExpenseAmount !== 'undefined' && typeof data.otherExpenseReason === 'undefined', "Please enter other expense reason", errors  );
+validateField( !(data.roundOffAmount >= 0 && data.roundOffAmount <= 1), " Round Off Amount must be between 0 and 1", errors );
 
 }
 // Function to Validate Item Table 
@@ -655,6 +656,19 @@ function calculateSalesOrder(cleanedData, res) {
     console.log(`${item.itemName} Total Tax: ${calculatedTaxAmount} , Provided ${item.itemTotaltax || 0 }`);
     console.log("");
   });
+
+  if(cleanedData.otherExpenseAmount){
+    subTotal +=  parseFloat(cleanedData.otherExpenseAmount);
+    console.log("Other Expense Amount", cleanedData.otherExpenseAmount);    
+  }
+  if(cleanedData.freightAmount){
+    subTotal +=  parseFloat(cleanedData.freightAmount);
+    console.log("Freight Amount", cleanedData.freightAmount);    
+  }
+  if(cleanedData.roundOffAmount){
+    subTotal -=  parseFloat(cleanedData.roundOffAmount);
+    console.log("Round Off Amount", cleanedData.roundOffAmount);    
+  }
 
   let transactionDiscount = 0;
 

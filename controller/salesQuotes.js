@@ -19,7 +19,7 @@ const dataExist = async ( organizationId, items, customerId, customerName ) => {
     const [organizationExists, customerExist , settings, itemTable, itemTrack, existingPrefix  ] = await Promise.all([
       Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
       Customer.findOne({ organizationId , _id:customerId, customerDisplayName: customerName}, { _id: 1, customerDisplayName: 1, taxType: 1 }),
-      Settings.findOne({ organizationId }),
+      Settings.findOne({ organizationId },{ salesOrderAddress: 1, salesOrderCustomerNote: 1, salesOrderTermsCondition: 1, salesOrderClose: 1, restrictSalesOrderClose: 1, termCondition: 1 ,customerNote: 1 }),
       Item.find({ organizationId, _id: { $in: itemIds } }, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }),
       ItemTrack.find({ itemId: { $in: itemIds } }),
       Prefix.findOne({ organizationId })
@@ -44,10 +44,7 @@ exports.addQuotes = async (req, res) => {
       const { organizationId, id: userId, userName } = req.user;
 
       //Clean Data
-      const cleanedData = cleanCustomerData(req.body);
-
-      // console.log("Cleaned Data :", cleanedData);
-      
+      const cleanedData = cleanCustomerData(req.body);      
 
       const { items } = cleanedData;
       const { customerId, customerName } = cleanedData;
@@ -69,9 +66,7 @@ exports.addQuotes = async (req, res) => {
         return res.status(400).json({ message: `Invalid item IDs: ${invalidItemIds.join(', ')}` });
       }   
   
-      const { organizationExists, customerExist , settings, itemTable, itemTrack, existingPrefix } = await dataExist( organizationId, items, customerId, customerName );
-
-      
+      const { organizationExists, customerExist , itemTable, existingPrefix } = await dataExist( organizationId, items, customerId, customerName );      
       
       //Data Exist Validation
       if (!validateOrganizationTaxCurrency( organizationExists, customerExist, existingPrefix, res )) return;
@@ -90,7 +85,6 @@ exports.addQuotes = async (req, res) => {
       // Calculate Sales 
       if (!calculateSalesOrder( cleanedData, res )) return;
 
-      // console.log('Calculation Result:', result);
       //Prefix
       await salesPrefix(cleanedData, existingPrefix );
 
@@ -164,7 +158,7 @@ exports.getOneSalesQuote = async (req, res) => {
     const organizationId = req.user.organizationId;
     const  quoteId = req.params.quoteId;
 
-    const { organizationExists, allQuotes, quotes } = await salesDataExist(organizationId,quoteId);
+    const { organizationExists, quotes } = await salesDataExist(organizationId,quoteId);
 
     if (!organizationExists) {
       return res.status(404).json({

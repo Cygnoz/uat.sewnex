@@ -1,3 +1,5 @@
+// v1.1
+
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
 
@@ -55,7 +57,16 @@ const settingSchema = new Schema({
   outOfStockBelowZero : { type: Boolean }, //default:false
   notifyReorderPoint: { type: Boolean }, //default:false
   trackCostOnItems: { type: Boolean }, //default:false
+ 
+  // supplier
+  duplicateSupplierDisplayName: { type: Boolean }, //default:false
+  duplicateSupplierEmail: { type: Boolean }, //default:false
+  duplicateSupplierMobile: { type: Boolean }, //default:false
 
+  // customer
+  duplicateCustomerDisplayName: { type: Boolean }, //default:false
+  duplicateCustomerEmail: { type: Boolean }, //default:false
+  duplicateCustomerMobile: { type: Boolean }, //default:false
 
 
   //Sales Order
@@ -75,8 +86,8 @@ const settingSchema = new Schema({
 
 
   //Invoice
-  invoiceEdit: { type: Boolean }, //deafult=false
-  displayExpenseReceipt: { type: Boolean }, //deafult=false
+  invoiceEdit: { type: Boolean }, //default=false
+  displayExpenseReceipt: { type: Boolean }, //default=false
   salesOrderNumber: { type: String }, // orderNum, refNum
   paymentReceipt: { type: Boolean }, // default= false
   invoiceQrCode: { type: Boolean }, // default= false

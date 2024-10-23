@@ -42,8 +42,8 @@ const SalesOrderSchema = new Schema ({
   //salesPersonName: { type: String }, //next phase
 
   //new
-  shipmentPreference: { type: String },
-  paymentMode: { type: String },
+  //shipmentPreference: { type: String },
+  //paymentMode: { type: String },
   paymentTerms: { type: String },
   deliveryMethod: { type: String },
   expectedShipmentDate: { type: String },
