@@ -330,14 +330,35 @@ const createSettingsOrganization = async (organizationId) => {
     const settings = [
       {organizationId,
       //Item
-      itemDuplicateName:false, hsnSac:false, priceList:false, priceListAtLineLevel:false, compositeItem:false,stockBelowZero:false,
-      OutOfStockBelowZero :false, notifyReorderPoint:false, trackCostOnItems:false,
+      itemDuplicateName:false, hsnSac:false, 
+      priceList:false, priceListAtLineLevel:false, 
+      compositeItem:false, stockBelowZero:false,
+      OutOfStockBelowZero :false, notifyReorderPoint:false, 
+      trackCostOnItems:false,
 
       //Customer
-      duplicateCustomerMobile:false,duplicateCustomerEmail:false,duplicateCustomerDisplayName:false,
+      duplicateCustomerMobile:false, duplicateCustomerEmail:false, 
+      duplicateCustomerDisplayName:false,
       
       //Supplier
-      duplicateSupplierDisplayName:false,duplicateSupplierEmail:false,duplicateSupplierMobile:false, 
+      duplicateSupplierDisplayName:false, duplicateSupplierEmail:false, 
+      duplicateSupplierMobile:false, 
+
+      //Sales Order
+      salesOrderAddress: false, salesOrderCustomerNote: false,
+      salesOrderTermsCondition: false, salesOrderClose: 'invoice', 
+      restrictSalesOrderClose: false,
+
+      //Shipment
+      carrierNotification: false, manualNotification: false,
+
+      //Invoice
+      invoiceEdit: false, displayExpenseReceipt: false,
+      paymentReceipt: false, invoiceQrCode: false, 
+
+      //Credit Note
+      overideCostPrice: false, creditNoteQr: false,
+      recordLocking: false,
       
 
     }];
