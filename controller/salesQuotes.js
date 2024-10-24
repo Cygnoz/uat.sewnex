@@ -324,7 +324,7 @@ function validateInputs( data, customerExist, items, itemExists, organizationExi
 
 // Create New Quotes
 function createNewQuote( data, openingDate, organizationId, userId, userName ) {
-    const newQuotes = new Quotes({ ...data, organizationId, createdDate: openingDate, userId, userName });
+    const newQuotes = new Quotes({ ...data, organizationId, status :"Confirmed", createdDate: openingDate, userId, userName });
     return newQuotes.save();
 }
 
@@ -507,7 +507,7 @@ function validateItemTable(items, itemTable, errors) {
     validateIntegerFields(['quantity'], item, errors);
 
     // Validate float fields
-    validateFloatFields(['sellingPrice', 'itemTotaltax', 'discountAmount', 'amount'], item, errors);
+    validateFloatFields(['sellingPrice', 'itemTotaltax', 'discountAmount', 'itemAmount'], item, errors);
   });
 }
 // Validate Place Of Supply
@@ -698,11 +698,11 @@ function calculateSalesOrder(cleanedData, res) {
       totalTax += calculatedCgstAmount + calculatedSgstAmount + calculatedIgstAmount + calculatedVatAmount || 0 ;
     }
 
-    if (Math.abs(itemTotal - item.amount) > 0.01) {
-      errors.push(`Mismatch in Item Total for item ${item.itemName} Item Total: ${itemTotal} , Provided ${item.amount}`);
+    if (Math.abs(itemTotal - item.itemAmount) > 0.01) {
+      errors.push(`Mismatch in Item Total for item ${item.itemName} Item Total: ${itemTotal} , Provided ${item.itemAmount}`);
     }
 
-    console.log(`${item.itemName} Item Total: ${itemTotal} , Provided ${item.amount}`);
+    console.log(`${item.itemName} Item Total: ${itemTotal} , Provided ${item.itemAmount}`);
     console.log(`${item.itemName} Total Tax: ${calculatedTaxAmount} , Provided ${item.itemTotaltax || 0 }`);
     console.log("");
   });

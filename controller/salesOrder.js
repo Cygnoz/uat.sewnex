@@ -9,6 +9,7 @@ const Settings = require("../database/model/settings")
 const Order = require("../database/model/salesOrder")
 const ItemTrack = require("../database/model/itemTrack")
 const Prefix = require("../database/model/prefix");
+const DefAcc  = require("../database/model/defaultAccount");
 const mongoose = require('mongoose');
 
 
@@ -16,15 +17,16 @@ const mongoose = require('mongoose');
 const dataExist = async ( organizationId, items, customerId, customerName ) => {
   const itemIds = items.map(item => item.itemId);
   
-    const [organizationExists, customerExist , settings, itemTable, itemTrack, existingPrefix  ] = await Promise.all([
+    const [organizationExists, customerExist , settings, itemTable, itemTrack, existingPrefix, defaultAccount  ] = await Promise.all([
       Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
       Customer.findOne({ organizationId , _id:customerId, customerDisplayName: customerName}, { _id: 1, customerDisplayName: 1, taxType: 1 }),
       Settings.findOne({ organizationId },{ salesOrderAddress: 1, salesOrderCustomerNote: 1, salesOrderTermsCondition: 1, salesOrderClose: 1, restrictSalesOrderClose: 1, termCondition: 1 ,customerNote: 1 }),
       Item.find({ organizationId, _id: { $in: itemIds } }, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }),
       ItemTrack.find({ itemId: { $in: itemIds } }),
-      Prefix.findOne({ organizationId })
+      Prefix.findOne({ organizationId }),
+      DefAcc.findOne({ organizationId }),
     ]);
-    return { organizationExists, customerExist , settings, itemTable, itemTrack, existingPrefix };
+    return { organizationExists, customerExist , settings, itemTable, itemTrack, existingPrefix, defaultAccount };
   };
 
 
@@ -58,17 +60,16 @@ exports.addOrder = async (req, res) => {
         return res.status(400).json({ message: `Invalid item IDs: ${invalidItemIds.join(', ')}` });
       }   
   
-      const { organizationExists, customerExist , settings, itemTable, itemTrack, existingPrefix } = await dataExist( organizationId, items, customerId, customerName );
-      
+      const { organizationExists, customerExist , settings, itemTable, itemTrack, existingPrefix, defaultAccount } = await dataExist( organizationId, items, customerId, customerName );
       
       //Data Exist Validation
-      if (!validateOrganizationTaxCurrency( organizationExists, customerExist, existingPrefix, res )) return;
+      if (!validateOrganizationTaxCurrency( organizationExists, customerExist, existingPrefix, defaultAccount, res )) return;
       
       //Date & Time
       const openingDate = generateOpeningDate(organizationExists);
 
       //Validate Inputs  
-      if (!validateInputs( cleanedData, customerExist, items, itemTable, organizationExists, res)) return;
+      if (!validateInputs( cleanedData, customerExist, items, itemTable, organizationExists, defaultAccount, res)) return;
 
       //Tax Type
       taxtype(cleanedData, customerExist,organizationExists );
@@ -76,7 +77,6 @@ exports.addOrder = async (req, res) => {
       // Calculate Sales 
       if (!calculateSalesOrder( cleanedData, res )) return;
 
-      // console.log('Calculation Result:', result);
       //Prefix
       await salesPrefix(cleanedData, existingPrefix );
       
@@ -208,7 +208,7 @@ function cleanCustomerData(data) {
 }
 
 // Validate Organization Tax Currency
-function validateOrganizationTaxCurrency( organizationExists, customerExist, existingPrefix, res ) {
+function validateOrganizationTaxCurrency( organizationExists, customerExist, existingPrefix, defaultAccount, res ) {
   if (!organizationExists) {
     res.status(404).json({ message: "Organization not found" });
     return false;
@@ -219,6 +219,10 @@ function validateOrganizationTaxCurrency( organizationExists, customerExist, exi
   }
   if (!existingPrefix) {
     res.status(404).json({ message: "Prefix not found" });
+    return false;
+  }
+  if (!defaultAccount) {
+    res.status(404).json({ message: "Setup Accounts in settings" });
     return false;
   }
   return true;
@@ -255,8 +259,8 @@ function generateOpeningDate(organizationExists) {
 
 
 //Validate inputs
-function validateInputs( data, customerExist, items, itemExists, organizationExists, res) {
-  const validationErrors = validateQuoteData(data, customerExist, items, itemExists, organizationExists);
+function validateInputs( data, customerExist, items, itemExists, organizationExists, defaultAccount, res) {
+  const validationErrors = validateQuoteData(data, customerExist, items, itemExists, organizationExists, defaultAccount );
 
   if (validationErrors.length > 0) {
     res.status(400).json({ message: validationErrors.join(", ") });
@@ -267,7 +271,7 @@ function validateInputs( data, customerExist, items, itemExists, organizationExi
 
 // Create New Order
 function createNewOrder( data, openingDate, organizationId, userId, userName ) {
-    const newOrder = new Order({ ...data, organizationId, createdDate: openingDate, userId, userName });
+    const newOrder = new Order({ ...data, organizationId, status :"Sent", createdDate: openingDate, userId, userName });
     return newOrder.save();
 }
   
@@ -372,7 +376,7 @@ function generateTimeAndDateForDB(
 
 
 //Validate Data
-function validateQuoteData( data, customerExist, items, itemTable, organizationExists ) {
+function validateQuoteData( data, customerExist, items, itemTable, organizationExists, defaultAccount ) {
   const errors = [];
 
   console.log("Item Request :",items);
@@ -380,7 +384,7 @@ function validateQuoteData( data, customerExist, items, itemTable, organizationE
   
 
   //Basic Info
-  validateReqFields( data, errors );
+  validateReqFields( data, customerExist, defaultAccount, errors );
   validateItemTable(items, itemTable, errors);
   // validateDiscountType(data.discountType, errors);
   validateDiscountTransactionType(data.discountTransactionType, errors);
@@ -406,12 +410,21 @@ function validateField(condition, errorMsg, errors) {
   if (condition) errors.push(errorMsg);
 }
 //Valid Req Fields
-function validateReqFields( data, errors ) {
+function validateReqFields( data, customerExist, defaultAccount, errors ) {
 validateField( typeof data.customerId === 'undefined' || typeof data.customerName === 'undefined', "Please select a Customer", errors  );
 validateField( typeof data.placeOfSupply === 'undefined', "Place of supply required", errors  );
 validateField( typeof data.items === 'undefined', "Select an item", errors  );
 validateField( typeof data.otherExpenseAmount !== 'undefined' && typeof data.otherExpenseReason === 'undefined', "Please enter other expense reason", errors  );
-validateField( !(data.roundOffAmount >= 0 && data.roundOffAmount <= 1), " Round Off Amount must be between 0 and 1", errors );
+validateField( typeof data.roundOffAmount !== 'undefined' && !(data.roundOffAmount >= 0 && data.roundOffAmount <= 1), " Round Off Amount must be between 0 and 1", errors );
+
+validateField( typeof defaultAccount.salesAccount === 'undefined', "No Sales Account found", errors  );
+validateField( typeof defaultAccount.salesDiscountAccount === 'undefined', "No Sales Discount Account found", errors  );
+validateField( typeof defaultAccount.accountReceivableAccount === 'undefined', "No Account Receivable Account found", errors  );
+
+validateField( customerExist.taxType === 'GST' && typeof defaultAccount.outputCgst === 'undefined', "No Output Cgst Account found", errors  );
+validateField( customerExist.taxType === 'GST' && typeof defaultAccount.outputSgst === 'undefined', "No Output Sgst Account found", errors  );
+validateField( customerExist.taxType === 'GST' && typeof defaultAccount.outputIgst === 'undefined', "No Output Igst Account found", errors  );
+validateField( customerExist.taxType === 'VAT' && typeof defaultAccount.outputVat === 'undefined', "No Output Vat Account found", errors  );
 
 }
 // Function to Validate Item Table 
@@ -759,3 +772,41 @@ function calculateSalesOrder(cleanedData, res) {
 
   return true;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

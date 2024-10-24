@@ -81,6 +81,7 @@ const SalesOrderSchema = new Schema ({
   totalAmount: { type: Number },
   totalDiscount: { type: Number },
 
+  status: { type: String },
 
   createdDate: { type: String },
   userId: { type: String },

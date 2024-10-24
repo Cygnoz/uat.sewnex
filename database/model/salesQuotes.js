@@ -24,7 +24,7 @@ const itemsSchema = new Schema({
 
     discountType: {type:String}, //Currency,Percentage
     discountAmount: {type:Number}, 
-    amount: {type:Number},
+    itemAmount: {type:Number},
 
   }, { _id: false });
 
@@ -66,6 +66,8 @@ const SalesQuotesSchema = new Schema ({
   totalTax: { type: Number },
   totalAmount: { type: Number },
   totalDiscount: { type: Number },
+
+  status: { type: String },
 
   createdDate: { type: String },
   userId: { type: String },
