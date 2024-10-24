@@ -549,8 +549,7 @@ async function checkDuplicateCustomerFields( duplicateCheck, customerDisplayName
         }
 
 //Duplication check for edit item 
-        async function checkDuplicateCustomerFieldsEdit(duplicateCheck,customerDisplayName, customerEmail, mobile, organizationId,customerId, errors
-        ) {
+async function checkDuplicateCustomerFieldsEdit(duplicateCheck,customerDisplayName, customerEmail, mobile, organizationId,customerId, errors ) {
           const checks = [
             {
               condition: duplicateCheck.duplicateCustomerDisplayName && customerDisplayName !== undefined,
@@ -829,6 +828,7 @@ function validateReqFields( data, errors ) {
   if ( interestPercentage > 100 ) {
     errors.push("Interest Percentage cannot exceed 100%");
   }
+  
 }
 //Valid Customer Type
   function validateCustomerType(customerType, errors) {
@@ -912,8 +912,8 @@ function validateGSTorVAT(data, errors) {
     case "VAT":
       validateVATDetails(data, errors);
       break;
-    case "None":
-      clearTaxFields(data);
+    case "Non-Tax":
+      clearTaxFields(data , errors );
       break;
   }
 }
@@ -942,10 +942,13 @@ function validateVATDetails(data, errors) {
 }
 
 // Clear tax fields when no tax is applied
-function clearTaxFields(data) {
+function clearTaxFields( data, errors ) {
   ['gstTreatment', 'gstin_uin', 'vatNumber', 'placeOfSupply'].forEach(field => {
     data[field] = undefined;
   });
+  if (data.taxType ==='Non-Tax' && typeof data.taxReason === 'undefined' ) {
+    errors.push("Tax Exemption Reason required");
+  }  
 }
 //Validate Currency
 function validateCurrency(currency, validCurrencies, errors) {
