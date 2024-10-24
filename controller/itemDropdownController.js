@@ -28,19 +28,19 @@ exports.getItemDropdowm = async (req, res) => {
 
         // Fetch bmcr data
         const bmcr = await Bmcr.find({ organizationId });
-        if (!bmcr || bmcr.length === 0) {
-            return res.status(404).json({
-                message: "No bmcr found for the organization.",
-            });
-        }
+        // if (!bmcr || bmcr.length === 0) {
+        //     return res.status(404).json({
+        //         message: "No bmcr found for the organization.",
+        //     });
+        // }
 
         // Fetch unit data
         const unit = await Unit.find({ organizationId });
-        if (!unit) {
-            return res.status(404).json({
-                message: "No unit found for the organization.",
-            });
-        }
+        // if (!unit) {
+        //     return res.status(404).json({
+        //         message: "No unit found for the organization.",
+        //     });
+        // }
 
         // Fetch tax data to check tax type
         const taxData = await Tax.findOne({ organizationId });
