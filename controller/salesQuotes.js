@@ -620,17 +620,17 @@ function calculateSalesOrder(cleanedData, res) {
     let discountAmount = 0;
 
     // Calculate item line discount if applicable
-    // if (cleanedData.discountType === 'Item Line' || cleanedData.discountType === 'Both') {
       discountAmount = item.discountType === 'Currency'
-        ? item.discountAmount
-        : (item.sellingPrice * item.quantity * item.discountAmount) / 100;
-    // }
+        ? item.discountAmount || 0
+        : (item.sellingPrice * item.quantity * (item.discountAmount || 0)) / 100;
+
 
     totalDiscount +=  parseFloat(discountAmount);
     totalItemCount +=  parseFloat(item.quantity);
 
 
     let itemTotal = (item.sellingPrice * item.quantity) - discountAmount;
+
     let calculatedCgstAmount = 0;
     let calculatedSgstAmount = 0;
     let calculatedIgstAmount = 0;
@@ -685,7 +685,7 @@ function calculateSalesOrder(cleanedData, res) {
         console.log(`Mismatch in Total tax for item ${item.itemName}: Calculated ${calculatedTaxAmount}, Provided ${item.itemTotaltax}`);
       }
     } else {
-      console.log(`Skipping tax for non-taxable item: ${item.itemName}`);
+      console.log(`Skipping Tax for Non-Taxable item: ${item.itemName}`);
       console.log(`Item: ${item.itemName}, Calculated Discount: ${totalDiscount}`);
 
     }
@@ -710,13 +710,13 @@ function calculateSalesOrder(cleanedData, res) {
   let transactionDiscount = 0;
 
   // Apply transaction level discount if applicable
-  if( typeof cleanedData.discountTransactionAmount !== 'undefined'){
+
     if (cleanedData.discountTransactionType === 'Currency') {
-      transactionDiscount = cleanedData.discountTransactionAmount;
+      transactionDiscount = cleanedData.discountTransactionAmount || 0 ;
     } else {
       // Percentage-based transaction discount
-      transactionDiscount = (subTotal * cleanedData.discountTransactionAmount) / 100;
-    }}
+      transactionDiscount = ((subTotal * cleanedData.discountTransactionAmount || 0 ) / 100) ;
+    }
 
   totalDiscount +=  parseFloat(transactionDiscount);
 
