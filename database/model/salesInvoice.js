@@ -16,9 +16,9 @@ const itemsSchema = new Schema({
     vat: { type: Number },
     itemTotaltax: {type:Number},
 
-    discountType: {type:String}, //$,%
+    discountType: {type:String}, //Currency,Percentage
     discountAmopunt: {type:Number}, 
-    amount: {type:Number},
+    itemAmount: {type:Number},
 
   }, { _id: false });
 
@@ -31,14 +31,19 @@ const SalesInvoiceSchema = new Schema ({
   placeOfSupply: { type: String },  
   reference: { type: String },
 
-  salesOrder: { type: String }, //prefix
+  salesInvoice: { type: String }, //prefix
   //salesPersonId: { type: String }, //next phase
   //salesPersonName: { type: String }, //next phase
+  
+  //new
+  paymentTerms: { type: String },
+  deliveryMethod: { type: String },
+  expectedShipmentDate: { type: String },
 
-  salesOrderDate: { type: String },  
+  salesInvoiceDate: { type: String },  
   expiryDate: { type: String },
 
-  subject: { type: String },
+  // subject: { type: String },
   
   items: [itemsSchema],  
   
@@ -46,12 +51,9 @@ const SalesInvoiceSchema = new Schema ({
   tc: { type: String },
 
 
-  //not in ui
-  discountType: { type: String }, // item, tran, both 
-  discountTransactionType: { type: String }, // $, %
+  discountTransactionType: { type: String }, // Currency,Percentage
   discountTransactionAmount: { type: Number },
-  discountTax: { type: String }, // after, before
-  taxtype: { type: String }, //intra, inter, non-tax 
+  taxtype: { type: String },//Intra, Inter, Non-tax, VAT 
 
   
   
@@ -64,6 +66,9 @@ const SalesInvoiceSchema = new Schema ({
   vat: { type: Number },
   totalTax: { type: Number },
   totalAmount: { type: Number },
+  totalDiscount: { type: Number },
+
+  status: { type: String },
 
   createdDate: { type: String },
   userId: { type: String },

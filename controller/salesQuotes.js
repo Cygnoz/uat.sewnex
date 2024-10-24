@@ -439,7 +439,7 @@ function validateQuoteData( data, customerExist, items, itemTable, organizationE
     
 
     //Basic Info
-    validateReqFields( data, errors );
+    validateReqFields( data, customerExist, errors );
     validateItemTable(items, itemTable, errors);
     //validateDiscountType(data.discountType, errors);
     validateDiscountTransactionType(data.discountTransactionType, errors);
@@ -461,9 +461,9 @@ function validateField(condition, errorMsg, errors) {
     if (condition) errors.push(errorMsg);
 }
 //Valid Req Fields
-function validateReqFields( data, errors ) {
+function validateReqFields( data, customerExist, errors ) {
   validateField( typeof data.customerId === 'undefined' || typeof data.customerName === 'undefined', "Please select a Customer", errors  );
-  validateField( typeof data.placeOfSupply === 'undefined', "Place of supply required", errors  );
+  validateField( customerExist.taxtype == 'GST' && typeof data.placeOfSupply === 'undefined', "Place of supply required", errors  );
   validateField( typeof data.items === 'undefined', "Select an item", errors  );
 }
 // Function to Validate Item Table 
@@ -710,13 +710,13 @@ function calculateSalesOrder(cleanedData, res) {
   let transactionDiscount = 0;
 
   // Apply transaction level discount if applicable
-  
+  if( typeof cleanedData.discountTransactionAmount !== 'undefined'){
     if (cleanedData.discountTransactionType === 'Currency') {
       transactionDiscount = cleanedData.discountTransactionAmount;
     } else {
       // Percentage-based transaction discount
       transactionDiscount = (subTotal * cleanedData.discountTransactionAmount) / 100;
-    }
+    }}
 
   totalDiscount +=  parseFloat(transactionDiscount);
 

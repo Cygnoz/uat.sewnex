@@ -24,7 +24,7 @@ const itemsSchema = new Schema({
 
     discountType: {type:String}, //Currency,Percentage
     discountAmount: {type:Number}, 
-    amount: {type:Number},
+    itemAmount: {type:Number},
 
   }, { _id: false });
 
