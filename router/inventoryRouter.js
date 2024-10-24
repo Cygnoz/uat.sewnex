@@ -18,6 +18,8 @@ router.get('/get-itemDropdown',verifyToken, itemDropdownController.getItemDropdo
 
 router.get('/get-inventory-Dashboard/:date',verifyToken, dashboardController.calculateTotalInventoryValue);
 
+router.get('/get-item-transaction/:id',verifyToken, itemController.itemTransaction);
+
 
 // Item
 router.post('/add-item',verifyToken,checkPermission('Created a New Item'), itemController.addItem);

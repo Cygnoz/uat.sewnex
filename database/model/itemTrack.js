@@ -1,3 +1,4 @@
+
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
 
@@ -22,7 +23,7 @@ const itemTrackSchema = new Schema({
     
     remark: {type:String},
 }); 
-
+// , { timestamps: true }
 const ItemTrack = mongoose.model("ItemTrack", itemTrackSchema);
 
 module.exports = ItemTrack;

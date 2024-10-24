@@ -47,7 +47,40 @@ const itemDataExist = async (organizationId, itemId) => {
   return { itemTrackAll };
 };
 
+// item transaction 
 
+exports.itemTransaction = async (req, res) => {
+  try {
+    const { id } = req.params; 
+    // const { organizationId } = req.body; 
+    const organizationId = req.user.organizationId;
+
+    // Find documents matching organizationId and itemId, sorted by creation date (oldest to newest)
+    const itemTransactions = await ItemTrack.find({
+      organizationId: organizationId,
+      itemId: id
+    }); // 1 for ascending order (oldest to newest)
+
+    // const itemTransactions = await ItemTrack.find({
+    //   organizationId: organizationId,
+    //   itemId: id
+    // }).sort({ createdAt: 1 }); // 1 for ascending order (oldest to newest)
+
+    
+    if (itemTransactions.length > 0) {
+      const ItemTransactions = itemTransactions.map((history) => {
+        const { organizationId, ...rest } = history.toObject(); // Convert to plain object and omit organizationId
+        return rest;
+      });
+      res.status(200).json(ItemTransactions);
+    } else {
+      return res.status(404).json("No transactions found for the given item");
+    }
+  } catch (error) {
+    console.error("Error fetching item transactions:", error);
+    return res.status(500).json({ message: "Internal server error." });
+  }
+};
 // Add item
 exports.addItem = async (req, res) => {
     console.log("Add Item:", req.body);
