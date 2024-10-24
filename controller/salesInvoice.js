@@ -34,7 +34,7 @@ const dataExist = async ( organizationId, items, customerId, customerName ) => {
 
 
 // Add Sales Order
-exports.addOrder = async (req, res) => {
+exports.addInvoice = async (req, res) => {
     console.log("Add Sales Order :", req.body);
     try {
       const { organizationId, id: userId, userName } = req.user;
@@ -820,9 +820,7 @@ function calculateSalesOrder(cleanedData, res) {
 async function journal ( savedOrder, defaultAccount, openingDate ) {
 
   if(savedOrder.totalDiscount !== 'undefined' ){
-    if(){
 
-    }
 
   }else{
 
