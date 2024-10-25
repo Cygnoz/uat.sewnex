@@ -1,4 +1,5 @@
 // v1.0
+// v1.1
 
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
@@ -8,7 +9,7 @@ const accountSchema = new Schema({
     organizationId: {type:String},
     accountName: {type:String},
     accountCode: {type:String},
-
+    accountId: {type:String},
     accountSubhead: {type:String},
     accountHead: {type:String},
     accountGroup: {type:String},

@@ -17,7 +17,7 @@ const customerSchema = new Schema({
     //Basic Info
     organizationId: {type:String},
     customerType: {type:String},
-
+  
     salutation: {type:String},
     firstName: {type:String},
     lastName: {type:String},

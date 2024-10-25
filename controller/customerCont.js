@@ -90,7 +90,7 @@ const dataExist = async (organizationId) => {
 
       const savedCustomer = await createNewCustomer(cleanedData, openingDate, organizationId);
       
-      const savedAccount = await createNewAccount(customerDisplayName, openingDate, organizationId, allCustomer );
+      const savedAccount = await createNewAccount(customerDisplayName, openingDate, organizationId, allCustomer , savedCustomer );
   
       await saveTrialBalanceAndHistory(savedCustomer, savedAccount, debitOpeningBalance, creditOpeningBalance, cleanedData, openingDate, userId, userName );
   
@@ -607,7 +607,7 @@ async function checkDuplicateCustomerFields( duplicateCheck, customerDisplayName
   }
   
 // Create New Account
-  function createNewAccount( customerDisplayName, openingDate, organizationId, allCustomer ) {
+  function createNewAccount( customerDisplayName, openingDate, organizationId, allCustomer ,savedCustomer) {
 
     // Count existing organizations to generate the next organizationId
 
@@ -619,6 +619,7 @@ async function checkDuplicateCustomerFields( duplicateCheck, customerDisplayName
       organizationId,
       accountName: customerDisplayName,
       accountCode: count,
+      accountId: savedCustomer._id,
       accountSubhead: "Sundry Debtors",
       accountHead: "Asset",
       accountGroup: "Asset",
