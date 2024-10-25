@@ -2,31 +2,33 @@
 
 const Organization = require("../database/model/organization");
 const Item = require("../database/model/item");
-const Account = require("../database/model/account");
 const Customer = require("../database/model/customer");
 const moment = require("moment-timezone");
 const Settings = require("../database/model/settings")
 const Order = require("../database/model/salesOrder")
 const ItemTrack = require("../database/model/itemTrack")
 const Prefix = require("../database/model/prefix");
-const DefAcc  = require("../database/model/defaultAccount");
 const mongoose = require('mongoose');
+
 
 
 // Fetch existing data
 const dataExist = async ( organizationId, items, customerId, customerName ) => {
   const itemIds = items.map(item => item.itemId);
   
-    const [organizationExists, customerExist , settings, itemTable, itemTrack, existingPrefix, defaultAccount  ] = await Promise.all([
+    const [organizationExists, customerExist , settings, itemTable, itemTrack, existingPrefix  ] = await Promise.all([
       Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
       Customer.findOne({ organizationId , _id:customerId, customerDisplayName: customerName}, { _id: 1, customerDisplayName: 1, taxType: 1 }),
       Settings.findOne({ organizationId },{ salesOrderAddress: 1, salesOrderCustomerNote: 1, salesOrderTermsCondition: 1, salesOrderClose: 1, restrictSalesOrderClose: 1, termCondition: 1 ,customerNote: 1 }),
       Item.find({ organizationId, _id: { $in: itemIds } }, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }),
-      ItemTrack.find({ itemId: { $in: itemIds } }),
+      ItemTrack.aggregate([
+        { $match: { itemId: { $in: itemIds } } }, // Filter by itemIds
+        { $sort: { _id: -1 } }, // Sort by _id in descending order to get the most recent
+        { $group: { _id: "$itemId", lastEntry: { $first: "$$ROOT" } } } // Group by itemId and take the first (latest) entry
+      ]),
       Prefix.findOne({ organizationId }),
-      DefAcc.findOne({ organizationId }),
     ]);
-    return { organizationExists, customerExist , settings, itemTable, itemTrack, existingPrefix, defaultAccount };
+    return { organizationExists, customerExist , settings, itemTable, itemTrack, existingPrefix };
   };
 
 
@@ -60,16 +62,19 @@ exports.addOrder = async (req, res) => {
         return res.status(400).json({ message: `Invalid item IDs: ${invalidItemIds.join(', ')}` });
       }   
   
-      const { organizationExists, customerExist , settings, itemTable, itemTrack, existingPrefix, defaultAccount } = await dataExist( organizationId, items, customerId, customerName );
+      const { organizationExists, customerExist , settings, itemTable, itemTrack, existingPrefix } = await dataExist( organizationId, items, customerId, customerName );
+
+      console.log("itemTrack",itemTrack);
+      
       
       //Data Exist Validation
-      if (!validateOrganizationTaxCurrency( organizationExists, customerExist, existingPrefix, defaultAccount, res )) return;
+      if (!validateOrganizationTaxCurrency( organizationExists, customerExist, existingPrefix, res )) return;
       
       //Date & Time
       const openingDate = generateOpeningDate(organizationExists);
 
       //Validate Inputs  
-      if (!validateInputs( cleanedData, customerExist, items, itemTable, organizationExists, defaultAccount, res)) return;
+      if (!validateInputs( cleanedData, customerExist, items, itemTable, organizationExists, res)) return;
 
       //Tax Type
       taxtype(cleanedData, customerExist,organizationExists );
@@ -208,7 +213,7 @@ function cleanCustomerData(data) {
 }
 
 // Validate Organization Tax Currency
-function validateOrganizationTaxCurrency( organizationExists, customerExist, existingPrefix, defaultAccount, res ) {
+function validateOrganizationTaxCurrency( organizationExists, customerExist, existingPrefix, res ) {
   if (!organizationExists) {
     res.status(404).json({ message: "Organization not found" });
     return false;
@@ -219,10 +224,6 @@ function validateOrganizationTaxCurrency( organizationExists, customerExist, exi
   }
   if (!existingPrefix) {
     res.status(404).json({ message: "Prefix not found" });
-    return false;
-  }
-  if (!defaultAccount) {
-    res.status(404).json({ message: "Setup Accounts in settings" });
     return false;
   }
   return true;
@@ -259,8 +260,8 @@ function generateOpeningDate(organizationExists) {
 
 
 //Validate inputs
-function validateInputs( data, customerExist, items, itemExists, organizationExists, defaultAccount, res) {
-  const validationErrors = validateQuoteData(data, customerExist, items, itemExists, organizationExists, defaultAccount );
+function validateInputs( data, customerExist, items, itemExists, organizationExists, res) {
+  const validationErrors = validateQuoteData(data, customerExist, items, itemExists, organizationExists );
 
   if (validationErrors.length > 0) {
     res.status(400).json({ message: validationErrors.join(", ") });
@@ -376,7 +377,7 @@ function generateTimeAndDateForDB(
 
 
 //Validate Data
-function validateQuoteData( data, customerExist, items, itemTable, organizationExists, defaultAccount ) {
+function validateQuoteData( data, customerExist, items, itemTable, organizationExists ) {
   const errors = [];
 
   console.log("Item Request :",items);
@@ -384,7 +385,7 @@ function validateQuoteData( data, customerExist, items, itemTable, organizationE
   
 
   //Basic Info
-  validateReqFields( data, customerExist, defaultAccount, errors );
+  validateReqFields( data, customerExist, errors );
   validateItemTable(items, itemTable, errors);
   // validateDiscountType(data.discountType, errors);
   validateDiscountTransactionType(data.discountTransactionType, errors);
@@ -410,21 +411,13 @@ function validateField(condition, errorMsg, errors) {
   if (condition) errors.push(errorMsg);
 }
 //Valid Req Fields
-function validateReqFields( data, customerExist, defaultAccount, errors ) {
+function validateReqFields( data, customerExist, errors ) {
 validateField( typeof data.customerId === 'undefined' || typeof data.customerName === 'undefined', "Please select a Customer", errors  );
 validateField( typeof data.placeOfSupply === 'undefined', "Place of supply required", errors  );
 validateField( typeof data.items === 'undefined', "Select an item", errors  );
 validateField( typeof data.otherExpenseAmount !== 'undefined' && typeof data.otherExpenseReason === 'undefined', "Please enter other expense reason", errors  );
 validateField( typeof data.roundOffAmount !== 'undefined' && !(data.roundOffAmount >= 0 && data.roundOffAmount <= 1), " Round Off Amount must be between 0 and 1", errors );
 
-validateField( typeof defaultAccount.salesAccount === 'undefined', "No Sales Account found", errors  );
-validateField( typeof defaultAccount.salesDiscountAccount === 'undefined', "No Sales Discount Account found", errors  );
-validateField( typeof defaultAccount.accountReceivableAccount === 'undefined', "No Account Receivable Account found", errors  );
-
-validateField( customerExist.taxType === 'GST' && typeof defaultAccount.outputCgst === 'undefined', "No Output Cgst Account found", errors  );
-validateField( customerExist.taxType === 'GST' && typeof defaultAccount.outputSgst === 'undefined', "No Output Sgst Account found", errors  );
-validateField( customerExist.taxType === 'GST' && typeof defaultAccount.outputIgst === 'undefined', "No Output Igst Account found", errors  );
-validateField( customerExist.taxType === 'VAT' && typeof defaultAccount.outputVat === 'undefined', "No Output Vat Account found", errors  );
 
 }
 // Function to Validate Item Table 
@@ -465,7 +458,7 @@ items.forEach((item) => {
   validateIntegerFields(['quantity'], item, errors);
 
   // Validate float fields
-  validateFloatFields(['sellingPrice', 'itemTotaltax', 'discountAmount', 'amount'], item, errors);
+  validateFloatFields(['sellingPrice', 'itemTotaltax', 'discountAmount', 'itemAmount'], item, errors);
 });
 }
 
@@ -477,21 +470,13 @@ function validatePlaceOfSupply(placeOfSupply, organization, errors) {
     "Invalid Place of Supply: " + placeOfSupply, errors );
 }
 
-//Validate Discount Type
-// function validateDiscountType(discountType, errors) {
-// validateField(discountType && !validDiscountType.includes(discountType),
-//   "Invalid Discount Type: " + discountType, errors);
-// }
+
 //Validate Discount Transaction Type
 function validateDiscountTransactionType(discountTransactionType, errors) {
 validateField(discountTransactionType && !validDiscountTransactionType.includes(discountTransactionType),
   "Invalid Discount: " + discountTransactionType, errors);
 }
-//Validate Discount Transaction Type
-// function validateDiscountTax(discountTax, errors) {
-// validateField(discountTax && !validDiscountTax.includes(discountTax),
-//   "Invalid Discount : " + discountTax, errors);
-// } 
+
 //Validate Shipment Preference
 function validateShipmentPreference(shipmentPreference, errors) {
   validateField(shipmentPreference && !validShipmentPreference.includes(shipmentPreference),
@@ -574,6 +559,20 @@ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 function calculateSalesOrder(cleanedData, res) {
   const errors = [];
   let totalAmount = 0;
@@ -584,20 +583,7 @@ function calculateSalesOrder(cleanedData, res) {
 
 
   cleanedData.items.forEach(item => {
-    let discountAmount = 0;
 
-    // Calculate item line discount if applicable
-    // if (cleanedData.discountType === 'Item Line' || cleanedData.discountType === 'Both') {
-      discountAmount = item.discountType === 'Currency'
-        ? item.discountAmount
-        : (item.sellingPrice * item.quantity * item.discountAmount) / 100;
-    // }
-
-    totalDiscount +=  parseFloat(discountAmount);
-    totalItemCount +=  parseFloat(item.quantity);
-
-
-    let itemTotal = (item.sellingPrice * item.quantity) - discountAmount;
     let calculatedCgstAmount = 0;
     let calculatedSgstAmount = 0;
     let calculatedIgstAmount = 0;
@@ -605,54 +591,54 @@ function calculateSalesOrder(cleanedData, res) {
     let calculatedTaxAmount = 0;
     let taxType = cleanedData.taxType;
 
+    // Calculate item line discount 
+    const discountAmount = calculateDiscount(item);
+
+    totalDiscount +=  parseFloat(discountAmount);
+    totalItemCount +=  parseFloat(item.quantity);
+
+    let itemTotal = (item.sellingPrice * item.quantity) - discountAmount;
+    
+
     // Handle tax calculation only for taxable items
     if (item.taxPreference === 'Taxable') {
-      if (taxType === 'Intra') {
-        // Apply CGST + SGST for Intra
+      switch (taxType) {
+        
+        case 'Intra':
         calculatedCgstAmount = (item.cgst / 100) * itemTotal;
         calculatedSgstAmount = (item.sgst / 100) * itemTotal;
         itemTotal += calculatedCgstAmount + calculatedSgstAmount;
-      } else if (taxType === 'Inter') {
-        // Apply IGST for Inter
+        break;
+
+        case 'Inter':
         calculatedIgstAmount = (item.igst / 100) * itemTotal;
         itemTotal += calculatedIgstAmount;
-      } else if (taxType === 'VAT') {
-        // Apply VAT
+        break;
+        
+        case 'VAT':
         calculatedVatAmount = (item.vat / 100) * itemTotal;
         itemTotal += calculatedVatAmount;
+        break;
+
       }
       calculatedTaxAmount =  calculatedCgstAmount + calculatedSgstAmount + calculatedIgstAmount + calculatedVatAmount;
       
       // Log calculated tax amounts
-      console.log(`Item: ${item.itemName}, Calculated CGST: ${calculatedCgstAmount}, CGST from data: ${item.cgstAmount}`);
-      console.log(`Item: ${item.itemName}, Calculated SGST: ${calculatedSgstAmount}, SGST from data: ${item.sgstAmount}`);
-      console.log(`Item: ${item.itemName}, Calculated IGST: ${calculatedIgstAmount}, IGST from data: ${item.igstAmount}`);
-      console.log(`Item: ${item.itemName}, Calculated VAT: ${calculatedVatAmount}, VAT from data: ${item.vatAmount}`);
 
+      logCalculatedTax(item, calculatedCgstAmount, calculatedSgstAmount,  calculatedIgstAmount, calculatedVatAmount );
 
       // Check tax amounts
-      if (Math.abs(calculatedCgstAmount - item.cgstAmount) > 0.01) {
-        errors.push(`Mismatch in CGST for item ${item.itemName}: Calculated ${calculatedCgstAmount}, Provided ${item.cgstAmount}`);
-        console.log(`Mismatch in CGST for item ${item.itemName}: Calculated ${calculatedCgstAmount}, Provided ${item.cgstAmount}`);
-      }
-      if (Math.abs(calculatedSgstAmount - item.sgstAmount) > 0.01) {
-        errors.push(`Mismatch in SGST for item ${item.itemName}: Calculated ${calculatedSgstAmount}, Provided ${item.sgstAmount}`);
-        console.log(`Mismatch in SGST for item ${item.itemName}: Calculated ${calculatedSgstAmount}, Provided ${item.sgstAmount}`);
-      }
-      if (Math.abs(calculatedIgstAmount - item.igstAmount) > 0.01) {
-        errors.push(`Mismatch in IGST for item ${item.itemName}: Calculated ${calculatedIgstAmount}, Provided ${item.igstAmount}`);
-        console.log(`Mismatch in IGST for item ${item.itemName}: Calculated ${calculatedIgstAmount}, Provided ${item.igstAmount}`);
-      }
-      if (Math.abs(calculatedVatAmount - item.vatAmount) > 0.01) {
-        errors.push(`Mismatch in VAT for item ${item.itemName}: Calculated ${calculatedVatAmount}, Provided ${item.vatAmount}`);
-        console.log(`Mismatch in VAT for item ${item.itemName}: Calculated ${calculatedVatAmount}, Provided ${item.vatAmount}`);
-      }
-      if (Math.abs(calculatedTaxAmount - item.itemTotaltax) > 0.01) {
-        errors.push(`Mismatch in Total tax for item ${item.itemName}: Calculated ${calculatedTaxAmount}, Provided ${item.itemTotaltax}`);
-        console.log(`Mismatch in Total tax for item ${item.itemName}: Calculated ${calculatedTaxAmount}, Provided ${item.itemTotaltax}`);
-      }
+      checkAmount(calculatedCgstAmount, item.cgstAmount, item.itemName, 'CGST',errors);
+      checkAmount(calculatedSgstAmount, item.sgstAmount, item.itemName, 'SGST',errors);
+      checkAmount(calculatedIgstAmount, item.igstAmount, item.itemName, 'IGST',errors);
+      checkAmount(calculatedVatAmount, item.vatAmount, item.itemName, 'VAT',errors);
+      checkAmount(calculatedTaxAmount, item.itemTotaltax, item.itemName, 'Total tax',errors);
+
+      totalTax += calculatedCgstAmount + calculatedSgstAmount + calculatedIgstAmount + calculatedVatAmount || 0 ;
+
+
     } else {
-      console.log(`Skipping tax for non-taxable item: ${item.itemName}`);
+      console.log(`Skipping Tax for Non-Taxable item: ${item.itemName}`);
       console.log(`Item: ${item.itemName}, Calculated Discount: ${totalDiscount}`);
 
     }
@@ -660,61 +646,27 @@ function calculateSalesOrder(cleanedData, res) {
     // Update total values
     subTotal += parseFloat(itemTotal);
 
-    // Only add to totalTax if the item is taxable
-    if (item.taxPreference === 'Taxable') {
-      totalTax += calculatedCgstAmount + calculatedSgstAmount + calculatedIgstAmount + calculatedVatAmount || 0 ;
-    }
+    checkAmount(itemTotal, item.itemAmount, item.itemName, 'Item Total',errors);
 
-    if (Math.abs(itemTotal - item.amount) > 0.01) {
-      errors.push(`${item.itemName} Item Total: ${itemTotal} , Provided ${item.amount}`);
-    }
-
-
-    console.log(`${item.itemName} Item Total: ${itemTotal} , Provided ${item.amount}`);
+    console.log(`${item.itemName} Item Total: ${itemTotal} , Provided ${item.itemAmount}`);
     console.log(`${item.itemName} Total Tax: ${calculatedTaxAmount} , Provided ${item.itemTotaltax || 0 }`);
     console.log("");
   });
 
-  if(cleanedData.otherExpenseAmount){
-    subTotal +=  parseFloat(cleanedData.otherExpenseAmount);
-    console.log("Other Expense Amount", cleanedData.otherExpenseAmount);    
-  }
-  if(cleanedData.freightAmount){
-    subTotal +=  parseFloat(cleanedData.freightAmount);
-    console.log("Freight Amount", cleanedData.freightAmount);    
-  }
-  if(cleanedData.roundOffAmount){
-    subTotal -=  parseFloat(cleanedData.roundOffAmount);
-    console.log("Round Off Amount", cleanedData.roundOffAmount);    
-  }
+  //Other Expense
+  adjustSubTotal(cleanedData.otherExpenseAmount, "Other Expense Amount");
+  adjustSubTotal(cleanedData.freightAmount, "Freight Amount");
+  adjustSubTotal(cleanedData.roundOffAmount, "Round Off Amount", false);
 
-  let transactionDiscount = 0;
+  // Transaction Discount
+  let transactionDiscount = calculateTransactionDiscount(cleanedData, subTotal);
 
-  // Apply transaction level discount if applicable
-  
-    if (cleanedData.discountTransactionType === 'Currency') {
-      transactionDiscount = cleanedData.discountTransactionAmount;
-    } else {
-      // Percentage-based transaction discount
-      transactionDiscount = (subTotal * cleanedData.discountTransactionAmount) / 100;
-    }
-
-  totalDiscount +=  parseFloat(transactionDiscount);
-
-  
+  totalDiscount +=  parseFloat(transactionDiscount);  
 
   console.log(`SubTotal: ${subTotal} , Provided ${cleanedData.subTotal}`);
 
   // Total amount calculation
-  totalAmount = subTotal ;
-
-  // Apply transaction discount after tax if needed
-  // if (cleanedData.discountType === 'Transaction Line' || cleanedData.discountType === 'Both') {
-  //   if (cleanedData.discountTax === 'After') {
-      totalAmount -= transactionDiscount;
-  //   }
-  // }
-  
+  totalAmount = subTotal - transactionDiscount; 
 
   // Utility function to round values to two decimal places
   const roundToTwoDecimals = (value) => Math.round(value * 100) / 100;
@@ -744,26 +696,11 @@ function calculateSalesOrder(cleanedData, res) {
 
 
 
-  if (!isSubTotalCorrect) {
-    errors.push(`SubTotal is incorrect: ${cleanedData.subTotal}`);
-    console.log(`SubTotal is incorrect: ${cleanedData.subTotal}`);    
-  }
-  if (!isTotalTaxCorrect) {
-    errors.push(`Total Tax is incorrect: ${cleanedData.totalTax}`);
-    console.log(`Total Tax is incorrect: ${cleanedData.totalTax}`);   
-  }
-  if (!isTotalAmountCorrect) {
-    errors.push(`Total Amount is incorrect: ${cleanedData.totalAmount}`);
-    console.log(`Total Amount is incorrect: ${cleanedData.totalAmount}`);   
-  }
-  if (!isTotalDiscount) {
-    errors.push(`Total Discount Amount is incorrect: ${cleanedData.totalDiscount}`);
-    console.log(`Total Discount Amount is incorrect: ${cleanedData.totalDiscount}`);   
-  }
-  if (!isTotalItemCount) {
-    errors.push(`Total Item count is incorrect: ${cleanedData.totalItem}`);
-    console.log(`Total Item count is incorrect: ${cleanedData.totalItem}`);   
-  }
+  validateAmount(roundedSubTotal, cleanedData.subTotal, 'SubTotal');
+  validateAmount(roundedTotalTax, cleanedData.totalTax, 'Total Tax');
+  validateAmount(roundedTotalAmount, cleanedData.totalAmount, 'Total Amount');
+  validateAmount(totalDiscount, cleanedData.totalDiscount, 'Total Discount Amount');
+  validateAmount(totalItemCount, cleanedData.totalItem, 'Total Item count');
 
   if (errors.length > 0) {
     res.status(400).json({ message: errors.join(", ") });
@@ -772,6 +709,105 @@ function calculateSalesOrder(cleanedData, res) {
 
   return true;
 }
+
+
+
+
+// Calculate item discount
+function calculateDiscount(item) {
+  return item.discountType === 'Currency'
+    ? item.discountAmount || 0
+    : (item.sellingPrice * item.quantity * (item.discountAmount || 0)) / 100;
+}
+
+//Item Line Log
+function logCalculatedTax(item, calculatedCgstAmount, calculatedSgstAmount,  calculatedIgstAmount, calculatedVatAmount) {
+  console.log("");  
+  console.log(`Item: ${item.itemName}, Calculated CGST: ${calculatedCgstAmount}, CGST from data: ${item.cgstAmount}`);
+  console.log(`Item: ${item.itemName}, Calculated SGST: ${calculatedSgstAmount}, SGST from data: ${item.sgstAmount}`);
+  console.log(`Item: ${item.itemName}, Calculated IGST: ${calculatedIgstAmount}, IGST from data: ${item.igstAmount}`);
+  console.log(`Item: ${item.itemName}, Calculated VAT: ${calculatedVatAmount}, VAT from data: ${item.vatAmount}`);
+}
+
+//Mismatch Check
+function checkAmount(calculatedAmount, providedAmount, itemName, taxType,errors) {
+  if (Math.abs(calculatedAmount - providedAmount) > 0.01) {
+    const errorMessage = `Mismatch in ${taxType} for item ${itemName}: Calculated ${calculatedAmount}, Provided ${providedAmount}`;
+    errors.push(errorMessage);
+    console.log(errorMessage);
+  }
+}
+
+//TransactionDiscount
+function calculateTransactionDiscount(cleanedData, subTotal) {
+  const discountAmount = cleanedData.discountTransactionAmount || 0;
+
+  return cleanedData.discountTransactionType === 'Currency'
+    ? discountAmount
+    : (subTotal * discountAmount) / 100;
+}
+
+//Final Item Amount check
+const validateAmount = (calculatedValue, cleanedValue, label) => {
+  const isCorrect = calculatedValue === parseFloat(cleanedValue);
+  if (!isCorrect) {
+    const errorMessage = `${label} is incorrect: ${cleanedValue}`;
+    errors.push(errorMessage);
+    console.log(errorMessage);
+  }
+};
+
+//Other Expense
+const adjustSubTotal = (amount, label, isAddition = true) => {
+  if (amount) {
+    const parsedAmount = parseFloat(amount);
+    subTotal += isAddition ? parsedAmount : -parsedAmount;
+    console.log(`${label}:`, amount);
+  }
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

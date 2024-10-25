@@ -33,6 +33,8 @@ router.get('/get-one-sales-quotes/:quoteId',verifyToken,salesQuotes.getOneSalesQ
 //Sales Order
 router.post('/add-sales-order',verifyToken,salesOrder.addOrder)
 
+router.get('/get-last-sales-order-prefix',verifyToken,salesOrder.getLastOrderPrefix)
+
 
 
 // Delivery Chellans
