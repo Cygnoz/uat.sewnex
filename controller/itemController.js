@@ -146,8 +146,11 @@ exports.addItem = async (req, res) => {
           date: createdDate,
           itemId: savedItem._id,
           itemName,
+          sellingPrice:savedItem.sellingPrice,
+          costPrice:savedItem.costPrice,
           creditQuantity: openingStock || 0 ,
           currentStock: openingStock || 0,
+          currentStock: openingStock || 0
       });  
       await trackEntry.save();
       console.log( "Item Track Added", trackEntry );      
