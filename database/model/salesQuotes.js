@@ -2,50 +2,78 @@ const mongoose = require('mongoose')
 const { Schema } = mongoose
 
 const itemsSchema = new Schema({
+
+    itemId: {type:String},
     itemName: {type:String},
-    quantity: {type:String},
-    rate: {type:String},
-    tax: {type:String},
-    discount: {type:String},
-    amount: {type:String},
+
+    quantity: {type:Number},
+    sellingPrice: {type:Number},
+
+    taxGroup: {type:String},
+    cgst: { type: Number },
+    sgst: { type: Number },
+    igst: { type: Number },
+    vat: { type: Number },
+    itemTotaltax: {type:Number},
+
+    discountType: {type:String}, //Currency,Percentage
+    discountAmount: {type:Number}, 
+    amount: {type:Number},
+
   }, { _id: false });
 
-const SalesOrderAndQuotesSchema = new Schema ({
+const SalesQuotesSchema = new Schema ({
 
-    //Customer Details
-    salesOrder: { type: String },
-    customer: { type: String },
+  organizationId: { type: String, index: true },
+  
+  customerId: { type: String },
+  customerName: { type: String },
+  placeOfSupply: { type: String },  
+  reference: { type: String },
 
-    reference: { type: String },
-    salesOrderDate: { type: Date },
+  salesQuotes: { type: String }, //prefix
+  //salesPersonId: { type: String }, //next phase
+  //salesPersonName: { type: String }, //next phase
 
-    expectedShipmentDate: { type: Date },
-    paymentTerms: { type: String },
+  salesOrderDate: { type: String },  
+  expiryDate: { type: String },
 
-    deliveryMethod: { type: String },
-    salesPerson: { type: String },
+  subject: { type: String },
+  
+  items: [itemsSchema],  
+  
+  note: { type: String },
+  tc: { type: String },
 
-    items: [itemsSchema],
 
-    notes: { type: String },
-    tc: { type: String },
+  //not in ui
+  discountType: { type: String }, // Item Line, Transaction Line, Both
+  discountTransactionType: { type: String }, //Currency,Percentage
+  discountTransactionAmount: { type: Number },
+  discountTax: { type: String }, // After, Before
+  taxType: { type: String }, //Intra, Inter, Non-tax, VAT 
 
-    //quotes
-    salesPerson: { type: String },
-    salesQuotesReference: { type: String },
-    quote: { type: Number },
-    quoteDate: { type: Date },
-    expiryDate: { type: Date },
-    subject: { type: String },
-    addNotes: { type: String },
-    addTermsAndConditions: { type: String },
+  
+  
+  subTotal: { type: Number },
+  totalItem: { type: Number },
 
+  cgst: { type: Number },
+  sgst: { type: Number },
+  igst: { type: Number },
+  vat: { type: Number },
+  totalTax: { type: Number },
+  totalAmount: { type: Number },
+
+  createdDate: { type: String },
+  userId: { type: String },
+  userName: { type: String },
 })
 
 
-const SalesOrderAndQuotes = mongoose.model("SalesOrderAndQuotes", SalesOrderAndQuotesSchema);
+const SalesQuotes = mongoose.model("SalesQuotes", SalesQuotesSchema);
 
-module.exports = SalesOrderAndQuotes;
+module.exports = SalesQuotes;
 
 
 
