@@ -63,6 +63,7 @@ const dataExist = async (organizationId) => {
       
       //Clean Data
       const cleanedData = cleanCustomerData(req.body);
+      cleanedData.contactPerson = cleanedData.contactPerson.map(person => cleanCustomerData(person));
 
       const { customerEmail, debitOpeningBalance, creditOpeningBalance, customerDisplayName, mobile } = cleanedData;
   
@@ -102,7 +103,8 @@ const dataExist = async (organizationId) => {
     }
   };
 
-  // Edit Customer
+
+// Edit Customer
 exports.editCustomer = async (req, res) => {
     console.log("Edit Customer:", req.body);
     try {
@@ -549,8 +551,7 @@ async function checkDuplicateCustomerFields( duplicateCheck, customerDisplayName
         }
 
 //Duplication check for edit item 
-        async function checkDuplicateCustomerFieldsEdit(duplicateCheck,customerDisplayName, customerEmail, mobile, organizationId,customerId, errors
-        ) {
+async function checkDuplicateCustomerFieldsEdit(duplicateCheck,customerDisplayName, customerEmail, mobile, organizationId,customerId, errors ) {
           const checks = [
             {
               condition: duplicateCheck.duplicateCustomerDisplayName && customerDisplayName !== undefined,
@@ -607,7 +608,7 @@ async function checkDuplicateCustomerFields( duplicateCheck, customerDisplayName
   }
   
 // Create New Account
-  function createNewAccount( customerDisplayName, openingDate, organizationId, allCustomer ,savedCustomer) {
+  function createNewAccount( customerDisplayName, openingDate, organizationId, allCustomer ) {
 
     // Count existing organizations to generate the next organizationId
 
@@ -790,11 +791,13 @@ function generateTimeAndDateForDB(
 
     //Basic Info
     validateReqFields( data,  errors);
+    validInterestPercentage ( data.interestPercentage,  errors);
     validateCustomerType(data.customerType, errors);
     validateSalutation(data.salutation, errors);
     validateNames(['firstName', 'lastName'], data, errors);
     validateEmail(data.customerEmail, errors);
     validateWebsite(data.websiteURL, errors);
+    validateContactPerson(data.contactPerson, errors);
     validatePhones(['workPhone', 'mobile', 'cardNumber','billingFaxNumber','shippingFaxNumber'], data, errors);
 
     //OtherDetails
@@ -823,14 +826,15 @@ function generateTimeAndDateForDB(
   }
 //Valid Req Fields
 function validateReqFields( data, errors ) {
-  if (typeof data.customerDisplayName === 'undefined' ) {
-    errors.push("Customer Display Name required");
-  }
-  const interestPercentage = parseFloat(data.interestPercentage);
-  if ( interestPercentage > 100 ) {
-    errors.push("Interest Percentage cannot exceed 100%");
-  }
+  validateField( typeof data.customerDisplayName === 'undefined', `Customer Display Name required`, errors );  
 }
+//Valid interest percentage
+function validInterestPercentage( interestPercentage, errors ) {
+  interestPercentage = parseFloat(interestPercentage);
+  validateField( interestPercentage > 100, `Interest Percentage cannot exceed 100%`, errors );  
+}
+
+
 //Valid Customer Type
   function validateCustomerType(customerType, errors) {
     validateField(customerType && !validCustomerTypes.includes(customerType),
@@ -913,40 +917,42 @@ function validateGSTorVAT(data, errors) {
     case "VAT":
       validateVATDetails(data, errors);
       break;
-    case "None":
-      clearTaxFields(data);
+    case "Non-Tax":
+      clearTaxFields(data , errors );
       break;
   }
 }
 
 // Validate GST details
 function validateGSTDetails(data, errors) {
-  validateField(
-    data.gstTreatment && !validGSTTreatments.includes(data.gstTreatment),
-    `Invalid GST treatment: ${data.gstTreatment}`, 
-    errors
-  );
-  validateField(
-    data.gstin_uin && !isAlphanumeric(data.gstin_uin),
-    `Invalid GSTIN/UIN: ${data.gstin_uin}`, 
-    errors
-  );
+  validateField( typeof data.gstTreatment === 'undefined', `Select a GST Treatment`, errors );
+  validateField( typeof data.placeOfSupply === 'undefined', `Place Of Supply required`, errors );  
+  validateField( data.gstTreatment && !validGSTTreatments.includes(data.gstTreatment), `Invalid GST treatment: ${data.gstTreatment}`, errors );
+  validateField( data.gstin_uin && !isAlphanumeric(data.gstin_uin), `Invalid GSTIN/UIN: ${data.gstin_uin}`, errors );
+  
+
+  validateField( data.gstTreatment ==="Registered Business - Regular" && typeof data.gstin_uin === 'undefined', `Enter GSTIN/UIN Number`, errors );
+  validateField( data.gstTreatment ==='Registered Business - Composition' && typeof data.gstin_uin === 'undefined' , `Enter GSTIN/UIN Number`, errors );
+  validateField( data.gstTreatment ==='Special Economic Zone' && typeof data.gstin_uin === 'undefined' , `Enter GSTIN/UIN Number`, errors );
+  validateField( data.gstTreatment ==='Deemed Export' && typeof data.gstin_uin === 'undefined' , `Enter GSTIN/UIN Number`, errors );
+  validateField( data.gstTreatment ==='Tax Deductor' && typeof data.gstin_uin === 'undefined' , `Enter GSTIN/UIN Number`, errors );
+  validateField( data.gstTreatment ==='SEZ Developer' && typeof data.gstin_uin === 'undefined' , `Enter GSTIN/UIN Number`, errors );
+
 }
 
 // Validate VAT details
 function validateVATDetails(data, errors) {
-  validateField(
-    data.vatNumber && !isAlphanumeric(data.vatNumber),
-    `Invalid VAT number: ${data.vatNumber}`, 
-    errors
-  );
+  validateField( data.vatNumber && !isAlphanumeric(data.vatNumber), `Invalid VAT number: ${data.vatNumber}`, errors );
 }
 
 // Clear tax fields when no tax is applied
-function clearTaxFields(data) {
+function clearTaxFields( data, errors ) {
   ['gstTreatment', 'gstin_uin', 'vatNumber', 'placeOfSupply'].forEach(field => {
     data[field] = undefined;
   });
+  if (data.taxType ==='Non-Tax' && typeof data.taxReason === 'undefined' ) {
+    errors.push("Tax Exemption Reason required");
+  }  
 }
 //Validate Currency
 function validateCurrency(currency, validCurrencies, errors) {
@@ -980,6 +986,28 @@ function validateAddressFields(type, data, errors) {
       `Invalid ${capitalize(type)} ${formatCamelCase(field)}: ${value}`, errors);
   });
 }
+
+// Function to Validate Item Table 
+function validateContactPerson(contactPerson, errors) {
+ 
+  // Iterate through each item to validate individual fields
+   contactPerson.forEach((contactPerson) => {
+
+    validateSalutation(contactPerson.salutation, errors);
+
+    validateAlphabetsFields(['firstName','lastName'], contactPerson, errors);
+
+    validateEmail(contactPerson.email, errors);
+
+    validatePhones(['mobile'], contactPerson, errors);
+
+    });
+}
+
+
+
+
+
 
 
 
