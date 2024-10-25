@@ -13,8 +13,8 @@ const itemTrackSchema = new Schema({
 
     itemId: {type:String},
     itemName: {type:String},
-    sellingPrice:{ type:String },
-    costPrice: { type: String },
+    sellingPrice:{ type:Number },
+    costPrice: { type: Number },
 
     creditQuantity: {type:Number},
     debitQuantity: {type:Number},

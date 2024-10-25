@@ -293,7 +293,6 @@ exports.updateItem = async (req, res) => {
     // Check for duplicate SKU
     if (cleanedData.sku !== undefined && await isDuplicateSKUExist( sku, organizationId, itemId, res )) return;
 
-
    //Validate Inputs  
    if (!validateInputs(cleanedData, taxExists, organizationId, bmcr, res)) return;
 
@@ -383,7 +382,7 @@ const updateOpeningBalanceInItemTrack = async (openingStock, itemTrackAll, prevS
     return;
   }
 
-  const diff = openingStock - prevStock || 0;
+  const diff = ( openingStock || 0) - ( prevStock || 0 );
   console.log( "Difference : ", diff );
   
 
