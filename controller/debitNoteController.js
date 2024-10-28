@@ -169,193 +169,193 @@ function taxtype( cleanedData, supplierExist ) {
 
 
 
-function calculateDebitNote(cleanedData, res) {
-  const errors = [];
+// function calculateDebitNote(cleanedData, res) {
+//   const errors = [];
 
-  let grandTotal = 0;
-  let subTotal = 0;
-  let totalTaxAmount = 0;
-  let itemTotalDiscount= 0;
-  let totalItemCount = 0;
-  // let transactionDiscountAmount = 0;
-  // Calculate the grandTotal without including transactionDiscount
-  const total = (
-    (parseFloat(cleanedData.subTotal) +
-    parseFloat(cleanedData.totalTaxAmount) +
-    cleanedData.otherExpense +      
-    cleanedData.freight -           
-    cleanedData.roundOff) - cleanedData.itemTotalDiscount      
-  ).toFixed(2);
+//   let grandTotal = 0;
+//   let subTotal = 0;
+//   let totalTaxAmount = 0;
+//   let itemTotalDiscount= 0;
+//   let totalItemCount = 0;
+//   // let transactionDiscountAmount = 0;
+//   // Calculate the grandTotal without including transactionDiscount
+//   const total = (
+//     (parseFloat(cleanedData.subTotal) +
+//     parseFloat(cleanedData.totalTaxAmount) +
+//     cleanedData.otherExpense +      
+//     cleanedData.freight -           
+//     cleanedData.roundOff) - cleanedData.itemTotalDiscount      
+//   ).toFixed(2);
 
 
-  cleanedData.items.forEach(item => {
+//   cleanedData.items.forEach(item => {
 
-    let calculatedCgstAmount = 0;
-    let calculatedSgstAmount = 0;
-    let calculatedIgstAmount = 0;
-    let calculatedVatAmount = 0;
-    let calculatedTaxAmount = 0;
-    let taxMode = cleanedData.taxMode;
+//     let calculatedCgstAmount = 0;
+//     let calculatedSgstAmount = 0;
+//     let calculatedIgstAmount = 0;
+//     let calculatedVatAmount = 0;
+//     let calculatedTaxAmount = 0;
+//     let taxMode = cleanedData.taxMode;
 
-    // Calculate item line discount 
-    const itemDiscountAmount = calculateItemDiscount(item);
+//     // Calculate item line discount 
+//     const itemDiscountAmount = calculateItemDiscount(item);
 
-    itemTotalDiscount +=  parseFloat(itemDiscountAmount);
-    totalItemCount +=  parseFloat(item.itemQuantity);
+//     itemTotalDiscount +=  parseFloat(itemDiscountAmount);
+//     totalItemCount +=  parseFloat(item.itemQuantity);
 
-    let itemTotal = (item.itemCostPrice * item.itemQuantity) - itemDiscountAmount;
+//     let itemTotal = (item.itemCostPrice * item.itemQuantity) - itemDiscountAmount;
     
 
-    // Handle tax calculation only for taxable items
-    if (item.taxPreference === 'Taxable') {
-      switch (taxMode) {
+//     // Handle tax calculation only for taxable items
+//     if (item.taxPreference === 'Taxable') {
+//       switch (taxMode) {
         
-        case 'Intra':
-        calculatedCgstAmount = (item.itemCgst / 100) * itemTotal;
-        calculatedSgstAmount = (item.itemSgst / 100) * itemTotal;
-        itemTotal += calculatedCgstAmount + calculatedSgstAmount;
-        break;
+//         case 'Intra':
+//         calculatedCgstAmount = (item.itemCgst / 100) * itemTotal;
+//         calculatedSgstAmount = (item.itemSgst / 100) * itemTotal;
+//         itemTotal += calculatedCgstAmount + calculatedSgstAmount;
+//         break;
 
-        case 'Inter':
-        calculatedIgstAmount = (item.itemIgst / 100) * itemTotal;
-        itemTotal += calculatedIgstAmount;
-        break;
+//         case 'Inter':
+//         calculatedIgstAmount = (item.itemIgst / 100) * itemTotal;
+//         itemTotal += calculatedIgstAmount;
+//         break;
         
-        case 'VAT':
-        calculatedVatAmount = (item.itemVat / 100) * itemTotal;
-        itemTotal += calculatedVatAmount;
-        break;
+//         case 'VAT':
+//         calculatedVatAmount = (item.itemVat / 100) * itemTotal;
+//         itemTotal += calculatedVatAmount;
+//         break;
 
-      }
-      calculatedTaxAmount =  calculatedCgstAmount + calculatedSgstAmount + calculatedIgstAmount + calculatedVatAmount;
+//       }
+//       calculatedTaxAmount =  calculatedCgstAmount + calculatedSgstAmount + calculatedIgstAmount + calculatedVatAmount;
       
-      // Log calculated tax amounts
+//       // Log calculated tax amounts
 
-      logCalculatedTax(item, calculatedCgstAmount, calculatedSgstAmount,  calculatedIgstAmount, calculatedVatAmount );
+//       logCalculatedTax(item, calculatedCgstAmount, calculatedSgstAmount,  calculatedIgstAmount, calculatedVatAmount );
 
-      // Check tax amounts
-      checkAmount(calculatedCgstAmount, item.itemCgstAmount, item.itemName, 'CGST',errors);
-      checkAmount(calculatedSgstAmount, item.itemSgstAmount, item.itemName, 'SGST',errors);
-      checkAmount(calculatedIgstAmount, item.itemIgstAmount, item.itemName, 'IGST',errors);
-      checkAmount(calculatedVatAmount, item.itemVatAmount, item.itemName, 'VAT',errors);
-      checkAmount(calculatedTaxAmount, item.itemTotaltax, item.itemName, 'Total tax',errors);
+//       // Check tax amounts
+//       checkAmount(calculatedCgstAmount, item.itemCgstAmount, item.itemName, 'CGST',errors);
+//       checkAmount(calculatedSgstAmount, item.itemSgstAmount, item.itemName, 'SGST',errors);
+//       checkAmount(calculatedIgstAmount, item.itemIgstAmount, item.itemName, 'IGST',errors);
+//       checkAmount(calculatedVatAmount, item.itemVatAmount, item.itemName, 'VAT',errors);
+//       checkAmount(calculatedTaxAmount, item.itemTotaltax, item.itemName, 'Total tax',errors);
 
-      totalTaxAmount += calculatedCgstAmount + calculatedSgstAmount + calculatedIgstAmount + calculatedVatAmount || 0 ;
-
-
-    } else {
-      console.log(`Skipping Tax for Non-Taxable item: ${item.itemName}`);
-      console.log(`Item: ${item.itemName}, Calculated Discount: ${itemTotalDiscount}`);
-
-    }
-
-    // Update total values
-    subTotal += parseFloat(itemQuantity * itemCostPrice);
-
-    checkAmount(itemTotal, item.itemAmount, item.itemName, 'Item Total',errors);
-
-    console.log(`${item.itemName} Item Total: ${itemTotal} , Provided ${item.itemAmount}`);
-    console.log(`${item.itemName} Total Tax: ${calculatedTaxAmount} , Provided ${item.itemTotaltax || 0 }`);
-    console.log("");
-  });
-
-  console.log(`SubTotal: ${subTotal} , Provided ${cleanedData.subTotal}`);
-
-  // Transaction Discount
-  let transactionDiscount = calculateTransactionDiscount(cleanedData, total); 
-
-  // grandTotal amount calculation with including transactionDiscount
-  grandTotal = total - transactionDiscount; 
-
-  const roundToTwoDecimals = (value) => Math.round(value * 100) / 100;
-
-  // Validate calculated totals against cleanedData data
-  const calculatedSubTotal = subTotal;
-  const calculatedTotalTaxAmount = totalTaxAmount;
-  const calculatedGrandTotalAmount = grandTotal;
-  // const calculatedTransactionDiscountAmount = transactionDiscountAmount;
-
-  // Round the totals for comparison
-  const roundedSubTotal = roundToTwoDecimals(calculatedSubTotal);
-  const roundedTotalTaxAmount = roundToTwoDecimals(calculatedTotalTaxAmount);
-  const roundedGrandTotalAmount = roundToTwoDecimals(calculatedGrandTotalAmount);
-  // const roundedTransactionDiscountAmount = roundToTwoDecimals(calculatedTransactionDiscountAmount);
-
-  console.log(`Final Sub Total: ${roundedSubTotal} , Provided ${cleanedData.subTotal}` );
-  console.log(`Final Total Tax: ${roundedTotalTaxAmount} , Provided ${cleanedData.totalTaxAmount}` );
-  // console.log(`Final Transaction Discount Amount: ${roundedTransactionDiscountAmount} , Provided ${cleanedData.transactionDiscountAmount}` );
-  console.log(`Final Total Amount: ${roundedGrandTotalAmount} , Provided ${cleanedData.grandTotal}` );
-  console.log(`Final Total Discount Amount: ${transactionDiscount} , Provided ${cleanedData.transactionDiscountAmount}` );
-
-  const cleanedDataTotalTax = cleanedData.totalTaxAmount || 0;
-
-  const isSubTotalCorrect = roundedSubTotal === parseFloat(cleanedData.subTotal);
-  const isTotalTaxCorrect = roundedTotalTaxAmount === parseFloat(cleanedDataTotalTax);
-  const isTotalAmountCorrect = roundedGrandTotalAmount === parseFloat(cleanedData.grandTotal);
-  const isTotalDiscount = transactionDiscount === parseFloat(cleanedData.transactionDiscountAmount);
-  const isTotalItemCount = totalItemCount === parseFloat(cleanedData.totalItem);
+//       totalTaxAmount += calculatedCgstAmount + calculatedSgstAmount + calculatedIgstAmount + calculatedVatAmount || 0 ;
 
 
+//     } else {
+//       console.log(`Skipping Tax for Non-Taxable item: ${item.itemName}`);
+//       console.log(`Item: ${item.itemName}, Calculated Discount: ${itemTotalDiscount}`);
 
-  validateAmount(roundedSubTotal, cleanedData.subTotal, 'SubTotal', errors);
-  validateAmount(roundedTotalTaxAmount, cleanedData.totalTaxAmount, 'Total Tax', errors);
-  validateAmount(roundedGrandTotalAmount, cleanedData.grandTotal, 'Total Amount', errors);
-  validateAmount(transactionDiscount, cleanedData.transactionDiscountAmount, 'Total Discount Amount', errors);
-  validateAmount(totalItemCount, cleanedData.totalItem, 'Total Item count', errors);
+//     }
 
-  if (errors.length > 0) {
-    res.status(400).json({ message: errors.join(", ") });
-    return false;
-  }
+//     // Update total values
+//     subTotal += parseFloat(itemQuantity * itemCostPrice);
 
-  return true;
-}
+//     checkAmount(itemTotal, item.itemAmount, item.itemName, 'Item Total',errors);
+
+//     console.log(`${item.itemName} Item Total: ${itemTotal} , Provided ${item.itemAmount}`);
+//     console.log(`${item.itemName} Total Tax: ${calculatedTaxAmount} , Provided ${item.itemTotaltax || 0 }`);
+//     console.log("");
+//   });
+
+//   console.log(`SubTotal: ${subTotal} , Provided ${cleanedData.subTotal}`);
+
+//   // Transaction Discount
+//   let transactionDiscount = calculateTransactionDiscount(cleanedData, total); 
+
+//   // grandTotal amount calculation with including transactionDiscount
+//   grandTotal = total - transactionDiscount; 
+
+//   const roundToTwoDecimals = (value) => Math.round(value * 100) / 100;
+
+//   // Validate calculated totals against cleanedData data
+//   const calculatedSubTotal = subTotal;
+//   const calculatedTotalTaxAmount = totalTaxAmount;
+//   const calculatedGrandTotalAmount = grandTotal;
+//   // const calculatedTransactionDiscountAmount = transactionDiscountAmount;
+
+//   // Round the totals for comparison
+//   const roundedSubTotal = roundToTwoDecimals(calculatedSubTotal);
+//   const roundedTotalTaxAmount = roundToTwoDecimals(calculatedTotalTaxAmount);
+//   const roundedGrandTotalAmount = roundToTwoDecimals(calculatedGrandTotalAmount);
+//   // const roundedTransactionDiscountAmount = roundToTwoDecimals(calculatedTransactionDiscountAmount);
+
+//   console.log(`Final Sub Total: ${roundedSubTotal} , Provided ${cleanedData.subTotal}` );
+//   console.log(`Final Total Tax: ${roundedTotalTaxAmount} , Provided ${cleanedData.totalTaxAmount}` );
+//   // console.log(`Final Transaction Discount Amount: ${roundedTransactionDiscountAmount} , Provided ${cleanedData.transactionDiscountAmount}` );
+//   console.log(`Final Total Amount: ${roundedGrandTotalAmount} , Provided ${cleanedData.grandTotal}` );
+//   console.log(`Final Total Discount Amount: ${transactionDiscount} , Provided ${cleanedData.transactionDiscountAmount}` );
+
+//   const cleanedDataTotalTax = cleanedData.totalTaxAmount || 0;
+
+//   const isSubTotalCorrect = roundedSubTotal === parseFloat(cleanedData.subTotal);
+//   const isTotalTaxCorrect = roundedTotalTaxAmount === parseFloat(cleanedDataTotalTax);
+//   const isTotalAmountCorrect = roundedGrandTotalAmount === parseFloat(cleanedData.grandTotal);
+//   const isTotalDiscount = transactionDiscount === parseFloat(cleanedData.transactionDiscountAmount);
+//   const isTotalItemCount = totalItemCount === parseFloat(cleanedData.totalItem);
 
 
-// Calculate item discount
-function calculateItemDiscount(item) {
-  return item.itemDiscountType === 'currency'
-    ? item.itemDiscount || 0
-    : (item.itemCostPrice * item.itemQuantity * (item.itemDiscount || 0)) / 100;    //if percentage
-}
 
-//Item Line Log
-function logCalculatedTax(item, calculatedCgstAmount, calculatedSgstAmount,  calculatedIgstAmount, calculatedVatAmount) {
-  console.log("");  
-  console.log(`Item: ${item.itemName}, Calculated CGST: ${calculatedCgstAmount}, CGST from data: ${item.cgstAmount}`);
-  console.log(`Item: ${item.itemName}, Calculated SGST: ${calculatedSgstAmount}, SGST from data: ${item.sgstAmount}`);
-  console.log(`Item: ${item.itemName}, Calculated IGST: ${calculatedIgstAmount}, IGST from data: ${item.igstAmount}`);
-  console.log(`Item: ${item.itemName}, Calculated VAT: ${calculatedVatAmount}, VAT from data: ${item.vatAmount}`);
-}
+//   validateAmount(roundedSubTotal, cleanedData.subTotal, 'SubTotal', errors);
+//   validateAmount(roundedTotalTaxAmount, cleanedData.totalTaxAmount, 'Total Tax', errors);
+//   validateAmount(roundedGrandTotalAmount, cleanedData.grandTotal, 'Total Amount', errors);
+//   validateAmount(transactionDiscount, cleanedData.transactionDiscountAmount, 'Total Discount Amount', errors);
+//   validateAmount(totalItemCount, cleanedData.totalItem, 'Total Item count', errors);
 
-//Mismatch Check
-function checkAmount(calculatedAmount, providedAmount, itemName, taxType,errors) {
-  if (Math.abs(calculatedAmount - providedAmount) > 0.01) {
-    const errorMessage = `Mismatch in ${taxType} for item ${itemName}: Calculated ${calculatedAmount}, Provided ${providedAmount}`;
-    errors.push(errorMessage);
-    console.log(errorMessage);
-  }
-}
+//   if (errors.length > 0) {
+//     res.status(400).json({ message: errors.join(", ") });
+//     return false;
+//   }
 
-//TransactionDiscount
-function calculateTransactionDiscount(cleanedData, transactionDiscountAmount, total) {
+//   return true;
+// }
 
-  const transactionDiscountAmount = cleanedData.transactionDiscount || 0;
 
-  return cleanedData.transactionDiscountType === 'currency'
-    ? transactionDiscountAmount
-    : (total * cleanedData.transactionDiscount) / 100;    //if percentage
-}
+// // Calculate item discount
+// function calculateItemDiscount(item) {
+//   return item.itemDiscountType === 'currency'
+//     ? item.itemDiscount || 0
+//     : (item.itemCostPrice * item.itemQuantity * (item.itemDiscount || 0)) / 100;    //if percentage
+// }
 
-//Final Item Amount check
-const validateAmount = ( calculatedValue, cleanedValue, label, errors ) => {
-  const isCorrect = calculatedValue === parseFloat(cleanedValue);
-  if (!isCorrect) {
-    const errorMessage = `${label} is incorrect: ${cleanedValue}`;
-    errors.push(errorMessage);
-    console.log(errorMessage);
-  }
-};
+// //Item Line Log
+// function logCalculatedTax(item, calculatedCgstAmount, calculatedSgstAmount,  calculatedIgstAmount, calculatedVatAmount) {
+//   console.log("");  
+//   console.log(`Item: ${item.itemName}, Calculated CGST: ${calculatedCgstAmount}, CGST from data: ${item.cgstAmount}`);
+//   console.log(`Item: ${item.itemName}, Calculated SGST: ${calculatedSgstAmount}, SGST from data: ${item.sgstAmount}`);
+//   console.log(`Item: ${item.itemName}, Calculated IGST: ${calculatedIgstAmount}, IGST from data: ${item.igstAmount}`);
+//   console.log(`Item: ${item.itemName}, Calculated VAT: ${calculatedVatAmount}, VAT from data: ${item.vatAmount}`);
+// }
+
+// //Mismatch Check
+// function checkAmount(calculatedAmount, providedAmount, itemName, taxType,errors) {
+//   if (Math.abs(calculatedAmount - providedAmount) > 0.01) {
+//     const errorMessage = `Mismatch in ${taxType} for item ${itemName}: Calculated ${calculatedAmount}, Provided ${providedAmount}`;
+//     errors.push(errorMessage);
+//     console.log(errorMessage);
+//   }
+// }
+
+// //TransactionDiscount
+// function calculateTransactionDiscount(cleanedData, transactionDiscountAmount, total) {
+
+//   const transactionDiscountAmount = cleanedData.transactionDiscount || 0;
+
+//   return cleanedData.transactionDiscountType === 'currency'
+//     ? transactionDiscountAmount
+//     : (total * cleanedData.transactionDiscount) / 100;    //if percentage
+// }
+
+// //Final Item Amount check
+// const validateAmount = ( calculatedValue, cleanedValue, label, errors ) => {
+//   const isCorrect = calculatedValue === parseFloat(cleanedValue);
+//   if (!isCorrect) {
+//     const errorMessage = `${label} is incorrect: ${cleanedValue}`;
+//     errors.push(errorMessage);
+//     console.log(errorMessage);
+//   }
+// };
 
 
 
