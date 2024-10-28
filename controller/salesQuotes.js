@@ -709,33 +709,17 @@ function calculateSalesOrder(cleanedData, res) {
   // Utility function to round values to two decimal places
   const roundToTwoDecimals = (value) => Math.round(value * 100) / 100;
 
-  // Validate calculated totals against cleanedData data
-  const calculatedSubTotal = subTotal;
-  const calculatedTotalTax = totalTax;
-  const calculatedTotalAmount = totalAmount;
-  const calculatedTotalDiscount = totalDiscount;
-
   // Round the totals for comparison
-  const roundedSubTotal = roundToTwoDecimals(calculatedSubTotal);
-  const roundedTotalTax = roundToTwoDecimals(calculatedTotalTax);
-  const roundedTotalAmount = roundToTwoDecimals(calculatedTotalAmount);
-  const roundedTotalDiscount = roundToTwoDecimals(calculatedTotalDiscount);
+  const roundedSubTotal = roundToTwoDecimals(subTotal);
+  const roundedTotalTax = roundToTwoDecimals(totalTax);
+  const roundedTotalAmount = roundToTwoDecimals(totalAmount);
+  const roundedTotalDiscount = roundToTwoDecimals(totalDiscount);
 
 
   console.log(`Final Sub Total: ${roundedSubTotal} , Provided ${cleanedData.subTotal}` );
   console.log(`Final Total Tax: ${roundedTotalTax} , Provided ${cleanedData.totalTax}` );
   console.log(`Final Total Amount: ${roundedTotalAmount} , Provided ${cleanedData.totalAmount}` );
   console.log(`Final Total Discount Amount: ${roundedTotalDiscount} , Provided ${cleanedData.totalDiscount}` );
-
-  const cleanedDataTotalTax = cleanedData.totalTax || 0;
-
-  const isSubTotalCorrect = roundedSubTotal === parseFloat(cleanedData.subTotal);
-  const isTotalTaxCorrect = roundedTotalTax === parseFloat(cleanedDataTotalTax);
-  const isTotalAmountCorrect = roundedTotalAmount === parseFloat(cleanedData.totalAmount);
-  const isTotalDiscount = roundedTotalDiscount === parseFloat(cleanedData.totalDiscount);
-  const isTotalItemCount = totalItemCount === parseFloat(cleanedData.totalItem);
-
-
 
   validateAmount(roundedSubTotal, cleanedData.subTotal, 'SubTotal', errors);
   validateAmount(roundedTotalTax, cleanedData.totalTax, 'Total Tax', errors);
@@ -772,7 +756,10 @@ function logCalculatedTax(item, calculatedCgstAmount, calculatedSgstAmount,  cal
 
 //Mismatch Check
 function checkAmount(calculatedAmount, providedAmount, itemName, taxType,errors) {
-  if (Math.abs(calculatedAmount - providedAmount) > 0.01) {
+
+  const roundedAmount = roundToTwoDecimals(calculatedAmount);
+  
+  if (Math.abs(roundedAmount - providedAmount) > 0.01) {
     const errorMessage = `Mismatch in ${taxType} for item ${itemName}: Calculated ${calculatedAmount}, Provided ${providedAmount}`;
     errors.push(errorMessage);
     console.log(errorMessage);
