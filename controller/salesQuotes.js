@@ -755,7 +755,7 @@ function logCalculatedTax(item, calculatedCgstAmount, calculatedSgstAmount,  cal
 
 //Mismatch Check
 function checkAmount(calculatedAmount, providedAmount, itemName, taxType,errors) {
-  const roundToTwoDecimals = (value) => Math.round(value * 100) / 100;
+  const roundToTwoDecimals = (value) => Number(value.toFixed(2)); // Round to two decimal places
   const roundedAmount = roundToTwoDecimals(calculatedAmount);
   
   if (Math.abs(roundedAmount - providedAmount) > 0.01) {
