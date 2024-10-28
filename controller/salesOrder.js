@@ -228,7 +228,7 @@ try {
 
 
 // Utility Functions
-const validShipmentPreference = [];
+const validDeliveryMethod = ["Road","Rail","Air","Sea"];
 const validPaymentMode = [];
 const validDiscountTransactionType = ["Currency", "Percentage"];
 const validCountries = {
@@ -485,7 +485,7 @@ function validateQuoteData( data, customerExist, items, itemTable, organizationE
   // validateDiscountType(data.discountType, errors);
   validateDiscountTransactionType(data.discountTransactionType, errors);
   //validateDiscountTax(data.discountTax, errors);
-  validateShipmentPreference(data.shipmentPreference, errors);
+  validateDeliveryMethod(data.deliveryMethod, errors);
   validatePaymentMode(data.paymentMode, errors);
 
 
@@ -573,9 +573,9 @@ validateField(discountTransactionType && !validDiscountTransactionType.includes(
 }
 
 //Validate Shipment Preference
-function validateShipmentPreference(shipmentPreference, errors) {
-  validateField(shipmentPreference && !validShipmentPreference.includes(shipmentPreference),
-    "Invalid Shipment Preference : " + shipmentPreference, errors);
+function validateDeliveryMethod(deliveryMethod, errors) {
+  validateField(deliveryMethod && !validDeliveryMethod.includes(deliveryMethod),
+    "Invalid Delivery Method : " + deliveryMethod, errors);
 }
 //Validate Payment Mode
 function validatePaymentMode(paymentMode, errors) {
