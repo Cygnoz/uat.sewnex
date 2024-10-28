@@ -624,6 +624,9 @@ function calculateSalesOrder(cleanedData, res) {
   let totalDiscount= 0;
   let totalItemCount = 0;
 
+  // Utility function to round values to two decimal places
+  const roundToTwoDecimals = (value) => Number(value.toFixed(2));
+
 
   cleanedData.items.forEach(item => {
 
@@ -648,27 +651,24 @@ function calculateSalesOrder(cleanedData, res) {
       switch (taxType) {
         
         case 'Intra':
-        calculatedCgstAmount = (item.cgst / 100) * itemTotal;
-        calculatedSgstAmount = (item.sgst / 100) * itemTotal;
+        calculatedCgstAmount = roundToTwoDecimals((item.cgst / 100) * itemTotal);
+        calculatedSgstAmount = roundToTwoDecimals((item.sgst / 100) * itemTotal);
         itemTotal += calculatedCgstAmount + calculatedSgstAmount;
         break;
 
         case 'Inter':
-        calculatedIgstAmount = (item.igst / 100) * itemTotal;
+        calculatedIgstAmount = roundToTwoDecimals((item.igst / 100) * itemTotal);
         itemTotal += calculatedIgstAmount;
         break;
         
         case 'VAT':
-        calculatedVatAmount = (item.vat / 100) * itemTotal;
+        calculatedVatAmount = roundToTwoDecimals((item.vat / 100) * itemTotal);
         itemTotal += calculatedVatAmount;
         break;
 
       }
       calculatedTaxAmount =  calculatedCgstAmount + calculatedSgstAmount + calculatedIgstAmount + calculatedVatAmount;
       
-      // Log calculated tax amounts
-
-      logCalculatedTax(item, calculatedCgstAmount, calculatedSgstAmount,  calculatedIgstAmount, calculatedVatAmount );
 
       // Check tax amounts
       checkAmount(calculatedCgstAmount, item.cgstAmount, item.itemName, 'CGST',errors);
@@ -744,19 +744,13 @@ function calculateDiscount(item) {
     : (item.sellingPrice * item.quantity * (item.discountAmount || 0)) / 100;
 }
 
-//Item Line Log
-function logCalculatedTax(item, calculatedCgstAmount, calculatedSgstAmount,  calculatedIgstAmount, calculatedVatAmount) {
-  console.log("");  
-  console.log(`Item: ${item.itemName}, Calculated CGST: ${calculatedCgstAmount}, CGST from data: ${item.cgstAmount}`);
-  console.log(`Item: ${item.itemName}, Calculated SGST: ${calculatedSgstAmount}, SGST from data: ${item.sgstAmount}`);
-  console.log(`Item: ${item.itemName}, Calculated IGST: ${calculatedIgstAmount}, IGST from data: ${item.igstAmount}`);
-  console.log(`Item: ${item.itemName}, Calculated VAT: ${calculatedVatAmount}, VAT from data: ${item.vatAmount}`);
-}
 
 //Mismatch Check
 function checkAmount(calculatedAmount, providedAmount, itemName, taxType,errors) {
   const roundToTwoDecimals = (value) => Number(value.toFixed(2)); // Round to two decimal places
   const roundedAmount = roundToTwoDecimals(calculatedAmount);
+  console.log(`Item: ${itemName}, Calculated ${taxType}: ${roundedAmount}, Provided data: ${providedAmount}`);
+
   
   if (Math.abs(roundedAmount - providedAmount) > 0.01) {
     const errorMessage = `Mismatch in ${taxType} for item ${itemName}: Calculated ${calculatedAmount}, Provided ${providedAmount}`;
