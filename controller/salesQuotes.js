@@ -706,8 +706,7 @@ function calculateSalesOrder(cleanedData, res) {
   // Total amount calculation
   totalAmount = subTotal - transactionDiscount; 
 
-  // Utility function to round values to two decimal places
-  const roundToTwoDecimals = (value) => Math.round(value * 100) / 100;
+ 
 
   // Round the totals for comparison
   const roundedSubTotal = roundToTwoDecimals(subTotal);
@@ -756,7 +755,7 @@ function logCalculatedTax(item, calculatedCgstAmount, calculatedSgstAmount,  cal
 
 //Mismatch Check
 function checkAmount(calculatedAmount, providedAmount, itemName, taxType,errors) {
-
+  const roundToTwoDecimals = (value) => Math.round(value * 100) / 100;
   const roundedAmount = roundToTwoDecimals(calculatedAmount);
   
   if (Math.abs(roundedAmount - providedAmount) > 0.01) {
