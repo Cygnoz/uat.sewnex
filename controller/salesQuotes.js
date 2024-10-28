@@ -696,12 +696,14 @@ function calculateSalesOrder(cleanedData, res) {
     console.log("");
   });
 
+  console.log(`SubTotal: ${subTotal} , Provided ${cleanedData.subTotal}`);
+
   // Transaction Discount
   let transactionDiscount = calculateTransactionDiscount(cleanedData, subTotal);
 
   totalDiscount +=  parseFloat(transactionDiscount);  
 
-  console.log(`SubTotal: ${subTotal} , Provided ${cleanedData.subTotal}`);
+  
 
   // Total amount calculation
   totalAmount = subTotal - transactionDiscount; 
