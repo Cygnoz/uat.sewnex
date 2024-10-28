@@ -802,8 +802,8 @@ function generateTimeAndDateForDB(
 
     //OtherDetails
     validateAlphanumericFields(['pan','gstin_uin','vatNumber'], data, errors);
-    validateIntegerFields(['creditDays', 'creditLimits', 'interestPercentage'], data, errors);
-    validateFloatFields(['debitOpeningBalance', 'creditOpeningBalance'], data, errors);
+    validateIntegerFields(['creditDays', 'creditLimits'], data, errors);
+    validateFloatFields(['debitOpeningBalance', 'creditOpeningBalance', 'interestPercentage'], data, errors);
     validateAlphabetsFields(['department', 'designation','billingAttention','shippingAttention'], data, errors);
 
     //Tax Details
