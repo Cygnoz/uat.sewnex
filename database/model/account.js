@@ -1,7 +1,4 @@
-<<<<<<< HEAD
-// v1.0
-=======
->>>>>>> 70a2b98121c244bfb5998f86e2133aff736cb00e
+
 // v1.1
 
 const mongoose = require("mongoose");

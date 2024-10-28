@@ -608,7 +608,7 @@ async function checkDuplicateCustomerFieldsEdit(duplicateCheck,customerDisplayNa
   }
   
 // Create New Account
-  function createNewAccount( customerDisplayName, openingDate, organizationId, allCustomer ) {
+  function createNewAccount( customerDisplayName, openingDate, organizationId, allCustomer ,savedCustomer ) {
 
     // Count existing organizations to generate the next organizationId
 
