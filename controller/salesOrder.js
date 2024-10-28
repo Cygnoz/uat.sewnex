@@ -152,7 +152,6 @@ exports.getLastOrderPrefix = async (req, res) => {
       
       const series = prefix.series[0];     
       const lastPrefix = series.salesOrder + series.salesOrderNum;
-      console.log(lastPrefix);
 
       res.status(200).json(lastPrefix);
   } catch (error) {
@@ -482,9 +481,7 @@ function validateQuoteData( data, customerExist, items, itemTable, organizationE
   //Basic Info
   validateReqFields( data, customerExist, errors );
   validateItemTable(items, itemTable, errors);
-  // validateDiscountType(data.discountType, errors);
   validateDiscountTransactionType(data.discountTransactionType, errors);
-  //validateDiscountTax(data.discountTax, errors);
   validateDeliveryMethod(data.deliveryMethod, errors);
   validatePaymentMode(data.paymentMode, errors);
 
@@ -551,6 +548,9 @@ items.forEach((item) => {
 
   // Validate integer fields
   validateIntegerFields(['quantity'], item, errors);
+
+  // Validate Stock Count 
+  validateField( item.quantity > fetchedItem.currentStock, `Insufficient stock for ${item.itemName}: Requested quantity (${item.quantity}), Available stock (${fetchedItem.currentStock})`, errors );
 
   // Validate float fields
   validateFloatFields(['sellingPrice', 'itemTotaltax', 'discountAmount', 'itemAmount'], item, errors);
