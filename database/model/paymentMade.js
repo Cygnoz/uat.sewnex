@@ -2,17 +2,20 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const unpaidBillSchema = new Schema({
-  date: { type: String },
+  billDate: { type: String },
   dueDate: { type: String },
   billId: { type: String },
-  billAmount: { type: String },
-  amountDue: { type: String },
-  payment: { type: String }
+  billNumber: { type: Number },
+  billAmount: { type: Number },
+  amountDue: { type: Number },
+  payment: { type: Number }
 });
 
 const purchaseSchema = new Schema({
   organizationId: { type: String },
-  supplier: { type: String },
+  supplierId: { type: String },
+  supplierDisplayName: { type: String },
+  paymentMade :  { type: Number },
   paymentDate: { type: String },
   paymentId: { type: String },
   paymentMode: { type: String },
@@ -22,11 +25,12 @@ const purchaseSchema = new Schema({
   attachments: { type: String },
   createdDate: { type: String },
   updatedDate: { type: String },
-  amountPaid: { type: String },
-  amountUsedForPayments: { type: String},
-  amountRefunded: { type: String},
-  amountInExcess: { type : String},
-  unpaidBill: [unpaidBillSchema]
+  total:{ type: Number },
+  amountPaid: { type: Number },
+  amountUsedForPayments: { type: Number},
+  amountRefunded: { type: Number},
+  amountInExcess: { type : Number},
+  unpaidBills: [unpaidBillSchema]
 });
 
 const PurchasePayment = mongoose.model('PurchaseOrder', purchaseSchema);

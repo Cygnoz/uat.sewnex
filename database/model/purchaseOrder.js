@@ -4,27 +4,34 @@ const { Schema } = mongoose;
 const itemTableSchema = new Schema({
   itemId: { type: String },
   itemName: { type: String },
-  itemQuantity: { type: String },
-  itemSellingPrice: { type: String },
-  itemTax: { type: String },
+  itemQuantity: { type: Number },
+  itemCostPrice: { type: Number },
+  itemTax: { type: Number },
   itemDiscountType: { type: String }, //percentage/rupees
   itemDiscount: { type: String },
   itemAmount: { type: Number },
 
-  itemSgst: { type: String },
-  itemCgst: { type: String },
-  itemIgst: { type: String },
-  itemVat: { type: String },
+  itemSgst: { type: Number },
+  itemCgst: { type: Number },
+  itemIgst: { type: Number },
+  itemVat: { type: Number },
+
+  itemSgstAmount: { type: Number },
+  itemCgstAmount: { type: Number },
+  itemIgstAmount: { type: Number },
+  itemVatAmount: { type: Number },
 },{ _id: false });
 
 const purchaseOrderSchema = new mongoose.Schema({
   organizationId: {type:String},
   supplierId: { type: String},
-  // supplierDisplayName: { type: String },
+  supplierDisplayName: { type: String },
   
   //supplierBillingAddress:
   supplierBillingCountry: { type: String },
   supplierBillingState: { type: String },
+  expectedShipmentDate: { type: String },
+
 
   taxMode: { type: String }, // intra/inter/None
 
@@ -32,17 +39,16 @@ const purchaseOrderSchema = new mongoose.Schema({
   destinationOfSupply: { type: String },
 
   deliveryAddress: { type: String},  // customer/organization
-  customerId: { type: String},
+  // customerId: { type: String},
 
   purchaseOrder: { type: String },  //prefix
   reference: { type: String },
   shipmentPreference: { type: String },   // e.g., 'Road', 'Rail', 'Air', 'Sea'
   purchaseOrderDate: { type: String },
-  expectedShipmentDate: { type: String },
   paymentTerms: { type: String },
-  paymentMode: { type: String },  //
+  paymentMode: { type: String },  
   
-  discountType: { type: String}, // item line / transaction line / both
+  // discountType: { type: String}, // item line / transaction line / both
   // taxType: { type: String },  //GST/VAT
 
   // Item table
@@ -61,21 +67,21 @@ const purchaseOrderSchema = new mongoose.Schema({
   subTotal: { type: Number },
   totalItem: { type: Number },
 
-  sgst: { type: String },
-  cgst: { type: String },
+  sgst: { type: Number },
+  cgst: { type: Number },
   igst: { type: Number },
   vat: { type: Number },
 
+  totalTaxAmount: { type: Number },   // sgst + cgst
+  itemTotalDiscount: { type: Number },
+
   transactionDiscountType: { type: String }, //percentage/rupee
-  transactionDiscount: { type: String },
-  transactionDiscountAmount: { type: String },
-  beforeTaxDiscountAmount: { type: String },
-  totalDiscount: { type: String },
-  totalTaxAmount: { type: Number },
-  afterTaxDiscountAmount: { type: String },
+  transactionDiscount: { type: Number },
+  transactionDiscountAmount: { type: Number },  // if percentage
   roundOff: { type: Number },
   grandTotal: { type: Number },
   status: { type: String }, // Open/Converted to bills
+  createdDate: { type: String },
 
 });
 
