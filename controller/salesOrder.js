@@ -550,7 +550,7 @@ items.forEach((item) => {
   validateIntegerFields(['quantity'], item, errors);
 
   // Validate Stock Count 
-  validateField( item.quantity > fetchedItem.currentStock, `Insufficient stock for ${item.itemName}: Requested quantity (${item.quantity}), Available stock (${fetchedItem.currentStock})`, errors );
+  validateField( item.quantity > fetchedItem.currentStock, `Insufficient Stock for ${item.itemName}: Requested quantity ${item.quantity}, Available stock ${fetchedItem.currentStock}`, errors );
 
   // Validate float fields
   validateFloatFields(['sellingPrice', 'itemTotaltax', 'discountAmount', 'itemAmount'], item, errors);
