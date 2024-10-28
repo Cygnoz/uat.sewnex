@@ -5,7 +5,8 @@ const Settings = require("../database/model/settings");
 const BMCR = require("../database/model/bmcr");
 const Tax = require("../database/model/tax");
 const moment = require('moment-timezone');
-// const ItemTrack = require("../database/model/itemTrack");
+const mongoose = require('mongoose');
+
 
 
 
@@ -26,6 +27,48 @@ const dataExists = async (organizationId) => {
   ]);
   return { newItems};
 };
+
+
+
+
+const newDataExists = async (organizationId) => {
+  // Retrieve items with specified fields
+  const [newItems] = await Promise.all([
+    Item.find( { organizationId }, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 } ),
+  ]);
+
+  // Extract itemIds from newItems
+  const itemIds = newItems.map(item => item._id.toString());
+ 
+
+  // Aggregate ItemTrack to get the latest entry for each itemId
+  const itemTracks = await ItemTrack.aggregate([
+    { $match: { itemId: { $in: itemIds } } },
+    { $sort: { _id: -1 } },
+    { $group: { _id: "$itemId", lastEntry: { $first: "$$ROOT" } } }
+  ]);
+  
+
+  // Map itemTracks by itemId for easier lookup
+  const itemTrackMap = itemTracks.reduce((acc, itemTrack) => {
+    acc[itemTrack._id] = itemTrack.lastEntry;
+    return acc;
+  }, {});
+
+  // Attach the last entry from ItemTrack to each item in newItems
+  const enrichedItems = newItems.map(item => ({
+    ...item._doc, // Copy item fields
+    // lastEntry: itemTrackMap[item._id] || null, // Attach lastEntry if found
+    currentStock: itemTrackMap[item._id.toString()] ? itemTrackMap[item._id.toString()].currentStock : null
+  }));
+
+  return { enrichedItems };
+};
+
+
+
+
+
 
 
 // BMCR existing data
@@ -197,6 +240,8 @@ exports.getAllItem = async (req, res) => {
   }
 };
 
+
+//Get all item xs 
 exports.newgetAllItem = async (req, res) => {
   try {
     const organizationId = req.user.organizationId;
@@ -211,14 +256,14 @@ exports.newgetAllItem = async (req, res) => {
       });
     }
 
-    const { newItems } = await dataExists(organizationId);
+    const { enrichedItems  } = await newDataExists(organizationId);
 
-    if (newItems.length > 0) {
-      const AllItem = newItems.map((history) => {
-        const { organizationId, ...rest } = history.toObject(); // Convert to plain object and omit organizationId
+    if (enrichedItems .length > 0) {
+      const allItems = enrichedItems.map((item) => {
+        const { organizationId, ...rest } = item; // Omit organizationId
         return rest;
       });
-      res.status(200).json(AllItem);
+      res.status(200).json(allItems);
     } else {
       return res.status(404).json("No Items found.");
     }

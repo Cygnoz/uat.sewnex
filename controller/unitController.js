@@ -71,7 +71,7 @@ exports.getAllUnit = async (req, res) => {
         if (allUnit.length > 0) {
           res.status(200).json(allUnit);
         } else {
-          return res.status(404).json({ message: "No unit found for the provided organizationId" });
+          return res.status(404).json({ message: "No unit found " });
         }
     } catch (error) {
         console.error("Error fetching unit:", error);
