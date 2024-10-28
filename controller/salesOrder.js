@@ -29,7 +29,19 @@ const dataExist = async ( organizationId, items, customerId, customerName ) => {
       Prefix.findOne({ organizationId }),
     ]);
     return { organizationExists, customerExist , settings, itemTable, itemTrack, existingPrefix };
-  };
+};
+
+
+
+const salesDataExist = async ( organizationId, orderId ) => {    
+    
+  const [organizationExists, allOrder, order ] = await Promise.all([
+    Organization.findOne({ organizationId }, { organizationId: 1}),
+    Order.find({ organizationId }),
+    Order.findOne({ organizationId , _id: orderId },)
+  ]);
+  return { organizationExists, allOrder, order };
+};
 
 
 // Add Sales Order
@@ -123,6 +135,63 @@ exports.getLastOrderPrefix = async (req, res) => {
   }
 };
 
+
+
+
+// Get All Sales Order
+exports.getAllSalesOrder = async (req, res) => {
+  try {
+    const organizationId = req.user.organizationId;
+
+    const { organizationExists, allOrder } = await salesDataExist(organizationId);
+
+    if (!organizationExists) {
+      return res.status(404).json({
+        message: "Organization not found",
+      });
+    }
+
+    if (!allOrder.length) {
+      return res.status(404).json({
+        message: "No Order found",
+      });
+    }
+
+    res.status(200).json(allOrder);
+  } catch (error) {
+    console.error("Error fetching Order:", error);
+    res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+
+
+// Get One Sales Order
+exports.getOneSalesOrder = async (req, res) => {
+try {
+  const organizationId = req.user.organizationId;
+  const  orderId = req.params.orderId;
+
+  const { organizationExists, order } = await salesDataExist(organizationId,orderId);
+
+  if (!organizationExists) {
+    return res.status(404).json({
+      message: "Organization not found",
+    });
+  }
+
+  if (!order) {
+    return res.status(404).json({
+      message: "No Quotes found",
+    });
+  }
+
+  res.status(200).json(order);
+} catch (error) {
+  console.error("Error fetching Order:", error);
+  res.status(500).json({ message: "Internal server error." });
+}
+};
 
 
 

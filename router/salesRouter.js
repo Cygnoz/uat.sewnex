@@ -35,6 +35,10 @@ router.post('/add-sales-order',verifyToken,salesOrder.addOrder)
 
 router.get('/get-last-sales-order-prefix',verifyToken,salesOrder.getLastOrderPrefix)
 
+router.get('/get-all-sales-order',verifyToken,salesOrder.getAllSalesOrder)
+
+router.get('/get-one-sales-order/:orderId',verifyToken,salesOrder.getOneSalesOrder)
+
 
 
 // Delivery Chellans
