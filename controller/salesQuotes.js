@@ -713,23 +713,26 @@ function calculateSalesOrder(cleanedData, res) {
   const calculatedSubTotal = subTotal;
   const calculatedTotalTax = totalTax;
   const calculatedTotalAmount = totalAmount;
+  const calculatedTotalDiscount = totalDiscount;
 
   // Round the totals for comparison
   const roundedSubTotal = roundToTwoDecimals(calculatedSubTotal);
   const roundedTotalTax = roundToTwoDecimals(calculatedTotalTax);
   const roundedTotalAmount = roundToTwoDecimals(calculatedTotalAmount);
+  const roundedTotalDiscount = roundToTwoDecimals(calculatedTotalDiscount);
+
 
   console.log(`Final Sub Total: ${roundedSubTotal} , Provided ${cleanedData.subTotal}` );
   console.log(`Final Total Tax: ${roundedTotalTax} , Provided ${cleanedData.totalTax}` );
   console.log(`Final Total Amount: ${roundedTotalAmount} , Provided ${cleanedData.totalAmount}` );
-  console.log(`Final Total Discount Amount: ${totalDiscount} , Provided ${cleanedData.totalDiscount}` );
+  console.log(`Final Total Discount Amount: ${roundedTotalDiscount} , Provided ${cleanedData.totalDiscount}` );
 
   const cleanedDataTotalTax = cleanedData.totalTax || 0;
 
   const isSubTotalCorrect = roundedSubTotal === parseFloat(cleanedData.subTotal);
   const isTotalTaxCorrect = roundedTotalTax === parseFloat(cleanedDataTotalTax);
   const isTotalAmountCorrect = roundedTotalAmount === parseFloat(cleanedData.totalAmount);
-  const isTotalDiscount = totalDiscount === parseFloat(cleanedData.totalDiscount);
+  const isTotalDiscount = roundedTotalDiscount === parseFloat(cleanedData.totalDiscount);
   const isTotalItemCount = totalItemCount === parseFloat(cleanedData.totalItem);
 
 
@@ -737,7 +740,7 @@ function calculateSalesOrder(cleanedData, res) {
   validateAmount(roundedSubTotal, cleanedData.subTotal, 'SubTotal', errors);
   validateAmount(roundedTotalTax, cleanedData.totalTax, 'Total Tax', errors);
   validateAmount(roundedTotalAmount, cleanedData.totalAmount, 'Total Amount', errors);
-  validateAmount(totalDiscount, cleanedData.totalDiscount, 'Total Discount Amount', errors);
+  validateAmount(roundedTotalDiscount, cleanedData.totalDiscount, 'Total Discount Amount', errors);
   validateAmount(totalItemCount, cleanedData.totalItem, 'Total Item count', errors);
 
   if (errors.length > 0) {

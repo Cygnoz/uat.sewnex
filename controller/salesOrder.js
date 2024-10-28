@@ -13,24 +13,48 @@ const mongoose = require('mongoose');
 
 
 // Fetch existing data
-const dataExist = async ( organizationId, items, customerId, customerName ) => {
-  const itemIds = items.map(item => item.itemId);
-  
-    const [organizationExists, customerExist , settings, itemTable, itemTrack, existingPrefix  ] = await Promise.all([
+const dataExist = async ( organizationId, customerId, customerName ) => { 
+    const [organizationExists, customerExist , settings, existingPrefix  ] = await Promise.all([
       Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
       Customer.findOne({ organizationId , _id:customerId, customerDisplayName: customerName}, { _id: 1, customerDisplayName: 1, taxType: 1 }),
       Settings.findOne({ organizationId },{ salesOrderAddress: 1, salesOrderCustomerNote: 1, salesOrderTermsCondition: 1, salesOrderClose: 1, restrictSalesOrderClose: 1, termCondition: 1 ,customerNote: 1 }),
-      Item.find({ organizationId, _id: { $in: itemIds } }, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }),
-      ItemTrack.aggregate([
-        { $match: { itemId: { $in: itemIds } } }, // Filter by itemIds
-        { $sort: { _id: -1 } }, // Sort by _id in descending order to get the most recent
-        { $group: { _id: "$itemId", lastEntry: { $first: "$$ROOT" } } } // Group by itemId and take the first (latest) entry
-      ]),
       Prefix.findOne({ organizationId }),
     ]);
-    return { organizationExists, customerExist , settings, itemTable, itemTrack, existingPrefix };
+    return { organizationExists, customerExist , settings, existingPrefix };
 };
 
+//Fetch Item Data
+const newDataExists = async (organizationId,items) => {
+  // Retrieve items with specified fields
+  const itemIds = items.map(item => item.itemId);
+
+  const [newItems] = await Promise.all([
+    Item.find({ organizationId, _id: { $in: itemIds } }, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }),
+  ]);
+
+  // Aggregate ItemTrack to get the latest entry for each itemId
+  const itemTracks = await ItemTrack.aggregate([
+    { $match: { itemId: { $in: itemIds } } },
+    { $sort: { _id: -1 } },
+    { $group: { _id: "$itemId", lastEntry: { $first: "$$ROOT" } } }
+  ]);
+  
+
+  // Map itemTracks by itemId for easier lookup
+  const itemTrackMap = itemTracks.reduce((acc, itemTrack) => {
+    acc[itemTrack._id] = itemTrack.lastEntry;
+    return acc;
+  }, {});
+
+  // Attach the last entry from ItemTrack to each item in newItems
+  const itemTable = newItems.map(item => ({
+    ...item._doc, // Copy item fields
+    // lastEntry: itemTrackMap[item._id] || null, // Attach lastEntry if found
+    currentStock: itemTrackMap[item._id.toString()] ? itemTrackMap[item._id.toString()].currentStock : null
+  }));
+
+  return { itemTable };
+};
 
 
 const salesDataExist = async ( organizationId, orderId ) => {    
@@ -74,9 +98,11 @@ exports.addOrder = async (req, res) => {
         return res.status(400).json({ message: `Invalid item IDs: ${invalidItemIds.join(', ')}` });
       }   
   
-      const { organizationExists, customerExist , settings, itemTable, itemTrack, existingPrefix } = await dataExist( organizationId, items, customerId, customerName );
+      const { organizationExists, customerExist , settings, existingPrefix } = await dataExist( organizationId, customerId, customerName );
 
-      console.log("itemTrack",itemTrack);
+      const { itemTable } = await newDataExists( organizationId, items );
+
+      console.log("itemTable",itemTable);
       
       
       //Data Exist Validation
@@ -722,20 +748,20 @@ function calculateSalesOrder(cleanedData, res) {
     console.log("");
   });
 
+  console.log(`SubTotal: ${subTotal} , Provided ${cleanedData.subTotal}`);
+  
   //Other Expense
-  adjustSubTotal(cleanedData.otherExpenseAmount, "Other Expense Amount");
-  adjustSubTotal(cleanedData.freightAmount, "Freight Amount");
-  adjustSubTotal(cleanedData.roundOffAmount, "Round Off Amount", false);
+  totalAmount = otherExpense( subTotal, cleanedData );
+  
+  console.log("After Other Expense: ",totalAmount);  
 
   // Transaction Discount
-  let transactionDiscount = calculateTransactionDiscount(cleanedData, subTotal);
+  let transactionDiscount = calculateTransactionDiscount(cleanedData, totalAmount);
 
-  totalDiscount +=  parseFloat(transactionDiscount);  
-
-  console.log(`SubTotal: ${subTotal} , Provided ${cleanedData.subTotal}`);
+  totalDiscount +=  parseFloat(transactionDiscount); 
 
   // Total amount calculation
-  totalAmount = subTotal - transactionDiscount; 
+  totalAmount -= transactionDiscount; 
 
   // Utility function to round values to two decimal places
   const roundToTwoDecimals = (value) => Math.round(value * 100) / 100;
@@ -744,32 +770,34 @@ function calculateSalesOrder(cleanedData, res) {
   const calculatedSubTotal = subTotal;
   const calculatedTotalTax = totalTax;
   const calculatedTotalAmount = totalAmount;
+  const calculatedTotalDiscount = totalDiscount;
 
   // Round the totals for comparison
   const roundedSubTotal = roundToTwoDecimals(calculatedSubTotal);
   const roundedTotalTax = roundToTwoDecimals(calculatedTotalTax);
   const roundedTotalAmount = roundToTwoDecimals(calculatedTotalAmount);
+  const roundedTotalDiscount = roundToTwoDecimals(calculatedTotalDiscount);
 
   console.log(`Final Sub Total: ${roundedSubTotal} , Provided ${cleanedData.subTotal}` );
   console.log(`Final Total Tax: ${roundedTotalTax} , Provided ${cleanedData.totalTax}` );
   console.log(`Final Total Amount: ${roundedTotalAmount} , Provided ${cleanedData.totalAmount}` );
-  console.log(`Final Total Discount Amount: ${totalDiscount} , Provided ${cleanedData.totalDiscount}` );
+  console.log(`Final Total Discount Amount: ${roundedTotalDiscount} , Provided ${cleanedData.totalDiscount}` );
 
   const cleanedDataTotalTax = cleanedData.totalTax || 0;
 
   const isSubTotalCorrect = roundedSubTotal === parseFloat(cleanedData.subTotal);
   const isTotalTaxCorrect = roundedTotalTax === parseFloat(cleanedDataTotalTax);
   const isTotalAmountCorrect = roundedTotalAmount === parseFloat(cleanedData.totalAmount);
-  const isTotalDiscount = totalDiscount === parseFloat(cleanedData.totalDiscount);
+  const isTotalDiscount = roundedTotalDiscount === parseFloat(cleanedData.totalDiscount);
   const isTotalItemCount = totalItemCount === parseFloat(cleanedData.totalItem);
 
 
 
-  validateAmount(roundedSubTotal, cleanedData.subTotal, 'SubTotal');
-  validateAmount(roundedTotalTax, cleanedData.totalTax, 'Total Tax');
-  validateAmount(roundedTotalAmount, cleanedData.totalAmount, 'Total Amount');
-  validateAmount(totalDiscount, cleanedData.totalDiscount, 'Total Discount Amount');
-  validateAmount(totalItemCount, cleanedData.totalItem, 'Total Item count');
+  validateAmount(roundedSubTotal, cleanedData.subTotal, 'SubTotal',errors);
+  validateAmount(roundedTotalTax, cleanedData.totalTax, 'Total Tax',errors);
+  validateAmount(roundedTotalAmount, cleanedData.totalAmount, 'Total Amount',errors);
+  validateAmount(roundedTotalDiscount, cleanedData.totalDiscount, 'Total Discount Amount',errors);
+  validateAmount(totalItemCount, cleanedData.totalItem, 'Total Item count',errors);
 
   if (errors.length > 0) {
     res.status(400).json({ message: errors.join(", ") });
@@ -808,16 +836,16 @@ function checkAmount(calculatedAmount, providedAmount, itemName, taxType,errors)
 }
 
 //TransactionDiscount
-function calculateTransactionDiscount(cleanedData, subTotal) {
+function calculateTransactionDiscount(cleanedData, totalAmount) {
   const discountAmount = cleanedData.discountTransactionAmount || 0;
 
   return cleanedData.discountTransactionType === 'Currency'
     ? discountAmount
-    : (subTotal * discountAmount) / 100;
+    : (totalAmount * discountAmount) / 100;
 }
 
 //Final Item Amount check
-const validateAmount = (calculatedValue, cleanedValue, label) => {
+const validateAmount = (calculatedValue, cleanedValue, label, errors) => {
   const isCorrect = calculatedValue === parseFloat(cleanedValue);
   if (!isCorrect) {
     const errorMessage = `${label} is incorrect: ${cleanedValue}`;
@@ -827,12 +855,23 @@ const validateAmount = (calculatedValue, cleanedValue, label) => {
 };
 
 //Other Expense
-const adjustSubTotal = (amount, label, isAddition = true) => {
-  if (amount) {
-    const parsedAmount = parseFloat(amount);
-    subTotal += isAddition ? parsedAmount : -parsedAmount;
-    console.log(`${label}:`, amount);
+const otherExpense = ( totalAmount, cleanedData ) => {
+  if (cleanedData.otherExpenseAmount) {
+    const parsedAmount = parseFloat(cleanedData.otherExpenseAmount);
+    totalAmount += parsedAmount;
+    console.log(`Other Expense: ${cleanedData.otherExpenseAmount}`);
   }
+  if (cleanedData.freightAmount) {
+    const parsedAmount = parseFloat(cleanedData.freightAmount);
+    totalAmount += parsedAmount;
+    console.log(`Freight Amount: ${cleanedData.freightAmount}`);
+  }
+  if (cleanedData.roundOffAmount) {
+    const parsedAmount = parseFloat(cleanedData.roundOffAmount);
+    totalAmount -= parsedAmount;
+    console.log(`Round Off Amount: ${cleanedData.roundOffAmount}`);
+  }
+  return totalAmount;  
 };
 
 
