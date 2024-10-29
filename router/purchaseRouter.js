@@ -24,6 +24,8 @@ router.get('/get-purchaseOrder/:id',verifyToken, purchaseOrderController.getPurc
 // router.put('/update-purchaseOrder/:id', purchaseOrderController.updatePurchaseOrder);
 // router.delete('/delete-purchaseOrder/:id', purchaseOrderController.deletePurchaseOrder);
 
+
+
 //Bills
 router.post('/add-Bills',verifyToken,billsCont.addBill);
 router.get('/get-all-Bills',verifyToken,billsCont.getAllPurchaseBills);

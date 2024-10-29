@@ -10,71 +10,83 @@ const Prefix = require("../database/model/prefix");
 const dataExist = async (organizationId, unpaidBills ,supplierId, supplierDisplayName) => {
   const billIds = unpaidBills.map(unpaidBill => unpaidBill.billId);
   
-  const [organizationExists, supplierExists , paymentTable, unpaidBillsExists ] = await Promise.all([
+  const [organizationExists, supplierExists , paymentTable  ] = await Promise.all([
     Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
     Supplier.findOne({ organizationId, _id: supplierId, supplierDisplayName  }, { _id: 1, supplierDisplayName: 1 }),
-    PurchaseBill.findOne({ organizationId , _id : { $in: billIds}},{ _id: 1, billNumber: 1 , billDate: 1 , dueDate:1 , grandTotal: 1 , }),
+    PurchaseBill.find({ organizationId , _id : { $in: billIds}},{ _id: 1, billNumber: 1 , billDate: 1 , dueDate:1 , grandTotal: 1 , }),
     Prefix.findOne({ organizationId })
 
   ]);
   
-  return { organizationExists, supplierExists, unpaidBillsExists , paymentTable };
+  return { organizationExists, supplierExists, paymentTable };
 };
 
 // Add Purchase Payment
 exports.addPayment = async (req, res) => {
-    try {
-      const { organizationId , id:userId , userName} = req.user; // Assuming user contains organization info
-      const cleanedData = cleanSupplierData(req.body); // Cleaning data based on your custom method
-      
-      const { unpaidBills } = cleanedData;
-      const { supplierId, supplierDisplayName } = cleanedData;
-      const billIds = unpaidBills.map(unpaidBill => unpaidBill.billId);
-      
-      // Check for duplicate billIds
-      const uniquebillIds = new Set(billIds);
-      if (uniquebillIds.size !== billIds.length) {
-        return res.status(400).json({ message: "Duplicate bill found" });
-      }
+  try {
+    const { organizationId, id: userId, userName } = req.user; // Assuming user contains organization info
+    const cleanedData = cleanSupplierData(req.body); // Cleaning data based on your custom method
 
-      // Validate SupplierId
-      if (!mongoose.Types.ObjectId.isValid(supplierId) || supplierId.length !== 24) {
-        return res.status(400).json({ message: `Invalid supplier ID: ${supplierId}` });
-      }
-  
-      // Validate PaymentId (assuming paymentId is part of cleanedData)
-      const invalidBillIds = billIds.filter(billId => !mongoose.Types.ObjectId.isValid(billId) || billId.length !== 24);
-      if (invalidBillIds.length > 0) {
-        return res.status(400).json({ message: `Invalid bill IDs: ${invalidBillIds.join(', ')}` });
-      }
-      
-      const { organizationExists, supplierExists , paymentTable } = await dataExist( organizationId, unpaidBills, supplierId , supplierDisplayName  );
+    const { unpaidBills, paymentMade } = cleanedData; // Extract paymentMade from cleanedData
+    const { supplierId, supplierDisplayName } = cleanedData;
+    const billIds = unpaidBills.map(unpaidBill => unpaidBill.billId);
 
-
-      // Inside your addPayment or any other method
-    if (!validateSupplierAndOrganization(organizationExists, supplierExists, res)) {
-    return; // Stops execution if validation fails
+    // Check for duplicate billIds
+    const uniqueBillIds = new Set(billIds);
+    if (uniqueBillIds.size !== billIds.length) {
+      return res.status(400).json({ message: "Duplicate bill found" });
     }
 
-    //date & time
+    // Validate SupplierId
+    if (!mongoose.Types.ObjectId.isValid(supplierId) || supplierId.length !== 24) {
+      return res.status(400).json({ message: `Invalid supplier ID: ${supplierId}` });
+    }
+
+    // Validate Bill IDs
+    const invalidBillIds = billIds.filter(billId => !mongoose.Types.ObjectId.isValid(billId) || billId.length !== 24);
+    if (invalidBillIds.length > 0) {
+      return res.status(400).json({ message: `Invalid bill IDs: ${invalidBillIds.join(', ')}` });
+    }
+
+    // Check if organization and supplier exist
+    const { organizationExists, supplierExists, paymentTable } = await dataExist(organizationId, unpaidBills, supplierId, supplierDisplayName);
+    
+    // Validate supplier and organization
+    if (!validateSupplierAndOrganization(organizationExists, supplierExists, res)) {
+      return; // Stops execution if validation fails
+    }
+
+    // Generate date & time
     const openingDate = generateOpeningDate(organizationExists);
 
-    if (!validateInputs( cleanedData, supplierExists, unpaidBills , paymentTable, organizationExists, res)) return;
+    // Calculate amountDue for each unpaid bill
+    cleanedData.unpaidBills.forEach(unpaidBill => {
+      unpaidBill.amountDue = unpaidBill.billAmount - unpaidBill.payment;
+    });
 
-    
+    // Calculate total payment from all unpaid bills
+    const totalPayment = cleanedData.unpaidBills.reduce((acc, bill) => acc + (bill.payment || 0), 0);
+    cleanedData.total = totalPayment;
 
-    const savedPayment = await createNewPayment(cleanedData, openingDate, organizationId, userId , userName );
+    // Set amountPaid and amountUsedForPayments to totalPayment
+    cleanedData.amountPaid = totalPayment;
+    cleanedData.amountUsedForPayments = totalPayment;
 
+    // Calculate amountInExcess
+    const amountInExcess = paymentMade - totalPayment;
+    cleanedData.amountInExcess = amountInExcess;
 
-      // Response
-      return res.status(200).json({ message: 'Payment added successfully', savedPayment });
-  
-    } catch (error) {
-      console.error('Error adding payment:', error);
-      return res.status(500).json({ message: 'Internal server error' });
-    }
-  };
+    // Create and save new payment
+    const savedPayment = await createNewPayment(cleanedData, openingDate, organizationId, userId, userName);
 
+    // Response
+    return res.status(200).json({ message: 'Payment added successfully', savedPayment });
+
+  } catch (error) {
+    console.error('Error adding payment:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
 
 
 
@@ -96,7 +108,7 @@ function cleanSupplierData(data) {
 
 
   // Validate Supplier and Organization
-function validateSupplierAndOrganization(organizationExists, supplierExists, unpaidBillsExists , res) {
+function validateSupplierAndOrganization(organizationExists, supplierExists, res) {
     if (!organizationExists) {
         res.status(404).json({ message: "Organization not found" });
         return false;
@@ -105,11 +117,8 @@ function validateSupplierAndOrganization(organizationExists, supplierExists, unp
         res.status(404).json({ message: "Supplier not found" });
         return false;
     }
-    if (!unpaidBillsExists) {
-      res.status(404).json({ message: "unPaidBill not found" });
-      return false;
-  }
     return true;
+
 }
 
 
@@ -119,14 +128,13 @@ function validateSupplierAndOrganization(organizationExists, supplierExists, unp
 
 //Return Date and Time 
 function generateOpeningDate(organizationExists) {
-    const date = generateTimeAndDateForDB(
-        organizationExists.timeZoneExp,
-        organizationExists.dateFormatExp,
-        organizationExists.dateSplit
-      )
-    return date.dateTime;
+  const date = generateTimeAndDateForDB(
+      organizationExists.timeZoneExp,
+      organizationExists.dateFormatExp,
+      organizationExists.dateSplit
+    )
+  return date.dateTime;
 }
- 
 
 
 
@@ -190,7 +198,7 @@ function createNewPayment( data, openingDate, organizationId, userId, userName )
 
 
 //Validate Data
-function validatePaymentData( data, supplierExists, unpaidBills, itemTable, organizationExists ) {
+function validatePaymentData( data, supplierExists, unpaidBills, paymentTable, organizationExists ) {
   const errors = [];
 
   console.log("bills Request :",unpaidBills);
@@ -199,7 +207,7 @@ function validatePaymentData( data, supplierExists, unpaidBills, itemTable, orga
 
   //Basic Info
   validateReqFields( data, errors );
-  validatePaymentTable(items, itemTable, errors);
+  validatePaymentTable(unpaidBills, paymentTable, errors);
 
 
   validateFloatFields([ 'paymentMade','amountPaid','amountUsedForPayments','amountRefunded','amountInExcess'], data, errors);
@@ -238,7 +246,7 @@ function validatePaymentTable(unpaidBills, paymentTable, errors) {
     if (!fetchedBills) return; 
 
      // Validate bill number
-     validateField( unpaidBill.billNumber !== fetchedBills.billDate, `Bill Number Mismatch : ${unpaidBill.billNumber}`, errors );
+     validateField( unpaidBill.billNumber !== fetchedBills.billNumber, `Bill Number Mismatch : ${unpaidBill.billNumber}`, errors );
 
     // Validate bill date
     validateField( unpaidBill.billDate !== fetchedBills.billDate, `Bill Date Mismatch : ${unpaidBill.billNumber} : ${unpaidBill.billDate}` , errors );
@@ -301,6 +309,9 @@ function isAlphanumeric(value) {
   return /^[A-Za-z0-9]+$/.test(value);
 }
 
+
+
+//cslculation
 
 
 

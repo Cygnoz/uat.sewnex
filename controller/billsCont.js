@@ -78,6 +78,11 @@ exports.addBill = async (req, res) => {
     //  // Check for existing bill
     //  if (await checkExistingBill(cleanedData.billNumber, organizationId, res)) return;
 
+
+      //Date & Time
+      const openingDate = generateOpeningDate(organizationExists);
+
+      
     // Create new bill
     const savedBill = await createNewBill(cleanedData, organizationId);
 
@@ -484,11 +489,11 @@ const hasValidationErrors = async (body, supplierExists, res) => {
 
   // Validate sourceOfSupply and destinationOfSupply if supplierExists.taxType === "GST"
   if (supplierExists && supplierExists.taxType === "GST") {
-    if (!sourceOfSupply || sourceOfSupply.trim() === "") {
+    if (!body.sourceOfSupply || body.sourceOfSupply.trim() === "") {
       res.status(400).json({ message: "sourceOfSupply is required." });
       return true;
     }
-    if (!destinationOfSupply || destinationOfSupply.trim() === "") {
+    if (!body.destinationOfSupply || body.destinationOfSupply.trim() === "") {
       res.status(400).json({ message: "destinationOfSupply is required." });
       return true;
     }
@@ -638,6 +643,54 @@ const trackItemsFromBill = async (organizationId, itemTable, billDate, savedBill
     }
   }
 };
+
+//Return Date and Time 
+function generateOpeningDate(organizationExists) {
+  const date = generateTimeAndDateForDB(
+      organizationExists.timeZoneExp,
+      organizationExists.dateFormatExp,
+      organizationExists.dateSplit
+    )
+  return date.dateTime;
+}
+
+// Function to generate time and date for storing in the database
+function generateTimeAndDateForDB(
+  timeZone,
+  dateFormat,
+  dateSplit,
+  baseTime = new Date(),
+  timeFormat = "HH:mm:ss",
+  timeSplit = ":"
+) {
+  // Convert the base time to the desired time zone
+  const localDate = moment.tz(baseTime, timeZone);
+
+  // Format date and time according to the specified formats
+  let formattedDate = localDate.format(dateFormat);
+
+  // Handle date split if specified
+  if (dateSplit) {
+    // Replace default split characters with specified split characters
+    formattedDate = formattedDate.replace(/[-/]/g, dateSplit); // Adjust regex based on your date format separators
+  }
+
+  const formattedTime = localDate.format(timeFormat);
+  const timeZoneName = localDate.format("z"); // Get time zone abbreviation
+
+  // Combine the formatted date and time with the split characters and time zone
+  const dateTime = `${formattedDate} ${formattedTime
+    .split(":")
+    .join(timeSplit)} (${timeZoneName})`;
+
+  return {
+    date: formattedDate,
+    time: `${formattedTime} (${timeZoneName})`,
+    dateTime: dateTime,
+  };
+}
+
+
 
 // Define valid shipment preferences, payment and modes discount types
 const validShipmentPreferences = ["Road", "Rail", "Air", "Sea", "Courier", "Hand Delivery", "Pickup"];

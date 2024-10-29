@@ -487,15 +487,15 @@ const hasValidationErrors = async (body, supplierExists, res) => {
 
   // Validate sourceOfSupply and destinationOfSupply if supplierExists.taxType === "GST"
   if (supplierExists && supplierExists.taxType === "GST") {
-    if (!sourceOfSupply || sourceOfSupply.trim() === "") {
+    if (!body.sourceOfSupply || body.sourceOfSupply.trim() === "") {
       res.status(400).json({ message: "sourceOfSupply is required." });
       return true;
     }
-    if (!destinationOfSupply || destinationOfSupply.trim() === "") {
+    if (!body.destinationOfSupply || body.destinationOfSupply.trim() === "") {
       res.status(400).json({ message: "destinationOfSupply is required." });
       return true;
     }
-  }
+  } 
 
   // Validate itemDiscountType
   if (itemTable.some(item => !validItemDiscountTypes.includes(item.itemDiscountType))) {
