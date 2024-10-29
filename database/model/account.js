@@ -6,7 +6,7 @@ const accountSchema = new Schema({
     organizationId: {type:String},
     accountName: {type:String},
     accountCode: {type:String},
-
+    accountId: {type:String},
     accountSubhead: {type:String},
     accountHead: {type:String},
     accountGroup: {type:String},

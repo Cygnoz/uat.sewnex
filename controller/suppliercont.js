@@ -66,11 +66,14 @@ const dataExist = async (organizationId) => {
   
         //Clean Data
         const cleanedData = cleanSupplierData(req.body);
+        cleanedData.contactPersons = cleanedData.contactPersons.map(person => cleanSupplierData(person));
+        cleanedData.bankDetails = cleanedData.bankDetails.map(bankDetail => cleanSupplierData(bankDetail));
+
                    
   
         const { supplierEmail, debitOpeningBalance, creditOpeningBalance, supplierDisplayName, mobile } = cleanedData;
     
-        const { organizationExists, taxExists, currencyExists , settings} = await dataExist(organizationId);
+        const { organizationExists, taxExists, currencyExists , allSupplier, settings} = await dataExist(organizationId);
         
         // checking values from supplier settings
         const { duplicateSupplierDisplayName , duplicateSupplierEmail , duplicateSupplierMobile } = settings[0]
@@ -94,7 +97,7 @@ const dataExist = async (organizationId) => {
   
         const savedSupplier = await createNewSupplier(cleanedData, openingDate, organizationId);
         
-        const savedAccount = await createNewAccount(supplierDisplayName, openingDate, organizationId, savedSupplier._id);
+        const savedAccount = await createNewAccount(supplierDisplayName, openingDate, organizationId, allSupplier , savedSupplier);
     
         await saveTrialBalanceAndHistory(savedSupplier, savedAccount, debitOpeningBalance, creditOpeningBalance, cleanedData, openingDate, userId, userName );
     
@@ -645,12 +648,19 @@ const dataExist = async (organizationId) => {
       return newSupplier.save();
     }
     
+    
   // Create New Account
-    function createNewAccount(supplierDisplayName, openingDate, organizationId,   supplierId) {
+    function createNewAccount(supplierDisplayName, openingDate, organizationId,   allSupplier , savedSupplier) {
+      // Count existing organizations to generate the next organizationId
+
+      const nextIdNumber = allSupplier.length + 1;    
+      const count = `CU${nextIdNumber.toString().padStart(4, '0')}`;
+      
       const newAccount = new Account({
         organizationId,
         accountName: supplierDisplayName,
-        accountCode:   supplierId,
+        accountCode:   count,
+        accountId: savedSupplier._id,
         accountSubhead: "Sundry Creditors",
         accountHead: "Liabilities",
         accountGroup: "Liability",
@@ -802,13 +812,17 @@ const dataExist = async (organizationId) => {
       validateSalutation(data.salutation, errors);
       validateNames(['firstName', 'lastName'], data, errors);
       validateEmail(data.supplierEmail, errors);
+      validateWebsite(data.websiteURL, errors);
+      validateContactPerson(data.contactPersons, errors);
+      validateBankDetails(data.bankDetails, errors);
+
       validatePhones(['workPhone', 'mobile'], data, errors);
   
       //OtherDetails
-      validateAlphanumericFields(['pan'], data, errors);
-      validateIntegerFields(['creditDays', 'creditLimits'], data, errors);
-      validateFloatFields(['debitOpeningBalance', 'creditOpeningBalance', 'interestPercentage'], data, errors);
-      validateAlphabetsFields(['department', 'designation'], data, errors);
+      validateAlphanumericFields(['pan','gstin_uin','vatNumber'], data, errors);
+      validateIntegerFields(['creditDays', 'creditLimits', 'interestPercentage'], data, errors);
+      validateFloatFields(['debitOpeningBalance', 'creditOpeningBalance'], data, errors);
+      validateAlphabetsFields(['department', 'designation','billingAttention','shippingAttention'], data, errors);
   
       //Tax Details
       validateTaxType(data.taxType, validTaxTypes, errors);
@@ -855,6 +869,11 @@ const dataExist = async (organizationId) => {
     function validateEmail(email, errors) {
       validateField(email && !isValidEmail(email), "Invalid email: " + email, errors);
     }
+
+    //Validate Website
+  function validateWebsite(website, errors) {
+    validateField(website && !isValidURL(website), "Invalid Website: " + website, errors);
+  }
   //Validate Phones
     function validatePhones(fields, data, errors) {
       fields.forEach((phone) => {
@@ -865,6 +884,7 @@ const dataExist = async (organizationId) => {
   //Valid Alphanumeric Fields
     function validateAlphanumericFields(fields, data, errors) {
       fields.forEach((field) => {
+        console.log(data)
         validateField(data[field] && !isAlphanumeric(data[field]), "Invalid " + field + ": " + data[field], errors);
       });
     }
@@ -977,6 +997,39 @@ const dataExist = async (organizationId) => {
         `Invalid ${capitalize(type)} ${formatCamelCase(field)}: ${value}`, errors);
     });
   }
+  function validateContactPerson(contactPersons, errors) {
+ 
+    // Iterate through each item to validate individual fields
+    contactPersons.forEach((contactPerson) => {
+  
+      validateSalutation(contactPerson.salutation, errors);
+  
+      validateAlphabetsFields(['firstName','lastName'], contactPerson, errors);
+  
+      validateEmail(contactPerson.email, errors);
+  
+      validatePhones(['mobile','workPhone'], contactPerson, errors);
+  
+      });
+  }
+  
+  function validateBankDetails(bankDetails, errors) {
+ 
+    // Iterate through each item to validate individual fields
+    bankDetails.forEach((bankDetail) => {
+  
+      validateAlphanumericFields(['ifscCode'], bankDetail, errors);
+
+      validateAlphabetsFields(['accountHolderName','bankName'], bankDetail, errors);
+  
+      validateEmail(bankDetail.email, errors);
+  
+      validatePhones( ['accountNum'], bankDetail, errors);
+  
+      });
+  }
+
+
   // Helper functions to handle formatting
   function capitalize(word) {
     return word.charAt(0).toUpperCase() + word.slice(1);
@@ -1000,6 +1053,7 @@ const dataExist = async (organizationId) => {
   function isValidEmail(value) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
   }
-
-
+  function isValidURL(value) {
+    return /^(https?:\/\/)?([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(\/[^\s]*)?$/.test(value);
+  }
   
