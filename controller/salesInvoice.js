@@ -22,7 +22,7 @@ const dataExist = async ( organizationId, customerId, customerName ) => {
       Customer.findOne({ organizationId , _id:customerId, customerDisplayName: customerName}, { _id: 1, customerDisplayName: 1, taxType: 1 }),
       Settings.findOne({ organizationId },{ salesOrderAddress: 1, salesOrderCustomerNote: 1, salesOrderTermsCondition: 1, salesOrderClose: 1, restrictSalesOrderClose: 1, termCondition: 1 ,customerNote: 1 }),
       Prefix.findOne({ organizationId }),
-      DefAcc.findOne({ organizationId }),
+      DefAcc.findOne({ organizationId },{ salesAccount: 1, salesDiscountAccount: 1, accountReceivableAccount: 1, outputCgst: 1, outputSgst: 1, outputIgst: 1 ,outputVat: 1 }),
     ]);
     return { organizationExists, customerExist , settings, existingPrefix, defaultAccount };
 };
@@ -62,11 +62,23 @@ const newDataExists = async (organizationId,items) => {
 };
 
 
-
+// Fetch Acc existing data
+const accDataExists = async ( defaultAccount, organizationId ) => {
+  const [ salesAccountName, salesDiscountAccountName , accountReceivableAccountName, outputCgstName, outputSgstName, outputIgstName, outputVatName ] = await Promise.all([
+    Account.findOne({ organizationId , _id: defaultAccount.salesAccount }, { accountName: 1 }),
+    Account.findOne({ organizationId , _id: defaultAccount.salesDiscountAccount}, { accountName: 1 }),
+    Account.findOne({ organizationId , _id: defaultAccount.accountReceivableAccount}, { accountName: 1 }),
+    Account.findOne({ organizationId , _id: defaultAccount.outputCgst}, { accountName: 1 }),
+    Account.findOne({ organizationId , _id: defaultAccount.outputSgst}, { accountName: 1 }),
+    Account.findOne({ organizationId , _id: defaultAccount.outputIgst}, { accountName: 1 }),
+    Account.findOne({ organizationId , _id: defaultAccount.outputVat}, { accountName: 1 }),
+  ]);
+  return { salesAccountName, salesDiscountAccountName , accountReceivableAccountName, outputCgstName, outputSgstName, outputIgstName, outputVatName };
+};
 
 // Add Sales Order
 exports.addInvoice = async (req, res) => {
-    console.log("Add Sales Order :", req.body);
+    console.log("Add Sales Invoice :", req.body);
     try {
       const { organizationId, id: userId, userName } = req.user;
 
@@ -110,6 +122,9 @@ exports.addInvoice = async (req, res) => {
       //Tax Type
       taxtype(cleanedData, customerExist,organizationExists );
 
+      //Default Account
+      const defAcc = await defaultAccounting( cleanedData.taxtype, defaultAccount, organizationExists );
+
       // Calculate Sales 
       if (!calculateSalesOrder( cleanedData, res )) return;
 
@@ -119,7 +134,7 @@ exports.addInvoice = async (req, res) => {
       const savedOrder = await createNewOrder(cleanedData, openingDate, organizationId, userId, userName );
 
       //Jornal
-      journal( savedOrder, defaultAccount, openingDate );
+      await journal( savedOrder, defAcc );
         
       res.status(201).json({ message: "Sale Order created successfully" });
       console.log( "Sale Order created successfully:", savedOrder );
@@ -349,7 +364,34 @@ function taxtype( cleanedData, customerExist, organizationExists ) {
   return  
 }
 
+//Default Account
+async function defaultAccounting( taxtype, defaultAccount, organizationExists ) {
 
+  // Fetch data from accDataExists and destructure results
+  const { salesAccountName, salesDiscountAccountName, accountReceivableAccountName, outputCgstName, outputSgstName, outputIgstName, outputVatName } = await accDataExists(defaultAccount, organizationExists.organizationId);
+  
+  // Update defaultAccount fields
+  defaultAccount.salesAccountName = salesAccountName?.accountName;
+  defaultAccount.salesDiscountAccountName = salesDiscountAccountName?.accountName;
+  defaultAccount.accountReceivableAccountName = accountReceivableAccountName?.accountName;
+
+  if (taxtype !== 'VAT') {
+    defaultAccount.outputCgstName = outputCgstName?.accountName;
+    defaultAccount.outputSgstName = outputSgstName?.accountName;
+    defaultAccount.outputIgstName = outputIgstName?.accountName;
+  } else {
+    defaultAccount.outputVatName = outputVatName?.accountName;
+  }
+  console.log("salesAccountName:", defaultAccount.salesAccountName);
+  console.log("salesDiscountAccountName:", defaultAccount.salesDiscountAccountName);
+  console.log("accountReceivableAccountName:", defaultAccount.accountReceivableAccountName);
+  console.log("outputCgstName:", defaultAccount.outputCgstName);
+  console.log("outputSgstName:", defaultAccount.outputSgstName);
+  console.log("outputIgstName:", defaultAccount.outputIgstName);
+  console.log("Updated defaultAccount in defaultAccounting:", defaultAccount);
+  
+  return defaultAccount;
+}
   
 
 
@@ -836,61 +878,181 @@ const otherExpense = ( totalAmount, cleanedData ) => {
 
 
 // Jornal
-async function journal ( savedOrder, defaultAccount, openingDate ) {
+// async function journal ( savedOrder, defaultAccount, openingDate ) {
 
-  if(savedOrder.totalDiscount !== 'undefined' ){
+//   //Discount
+//   if( savedOrder.totalDiscount !== 'undefined' && savedOrder.taxType == 'Non-Tax'){
+
+//   }
+//   if( savedOrder.totalDiscount !== 'undefined' && savedOrder.taxType == 'Inter'){
+
+//   }
+//   if( savedOrder.totalDiscount !== 'undefined' && savedOrder.taxType == 'Intra'){
+
+//   }
+//   if( savedOrder.totalDiscount !== 'undefined' && savedOrder.taxType == 'VAT'){
+
+//   }
 
 
-  }else{
 
+//   if( typeof savedOrder.totalDiscount === 'undefined' && savedOrder.taxType == 'Non-Tax'){
+
+//   }
+//   if( typeof savedOrder.totalDiscount === 'undefined' && savedOrder.taxType == 'Inter'){
+
+//   }
+//   if( typeof savedOrder.totalDiscount === 'undefined' && savedOrder.taxType == 'Intra'){
+
+//   }
+//   if( typeof savedOrder.totalDiscount === 'undefined' && savedOrder.taxType == 'VAT'){
+
+//   }
+
+
+
+
+
+//   if(cleanedData.totalDiscount !== 'undefined' ){
+
+//     const newJournalEntry = new Journal({
+//       organizationId: savedOrder.organizationId,
+//       journalId,
+//       date,
+//       entryDate,
+//       reference,
+//       note,
+//       cashBasedJournal,
+//       currency,
+//       transaction: Array.isArray(transaction)
+//           ? transaction.map(trans => ({
+//               accountId: trans.accountId,
+//               accountName: trans.accountName,
+//               debitAmount: trans.debitAmount,
+//               creditAmount: trans.creditAmount,
+//               description: trans.description,
+//               contact: trans.contact,
+//           }))
+//           : [],
+//       totalDebitAmount,
+//       totalCreditAmount
+//   });
+
+//   await newJournalEntry.save();
+
+
+//   const newTrialEntry = new TrialBalance({
+//     organizationId,
+//     operationId:newJournalEntry._id,
+//     transactionId: journalId,
+//     date:entryDate,
+//     accountId: trans.accountId,
+//     accountName: trans.accountName,
+//     action: "Journal",
+//     debitAmount: trans.debitAmount,
+//     creditAmount: trans.creditAmount,
+//     remark: note
+// });
+
+// await newTrialEntry.save();
+    
+//   return  
+// }};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+async function journal(savedOrder, defAcc) {
+  const discount = {
+    organizationId: savedOrder.organizationId,
+    operationId: savedOrder._id,
+    transactionId: savedOrder.salesInvoice,
+    date: savedOrder.createdDate,
+    accountId: defAcc.salesDiscountAccount,
+    accountName: defAcc.salesDiscountAccountName,
+    debitAmount: savedOrder.totalDiscount,
+    creditAmount: 0,
+    remark: savedOrder.note,
+  };
+  
+  console.log("discount", discount);
+  
+
+  if (savedOrder.totalDiscount !== 'undefined') {
+    switch (savedOrder.taxType) {
+      case 'Non-Tax':
+        await handleNonTaxWithDiscount(discount);
+        break;
+      case 'Inter':
+        await handleInterWithDiscount(savedOrder, defaultAccount);
+        break;
+      case 'Intra':
+        await handleIntraWithDiscount(savedOrder, defaultAccount);
+        break;
+      case 'VAT':
+        await handleVATWithDiscount(savedOrder, defaultAccount);
+        break;
+    }
+  } else {
+    switch (savedOrder.taxType) {
+      case 'Non-Tax':
+        await handleNonTaxWithoutDiscount(savedOrder, defaultAccount);
+        break;
+      case 'Inter':
+        await handleInterWithoutDiscount(savedOrder, defaultAccount);
+        break;
+      case 'Intra':
+        await handleIntraWithoutDiscount(savedOrder, defaultAccount);
+        break;
+      case 'VAT':
+        await handleVATWithoutDiscount(savedOrder, defaultAccount);
+        break;
+    }
   }
+}
 
 
 
 
-
-  if(cleanedData.totalDiscount !== 'undefined' ){
-
-    const newJournalEntry = new Journal({
-      organizationId: savedOrder.organizationId,
-      journalId,
-      date,
-      entryDate,
-      reference,
-      note,
-      cashBasedJournal,
-      currency,
-      transaction: Array.isArray(transaction)
-          ? transaction.map(trans => ({
-              accountId: trans.accountId,
-              accountName: trans.accountName,
-              debitAmount: trans.debitAmount,
-              creditAmount: trans.creditAmount,
-              description: trans.description,
-              contact: trans.contact,
-          }))
-          : [],
-      totalDebitAmount,
-      totalCreditAmount
-  });
-
-  await newJournalEntry.save();
-
-
+async function createTrialEntry( data ) {
   const newTrialEntry = new TrialBalance({
-    organizationId,
-    operationId:newJournalEntry._id,
-    transactionId: journalId,
-    date:entryDate,
-    accountId: trans.accountId,
-    accountName: trans.accountName,
-    action: "Journal",
-    debitAmount: trans.debitAmount,
-    creditAmount: trans.creditAmount,
-    remark: note
+      organizationId:data.organizationId,
+      operationId:data.operationId,
+      transactionId: data.transactionId,
+      date:data.date,
+      accountId: data.accountId,
+      accountName: data.accountName,
+      action: data.action,
+      debitAmount: data.debitAmount,
+      creditAmount: data.creditAmount,
+      remark: data.remark
 });
 
 await newTrialEntry.save();
-    
-  return  
-}};
+
+}

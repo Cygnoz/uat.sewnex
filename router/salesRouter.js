@@ -51,7 +51,7 @@ router.put('/add-shipment-address-settings',salesSettings.addShipmentAddressSett
 
 
 
-//invoice
+//Sales Invoice
 router.post('/add-sales-invoice',verifyToken,salesInvoice.addInvoice)
 
 router.put('/add-salesInvoice-settings',salesSettings.addInvoiceSettings)
