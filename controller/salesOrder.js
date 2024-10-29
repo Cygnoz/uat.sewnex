@@ -101,9 +101,6 @@ exports.addOrder = async (req, res) => {
       const { organizationExists, customerExist , settings, existingPrefix } = await dataExist( organizationId, customerId, customerName );
 
       const { itemTable } = await newDataExists( organizationId, items );
-
-      console.log("itemTable",itemTable);
-      
       
       //Data Exist Validation
       if (!validateOrganizationTaxCurrency( organizationExists, customerExist, existingPrefix, res )) return;
@@ -479,7 +476,7 @@ function validateQuoteData( data, customerExist, items, itemTable, organizationE
   
 
   //Basic Info
-  validateReqFields( data, customerExist, errors );
+  validateReqFields( data, errors );
   validateItemTable(items, itemTable, errors);
   validateDiscountTransactionType(data.discountTransactionType, errors);
   validateDeliveryMethod(data.deliveryMethod, errors);
@@ -503,14 +500,12 @@ function validateField(condition, errorMsg, errors) {
   if (condition) errors.push(errorMsg);
 }
 //Valid Req Fields
-function validateReqFields( data, customerExist, errors ) {
+function validateReqFields( data, errors ) {
 validateField( typeof data.customerId === 'undefined' || typeof data.customerName === 'undefined', "Please select a Customer", errors  );
 validateField( typeof data.placeOfSupply === 'undefined', "Place of supply required", errors  );
 validateField( typeof data.items === 'undefined', "Select an item", errors  );
 validateField( typeof data.otherExpenseAmount !== 'undefined' && typeof data.otherExpenseReason === 'undefined', "Please enter other expense reason", errors  );
 validateField( typeof data.roundOffAmount !== 'undefined' && !(data.roundOffAmount >= 0 && data.roundOffAmount <= 1), " Round Off Amount must be between 0 and 1", errors );
-
-
 }
 // Function to Validate Item Table 
 function validateItemTable(items, itemTable, errors) {
