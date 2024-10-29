@@ -7,6 +7,7 @@ const Settings = require("../database/model/settings");
 const ItemTrack = require("../database/model/itemTrack");
 const Tax = require('../database/model/tax');  // Add tax model
 const Prefix = require("../database/model/prefix");
+const moment = require("moment-timezone");
 
 
 
@@ -84,7 +85,7 @@ exports.addBill = async (req, res) => {
 
       
     // Create new bill
-    const savedBill = await createNewBill(cleanedData, organizationId);
+    const savedBill = await createNewBill(cleanedData, organizationId , openingDate);
 
     // Track the items from the bill
     await trackItemsFromBill(organizationId, itemTable, billDate, savedBill);

@@ -11,7 +11,7 @@ const unpaidBillSchema = new Schema({
   payment: { type: Number }
 });
 
-const purchaseSchema = new Schema({
+const paymentSchema = new Schema({
   organizationId: { type: String },
   supplierId: { type: String },
   supplierDisplayName: { type: String },
@@ -33,5 +33,5 @@ const purchaseSchema = new Schema({
   unpaidBills: [unpaidBillSchema]
 });
 
-const PurchasePayment = mongoose.model('PurchaseOrder', purchaseSchema);
+const PurchasePayment = mongoose.model('Payment Made', paymentSchema);
 module.exports = PurchasePayment;

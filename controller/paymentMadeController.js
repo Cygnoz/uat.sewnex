@@ -59,11 +59,16 @@ exports.addPayment = async (req, res) => {
     // Generate date & time
     const openingDate = generateOpeningDate(organizationExists);
 
+
+    if (!validateInputs( cleanedData, supplierExists, unpaidBills, paymentTable, organizationExists, res)) return;
+
+
     // Calculate amountDue for each unpaid bill
     cleanedData.unpaidBills.forEach(unpaidBill => {
       unpaidBill.amountDue = unpaidBill.billAmount - unpaidBill.payment;
     });
 
+  
     // Calculate total payment from all unpaid bills
     const totalPayment = cleanedData.unpaidBills.reduce((acc, bill) => acc + (bill.payment || 0), 0);
     cleanedData.total = totalPayment;
