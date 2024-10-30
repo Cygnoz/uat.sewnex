@@ -39,11 +39,9 @@ const itemSchema = new Schema({
     //Sale Info
     sellingPrice: { type: Number },
     saleMrp: { type: Number },
-    salesDescription: { type: String },
     
     //Purchase Info
     costPrice: { type: Number },
-    purchaseDescription: { type: String },
     preferredVendor: { type: String },
 
     taxRate:{type:String},

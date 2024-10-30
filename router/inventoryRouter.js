@@ -24,7 +24,8 @@ router.get('/get-item-transaction/:id',verifyToken, itemController.itemTransacti
 // Item
 router.post('/add-item',verifyToken,checkPermission('Created a New Item'), itemController.addItem);
 router.get('/get-all-item',verifyToken,checkPermission('Viewed Item Information'), itemController.getAllItem);
-router.get('/get-all-item-xs',verifyToken,checkPermission('Viewed Item Information'), itemController.newgetAllItem);
+router.get('/get-all-item-xs',verifyToken,checkPermission('Viewed Item Information'), itemController.getAllItemXS);
+router.get('/get-all-item-m',verifyToken,checkPermission('Viewed Item Information'), itemController.getAllItemM);
 
 router.get('/get-one-item/:itemId',verifyToken,checkPermission('Viewed Item Information'), itemController.getAItem)
 router.put('/edit-item/:itemId',verifyToken,checkPermission('Edited Item Information'), itemController.updateItem)

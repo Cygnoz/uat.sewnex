@@ -23,48 +23,83 @@ const dataExist = async (organizationId) => {
 
 const dataExists = async (organizationId) => {
   const [newItems] = await Promise.all([
-    Item.find({ organizationId}, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }),
+    Item.find({ organizationId}, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1, organizationId: 0 }),
   ]);
   return { newItems};
 };
 
 
 
+//Xs Item Exist
+const xsItemDataExists = async (organizationId) => {
+                // Retrieve items with specified fields
+                const [newItems] = await Promise.all([
+                  Item.find( { organizationId }, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1, organizationId: 0 } ),
+                ]);
 
-const newDataExists = async (organizationId) => {
-  // Retrieve items with specified fields
-  const [newItems] = await Promise.all([
-    Item.find( { organizationId }, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 } ),
-  ]);
+                // Extract itemIds from newItems
+                const itemIds = newItems.map(item => item._id.toString());
+              
 
-  // Extract itemIds from newItems
-  const itemIds = newItems.map(item => item._id.toString());
- 
+                // Aggregate ItemTrack to get the latest entry for each itemId
+                const itemTracks = await ItemTrack.aggregate([
+                  { $match: { itemId: { $in: itemIds } } },
+                  { $sort: { _id: -1 } },
+                  { $group: { _id: "$itemId", lastEntry: { $first: "$$ROOT" } } }
+                ]);
+                
 
-  // Aggregate ItemTrack to get the latest entry for each itemId
-  const itemTracks = await ItemTrack.aggregate([
-    { $match: { itemId: { $in: itemIds } } },
-    { $sort: { _id: -1 } },
-    { $group: { _id: "$itemId", lastEntry: { $first: "$$ROOT" } } }
-  ]);
-  
+                // Map itemTracks by itemId for easier lookup
+                const itemTrackMap = itemTracks.reduce((acc, itemTrack) => {
+                  acc[itemTrack._id] = itemTrack.lastEntry;
+                  return acc;
+                }, {});
 
-  // Map itemTracks by itemId for easier lookup
-  const itemTrackMap = itemTracks.reduce((acc, itemTrack) => {
-    acc[itemTrack._id] = itemTrack.lastEntry;
-    return acc;
-  }, {});
+                // Attach the last entry from ItemTrack to each item in newItems
+                const enrichedItems = newItems.map(item => ({
+                  ...item._doc, // Copy item fields
+                  // lastEntry: itemTrackMap[item._id] || null, // Attach lastEntry if found
+                  currentStock: itemTrackMap[item._id.toString()] ? itemTrackMap[item._id.toString()].currentStock : null
+                }));
 
-  // Attach the last entry from ItemTrack to each item in newItems
-  const enrichedItems = newItems.map(item => ({
-    ...item._doc, // Copy item fields
-    // lastEntry: itemTrackMap[item._id] || null, // Attach lastEntry if found
-    currentStock: itemTrackMap[item._id.toString()] ? itemTrackMap[item._id.toString()].currentStock : null
-  }));
-
-  return { enrichedItems };
+                return { enrichedItems };
 };
 
+
+//M Item Exist
+const mItemDataExists = async (organizationId) => {
+          // Retrieve items with specified fields
+          const [newItems] = await Promise.all([
+            Item.find( { organizationId }, { _id: 1, itemName: 1, itemType:1, sku: 1, taxPreference:1, taxRate:1, categories:1, rack:1, sellingPrice: 1, saleMrp:1, costPrice: 1, reorderPoint: 1, organizationId: 0, } ),
+          ]);
+
+          // Extract itemIds from newItems
+          const itemIds = newItems.map(item => item._id.toString());
+
+
+          // Aggregate ItemTrack to get the latest entry for each itemId
+          const itemTracks = await ItemTrack.aggregate([
+            { $match: { itemId: { $in: itemIds } } },
+            { $sort: { _id: -1 } },
+            { $group: { _id: "$itemId", lastEntry: { $first: "$$ROOT" } } }
+          ]);
+          
+
+          // Map itemTracks by itemId for easier lookup
+          const itemTrackMap = itemTracks.reduce((acc, itemTrack) => {
+            acc[itemTrack._id] = itemTrack.lastEntry;
+            return acc;
+          }, {});
+
+          // Attach the last entry from ItemTrack to each item in newItems
+          const enrichedItems = newItems.map(item => ({
+            ...item._doc, // Copy item fields
+            // lastEntry: itemTrackMap[item._id] || null, // Attach lastEntry if found
+            currentStock: itemTrackMap[item._id.toString()] ? itemTrackMap[item._id.toString()].currentStock : null
+          }));
+
+          return { enrichedItems };
+};
 
 
 
@@ -90,40 +125,11 @@ const itemDataExist = async (organizationId, itemId) => {
   return { itemTrackAll };
 };
 
-// item transaction 
 
-exports.itemTransaction = async (req, res) => {
-  try {
-    const { id } = req.params; 
-    // const { organizationId } = req.body; 
-    const organizationId = req.user.organizationId;
 
-    // Find documents matching organizationId and itemId, sorted by creation date (oldest to newest)
-    const itemTransactions = await ItemTrack.find({
-      organizationId: organizationId,
-      itemId: id
-    }); // 1 for ascending order (oldest to newest)
 
-    // const itemTransactions = await ItemTrack.find({
-    //   organizationId: organizationId,
-    //   itemId: id
-    // }).sort({ createdAt: 1 }); // 1 for ascending order (oldest to newest)
 
-    
-    if (itemTransactions.length > 0) {
-      const ItemTransactions = itemTransactions.map((history) => {
-        const { organizationId, ...rest } = history.toObject(); // Convert to plain object and omit organizationId
-        return rest;
-      });
-      res.status(200).json(ItemTransactions);
-    } else {
-      return res.status(404).json("No transactions found for the given item");
-    }
-  } catch (error) {
-    console.error("Error fetching item transactions:", error);
-    return res.status(500).json({ message: "Internal server error." });
-  }
-};
+
 // Add item
 exports.addItem = async (req, res) => {
     console.log("Add Item:", req.body);
@@ -207,8 +213,6 @@ exports.addItem = async (req, res) => {
     }
 };
 
-
-
 // Get all items
 exports.getAllItem = async (req, res) => {
   try {
@@ -240,9 +244,8 @@ exports.getAllItem = async (req, res) => {
   }
 };
 
-
 //Get all item xs 
-exports.newgetAllItem = async (req, res) => {
+exports.getAllItemXS = async (req, res) => {
   try {
     const organizationId = req.user.organizationId;
 
@@ -256,7 +259,7 @@ exports.newgetAllItem = async (req, res) => {
       });
     }
 
-    const { enrichedItems  } = await newDataExists(organizationId);
+    const { enrichedItems  } = await xsItemDataExists(organizationId);
 
     if (enrichedItems .length > 0) {
       const allItems = enrichedItems.map((item) => {
@@ -273,10 +276,39 @@ exports.newgetAllItem = async (req, res) => {
   }
 };
 
+//Get all item m
+exports.getAllItemM = async (req, res) => {
+  try {
+    const organizationId = req.user.organizationId;
 
 
+    // Check if an Organization already exists
+    const existingOrganization = await Organization.findOne({ organizationId });
+    
+    if (!existingOrganization) {
+      return res.status(404).json({
+        message: "No Organization Found.",
+      });
+    }
 
-// Get a particular item
+    const { enrichedItems  } = await mItemDataExists(organizationId);
+
+    if (enrichedItems .length > 0) {
+      const allItems = enrichedItems.map((item) => {
+        const { organizationId, ...rest } = item; 
+        return rest;
+      });
+      res.status(200).json(allItems);
+    } else {
+      return res.status(404).json("No Items found.");
+    }
+  } catch (error) {
+    console.error("Error fetching Items:", error);
+    res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+// Get one item
 exports.getAItem = async (req, res) => {
     const itemId = req.params;
     const organizationId = req.user.organizationId;
@@ -302,8 +334,6 @@ exports.getAItem = async (req, res) => {
     res.status(500).json({ message: "Internal server error." });
   }
 };
-
-
 
 // Update Item
 exports.updateItem = async (req, res) => {
@@ -383,8 +413,6 @@ exports.updateItem = async (req, res) => {
   }
 };
 
-
-
 // Delete an item
 exports.deleteItem = async (req, res) => {
   try {
@@ -413,6 +441,39 @@ exports.deleteItem = async (req, res) => {
   }
 };
 
+// item transaction 
+exports.itemTransaction = async (req, res) => {
+  try {
+    const { id } = req.params; 
+    // const { organizationId } = req.body; 
+    const organizationId = req.user.organizationId;
+
+    // Find documents matching organizationId and itemId, sorted by creation date (oldest to newest)
+    const itemTransactions = await ItemTrack.find({
+      organizationId: organizationId,
+      itemId: id
+    }); // 1 for ascending order (oldest to newest)
+
+    // const itemTransactions = await ItemTrack.find({
+    //   organizationId: organizationId,
+    //   itemId: id
+    // }).sort({ createdAt: 1 }); // 1 for ascending order (oldest to newest)
+
+    
+    if (itemTransactions.length > 0) {
+      const ItemTransactions = itemTransactions.map((history) => {
+        const { organizationId, ...rest } = history.toObject(); // Convert to plain object and omit organizationId
+        return rest;
+      });
+      res.status(200).json(ItemTransactions);
+    } else {
+      return res.status(404).json("No transactions found for the given item");
+    }
+  } catch (error) {
+    console.error("Error fetching item transactions:", error);
+    return res.status(500).json({ message: "Internal server error." });
+  }
+};
 
 
 
