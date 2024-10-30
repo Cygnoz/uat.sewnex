@@ -64,7 +64,7 @@ exports.addCustomer = async (req, res) => {
       
       //Clean Data
       const cleanedData = cleanCustomerData(req.body);
-      cleanedData.contactPerson = cleanedData.contactPerson.map(person => cleanCustomerData(person));
+      cleanedData.contactPerson = cleanedData.contactPerson?.map(person => cleanCustomerData(person)) || [];
 
       const { customerEmail, debitOpeningBalance, creditOpeningBalance, customerDisplayName, mobile } = cleanedData;
   
@@ -112,7 +112,7 @@ exports.editCustomer = async (req, res) => {
       const { organizationId, id: userId, userName } = req.user;
 
       const cleanedData = cleanCustomerData(req.body);
-      cleanedData.contactPerson = cleanedData.contactPerson.map(person => cleanCustomerData(person));
+      cleanedData.contactPerson = cleanedData.contactPerson?.map(person => cleanCustomerData(person)) || [];
 
       console.log("Edit Customer:", cleanedData);
 
