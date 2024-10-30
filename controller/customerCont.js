@@ -667,17 +667,17 @@ function createCustomerHistory(savedCustomer, savedAccount, data, openingDate,us
         userId: userId,
         userName: userName,
       },
-      {
-        organizationId: savedCustomer.organizationId,
-        operationId: savedAccount._id,
-        customerId: savedCustomer._id,
-        customerDisplayName: data.customerDisplayName,
-        date: openingDate,
-        title: "Customer Account Created",
-        description: description1,
-        userId: userId,
-        userName: userName,
-      },
+      // {
+      //   organizationId: savedCustomer.organizationId,
+      //   operationId: savedAccount._id,
+      //   customerId: savedCustomer._id,
+      //   customerDisplayName: data.customerDisplayName,
+      //   date: openingDate,
+      //   title: "Customer Account Created",
+      //   description: description1,
+      //   userId: userId,
+      //   userName: userName,
+      // },
     ];
   }
   
