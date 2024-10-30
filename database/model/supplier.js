@@ -26,7 +26,7 @@ const supplierSchema = new Schema({
     salutation: {type:String},
     firstName: {type:String},
     lastName: {type:String},
-
+    supplierProfile: {type:String},
     companyName: {type:String},
     supplierDisplayName:{type:String},
     supplierEmail: {type:String},
