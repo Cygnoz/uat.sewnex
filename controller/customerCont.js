@@ -14,7 +14,7 @@ const Settings = require("../database/model/settings")
 exports.getCustomerTransactions = async (req, res) => {
   try {
       const { customerId } = req.params;
-      const { organizationId, id: userId, userName } = req.user; 
+      const { organizationId } = req.user; 
 
     console.log(organizationId,customerId)
       // Step 1: Find the customer's account code in the Account collection
@@ -55,8 +55,9 @@ const dataExist = async (organizationId) => {
     ]);
     return { organizationExists, taxExists, currencyExists, settings, allCustomer };
   };
-  // Add Customer
-  exports.addCustomer = async (req, res) => {
+
+// Add Customer
+exports.addCustomer = async (req, res) => {
     console.log("Add Customer:", req.body);
     try {
       const { organizationId, id: userId, userName } = req.user; 
@@ -93,7 +94,7 @@ const dataExist = async (organizationId) => {
       
       const savedAccount = await createNewAccount(customerDisplayName, openingDate, organizationId, allCustomer , savedCustomer );
   
-      await saveTrialBalanceAndHistory(savedCustomer, savedAccount, debitOpeningBalance, creditOpeningBalance, cleanedData, openingDate, userId, userName );
+      await saveTrialBalanceAndHistory(savedCustomer, savedAccount, debitOpeningBalance, creditOpeningBalance );
   
       console.log("Customer & Account created successfully");
       res.status(201).json({ message: "Customer created successfully." });
@@ -109,10 +110,11 @@ exports.editCustomer = async (req, res) => {
     console.log("Edit Customer:", req.body);
     try {
       const { organizationId, id: userId, userName } = req.user;
-      // const duplicateCustomerDisplayName = true;
-      // const duplicateCustomerEmail = true;
-      // const duplicateCustomerMobile = true;
+
       const cleanedData = cleanCustomerData(req.body);
+      cleanedData.contactPerson = cleanedData.contactPerson.map(person => cleanCustomerData(person));
+
+      console.log("Edit Customer:", cleanedData);
 
       const { customerId } = req.params;
   
@@ -120,7 +122,7 @@ exports.editCustomer = async (req, res) => {
   
       const { organizationExists, taxExists, currencyExists ,settings} = await dataExist(organizationId);
       
-      // checking values from Customer settings
+      //Checking values from Customer settings
       const { duplicateCustomerDisplayName , duplicateCustomerEmail , duplicateCustomerMobile } = settings[0]
        
       if (!validateOrganizationTaxCurrency(organizationExists, taxExists, currencyExists, res)) return;
@@ -479,7 +481,7 @@ exports.getOneCustomerHistory = async (req, res) => {
   
   //Clean Data 
   function cleanCustomerData(data) {
-    const cleanData = (value) => (value === null || value === undefined || value === "" || value === 0 ? undefined : value);
+    const cleanData = (value) => (value === null || value === undefined || value === "" ? undefined : value);
     return Object.keys(data).reduce((acc, key) => {
       acc[key] = cleanData(data[key]);
       return acc;
@@ -631,59 +633,59 @@ async function checkDuplicateCustomerFieldsEdit(duplicateCheck,customerDisplayNa
   }
   
 // TrialBalance And History
-async function saveTrialBalanceAndHistory(savedCustomer, savedAccount, debitOpeningBalance, creditOpeningBalance, data, openingDate, userId, userName) {
+async function saveTrialBalanceAndHistory(savedCustomer, savedAccount, debitOpeningBalance, creditOpeningBalance) {
     const trialEntry = new TrialBalance({
       organizationId: savedCustomer.organizationId,
       operationId: savedCustomer._id,
-      date: openingDate,
+      date: savedCustomer.createdDate,
       accountId: savedAccount._id,
       accountName: savedAccount.accountName,
       action: "Opening Balance",
       debitAmount: debitOpeningBalance,
       creditAmount: creditOpeningBalance,
-      remark: data.remark,
+      remark: savedCustomer.remark,
     });
     await trialEntry.save();
   
-    const customerHistory = createCustomerHistory(savedCustomer, savedAccount, data, openingDate,userId,userName);
+    const customerHistory = createCustomerHistory(savedCustomer, savedAccount);
     await CustomerHistory.insertMany(customerHistory);
   }
   
   
 // Create Customer History
-function createCustomerHistory(savedCustomer, savedAccount, data, openingDate,userId,userName) {
-    const description = getTaxDescription(data, userName);
-    const description1 = getOpeningBalanceDescription( data, userName);
+function createCustomerHistory(savedCustomer, savedAccount) {
+    const taxDescription = getTaxDescription(savedCustomer);
+    const openingBalanceDescription = getOpeningBalanceDescription( savedCustomer);
   
     return [
       {
         organizationId: savedCustomer.organizationId,
         operationId: savedCustomer._id,
         customerId: savedCustomer._id,
-        customerDisplayName: data.customerDisplayName,
-        date: openingDate,
+        customerDisplayName: savedCustomer.customerDisplayName,
+        date: savedCustomer.createdDate,
         title: "Customer Added",
-        description,
-        userId: userId,
-        userName: userName,
+        description: taxDescription,
+        userId: savedCustomer.userId,
+        userName: savedCustomer.userName,
       },
       {
         organizationId: savedCustomer.organizationId,
         operationId: savedAccount._id,
         customerId: savedCustomer._id,
-        customerDisplayName: data.customerDisplayName,
-        date: openingDate,
+        customerDisplayName: savedCustomer.customerDisplayName,
+        date: savedCustomer.createdDate,
         title: "Customer Account Created",
-        description: description1,
-        userId: userId,
-        userName: userName,
+        description: openingBalanceDescription,
+        userId: savedCustomer.userId,
+        userName: savedCustomer.userName,
       },
     ];
   }
   
 
 // Tax Description
-function getTaxDescription(data, userName) {
+function getTaxDescription(data) {
     const descriptionBase = `${data.customerDisplayName} Contact created with `;
     const taxDescriptionGenerators = {
       GST: () => createGSTDescription(data),
@@ -693,7 +695,7 @@ function getTaxDescription(data, userName) {
   
     return taxDescriptionGenerators[data.taxType]?.() 
       ? descriptionBase + taxDescriptionGenerators[data.taxType]() + `
-Created by ${userName}` 
+Created by ${data.userName}` 
       : "";
   }
   //GST Description
@@ -716,18 +718,19 @@ GST Treatment '${gstTreatment}' & GSTIN '${gstin_uin}'. State updated to ${place
   
 
 // Opening Balance Description
-function getOpeningBalanceDescription( data, userName) {
-    const { customerDisplayName } = data;
-    const balanceDescription = data.debitOpeningBalance 
-      ? `Opening Balance (Debit): '${data.debitOpeningBalance}'. `
-      : data.creditOpeningBalance 
-        ? `Opening Balance (Credit): '${data.creditOpeningBalance}'. `
-        : "";
-  
-    return balanceDescription 
-      ? `${customerDisplayName} Account created with ${balanceDescription}Created by ${userName}` 
-      : "";
+function getOpeningBalanceDescription(data) {
+  let balanceType = "";
+
+  if (data.debitOpeningBalance) {
+    balanceType = `Opening Balance (Debit): '${data.debitOpeningBalance}'. `;
+  } else if (data.creditOpeningBalance) {
+    balanceType = `Opening Balance (Credit): '${data.creditOpeningBalance}'. `;
   }
+
+  return balanceType
+    ? `${data.customerDisplayName} Account created with ${balanceType}Created by ${data.userName}`
+    : "";
+}
   
   
 

@@ -2,7 +2,6 @@ const express = require("express")
 
 const router = new express.Router()
 
-// const customerController = require("../controller/customerController")
 const importController = require("../controller/importCustomer")
 const customerController = require("../controller/customerCont")
 const customerSettings = require('../controller/customerSettings')

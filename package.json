@@ -11,17 +11,17 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@aws-sdk/client-secrets-manager": "^3.654.0",
+    "@aws-sdk/client-secrets-manager": "^3.682.0",
     "cors": "^2.8.5",
     "csvtojson": "^2.0.10",
     "dotenv": "^16.4.5",
     "exceljs": "^4.4.0",
-    "express": "^4.19.2",
+    "express": "^4.21.1",
     "jsonwebtoken": "^9.0.2",
-    "moment-timezone": "^0.5.45",
-    "mongoose": "^8.4.4",
+    "moment-timezone": "^0.5.46",
+    "mongoose": "^8.7.3",
     "multer": "^1.4.5-lts.1",
-    "nodemon": "^3.1.4",
+    "nodemon": "^3.1.7",
     "papaparse": "^5.4.1"
   }
 }
