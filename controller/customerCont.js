@@ -55,8 +55,9 @@ const dataExist = async (organizationId) => {
     ]);
     return { organizationExists, taxExists, currencyExists, settings, allCustomer };
   };
-  // Add Customer
-  exports.addCustomer = async (req, res) => {
+
+// Add Customer
+exports.addCustomer = async (req, res) => {
     console.log("Add Customer:", req.body);
     try {
       const { organizationId, id: userId, userName } = req.user; 
@@ -109,10 +110,11 @@ exports.editCustomer = async (req, res) => {
     console.log("Edit Customer:", req.body);
     try {
       const { organizationId, id: userId, userName } = req.user;
-      // const duplicateCustomerDisplayName = true;
-      // const duplicateCustomerEmail = true;
-      // const duplicateCustomerMobile = true;
+
       const cleanedData = cleanCustomerData(req.body);
+      cleanedData.contactPerson = cleanedData.contactPerson.map(person => cleanCustomerData(person));
+
+      console.log("Edit Customer:", cleanedData);
 
       const { customerId } = req.params;
   
@@ -120,7 +122,7 @@ exports.editCustomer = async (req, res) => {
   
       const { organizationExists, taxExists, currencyExists ,settings} = await dataExist(organizationId);
       
-      // checking values from Customer settings
+      //Checking values from Customer settings
       const { duplicateCustomerDisplayName , duplicateCustomerEmail , duplicateCustomerMobile } = settings[0]
        
       if (!validateOrganizationTaxCurrency(organizationExists, taxExists, currencyExists, res)) return;
@@ -479,7 +481,7 @@ exports.getOneCustomerHistory = async (req, res) => {
   
   //Clean Data 
   function cleanCustomerData(data) {
-    const cleanData = (value) => (value === null || value === undefined || value === "" || value === 0 ? undefined : value);
+    const cleanData = (value) => (value === null || value === undefined || value === "" ? undefined : value);
     return Object.keys(data).reduce((acc, key) => {
       acc[key] = cleanData(data[key]);
       return acc;
