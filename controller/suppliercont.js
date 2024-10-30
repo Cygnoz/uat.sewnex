@@ -66,10 +66,10 @@ const dataExist = async (organizationId) => {
   
         //Clean Data
         const cleanedData = cleanSupplierData(req.body);
-        cleanedData.contactPersons = cleanedData.contactPersons.map(person => cleanSupplierData(person));
-        cleanedData.bankDetails = cleanedData.bankDetails.map(bankDetail => cleanSupplierData(bankDetail));
 
-                   
+        cleanedData.contactPersons = cleanedData.contactPersons?.map(person => cleanSupplierData(person)) || [];
+        cleanedData.bankDetails = cleanedData.bankDetails?.map(bankDetail => cleanSupplierData(bankDetail)) || [];
+
   
         const { supplierEmail, debitOpeningBalance, creditOpeningBalance, supplierDisplayName, mobile } = cleanedData;
     
