@@ -11,8 +11,8 @@ const dataExist = async (organizationId) => {
 
 exports.updateCustomerSettings = async (req, res) => {
   try {
-    // const { organizationId } = req.body;
-    const { organizationId, id: userId, userName } = req.user;
+
+    const { organizationId } = req.user;
     console.log("Customer Settings:", req.body);
    
     // Clean the incoming data to remove empty/null values

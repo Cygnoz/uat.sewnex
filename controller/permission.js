@@ -30,10 +30,7 @@ const checkPermission = (permissionAction) => {
       const actionTime = generatedDateTime.dateTime;
 
       // Find the permission in the role's permissions array
-      const permission = role.permissions.find(p => p.note === permissionAction);
-      // console.log(permissionAction);
-      
-      
+      const permission = role.permissions.find(p => p.note === permissionAction);      
 
       // If the permission exists, log the activity and grant access
       if (permission) {

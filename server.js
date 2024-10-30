@@ -16,7 +16,7 @@ server.use(express.json())
 
 server.use(customerRouter)
 
-PORT = 5002
+const PORT = 5002
 
 server.get('/',(req,res)=>{
     res.status(200).json("Bill BIZZ server started - Customer")

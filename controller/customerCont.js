@@ -654,8 +654,8 @@ async function saveTrialBalanceAndHistory(savedCustomer, savedAccount, debitOpen
   
 // Create Customer History
 function createCustomerHistory(savedCustomer, savedAccount) {
-    const description = getTaxDescription(savedCustomer);
-    // const description1 = getOpeningBalanceDescription( savedCustomer);
+    const taxDescription = getTaxDescription(savedCustomer);
+    const openingBalanceDescription = getOpeningBalanceDescription( savedCustomer);
   
     return [
       {
@@ -665,21 +665,21 @@ function createCustomerHistory(savedCustomer, savedAccount) {
         customerDisplayName: savedCustomer.customerDisplayName,
         date: savedCustomer.createdDate,
         title: "Customer Added",
-        description,
+        description: taxDescription,
         userId: savedCustomer.userId,
         userName: savedCustomer.userName,
       },
-      // {
-      //   organizationId: savedCustomer.organizationId,
-      //   operationId: savedAccount._id,
-      //   customerId: savedCustomer._id,
-      //   customerDisplayName: savedCustomer.customerDisplayName,
-      //   date: savedCustomer.createdDate,
-      //   title: "Customer Account Created",
-      //   description: description1,
-      //   userId: userId,
-      //   userName: userName,
-      // },
+      {
+        organizationId: savedCustomer.organizationId,
+        operationId: savedAccount._id,
+        customerId: savedCustomer._id,
+        customerDisplayName: savedCustomer.customerDisplayName,
+        date: savedCustomer.createdDate,
+        title: "Customer Account Created",
+        description: openingBalanceDescription,
+        userId: savedCustomer.userId,
+        userName: savedCustomer.userName,
+      },
     ];
   }
   
@@ -718,18 +718,19 @@ GST Treatment '${gstTreatment}' & GSTIN '${gstin_uin}'. State updated to ${place
   
 
 // Opening Balance Description
-function getOpeningBalanceDescription( data ) {
-    const { customerDisplayName } = data;
-    const balanceDescription = data.debitOpeningBalance 
-      ? `Opening Balance (Debit): '${data.debitOpeningBalance}'. `
-      : data.creditOpeningBalance 
-        ? `Opening Balance (Credit): '${data.creditOpeningBalance}'. `
-        : "";
-  
-    return balanceDescription 
-      ? `${customerDisplayName} Account created with ${balanceDescription}Created by ${data.userName}` 
-      : "";
+function getOpeningBalanceDescription(data) {
+  let balanceType = "";
+
+  if (data.debitOpeningBalance) {
+    balanceType = `Opening Balance (Debit): '${data.debitOpeningBalance}'. `;
+  } else if (data.creditOpeningBalance) {
+    balanceType = `Opening Balance (Credit): '${data.creditOpeningBalance}'. `;
   }
+
+  return balanceType
+    ? `${data.customerDisplayName} Account created with ${balanceType}Created by ${data.userName}`
+    : "";
+}
   
   
 
