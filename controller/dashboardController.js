@@ -77,8 +77,8 @@ exports.calculateTotalInventoryValue = async (req, res) => {
 
     const totalStockCount = await getTotalInventoryValues(items, organizationId, date);
     const { inventoryValueChange , salesValueChange} = totalStockCount
-    const { topSellingProducts , stockLevels ,frequentlyOrderedItems, totalSalesValue} = topSelling
-    const { topSellingProductCategories } = topSellingCategories
+    const { topSellingProducts  ,frequentlyOrderedItems, totalSalesValue} = topSelling
+    const { topSellingProductCategories, stockLevels } = topSellingCategories
   
     // Send the response with all calculated data
     res.status(200).json({
@@ -176,7 +176,7 @@ const topSellingProductsUtil = async (organizationId) => {
     console.log( "total sales value",totalSalesValue)
 
     // Return both topSellingProducts and stockLevel
-    return { topSellingProducts, stockLevels , frequentlyOrderedItems,totalSalesValue};
+    return { topSellingProducts , frequentlyOrderedItems,totalSalesValue};
   } catch (error) {
     console.error("Error fetching top-selling products or stock levels:", error);
     throw new Error("An error occurred while calculating top-selling products or stock levels.");
@@ -185,55 +185,141 @@ const topSellingProductsUtil = async (organizationId) => {
 
 const getTopSellingProductCategory = async (organizationId) => {
   try {
-      // Step 1: Find categories from the BMCR collection
-      const categories = await BMCR.find({ organizationId, type: 'category' });
-      const topSellingProductCategory = [];
+    // Step 1: Find categories from the BMCR collection
+    const categories = await BMCR.find({ organizationId, type: 'category' });
+    const topSellingProductCategory = [];
+    const stockLevels = [];
 
-      // Step 2: Process each category
-      for (const category of categories) {
-          const { categoriesName } = category;
+    // Step 2: Process each category
+    for (const category of categories) {
+      const { categoriesName } = category;
 
-          // Step 3: Find items under this category
-          const items = await Item.find({ organizationId , categories: categoriesName});
+      // Step 3: Find items under this category
+      const items = await Item.find({ organizationId, categories: categoriesName });
 
-          let categorySalesValue = 0;
+      let categorySalesValue = 0;
+      const itemStockDetails = [];
 
-          // Step 4: Process each item in the category
-          for (const item of items) {
-              const { _id, sellingPrice } = item;
+      // Step 4: Process each item in the category
+      for (const item of items) {
+        const { _id, sellingPrice, itemName } = item;
 
-              // Step 5: Find item tracks for this item
-              const itemTracks = await ItemTrack.find({
-                  itemId: _id,
-                  action: 'Sale',
-              });
+        // Step 5: Find item tracks for this item
+        const itemTracks = await ItemTrack.find({
+          organizationId,
+          itemId: _id,
+          action: 'Sale',
+        });
 
-              // Step 6: Calculate total sales value for this item
-              const itemSaleValue = itemTracks.reduce((sum, track) => {
-                  return sum + track.debitQuantity * sellingPrice;
-              }, 0);
+        // Step 6: Calculate total sales value for this item
+        const itemSaleValue = itemTracks.reduce((sum, track) => {
+          return sum + track.debitQuantity * sellingPrice;
+        }, 0);
 
-              // Step 7: Accumulate sales value for the category
-              categorySalesValue += itemSaleValue;
-          }
+        // Step 7: Accumulate sales value for the category
+        categorySalesValue += itemSaleValue;
 
-          // Step 8: Push the category sales data to the result array
-          topSellingProductCategory.push({
-              categoryName: categoriesName,
-              salesValue: categorySalesValue,
-          });
+        // Step 8: Get the latest stock document for this item
+        const latestStockTrack = await ItemTrack.findOne({
+          organizationId,
+          itemId: _id,
+        }).sort({ _id: -1  }); // Assuming createdAt is the field to sort by
+
+        const currentStock = latestStockTrack ? latestStockTrack.currentStock : 0; // Use 0 if no stock track found
+
+        // Step 9: Collect item stock details
+        itemStockDetails.push({
+          itemId: _id,
+          itemName: itemName,
+          stock: currentStock,
+        });
       }
-      const topSellingProductCategories = topSellingProductCategory.sort((a, b) => b.salesValue - a.salesValue).slice(0, 5);
 
-      // Step 9: Send the response with the top selling product categories
-      return {
-        topSellingProductCategories,
-      };
+      // Step 10: Push the category sales data to the result array
+      topSellingProductCategory.push({
+        categoryName: categoriesName,
+        salesValue: categorySalesValue,
+      });
+
+      // Step 11: Sort item stock details and pick top 5
+      const topStockItems = itemStockDetails
+        .sort((a, b) => b.stock - a.stock) // Sort by stock descending
+        .slice(0, 5); // Get top 5 items
+
+      // Step 12: Push the stock data for the category
+      stockLevels.push({
+        categoryName: categoriesName,
+        items: topStockItems,
+      });
+    }
+
+    // Sort and select top 5 selling categories
+    const topSellingProductCategories = topSellingProductCategory
+      .sort((a, b) => b.salesValue - a.salesValue)
+      .slice(0, 5);
+
+    // Step 13: Send the response with both top selling product categories and stock levels
+    return {
+      topSellingProductCategories,
+      stockLevels,
+    };
   } catch (error) {
-      console.error('Error fetching top selling product categories:', error);
-      throw new Error('Failed to fetch top selling product categories');
+    console.error('Error fetching top selling product categories:', error);
+    throw new Error('Failed to fetch top selling product categories');
   }
 };
+
+// const getTopSellingProductCategory = async (organizationId) => {
+//   try {
+//       // Step 1: Find categories from the BMCR collection
+//       const categories = await BMCR.find({ organizationId, type: 'category' });
+//       const topSellingProductCategory = [];
+
+//       // Step 2: Process each category
+//       for (const category of categories) {
+//           const { categoriesName } = category;
+
+//           // Step 3: Find items under this category
+//           const items = await Item.find({ organizationId , categories: categoriesName});
+
+//           let categorySalesValue = 0;
+
+//           // Step 4: Process each item in the category
+//           for (const item of items) {
+//               const { _id, sellingPrice } = item;
+
+//               // Step 5: Find item tracks for this item
+//               const itemTracks = await ItemTrack.find({
+//                   itemId: _id,
+//                   action: 'Sale',
+//               });
+
+//               // Step 6: Calculate total sales value for this item
+//               const itemSaleValue = itemTracks.reduce((sum, track) => {
+//                   return sum + track.debitQuantity * sellingPrice;
+//               }, 0);
+
+//               // Step 7: Accumulate sales value for the category
+//               categorySalesValue += itemSaleValue;
+//           }
+
+//           // Step 8: Push the category sales data to the result array
+//           topSellingProductCategory.push({
+//               categoryName: categoriesName,
+//               salesValue: categorySalesValue,
+//           });
+//       }
+//       const topSellingProductCategories = topSellingProductCategory.sort((a, b) => b.salesValue - a.salesValue).slice(0, 5);
+
+//       // Step 9: Send the response with the top selling product categories
+//       return {
+//         topSellingProductCategories,
+//       };
+//   } catch (error) {
+//       console.error('Error fetching top selling product categories:', error);
+//       throw new Error('Failed to fetch top selling product categories');
+//   }
+// };
 
 
 
