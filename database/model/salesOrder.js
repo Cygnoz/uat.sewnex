@@ -6,7 +6,7 @@ const itemsSchema = new Schema({
     itemId: {type:String},
     itemName: {type:String},
 
-    quantity: {type:String},
+    quantity: {type:Number},
     sellingPrice: {type:Number},
 
     taxGroup: {type:String},
@@ -14,15 +14,21 @@ const itemsSchema = new Schema({
     sgst: { type: Number },
     igst: { type: Number },
     vat: { type: Number },
+
+    cgstAmount: { type: Number },
+    sgstAmount: { type: Number },
+    igstAmount: { type: Number },
+    vatAmount: { type: Number },
+
     itemTotaltax: {type:Number},
 
-    discountType: {type:String}, //$,%
-    discountAmopunt: {type:Number}, 
-    amount: {type:Number},
+    discountType: {type:String}, //Currency,Percentage
+    discountAmount: {type:Number}, 
+    itemAmount: {type:Number},
 
   }, { _id: false });
 
-const SalesOderSchema = new Schema ({
+const SalesOrderSchema = new Schema ({
 
   organizationId: { type: String, index: true },
   
@@ -35,25 +41,34 @@ const SalesOderSchema = new Schema ({
   //salesPersonId: { type: String }, //next phase
   //salesPersonName: { type: String }, //next phase
 
-  salesOrderDate: { type: String },  
-  expiryDate: { type: String },
+  //new
+  //shipmentPreference: { type: String },
+  //paymentMode: { type: String },
+  paymentTerms: { type: String },
+  deliveryMethod: { type: String },
+  expectedShipmentDate: { type: String },
 
-  subject: { type: String },
+  salesOrderDate: { type: String },  
+  //expiryDate: { type: String },
+
+  //subject: { type: String },
   
   items: [itemsSchema],   
   
   note: { type: String },
   tc: { type: String },
 
+  //new
+  otherExpenseAmount: { type: Number },
+  otherExpenseReason: { type: String },
+  vehicleNumber: { type: String },
+  freightAmount: { type: Number },
+  roundOffAmount: { type: Number },
 
-  //not in ui
-  discountType: { type: String }, // item, tran, both 
-  discountTransactionType: { type: String }, // $, %
+
+  discountTransactionType: { type: String }, // Currency,Percentage
   discountTransactionAmount: { type: Number },
-  discountTax: { type: String }, // after, before
-  taxtype: { type: String }, //intra, inter, non-tax 
-
-  
+  taxtype: { type: String }, //Intra, Inter, Non-tax, VAT   
   
   subTotal: { type: Number },
   totalItem: { type: Number },
@@ -64,6 +79,9 @@ const SalesOderSchema = new Schema ({
   vat: { type: Number },
   totalTax: { type: Number },
   totalAmount: { type: Number },
+  totalDiscount: { type: Number },
+
+  status: { type: String },
 
   createdDate: { type: String },
   userId: { type: String },
@@ -71,9 +89,9 @@ const SalesOderSchema = new Schema ({
 })
 
 
-const SalesOder = mongoose.model("SalesOder", SalesOderSchema);
+const SalesOrder = mongoose.model("SalesOrder", SalesOrderSchema);
 
-module.exports = SalesOder;
+module.exports = SalesOrder;
 
 
 

@@ -14,11 +14,17 @@ const itemsSchema = new Schema({
     sgst: { type: Number },
     igst: { type: Number },
     vat: { type: Number },
+
+    cgstAmount: { type: Number },
+    sgstAmount: { type: Number },
+    igstAmount: { type: Number },
+    vatAmount: { type: Number },
+
     itemTotaltax: {type:Number},
 
     discountType: {type:String}, //Currency,Percentage
     discountAmount: {type:Number}, 
-    amount: {type:Number},
+    itemAmount: {type:Number},
 
   }, { _id: false });
 
@@ -35,7 +41,7 @@ const SalesQuotesSchema = new Schema ({
   //salesPersonId: { type: String }, //next phase
   //salesPersonName: { type: String }, //next phase
 
-  salesOrderDate: { type: String },  
+  salesQuoteDate: { type: String },  
   expiryDate: { type: String },
 
   subject: { type: String },
@@ -46,14 +52,9 @@ const SalesQuotesSchema = new Schema ({
   tc: { type: String },
 
 
-  //not in ui
-  discountType: { type: String }, // Item Line, Transaction Line, Both
   discountTransactionType: { type: String }, //Currency,Percentage
   discountTransactionAmount: { type: Number },
-  discountTax: { type: String }, // After, Before
-  taxType: { type: String }, //Intra, Inter, Non-tax, VAT 
-
-  
+  taxType: { type: String }, //Intra, Inter, Non-tax, VAT   
   
   subTotal: { type: Number },
   totalItem: { type: Number },
@@ -64,6 +65,9 @@ const SalesQuotesSchema = new Schema ({
   vat: { type: Number },
   totalTax: { type: Number },
   totalAmount: { type: Number },
+  totalDiscount: { type: Number },
+
+  status: { type: String },
 
   createdDate: { type: String },
   userId: { type: String },
