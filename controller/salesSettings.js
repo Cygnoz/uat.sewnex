@@ -46,7 +46,7 @@ exports.updateCreditNoteSettings = async (req, res) => {
         overRideCostPrice: req.body.overRideCostPrice, 
         creditNoteQr: req.body.creditNoteQr, 
         creditNoteQrType: req.body.creditNoteQrType,
-        creditNoteQrDespriction: req.body.creditNoteQrDespriction,
+        creditNoteQrDescription: req.body.creditNoteQrDescription,
         recordLocking: req.body.recordLocking, 
         creditNoteTC: req.body.creditNoteTC,
         creditNoteCN: req.body.creditNoteCN,
