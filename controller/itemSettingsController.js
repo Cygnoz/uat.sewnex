@@ -85,29 +85,36 @@ exports.getAllItemTrack = async (req, res) => {
 
 
 
-// Get a particular item
-exports.getAItemTrack = async (req, res) => {
-    const itemId = req.params;
+// item transaction 
+exports.itemTransaction = async (req, res) => {
+  try {
+    const { id } = req.params; 
+    // const { organizationId } = req.body; 
     const organizationId = req.user.organizationId;
 
-    // Check if an Organization already exists
-    const existingOrganization = await Organization.findOne({ organizationId });
- 
-    if (!existingOrganization) {
-      return res.status(404).json({
-        message: "No Organization Found.",
-      });
-    }
+    // Find documents matching organizationId and itemId, sorted by creation date (oldest to newest)
+    const itemTransactions = await ItemTrack.find({
+      organizationId: organizationId,
+      itemId: id
+    }); // 1 for ascending order (oldest to newest)
 
-  try {
-    const singleItem = await ItemTrack.findById(itemId);
-    if (singleItem) {
-      res.status(200).json(singleItem);
+    // const itemTransactions = await ItemTrack.find({
+    //   organizationId: organizationId,
+    //   itemId: id
+    // }).sort({ createdAt: 1 }); // 1 for ascending order (oldest to newest)
+
+    
+    if (itemTransactions.length > 0) {
+      const ItemTransactions = itemTransactions.map((history) => {
+        const { organizationId, ...rest } = history.toObject(); // Convert to plain object and omit organizationId
+        return rest;
+      });
+      res.status(200).json(ItemTransactions);
     } else {
-      res.status(404).json({ message: "Item Track not found." });
+      return res.status(404).json("No transactions found for the given item");
     }
   } catch (error) {
-    console.error("Error fetching Item:", error);
-    res.status(500).json({ message: "Internal server error." });
+    console.error("Error fetching item transactions:", error);
+    return res.status(500).json({ message: "Internal server error." });
   }
 };

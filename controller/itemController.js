@@ -70,7 +70,7 @@ const xsItemDataExists = async (organizationId) => {
 const mItemDataExists = async (organizationId) => {
           // Retrieve items with specified fields
           const [newItems] = await Promise.all([
-            Item.find( { organizationId }, { _id: 1, itemName: 1, itemType:1, sku: 1, taxPreference:1, taxRate:1, categories:1, rack:1, sellingPrice: 1, saleMrp:1, costPrice: 1, reorderPoint: 1 } ),
+            Item.find( { organizationId }, { organizationId: 0 } ),
           ]);
 
           // Extract itemIds from newItems
@@ -441,39 +441,7 @@ exports.deleteItem = async (req, res) => {
   }
 };
 
-// item transaction 
-exports.itemTransaction = async (req, res) => {
-  try {
-    const { id } = req.params; 
-    // const { organizationId } = req.body; 
-    const organizationId = req.user.organizationId;
 
-    // Find documents matching organizationId and itemId, sorted by creation date (oldest to newest)
-    const itemTransactions = await ItemTrack.find({
-      organizationId: organizationId,
-      itemId: id
-    }); // 1 for ascending order (oldest to newest)
-
-    // const itemTransactions = await ItemTrack.find({
-    //   organizationId: organizationId,
-    //   itemId: id
-    // }).sort({ createdAt: 1 }); // 1 for ascending order (oldest to newest)
-
-    
-    if (itemTransactions.length > 0) {
-      const ItemTransactions = itemTransactions.map((history) => {
-        const { organizationId, ...rest } = history.toObject(); // Convert to plain object and omit organizationId
-        return rest;
-      });
-      res.status(200).json(ItemTransactions);
-    } else {
-      return res.status(404).json("No transactions found for the given item");
-    }
-  } catch (error) {
-    console.error("Error fetching item transactions:", error);
-    return res.status(500).json({ message: "Internal server error." });
-  }
-};
 
 
 

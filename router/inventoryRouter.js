@@ -18,7 +18,6 @@ router.get('/get-itemDropdown',verifyToken, itemDropdownController.getItemDropdo
 
 router.get('/get-inventory-Dashboard/:date',verifyToken, dashboardController.calculateTotalInventoryValue);
 
-router.get('/get-item-transaction/:id',verifyToken, itemController.itemTransaction);
 
 
 // Item
@@ -60,7 +59,6 @@ router.delete('/delete-bmcr/:id',verifyToken,checkPermission('Deleted a BMCR'), 
  
 //items settings
 router.put('/add-item-settings',verifyToken,checkPermission('Setup/Modified Item Setting'), itemSettingsController.addItemSettings);
-// router.post('/get-item-settings',itemSettings.getItemSettings);
 
 
 
@@ -68,7 +66,7 @@ router.put('/add-item-settings',verifyToken,checkPermission('Setup/Modified Item
 
 //Item Track
 router.get('/get-all-item-track',verifyToken,checkPermission('Viewed Item Information'), itemSettingsController.getAllItemTrack);
-router.get('/get-one-item-track/:itemId',verifyToken,checkPermission('Viewed Item Information'), itemSettingsController.getAItemTrack)
+router.get('/get-item-transaction/:id',verifyToken, itemSettingsController.itemTransaction);
 
 
 
