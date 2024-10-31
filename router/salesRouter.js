@@ -14,9 +14,9 @@ const { verifyToken } = require('../controller/middleware');
 
 
 //Sales settings
-router.put('/add-sales-settings',salesSettings.addSalesOrderSettings)
+router.put('/add-sales-settings',verifyToken,salesSettings.addSalesOrderSettings)
 
-router.put('/add-creditNote-settings',salesSettings.updateCreditNoteSettings)
+router.put('/add-creditNote-settings',verifyToken,salesSettings.updateCreditNoteSettings)
 
 
 
@@ -36,22 +36,26 @@ router.post('/add-sales-order',verifyToken,salesOrder.addOrder)
 
 router.get('/get-last-sales-order-prefix',verifyToken,salesOrder.getLastOrderPrefix)
 
+router.get('/get-all-sales-order',verifyToken,salesOrder.getAllSalesOrder)
+
+router.get('/get-one-sales-order/:orderId',verifyToken,salesOrder.getOneSalesOrder)
+
 
 
 // Delivery Chellans
-router.put('/add-deliveryChellans', salesSettings.addDeliveryChellans);
+router.put('/add-deliveryChellans',verifyToken, salesSettings.addDeliveryChellans);
 
 
 
 //Shipment
-router.put('/add-shipment-address-settings',salesSettings.addShipmentAddressSettings)
+router.put('/add-shipment-address-settings',verifyToken,salesSettings.addShipmentAddressSettings)
 
 
 
-//invoice
+//Sales Invoice
 router.post('/add-sales-invoice',verifyToken,salesInvoice.addInvoice)
 
-router.put('/add-salesInvoice-settings',salesSettings.addInvoiceSettings)
+router.put('/add-salesInvoice-settings',verifyToken,salesSettings.addInvoiceSettings)
 
 
 // customer sales Hisory

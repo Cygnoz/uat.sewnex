@@ -13,23 +13,59 @@ const mongoose = require('mongoose');
 
 
 // Fetch existing data
-const dataExist = async ( organizationId, items, customerId, customerName ) => {
-  const itemIds = items.map(item => item.itemId);
-  
-    const [organizationExists, customerExist , settings, itemTable, itemTrack, existingPrefix  ] = await Promise.all([
+const dataExist = async ( organizationId, customerId, customerName ) => { 
+    const [organizationExists, customerExist , settings, existingPrefix  ] = await Promise.all([
       Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
       Customer.findOne({ organizationId , _id:customerId, customerDisplayName: customerName}, { _id: 1, customerDisplayName: 1, taxType: 1 }),
       Settings.findOne({ organizationId },{ salesOrderAddress: 1, salesOrderCustomerNote: 1, salesOrderTermsCondition: 1, salesOrderClose: 1, restrictSalesOrderClose: 1, termCondition: 1 ,customerNote: 1 }),
-      Item.find({ organizationId, _id: { $in: itemIds } }, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }),
-      ItemTrack.aggregate([
-        { $match: { itemId: { $in: itemIds } } }, // Filter by itemIds
-        { $sort: { _id: -1 } }, // Sort by _id in descending order to get the most recent
-        { $group: { _id: "$itemId", lastEntry: { $first: "$$ROOT" } } } // Group by itemId and take the first (latest) entry
-      ]),
       Prefix.findOne({ organizationId }),
     ]);
-    return { organizationExists, customerExist , settings, itemTable, itemTrack, existingPrefix };
-  };
+    return { organizationExists, customerExist , settings, existingPrefix };
+};
+
+//Fetch Item Data
+const newDataExists = async (organizationId,items) => {
+  // Retrieve items with specified fields
+  const itemIds = items.map(item => item.itemId);
+
+  const [newItems] = await Promise.all([
+    Item.find({ organizationId, _id: { $in: itemIds } }, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }),
+  ]);
+
+  // Aggregate ItemTrack to get the latest entry for each itemId
+  const itemTracks = await ItemTrack.aggregate([
+    { $match: { itemId: { $in: itemIds } } },
+    { $sort: { _id: -1 } },
+    { $group: { _id: "$itemId", lastEntry: { $first: "$$ROOT" } } }
+  ]);
+  
+
+  // Map itemTracks by itemId for easier lookup
+  const itemTrackMap = itemTracks.reduce((acc, itemTrack) => {
+    acc[itemTrack._id] = itemTrack.lastEntry;
+    return acc;
+  }, {});
+
+  // Attach the last entry from ItemTrack to each item in newItems
+  const itemTable = newItems.map(item => ({
+    ...item._doc, // Copy item fields
+    // lastEntry: itemTrackMap[item._id] || null, // Attach lastEntry if found
+    currentStock: itemTrackMap[item._id.toString()] ? itemTrackMap[item._id.toString()].currentStock : null
+  }));
+
+  return { itemTable };
+};
+
+
+const salesDataExist = async ( organizationId, orderId ) => {    
+    
+  const [organizationExists, allOrder, order ] = await Promise.all([
+    Organization.findOne({ organizationId }, { organizationId: 1}),
+    Order.find({ organizationId }),
+    Order.findOne({ organizationId , _id: orderId },)
+  ]);
+  return { organizationExists, allOrder, order };
+};
 
 
 // Add Sales Order
@@ -62,10 +98,9 @@ exports.addOrder = async (req, res) => {
         return res.status(400).json({ message: `Invalid item IDs: ${invalidItemIds.join(', ')}` });
       }   
   
-      const { organizationExists, customerExist , settings, itemTable, itemTrack, existingPrefix } = await dataExist( organizationId, items, customerId, customerName );
+      const { organizationExists, customerExist , settings, existingPrefix } = await dataExist( organizationId, customerId, customerName );
 
-      console.log("itemTrack",itemTrack);
-      
+      const { itemTable } = await newDataExists( organizationId, items );
       
       //Data Exist Validation
       if (!validateOrganizationTaxCurrency( organizationExists, customerExist, existingPrefix, res )) return;
@@ -114,7 +149,6 @@ exports.getLastOrderPrefix = async (req, res) => {
       
       const series = prefix.series[0];     
       const lastPrefix = series.salesOrder + series.salesOrderNum;
-      console.log(lastPrefix);
 
       res.status(200).json(lastPrefix);
   } catch (error) {
@@ -126,6 +160,63 @@ exports.getLastOrderPrefix = async (req, res) => {
 
 
 
+// Get All Sales Order
+exports.getAllSalesOrder = async (req, res) => {
+  try {
+    const organizationId = req.user.organizationId;
+
+    const { organizationExists, allOrder } = await salesDataExist(organizationId);
+
+    if (!organizationExists) {
+      return res.status(404).json({
+        message: "Organization not found",
+      });
+    }
+
+    if (!allOrder.length) {
+      return res.status(404).json({
+        message: "No Order found",
+      });
+    }
+
+    res.status(200).json(allOrder);
+  } catch (error) {
+    console.error("Error fetching Order:", error);
+    res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+
+
+// Get One Sales Order
+exports.getOneSalesOrder = async (req, res) => {
+try {
+  const organizationId = req.user.organizationId;
+  const  orderId = req.params.orderId;
+
+  const { organizationExists, order } = await salesDataExist(organizationId,orderId);
+
+  if (!organizationExists) {
+    return res.status(404).json({
+      message: "Organization not found",
+    });
+  }
+
+  if (!order) {
+    return res.status(404).json({
+      message: "No Quotes found",
+    });
+  }
+
+  res.status(200).json(order);
+} catch (error) {
+  console.error("Error fetching Order:", error);
+  res.status(500).json({ message: "Internal server error." });
+}
+};
+
+
+
 
 
 
@@ -133,7 +224,7 @@ exports.getLastOrderPrefix = async (req, res) => {
 
 
 // Utility Functions
-const validShipmentPreference = [];
+const validDeliveryMethod = ["Road","Rail","Air","Sea"];
 const validPaymentMode = [];
 const validDiscountTransactionType = ["Currency", "Percentage"];
 const validCountries = {
@@ -385,12 +476,10 @@ function validateQuoteData( data, customerExist, items, itemTable, organizationE
   
 
   //Basic Info
-  validateReqFields( data, customerExist, errors );
+  validateReqFields( data, errors );
   validateItemTable(items, itemTable, errors);
-  // validateDiscountType(data.discountType, errors);
   validateDiscountTransactionType(data.discountTransactionType, errors);
-  //validateDiscountTax(data.discountTax, errors);
-  validateShipmentPreference(data.shipmentPreference, errors);
+  validateDeliveryMethod(data.deliveryMethod, errors);
   validatePaymentMode(data.paymentMode, errors);
 
 
@@ -411,14 +500,12 @@ function validateField(condition, errorMsg, errors) {
   if (condition) errors.push(errorMsg);
 }
 //Valid Req Fields
-function validateReqFields( data, customerExist, errors ) {
+function validateReqFields( data, errors ) {
 validateField( typeof data.customerId === 'undefined' || typeof data.customerName === 'undefined', "Please select a Customer", errors  );
 validateField( typeof data.placeOfSupply === 'undefined', "Place of supply required", errors  );
 validateField( typeof data.items === 'undefined', "Select an item", errors  );
 validateField( typeof data.otherExpenseAmount !== 'undefined' && typeof data.otherExpenseReason === 'undefined', "Please enter other expense reason", errors  );
 validateField( typeof data.roundOffAmount !== 'undefined' && !(data.roundOffAmount >= 0 && data.roundOffAmount <= 1), " Round Off Amount must be between 0 and 1", errors );
-
-
 }
 // Function to Validate Item Table 
 function validateItemTable(items, itemTable, errors) {
@@ -457,6 +544,9 @@ items.forEach((item) => {
   // Validate integer fields
   validateIntegerFields(['quantity'], item, errors);
 
+  // Validate Stock Count 
+  validateField( item.quantity > fetchedItem.currentStock, `Insufficient Stock for ${item.itemName}: Requested quantity ${item.quantity}, Available stock ${fetchedItem.currentStock}`, errors );
+
   // Validate float fields
   validateFloatFields(['sellingPrice', 'itemTotaltax', 'discountAmount', 'itemAmount'], item, errors);
 });
@@ -478,9 +568,9 @@ validateField(discountTransactionType && !validDiscountTransactionType.includes(
 }
 
 //Validate Shipment Preference
-function validateShipmentPreference(shipmentPreference, errors) {
-  validateField(shipmentPreference && !validShipmentPreference.includes(shipmentPreference),
-    "Invalid Shipment Preference : " + shipmentPreference, errors);
+function validateDeliveryMethod(deliveryMethod, errors) {
+  validateField(deliveryMethod && !validDeliveryMethod.includes(deliveryMethod),
+    "Invalid Delivery Method : " + deliveryMethod, errors);
 }
 //Validate Payment Mode
 function validatePaymentMode(paymentMode, errors) {
@@ -581,6 +671,9 @@ function calculateSalesOrder(cleanedData, res) {
   let totalDiscount= 0;
   let totalItemCount = 0;
 
+  // Utility function to round values to two decimal places
+  const roundToTwoDecimals = (value) => Number(value.toFixed(2));
+
 
   cleanedData.items.forEach(item => {
 
@@ -605,28 +698,25 @@ function calculateSalesOrder(cleanedData, res) {
       switch (taxType) {
         
         case 'Intra':
-        calculatedCgstAmount = (item.cgst / 100) * itemTotal;
-        calculatedSgstAmount = (item.sgst / 100) * itemTotal;
+        calculatedCgstAmount = roundToTwoDecimals((item.cgst / 100) * itemTotal);
+        calculatedSgstAmount = roundToTwoDecimals((item.sgst / 100) * itemTotal);
         itemTotal += calculatedCgstAmount + calculatedSgstAmount;
         break;
 
         case 'Inter':
-        calculatedIgstAmount = (item.igst / 100) * itemTotal;
+        calculatedIgstAmount = roundToTwoDecimals((item.igst / 100) * itemTotal);
         itemTotal += calculatedIgstAmount;
         break;
         
         case 'VAT':
-        calculatedVatAmount = (item.vat / 100) * itemTotal;
+        calculatedVatAmount = roundToTwoDecimals((item.vat / 100) * itemTotal);
         itemTotal += calculatedVatAmount;
         break;
 
       }
       calculatedTaxAmount =  calculatedCgstAmount + calculatedSgstAmount + calculatedIgstAmount + calculatedVatAmount;
       
-      // Log calculated tax amounts
-
-      logCalculatedTax(item, calculatedCgstAmount, calculatedSgstAmount,  calculatedIgstAmount, calculatedVatAmount );
-
+      
       // Check tax amounts
       checkAmount(calculatedCgstAmount, item.cgstAmount, item.itemName, 'CGST',errors);
       checkAmount(calculatedSgstAmount, item.sgstAmount, item.itemName, 'SGST',errors);
@@ -653,54 +743,37 @@ function calculateSalesOrder(cleanedData, res) {
     console.log("");
   });
 
+  console.log(`SubTotal: ${subTotal} , Provided ${cleanedData.subTotal}`);
+  
   //Other Expense
-  adjustSubTotal(cleanedData.otherExpenseAmount, "Other Expense Amount");
-  adjustSubTotal(cleanedData.freightAmount, "Freight Amount");
-  adjustSubTotal(cleanedData.roundOffAmount, "Round Off Amount", false);
+  totalAmount = otherExpense( subTotal, cleanedData );  
+  console.log("After Other Expense: ",totalAmount);  
 
   // Transaction Discount
-  let transactionDiscount = calculateTransactionDiscount(cleanedData, subTotal);
+  let transactionDiscount = calculateTransactionDiscount(cleanedData, totalAmount);
 
-  totalDiscount +=  parseFloat(transactionDiscount);  
-
-  console.log(`SubTotal: ${subTotal} , Provided ${cleanedData.subTotal}`);
+  totalDiscount +=  parseFloat(transactionDiscount); 
 
   // Total amount calculation
-  totalAmount = subTotal - transactionDiscount; 
+  totalAmount -= transactionDiscount; 
 
-  // Utility function to round values to two decimal places
-  const roundToTwoDecimals = (value) => Math.round(value * 100) / 100;
-
-  // Validate calculated totals against cleanedData data
-  const calculatedSubTotal = subTotal;
-  const calculatedTotalTax = totalTax;
-  const calculatedTotalAmount = totalAmount;
-
+  
   // Round the totals for comparison
-  const roundedSubTotal = roundToTwoDecimals(calculatedSubTotal);
-  const roundedTotalTax = roundToTwoDecimals(calculatedTotalTax);
-  const roundedTotalAmount = roundToTwoDecimals(calculatedTotalAmount);
+  const roundedSubTotal = roundToTwoDecimals(subTotal);
+  const roundedTotalTax = roundToTwoDecimals(totalTax);
+  const roundedTotalAmount = roundToTwoDecimals(totalAmount);
+  const roundedTotalDiscount = roundToTwoDecimals(totalDiscount);
 
   console.log(`Final Sub Total: ${roundedSubTotal} , Provided ${cleanedData.subTotal}` );
   console.log(`Final Total Tax: ${roundedTotalTax} , Provided ${cleanedData.totalTax}` );
   console.log(`Final Total Amount: ${roundedTotalAmount} , Provided ${cleanedData.totalAmount}` );
-  console.log(`Final Total Discount Amount: ${totalDiscount} , Provided ${cleanedData.totalDiscount}` );
+  console.log(`Final Total Discount Amount: ${roundedTotalDiscount} , Provided ${cleanedData.totalDiscount}` );
 
-  const cleanedDataTotalTax = cleanedData.totalTax || 0;
-
-  const isSubTotalCorrect = roundedSubTotal === parseFloat(cleanedData.subTotal);
-  const isTotalTaxCorrect = roundedTotalTax === parseFloat(cleanedDataTotalTax);
-  const isTotalAmountCorrect = roundedTotalAmount === parseFloat(cleanedData.totalAmount);
-  const isTotalDiscount = totalDiscount === parseFloat(cleanedData.totalDiscount);
-  const isTotalItemCount = totalItemCount === parseFloat(cleanedData.totalItem);
-
-
-
-  validateAmount(roundedSubTotal, cleanedData.subTotal, 'SubTotal');
-  validateAmount(roundedTotalTax, cleanedData.totalTax, 'Total Tax');
-  validateAmount(roundedTotalAmount, cleanedData.totalAmount, 'Total Amount');
-  validateAmount(totalDiscount, cleanedData.totalDiscount, 'Total Discount Amount');
-  validateAmount(totalItemCount, cleanedData.totalItem, 'Total Item count');
+  validateAmount(roundedSubTotal, cleanedData.subTotal, 'SubTotal',errors);
+  validateAmount(roundedTotalTax, cleanedData.totalTax, 'Total Tax',errors);
+  validateAmount(roundedTotalAmount, cleanedData.totalAmount, 'Total Amount',errors);
+  validateAmount(roundedTotalDiscount, cleanedData.totalDiscount, 'Total Discount Amount',errors);
+  validateAmount(totalItemCount, cleanedData.totalItem, 'Total Item count',errors);
 
   if (errors.length > 0) {
     res.status(400).json({ message: errors.join(", ") });
@@ -720,18 +793,15 @@ function calculateDiscount(item) {
     : (item.sellingPrice * item.quantity * (item.discountAmount || 0)) / 100;
 }
 
-//Item Line Log
-function logCalculatedTax(item, calculatedCgstAmount, calculatedSgstAmount,  calculatedIgstAmount, calculatedVatAmount) {
-  console.log("");  
-  console.log(`Item: ${item.itemName}, Calculated CGST: ${calculatedCgstAmount}, CGST from data: ${item.cgstAmount}`);
-  console.log(`Item: ${item.itemName}, Calculated SGST: ${calculatedSgstAmount}, SGST from data: ${item.sgstAmount}`);
-  console.log(`Item: ${item.itemName}, Calculated IGST: ${calculatedIgstAmount}, IGST from data: ${item.igstAmount}`);
-  console.log(`Item: ${item.itemName}, Calculated VAT: ${calculatedVatAmount}, VAT from data: ${item.vatAmount}`);
-}
 
 //Mismatch Check
 function checkAmount(calculatedAmount, providedAmount, itemName, taxType,errors) {
-  if (Math.abs(calculatedAmount - providedAmount) > 0.01) {
+  const roundToTwoDecimals = (value) => Number(value.toFixed(2)); // Round to two decimal places
+  const roundedAmount = roundToTwoDecimals(calculatedAmount);
+  console.log(`Item: ${itemName}, Calculated ${taxType}: ${roundedAmount}, Provided data: ${providedAmount}`);
+
+  
+  if (Math.abs(roundedAmount - providedAmount) > 0.01) {
     const errorMessage = `Mismatch in ${taxType} for item ${itemName}: Calculated ${calculatedAmount}, Provided ${providedAmount}`;
     errors.push(errorMessage);
     console.log(errorMessage);
@@ -739,16 +809,16 @@ function checkAmount(calculatedAmount, providedAmount, itemName, taxType,errors)
 }
 
 //TransactionDiscount
-function calculateTransactionDiscount(cleanedData, subTotal) {
+function calculateTransactionDiscount(cleanedData, totalAmount) {
   const discountAmount = cleanedData.discountTransactionAmount || 0;
 
   return cleanedData.discountTransactionType === 'Currency'
     ? discountAmount
-    : (subTotal * discountAmount) / 100;
+    : (totalAmount * discountAmount) / 100;
 }
 
 //Final Item Amount check
-const validateAmount = (calculatedValue, cleanedValue, label) => {
+const validateAmount = (calculatedValue, cleanedValue, label, errors) => {
   const isCorrect = calculatedValue === parseFloat(cleanedValue);
   if (!isCorrect) {
     const errorMessage = `${label} is incorrect: ${cleanedValue}`;
@@ -758,12 +828,23 @@ const validateAmount = (calculatedValue, cleanedValue, label) => {
 };
 
 //Other Expense
-const adjustSubTotal = (amount, label, isAddition = true) => {
-  if (amount) {
-    const parsedAmount = parseFloat(amount);
-    subTotal += isAddition ? parsedAmount : -parsedAmount;
-    console.log(`${label}:`, amount);
+const otherExpense = ( totalAmount, cleanedData ) => {
+  if (cleanedData.otherExpenseAmount) {
+    const parsedAmount = parseFloat(cleanedData.otherExpenseAmount);
+    totalAmount += parsedAmount;
+    console.log(`Other Expense: ${cleanedData.otherExpenseAmount}`);
   }
+  if (cleanedData.freightAmount) {
+    const parsedAmount = parseFloat(cleanedData.freightAmount);
+    totalAmount += parsedAmount;
+    console.log(`Freight Amount: ${cleanedData.freightAmount}`);
+  }
+  if (cleanedData.roundOffAmount) {
+    const parsedAmount = parseFloat(cleanedData.roundOffAmount);
+    totalAmount -= parsedAmount;
+    console.log(`Round Off Amount: ${cleanedData.roundOffAmount}`);
+  }
+  return totalAmount;  
 };
 
 

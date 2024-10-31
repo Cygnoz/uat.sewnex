@@ -3,22 +3,28 @@ const { Schema } = mongoose
 
 const itemsSchema = new Schema({
 
-    itemId: {type:String},
-    itemName: {type:String},
+  itemId: {type:String},
+  itemName: {type:String},
 
-    quantity: {type:String},
-    sellingPrice: {type:Number},
+  quantity: {type:Number},
+  sellingPrice: {type:Number},
 
-    taxGroup: {type:String},
-    cgst: { type: Number },
-    sgst: { type: Number },
-    igst: { type: Number },
-    vat: { type: Number },
-    itemTotaltax: {type:Number},
+  taxGroup: {type:String},
+  cgst: { type: Number },
+  sgst: { type: Number },
+  igst: { type: Number },
+  vat: { type: Number },
 
-    discountType: {type:String}, //Currency,Percentage
-    discountAmopunt: {type:Number}, 
-    itemAmount: {type:Number},
+  cgstAmount: { type: Number },
+  sgstAmount: { type: Number },
+  igstAmount: { type: Number },
+  vatAmount: { type: Number },
+
+  itemTotaltax: {type:Number},
+
+  discountType: {type:String}, //Currency,Percentage
+  discountAmount: {type:Number}, 
+  itemAmount: {type:Number},
 
   }, { _id: false });
 
@@ -50,12 +56,19 @@ const SalesInvoiceSchema = new Schema ({
   note: { type: String },
   tc: { type: String },
 
+  //new
+  otherExpenseAmount: { type: Number },
+  otherExpenseReason: { type: String },
+  vehicleNumber: { type: String },
+  freightAmount: { type: Number },
+  roundOffAmount: { type: Number },
+
 
   discountTransactionType: { type: String }, // Currency,Percentage
   discountTransactionAmount: { type: Number },
   taxtype: { type: String },//Intra, Inter, Non-tax, VAT 
 
-  
+  saleAmount: { type: Number },
   
   subTotal: { type: Number },
   totalItem: { type: Number },
