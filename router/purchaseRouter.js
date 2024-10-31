@@ -17,7 +17,7 @@ const { verifyToken } = require('../controller/middleware');
 //Purchase Order
 
 router.post('/add-purchaseOrder', verifyToken, purchaseOrderController.addPurchaseOrder);
-router.get('/get-last-purchase-order-prefix',purchaseOrderController.getLastPurchaseOrderPrefix)
+router.get('/get-last-purchase-order-prefix', verifyToken,purchaseOrderController.getLastPurchaseOrderPrefix)
 
 router.get('/get-all-purchaseOrders',verifyToken, purchaseOrderController.getAllPurchaseOrders);
 router.get('/get-purchaseOrder/:id',verifyToken, purchaseOrderController.getPurchaseOrder);
@@ -42,14 +42,14 @@ router.get('/getAllPayments', verifyToken , PaymentMadeController.getAllPayment 
 // router.delete('/deletePayment/:id', PaymentMadeController.deletePurchasePayment);
 
 //Debit Note
-router.post('/add-DebitNote', debitNoteController.addDebitNote);
+router.post('/add-DebitNote', verifyToken, debitNoteController.addDebitNote);
 // router.get('/getAllDebitNotes/:id', debitNoteController.getAllDebitNotes);
 // router.get('/getDebitNote/:id', debitNoteController.getDebitNoteById);
 // router.put('/updateDebitNote/:id', debitNoteController.updateDebitNote);
 // router.delete('/deleteDebitNote/:id', debitNoteController.deleteDebitNote);
 
 // purchase settings
-router.put('/add-purchase-settings',purchaseSettingsController.updatePurchaseSettings)
+router.put('/add-purchase-settings', verifyToken,purchaseSettingsController.updatePurchaseSettings)
 
 
 // supplier transactions 
