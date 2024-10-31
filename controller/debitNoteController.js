@@ -7,20 +7,23 @@ const Settings = require("../database/model/settings");
 const ItemTrack = require("../database/model/itemTrack");
 const Tax = require('../database/model/tax');  
 const Prefix = require("../database/model/prefix");
+const mongoose = require('mongoose');
+const moment = require("moment-timezone");
 
 
 
 // Fetch existing data
-const dataExist = async ( organizationId, items, supplierId, billId ) => {
+const dataExist = async ( organizationId, supplierId, billId, items ) => {
   const itemIds = items.map(item => item.itemId);
     const [organizationExists, supplierExist, billExist, settings, itemTable, existingPrefix  ] = await Promise.all([
       Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
-      Supplier.findOne({ organizationId , _id:supplierId, supplierDisplayName}, { _id: 1, supplierDisplayName: 1, taxType: 1 }),
-      Bills.findOne({ organizationId, _id:billId, billNumber, billDate, orderNumber }, { _id: 1, billNumber: 1, billDate: 1, orderNumber: 1 }),
+      Supplier.findOne({ organizationId , _id:supplierId}, { _id: 1, supplierDisplayName: 1, taxType: 1 }),
+      Bills.findOne({ organizationId, _id:billId }, { _id: 1, billNumber: 1, billDate: 1, orderNumber: 1, supplierId: 1, sourceOfSupply: 1, destinationOfSupply: 1 }),
       Settings.findOne({ organizationId }),
       Item.find({ organizationId, _id: { $in: itemIds } }, { _id: 1, itemName: 1, taxPreference: 1, costPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }),
       Prefix.findOne({ organizationId })
     ]);
+    
   return { organizationExists, supplierExist, billExist, settings, itemTable, existingPrefix };
 };
 
@@ -39,6 +42,7 @@ exports.addDebitNote = async (req, res) => {
     const { items } = cleanedData;
     const { supplierId } = cleanedData;
     const { billId } = cleanedData;
+    
     const itemIds = items.map(item => item.itemId);
     
     // Check for duplicate itemIds
@@ -63,16 +67,16 @@ exports.addDebitNote = async (req, res) => {
       return res.status(400).json({ message: `Invalid item IDs: ${invalidItemIds.join(', ')}` });
     }   
 
-    const { organizationExists, supplierExist, billExist, settings, itemTable, existingPrefix } = await dataExist( organizationId, items, supplierId, billId );
+    const { organizationExists, supplierExist, billExist, settings, itemTable, existingPrefix } = await dataExist( organizationId, supplierId, billId, items );
 
     //Data Exist Validation
     if (!validateOrganizationTaxCurrency( organizationExists, supplierExist, billExist, existingPrefix, res )) return;
-    
-    //Date & Time
-    const openingDate = generateOpeningDate(organizationExists);
 
     //Validate Inputs  
     if (!validateInputs( cleanedData, supplierExist, billExist, items, itemTable, organizationExists, res)) return;
+
+    //Date & Time
+    const openingDate = generateOpeningDate(organizationExists);
 
     //Tax Type
     taxtype(cleanedData, supplierExist );
@@ -89,6 +93,9 @@ exports.addDebitNote = async (req, res) => {
     const savedDebitNote = await createNewDebitNote(cleanedData, organizationId, openingDate
       // , userId, userName 
     );
+
+    // Track the items from the Debit Note
+    // await trackItemsFromBill(organizationId, itemTable, billDate, savedBill);
       
     res.status(201).json({ message: "Debit Note created successfully" });
     console.log( "Debit Note created successfully:", savedDebitNote );
@@ -129,7 +136,7 @@ function validateOrganizationTaxCurrency( organizationExists, supplierExist, bil
     return false;
   }
   if (!supplierExist) {
-    res.status(404).json({ message: "Supplier not found" });
+    res.status(404).json({ message: "Supplier not found." });
     return false;
   }
   if (!billExist) {
@@ -169,193 +176,171 @@ function taxtype( cleanedData, supplierExist ) {
 
 
 
-// function calculateDebitNote(cleanedData, res) {
-//   const errors = [];
+function calculateDebitNote(cleanedData, res) {
+  const errors = [];
 
-//   let grandTotal = 0;
-//   let subTotal = 0;
-//   let totalTaxAmount = 0;
-//   let itemTotalDiscount= 0;
-//   let totalItemCount = 0;
-//   // let transactionDiscountAmount = 0;
-//   // Calculate the grandTotal without including transactionDiscount
-//   const total = (
-//     (parseFloat(cleanedData.subTotal) +
-//     parseFloat(cleanedData.totalTaxAmount) +
-//     cleanedData.otherExpense +      
-//     cleanedData.freight -           
-//     cleanedData.roundOff) - cleanedData.itemTotalDiscount      
-//   ).toFixed(2);
+  let subTotal = 0;
+  let totalTaxAmount = 0;
+  let itemTotalDiscount= 0;
+  let totalItem = 0;
+  let transactionDiscountAmount = 0;
+  let grandTotal = 0;
 
+  // Utility function to round values to two decimal places
+  const roundToTwoDecimals = (value) => Number(value.toFixed(2));
 
-//   cleanedData.items.forEach(item => {
+  cleanedData.items.forEach(item => {
 
-//     let calculatedCgstAmount = 0;
-//     let calculatedSgstAmount = 0;
-//     let calculatedIgstAmount = 0;
-//     let calculatedVatAmount = 0;
-//     let calculatedTaxAmount = 0;
-//     let taxMode = cleanedData.taxMode;
+    let calculatedItemCgstAmount = 0;
+    let calculatedItemSgstAmount = 0;
+    let calculatedItemIgstAmount = 0;
+    let calculatedItemVatAmount = 0;
+    let calculatedItemTaxAmount = 0;
+    let itemAmount = 0;
+    let taxMode = cleanedData.taxMode;
 
-//     // Calculate item line discount 
-//     const itemDiscountAmount = calculateItemDiscount(item);
+    // Calculate item line discount 
+    const itemDiscAmt = calculateItemDiscount(item);
 
-//     itemTotalDiscount +=  parseFloat(itemDiscountAmount);
-//     totalItemCount +=  parseFloat(item.itemQuantity);
+    itemTotalDiscount +=  parseFloat(itemDiscAmt);
+    totalItem +=  parseInt(item.itemQuantity);
+    subTotal += parseFloat(item.itemQuantity * item.itemCostPrice);
 
-//     let itemTotal = (item.itemCostPrice * item.itemQuantity) - itemDiscountAmount;
+    itemAmount = (item.itemCostPrice * item.itemQuantity - itemDiscAmt);
     
-
-//     // Handle tax calculation only for taxable items
-//     if (item.taxPreference === 'Taxable') {
-//       switch (taxMode) {
+    // Handle tax calculation only for taxable items
+    if (item.taxPreference === 'Taxable') {
+      // const itemIgstPercentage = parseFloat(item.itemIgst) || 0; 
+      // const itemIgstAmount = (parseFloat(item.itemAmount) * itemIgstPercentage) / 100;
+      switch (taxMode) {
         
-//         case 'Intra':
-//         calculatedCgstAmount = (item.itemCgst / 100) * itemTotal;
-//         calculatedSgstAmount = (item.itemSgst / 100) * itemTotal;
-//         itemTotal += calculatedCgstAmount + calculatedSgstAmount;
-//         break;
+        case 'Intra':
+          // const halfIgst = itemIgstAmount / 2;
+          // calculatedItemCgstAmount = halfIgst;
+          // calculatedItemSgstAmount = halfIgst;
+          calculatedItemCgstAmount = roundToTwoDecimals((item.itemCgst / 100) * itemAmount);
+          calculatedItemSgstAmount = roundToTwoDecimals((item.itemSgst / 100) * itemAmount);
+        break;
 
-//         case 'Inter':
-//         calculatedIgstAmount = (item.itemIgst / 100) * itemTotal;
-//         itemTotal += calculatedIgstAmount;
-//         break;
+        case 'Inter':
+          // calculatedItemIgstAmount = itemIgstAmount;
+          calculatedItemIgstAmount = roundToTwoDecimals((item.itemIgst / 100) * itemAmount);
+        break;
         
-//         case 'VAT':
-//         calculatedVatAmount = (item.itemVat / 100) * itemTotal;
-//         itemTotal += calculatedVatAmount;
-//         break;
+        case 'VAT':
+          // const itemVatPercentage = parseFloat(item.itemVat) || 0; 
+          // calculatedItemVatAmount = (item.itemCostPrice * item.itemQuantity * itemVatPercentage) / 100;
+          calculatedItemVatAmount = roundToTwoDecimals((item.itemVat / 100) * itemAmount);
+        break;
 
-//       }
-//       calculatedTaxAmount =  calculatedCgstAmount + calculatedSgstAmount + calculatedIgstAmount + calculatedVatAmount;
+      }
+
+      calculatedItemTaxAmount =  calculatedItemCgstAmount + calculatedItemSgstAmount + calculatedItemIgstAmount + calculatedItemVatAmount;
       
-//       // Log calculated tax amounts
+      // Check tax amounts
+      checkAmount(calculatedItemCgstAmount, item.itemCgstAmount, item.itemName, 'CGST',errors);
+      checkAmount(calculatedItemSgstAmount, item.itemSgstAmount, item.itemName, 'SGST',errors);
+      checkAmount(calculatedItemIgstAmount, item.itemIgstAmount, item.itemName, 'IGST',errors);
+      checkAmount(calculatedItemVatAmount, item.itemVatAmount, item.itemName, 'VAT',errors);
+      checkAmount(calculatedItemTaxAmount, item.itemTax, item.itemName, 'Item tax',errors);
 
-//       logCalculatedTax(item, calculatedCgstAmount, calculatedSgstAmount,  calculatedIgstAmount, calculatedVatAmount );
+      totalTaxAmount += calculatedItemCgstAmount + calculatedItemSgstAmount + calculatedItemIgstAmount + calculatedItemVatAmount || 0 ;      
 
-//       // Check tax amounts
-//       checkAmount(calculatedCgstAmount, item.itemCgstAmount, item.itemName, 'CGST',errors);
-//       checkAmount(calculatedSgstAmount, item.itemSgstAmount, item.itemName, 'SGST',errors);
-//       checkAmount(calculatedIgstAmount, item.itemIgstAmount, item.itemName, 'IGST',errors);
-//       checkAmount(calculatedVatAmount, item.itemVatAmount, item.itemName, 'VAT',errors);
-//       checkAmount(calculatedTaxAmount, item.itemTotaltax, item.itemName, 'Total tax',errors);
+    } else {
+      console.log(`Skipping Tax for Non-Taxable item: ${item.itemName}`);
+      console.log(`Item: ${item.itemName}, Calculated Discount: ${itemDiscAmt}`);
+    }
 
-//       totalTaxAmount += calculatedCgstAmount + calculatedSgstAmount + calculatedIgstAmount + calculatedVatAmount || 0 ;
-
-
-//     } else {
-//       console.log(`Skipping Tax for Non-Taxable item: ${item.itemName}`);
-//       console.log(`Item: ${item.itemName}, Calculated Discount: ${itemTotalDiscount}`);
-
-//     }
-
-//     // Update total values
-//     subTotal += parseFloat(itemQuantity * itemCostPrice);
-
-//     checkAmount(itemTotal, item.itemAmount, item.itemName, 'Item Total',errors);
-
-//     console.log(`${item.itemName} Item Total: ${itemTotal} , Provided ${item.itemAmount}`);
-//     console.log(`${item.itemName} Total Tax: ${calculatedTaxAmount} , Provided ${item.itemTotaltax || 0 }`);
-//     console.log("");
-//   });
-
-//   console.log(`SubTotal: ${subTotal} , Provided ${cleanedData.subTotal}`);
-
-//   // Transaction Discount
-//   let transactionDiscount = calculateTransactionDiscount(cleanedData, total); 
-
-//   // grandTotal amount calculation with including transactionDiscount
-//   grandTotal = total - transactionDiscount; 
-
-//   const roundToTwoDecimals = (value) => Math.round(value * 100) / 100;
-
-//   // Validate calculated totals against cleanedData data
-//   const calculatedSubTotal = subTotal;
-//   const calculatedTotalTaxAmount = totalTaxAmount;
-//   const calculatedGrandTotalAmount = grandTotal;
-//   // const calculatedTransactionDiscountAmount = transactionDiscountAmount;
-
-//   // Round the totals for comparison
-//   const roundedSubTotal = roundToTwoDecimals(calculatedSubTotal);
-//   const roundedTotalTaxAmount = roundToTwoDecimals(calculatedTotalTaxAmount);
-//   const roundedGrandTotalAmount = roundToTwoDecimals(calculatedGrandTotalAmount);
-//   // const roundedTransactionDiscountAmount = roundToTwoDecimals(calculatedTransactionDiscountAmount);
-
-//   console.log(`Final Sub Total: ${roundedSubTotal} , Provided ${cleanedData.subTotal}` );
-//   console.log(`Final Total Tax: ${roundedTotalTaxAmount} , Provided ${cleanedData.totalTaxAmount}` );
-//   // console.log(`Final Transaction Discount Amount: ${roundedTransactionDiscountAmount} , Provided ${cleanedData.transactionDiscountAmount}` );
-//   console.log(`Final Total Amount: ${roundedGrandTotalAmount} , Provided ${cleanedData.grandTotal}` );
-//   console.log(`Final Total Discount Amount: ${transactionDiscount} , Provided ${cleanedData.transactionDiscountAmount}` );
-
-//   const cleanedDataTotalTax = cleanedData.totalTaxAmount || 0;
-
-//   const isSubTotalCorrect = roundedSubTotal === parseFloat(cleanedData.subTotal);
-//   const isTotalTaxCorrect = roundedTotalTaxAmount === parseFloat(cleanedDataTotalTax);
-//   const isTotalAmountCorrect = roundedGrandTotalAmount === parseFloat(cleanedData.grandTotal);
-//   const isTotalDiscount = transactionDiscount === parseFloat(cleanedData.transactionDiscountAmount);
-//   const isTotalItemCount = totalItemCount === parseFloat(cleanedData.totalItem);
+    console.log("totalTaxAmount....................:",totalTaxAmount);
 
 
+    checkAmount(itemAmount, item.itemAmount, item.itemName, 'Item Total',errors);
 
-//   validateAmount(roundedSubTotal, cleanedData.subTotal, 'SubTotal', errors);
-//   validateAmount(roundedTotalTaxAmount, cleanedData.totalTaxAmount, 'Total Tax', errors);
-//   validateAmount(roundedGrandTotalAmount, cleanedData.grandTotal, 'Total Amount', errors);
-//   validateAmount(transactionDiscount, cleanedData.transactionDiscountAmount, 'Total Discount Amount', errors);
-//   validateAmount(totalItemCount, cleanedData.totalItem, 'Total Item count', errors);
+    console.log(`${item.itemName} Item Total: ${itemAmount} , Provided ${item.itemAmount}`);
+    console.log(`${item.itemName} Total Tax: ${calculatedItemTaxAmount} , Provided ${item.itemTax || 0 }`);
+    console.log("");
+  });
 
-//   if (errors.length > 0) {
-//     res.status(400).json({ message: errors.join(", ") });
-//     return false;
-//   }
+  const total = ((parseFloat(subTotal) + parseFloat(totalTaxAmount)) - itemTotalDiscount);
 
-//   return true;
-// }
+  console.log(`SubTotal: ${subTotal} , Provided ${cleanedData.subTotal}`);
+
+  // Transaction Discount
+  let transDisAmt = calculateTransactionDiscount(cleanedData, total, transactionDiscountAmount); 
+
+  // grandTotal amount calculation with including transactionDiscount
+  grandTotal = total - transDisAmt; 
+
+  // Round the totals for comparison
+  const roundedSubTotal = roundToTwoDecimals(subTotal);
+  const roundedTotalTaxAmount = roundToTwoDecimals(totalTaxAmount);
+  const roundedGrandTotalAmount = roundToTwoDecimals(grandTotal);
+  const roundedTotalItemDiscount = roundToTwoDecimals(itemTotalDiscount);
 
 
-// // Calculate item discount
-// function calculateItemDiscount(item) {
-//   return item.itemDiscountType === 'currency'
-//     ? item.itemDiscount || 0
-//     : (item.itemCostPrice * item.itemQuantity * (item.itemDiscount || 0)) / 100;    //if percentage
-// }
+  console.log(`Final Sub Total: ${roundedSubTotal} , Provided ${cleanedData.subTotal}` );
+  console.log(`Final Total Tax: ${roundedTotalTaxAmount} , Provided ${cleanedData.totalTaxAmount}` );
+  console.log(`Final Total Amount: ${roundedGrandTotalAmount} , Provided ${cleanedData.grandTotal}` );
+  console.log(`Final Total Item Discount Amount: ${roundedTotalItemDiscount} , Provided ${cleanedData.itemTotalDiscount}` );
+  // console.log(`Final Total Discount Amount: ${transactionDiscountAmount} , Provided ${cleanedData.transactionDiscountAmount}` );
 
-// //Item Line Log
-// function logCalculatedTax(item, calculatedCgstAmount, calculatedSgstAmount,  calculatedIgstAmount, calculatedVatAmount) {
-//   console.log("");  
-//   console.log(`Item: ${item.itemName}, Calculated CGST: ${calculatedCgstAmount}, CGST from data: ${item.cgstAmount}`);
-//   console.log(`Item: ${item.itemName}, Calculated SGST: ${calculatedSgstAmount}, SGST from data: ${item.sgstAmount}`);
-//   console.log(`Item: ${item.itemName}, Calculated IGST: ${calculatedIgstAmount}, IGST from data: ${item.igstAmount}`);
-//   console.log(`Item: ${item.itemName}, Calculated VAT: ${calculatedVatAmount}, VAT from data: ${item.vatAmount}`);
-// }
 
-// //Mismatch Check
-// function checkAmount(calculatedAmount, providedAmount, itemName, taxType,errors) {
-//   if (Math.abs(calculatedAmount - providedAmount) > 0.01) {
-//     const errorMessage = `Mismatch in ${taxType} for item ${itemName}: Calculated ${calculatedAmount}, Provided ${providedAmount}`;
-//     errors.push(errorMessage);
-//     console.log(errorMessage);
-//   }
-// }
+  validateAmount(roundedSubTotal, cleanedData.subTotal, 'SubTotal', errors);
+  validateAmount(roundedTotalTaxAmount, cleanedData.totalTaxAmount, 'Total Tax Amount', errors);
+  validateAmount(roundedGrandTotalAmount, cleanedData.grandTotal, 'Grand Total', errors);
+  validateAmount(roundedTotalItemDiscount, cleanedData.itemTotalDiscount, 'Total Item Discount Amount', errors);
+  validateAmount(totalItem, cleanedData.totalItem, 'Total Item count', errors);
 
-// //TransactionDiscount
-// function calculateTransactionDiscount(cleanedData, transactionDiscountAmount, total) {
+  if (errors.length > 0) {
+    res.status(400).json({ message: errors.join(", ") });
+    return false;
+  }
 
-//   const transactionDiscountAmount = cleanedData.transactionDiscount || 0;
+  return true;
+}
 
-//   return cleanedData.transactionDiscountType === 'currency'
-//     ? transactionDiscountAmount
-//     : (total * cleanedData.transactionDiscount) / 100;    //if percentage
-// }
 
-// //Final Item Amount check
-// const validateAmount = ( calculatedValue, cleanedValue, label, errors ) => {
-//   const isCorrect = calculatedValue === parseFloat(cleanedValue);
-//   if (!isCorrect) {
-//     const errorMessage = `${label} is incorrect: ${cleanedValue}`;
-//     errors.push(errorMessage);
-//     console.log(errorMessage);
-//   }
-// };
+// Calculate item discount
+function calculateItemDiscount(item) {
+  return item.itemDiscountType === 'currency'
+    ? item.itemDiscount || 0
+    : (item.itemCostPrice * item.itemQuantity * (item.itemDiscount || 0)) / 100;    //if percentage
+}
+
+
+//TransactionDiscount
+function calculateTransactionDiscount(cleanedData, total, transactionDiscountAmount) {
+  transactionDiscountAmount = cleanedData.transactionDiscount || 0;
+
+  return cleanedData.transactionDiscountType === 'currency'
+    ? transactionDiscountAmount
+    : (total * cleanedData.transactionDiscount) / 100;    //if percentage
+}
+
+
+//Mismatch Check
+function checkAmount(calculatedAmount, providedAmount, itemName, taxMode, errors) {
+  const roundToTwoDecimals = (value) => Number(value.toFixed(2)); // Round to two decimal places
+  const roundedAmount = roundToTwoDecimals(calculatedAmount);
+  console.log(`Item: ${itemName}, Calculated ${taxMode}: ${roundedAmount}, Provided data: ${providedAmount}`);
+
+  if (Math.abs(roundedAmount - providedAmount) > 0.01) {
+    const errorMessage = `Mismatch in ${taxMode} for item ${itemName}: Calculated ${calculatedAmount}, Provided ${providedAmount}`;
+    errors.push(errorMessage);
+    console.log(errorMessage);
+  }
+}
+
+
+//Final Item Amount check
+const validateAmount = ( calculatedValue, cleanedValue, label, errors ) => {
+  const isCorrect = calculatedValue === parseFloat(cleanedValue);
+  if (!isCorrect) {
+    const errorMessage = `${label} is incorrect: ${cleanedValue}`;
+    errors.push(errorMessage);
+    console.log(errorMessage);
+  }
+};
 
 
 
@@ -464,7 +449,7 @@ function generateTimeAndDateForDB(
 
 //Validate inputs
 function validateInputs( data, supplierExist, billExist, items, itemExists, organizationExists, res) {
-  const validationErrors = validateDebitNoteData(data, supplierExist, billExist, items, itemExists, organizationExists);
+  const validationErrors = validateDebitNoteData(data, supplierExist, billExist, items, itemExists, organizationExists);  
 
   if (validationErrors.length > 0) {
     res.status(400).json({ message: validationErrors.join(", ") });
@@ -477,12 +462,11 @@ function validateInputs( data, supplierExist, billExist, items, itemExists, orga
 function validateDebitNoteData( data, supplierExist, billExist, items, itemTable, organizationExists ) {
   const errors = [];
 
-  // console.log("Item Request :",items);
-  // console.log("Item Fetched :",itemTable);
-  
+  console.log("Item Request :",items);
+  console.log("Item Fetched :",itemTable);
 
   //Basic Info
-  validateReqFields( data, errors );
+  validateReqFields( data, supplierExist, errors );
   validateItemTable(items, itemTable, errors);
   validateBillData(data, billExist, errors);
   validateTransactionDiscountType(data.transactionDiscountType, errors);
@@ -517,10 +501,10 @@ function validateField(condition, errorMsg, errors) {
 
 
 //Valid Req Fields
-function validateReqFields( data, errors ) {
+function validateReqFields( data, supplierExist, errors ) {
 validateField( typeof data.supplierId === 'undefined' || typeof data.supplierDisplayName === 'undefined', "Please select a Supplier", errors  );
-validateField( typeof data.sourceOfSupply === 'undefined', "Source of supply required", errors  );
-validateField( typeof data.destinationOfSupply === 'undefined', "Destination of supply required", errors  );
+validateField( supplierExist.taxtype == 'GST' && typeof data.sourceOfSupply === 'undefined', "Source of supply required", errors  );
+validateField( supplierExist.taxtype == 'GST' && typeof data.destinationOfSupply === 'undefined', "Destination of supply required", errors  );
 validateField( typeof data.items === 'undefined', "Select an item", errors  );
 validateField( typeof data.billNumber === 'undefined', "Select an bill number", errors  );
 validateField( typeof data.billType === 'undefined', "Select an bill type", errors  );
@@ -555,9 +539,6 @@ items.forEach((item) => {
   // Validate IGST
   validateField( item.itemIgst !== fetchedItem.igst, `IGST Mismatch for ${item.itemName}: ${item.itemIgst}`, errors );
 
-  // Validate tax group
-  validateField( item.itemTaxGroup !== fetchedItem.taxRate, `Tax Group mismatch for ${item.itemName}: ${item.itemTaxGroup}`, errors );
-
   // Validate discount type
   validateItemDiscountType(item.itemDiscountType, errors);
 
@@ -571,10 +552,13 @@ items.forEach((item) => {
 
 
 function validateBillData(data, billExist, errors) {
+  console.log("data.....:", data);
+  console.log("billExist.....:", billExist);
+  
   // Validate billDate 
-  validateField( typeof billExist.billDate !== data.billDate, `Bill Date mismatch for ${billExist.billDate}`, errors  );
+  validateField( billExist.billDate !== data.billDate, `Bill Date mismatch for ${billExist.billDate}`, errors  );
   // Validate orderNumber 
-  validateField( typeof billExist.orderNumber !== data.orderNumber, `Order Number mismatch for ${billExist.orderNumber}`, errors  );
+  validateField( billExist.orderNumber !== data.orderNumber, `Order Number mismatch for ${billExist.orderNumber}`, errors  );
 }
 
 

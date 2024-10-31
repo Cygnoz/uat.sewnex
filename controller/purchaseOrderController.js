@@ -388,7 +388,7 @@ const cleanPurchaseOrderData = (data, supplierExists, items) => {
     }
 
     // Add subTotal, totalItem, totalTaxAmount, and totalDiscount to cleanedData
-    cleanedData.subTotal = subTotal.toFixed(2);  // Overall subTotal
+    cleanedData.subTotal = subTotal;  // Overall subTotal
     cleanedData.totalItem = totalItem;  // Overall totalItem quantity
     cleanedData.totalTaxAmount = totalTaxAmount.toFixed(2);  // Total tax amount
     cleanedData.itemTotalDiscount = itemTotalDiscount.toFixed(2);  // Total discount
