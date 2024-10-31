@@ -25,7 +25,7 @@ exports.calculateTotalInventoryValue = async (req, res) => {
     }
 
     let totalInventoryValue = 0; // For costPrice
-    // let totalSaleValue = 0; // For sellingPrice
+    let totalSalesValue = 0; // For sellingPrice
     let underStockItems = [];
     let recentlyAddedItems = [];
 
@@ -49,9 +49,9 @@ exports.calculateTotalInventoryValue = async (req, res) => {
       totalInventoryValue += inventoryValue; // Add to total inventory value (costPrice)
 
       // Calculate the sale value for the item using sellingPrice
-      // const sellingPrice = item.sellingPrice || 0; // Ensure sellingPrice has a default
-      // const saleValue = totalStock * sellingPrice;
-      // totalSaleValue += saleValue; // Add to total sale value (sellingPrice)
+      const sellingPrice = item.sellingPrice || 0; // Ensure sellingPrice has a default
+      const saleValue = totalStock * sellingPrice;
+      totalSalesValue += saleValue; // Add to total sale value (sellingPrice)
 
       // Check if totalStock is less than or equal to reorderPoint
       if (totalStock <= item.reorderPoint) {
@@ -77,12 +77,13 @@ exports.calculateTotalInventoryValue = async (req, res) => {
 
     const totalStockCount = await getTotalInventoryValues(items, organizationId, date);
     const { inventoryValueChange , salesValueChange} = totalStockCount
-    const { topSellingProducts  ,frequentlyOrderedItems, totalSalesValue} = topSelling
+    const { topSellingProducts  ,frequentlyOrderedItems, totalSoldValue} = topSelling
     const { topSellingProductCategories, stockLevels } = topSellingCategories
   
     // Send the response with all calculated data
     res.status(200).json({
       totalInventoryValue, // Calculated using costPrice
+      totalSoldValue,
       totalSalesValue, // Calculated using sellingPrice
       // underStockItems, // Items where totalStock <= reorderPoint
       underStockItemsCount, // Count of underStockItems
@@ -114,7 +115,7 @@ const topSellingProductsUtil = async (organizationId) => {
 
     let topSellingProduct = [];
     let stockLevel = [];
-    let totalSalesValue = 0;
+    let totalSoldValue = 0;
     for (const item of items) {
       // Find all sales (action: 'Sale') for this item in ItemTrack for top-selling products
       const purchaseTrack = await ItemTrack.find({
@@ -136,7 +137,7 @@ const topSellingProductsUtil = async (organizationId) => {
 
         // Calculate the sale volume (unitBought * sellingPrice)
         const saleVolume = unitBought * (item.sellingPrice || 0);
-        totalSalesValue += saleVolume; // Add saleVolume to total
+        totalSoldValue += saleVolume; // Add saleVolume to total
         // console.log( "total sales value",totalSalesValue)
 
         // Determine the stock status
@@ -171,12 +172,12 @@ const topSellingProductsUtil = async (organizationId) => {
 
     // Sort the stockLevel array by stock value (currentStock) in descending order
     const stockLevels = stockLevel.sort((a, b) => b.stock - a.stock).slice(0, 5);
-    console.log( "stockLevels",stockLevels);
-    console.log( "frequentlyOrderedItems",frequentlyOrderedItems)
-    console.log( "total sales value",totalSalesValue)
+    // console.log( "stockLevels",stockLevels);
+    // console.log( "frequentlyOrderedItems",frequentlyOrderedItems)
+    // console.log( "total sales value",totalSalesValue)
 
     // Return both topSellingProducts and stockLevel
-    return { topSellingProducts , frequentlyOrderedItems,totalSalesValue};
+    return { topSellingProducts , frequentlyOrderedItems,totalSoldValue};
   } catch (error) {
     console.error("Error fetching top-selling products or stock levels:", error);
     throw new Error("An error occurred while calculating top-selling products or stock levels.");
@@ -320,6 +321,9 @@ const getTopSellingProductCategory = async (organizationId) => {
 //       throw new Error('Failed to fetch top selling product categories');
 //   }
 // };
+
+
+
 
 
 
