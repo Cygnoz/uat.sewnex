@@ -3,7 +3,7 @@ const Settings = require('../database/model/settings')
 
 exports.addSalesOrderSettings = async (req, res) => {
     try {
-      const { organizationId } = req.body;
+      const organizationId = req.user.organizationId;
       console.log("Sales setting:", req.body);
   
       const itemSettings = {
@@ -29,7 +29,7 @@ exports.addSalesOrderSettings = async (req, res) => {
       // Save the updated document
       await existingSettings.save();
   
-      res.status(200).json("sales settings updated successfully");
+      res.status(200).json("Sales Settings updated successfully");
     } catch (error) {
       console.error("Error updating sales settings:", error);
       res.status(500).json({ message: "Internal server error" });
@@ -38,7 +38,7 @@ exports.addSalesOrderSettings = async (req, res) => {
 
 exports.updateCreditNoteSettings = async (req, res) => {
     try {
-      const { organizationId } = req.body;
+      const organizationId = req.user.organizationId;
       console.log(req.body);
       
       const creditNoteSettings = {
@@ -75,7 +75,7 @@ exports.updateCreditNoteSettings = async (req, res) => {
 // Delivery Chellans
 exports.addDeliveryChellans = async (req, res) => {
   try {
-    const { organizationId } = req.body;
+    const organizationId = req.user.organizationId;
     console.log("Delivery Chellans:", req.body);
 
     const deliveryChellans = {
@@ -105,10 +105,10 @@ exports.addDeliveryChellans = async (req, res) => {
 
 
   
-  //shipment
+//Shipment
 exports.addShipmentAddressSettings = async (req, res) => {
   try {
-    const { organizationId } = req.body;
+    const organizationId = req.user.organizationId;
     console.log("Shipment Address Settings:", req.body);
 
     const updatedSettings = {
@@ -136,15 +136,16 @@ exports.addShipmentAddressSettings = async (req, res) => {
   }
 };
 
+//Bmcr
 exports.addInvoiceSettings = async (req, res) => {
   try {
-    const { organizationId } = req.body;
+    const organizationId = req.user.organizationId;
     console.log("Invoice Settings:", req.body);
 
     const updatedSettings = {
       invoiceEdit: req.body.invoiceEdit,
       displayExpenseReceipt: req.body.displayExpenseReceipt,
-      salesOrderNumber: req.body.salesOrserNumber,
+      salesOrderNumber: req.body.salesOrderNumber,
       paymentReceipt: req.body.paymentReceipt,
       invoiceQrCode: req.body.invoiceQrCode,
       invoiceQrType: req.body.invoiceQrType,

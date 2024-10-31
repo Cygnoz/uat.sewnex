@@ -126,7 +126,7 @@ exports.addInvoice = async (req, res) => {
       const defAcc = await defaultAccounting( cleanedData.taxtype, defaultAccount, organizationExists );
 
       // Calculate Sales 
-      if (!calculateSalesOrder( cleanedData, res )) return;
+      if (!calculateSalesOrder( cleanedData, res )) return;      
 
       //Prefix
       await salesPrefix(cleanedData, existingPrefix );
@@ -382,13 +382,6 @@ async function defaultAccounting( taxtype, defaultAccount, organizationExists ) 
   } else {
     defaultAccount.outputVatName = outputVatName?.accountName;
   }
-  console.log("salesAccountName:", defaultAccount.salesAccountName);
-  console.log("salesDiscountAccountName:", defaultAccount.salesDiscountAccountName);
-  console.log("accountReceivableAccountName:", defaultAccount.accountReceivableAccountName);
-  console.log("outputCgstName:", defaultAccount.outputCgstName);
-  console.log("outputSgstName:", defaultAccount.outputSgstName);
-  console.log("outputIgstName:", defaultAccount.outputIgstName);
-  console.log("Updated defaultAccount in defaultAccounting:", defaultAccount);
   
   return defaultAccount;
 }
@@ -661,6 +654,7 @@ function calculateSalesOrder(cleanedData, res) {
   let totalAmount = 0;
   let subTotal = 0;
   let totalTax = 0;
+  let saleAmount =0;
   let totalDiscount= 0;
   let totalItemCount = 0;
 
@@ -684,6 +678,7 @@ function calculateSalesOrder(cleanedData, res) {
     totalItemCount +=  parseFloat(item.quantity);
 
     let itemTotal = (item.sellingPrice * item.quantity) - discountAmount;
+    saleAmount +=(item.sellingPrice * item.quantity);
     
 
     // Handle tax calculation only for taxable items
@@ -735,6 +730,9 @@ function calculateSalesOrder(cleanedData, res) {
     console.log(`${item.itemName} Total Tax: ${calculatedTaxAmount} , Provided ${item.itemTotaltax || 0 }`);
     console.log("");
   });
+  
+  //Sale amount
+  cleanedData.saleAmount=saleAmount;
 
   console.log(`SubTotal: ${subTotal} , Provided ${cleanedData.subTotal}`);
   
@@ -999,8 +997,103 @@ async function journal(savedOrder, defAcc) {
     creditAmount: 0,
     remark: savedOrder.note,
   };
-  
+  const sale = {
+    organizationId: savedOrder.organizationId,
+    operationId: savedOrder._id,
+    transactionId: savedOrder.salesInvoice,
+    date: savedOrder.createdDate,
+    accountId: defAcc.salesAccount,
+    accountName: defAcc.salesAccountName,
+    debitAmount: 0,
+    creditAmount: savedOrder.saleAmount,
+    remark: savedOrder.note,
+  };
+  const cgst = {
+    organizationId: savedOrder.organizationId,
+    operationId: savedOrder._id,
+    transactionId: savedOrder.salesInvoice,
+    date: savedOrder.createdDate,
+    accountId: defAcc.outputCgst,
+    accountName: defAcc.outputCgstName,
+    debitAmount: 0,
+    creditAmount: savedOrder.cgst,
+    remark: savedOrder.note,
+  };
+  const sgst = {
+    organizationId: savedOrder.organizationId,
+    operationId: savedOrder._id,
+    transactionId: savedOrder.salesInvoice,
+    date: savedOrder.createdDate,
+    accountId: defAcc.outputSgst,
+    accountName: defAcc.outputSgstName,
+    debitAmount: 0,
+    creditAmount: savedOrder.sgst,
+    remark: savedOrder.note,
+  };
+  const igst = {
+    organizationId: savedOrder.organizationId,
+    operationId: savedOrder._id,
+    transactionId: savedOrder.salesInvoice,
+    date: savedOrder.createdDate,
+    accountId: defAcc.outputIgst,
+    accountName: defAcc.outputIgstName,
+    debitAmount: 0,
+    creditAmount: savedOrder.igst,
+    remark: savedOrder.note,
+  };
+  const vat = {
+    organizationId: savedOrder.organizationId,
+    operationId: savedOrder._id,
+    transactionId: savedOrder.salesInvoice,
+    date: savedOrder.createdDate,
+    accountId: defAcc.outputVat,
+    accountName: defAcc.outputVatName,
+    debitAmount: 0,
+    creditAmount: savedOrder.vat,
+    remark: savedOrder.note,
+  };
+  const accountReceivable = {
+    organizationId: savedOrder.organizationId,
+    operationId: savedOrder._id,
+    transactionId: savedOrder.salesInvoice,
+    date: savedOrder.createdDate,
+    accountId: defAcc.accountReceivableAccount,
+    accountName: defAcc.accountReceivableAccountName,
+    debitAmount: savedOrder.totalAmount,
+    creditAmount: 0,
+    remark: savedOrder.note,
+  };
+  const otherExpense = {
+    organizationId: savedOrder.organizationId,
+    operationId: savedOrder._id,
+    transactionId: savedOrder.salesInvoice,
+    date: savedOrder.createdDate,
+    accountId: defAcc.accountReceivableAccount,
+    accountName: defAcc.accountReceivableAccountName,
+    debitAmount: savedOrder.otherExpenseAmount,
+    creditAmount: 0,
+    remark: savedOrder.note,
+  };
+  const freight = {
+    organizationId: savedOrder.organizationId,
+    operationId: savedOrder._id,
+    transactionId: savedOrder.salesInvoice,
+    date: savedOrder.createdDate,
+    accountId: defAcc.accountReceivableAccount,
+    accountName: defAcc.accountReceivableAccountName,
+    debitAmount: savedOrder.freightAmount,
+    creditAmount: 0,
+    remark: savedOrder.note,
+  };
   console.log("discount", discount);
+  console.log("sale", sale);
+  console.log("cgst", cgst);
+  console.log("sgst", sgst);
+  console.log("igst", igst);
+  console.log("vat", vat);
+  console.log("accountReceivable", accountReceivable);
+
+  console.log("Sum : ", ( savedOrder.totalAmount ),( savedOrder.saleAmount + savedOrder.cgst + savedOrder.sgst + savedOrder.igst + savedOrder.vat + savedOrder.otherExpenseAmount + savedOrder.freightAmount));
   
 
   if (savedOrder.totalDiscount !== 'undefined') {
