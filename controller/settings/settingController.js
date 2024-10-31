@@ -93,7 +93,7 @@ exports.getSettings = async (req, res) => {
         overRideCostPrice: settings.overRideCostPrice,
         creditNoteQr: settings.creditNoteQr,
         creditNoteQrType: settings.creditNoteQrType,
-        creditNoteQrDespriction: settings.creditNoteQrDespriction,
+        creditNoteQrDescription: settings.creditNoteQrDescription,
         recordLocking: settings.recordLocking,
         creditNoteTC: settings.creditNoteTC,
         creditNoteCN: settings.creditNoteCN
