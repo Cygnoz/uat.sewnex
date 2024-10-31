@@ -1,6 +1,6 @@
 const Settings = require('../database/model/settings')
 
-
+//Sales Order
 exports.addSalesOrderSettings = async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
@@ -34,12 +34,13 @@ exports.addSalesOrderSettings = async (req, res) => {
       console.error("Error updating sales settings:", error);
       res.status(500).json({ message: "Internal server error" });
     }
-  };
+};
 
+//Credit
 exports.updateCreditNoteSettings = async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
-      console.log(req.body);
+      console.log("Credit Note",req.body);
       
       const creditNoteSettings = {
         overideCostPrice: req.body.overideCostPrice, 
@@ -69,7 +70,7 @@ exports.updateCreditNoteSettings = async (req, res) => {
       console.error("Error updating credit note settings:", error);
       res.status(500).json({ message: "Internal server error" });
     }
-  };
+};
 
 
 // Delivery Chellans
@@ -136,7 +137,7 @@ exports.addShipmentAddressSettings = async (req, res) => {
   }
 };
 
-//Bmcr
+//Invoice
 exports.addInvoiceSettings = async (req, res) => {
   try {
     const organizationId = req.user.organizationId;
