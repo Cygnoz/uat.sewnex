@@ -4,13 +4,13 @@ const PurchasePayment = require('../database/model/paymentMade');
 const PurchaseBill = require('../database/model/bills')
 const mongoose = require('mongoose');
 const moment = require("moment-timezone");
-const Prefix = require("../database/model/prefix");
+const Prefix = require("../database/model/prefix");``
 
 // Fetch existing data
 const dataExist = async (organizationId, unpaidBills ,supplierId, supplierDisplayName) => {
   const billIds = unpaidBills.map(unpaidBill => unpaidBill.billId);
   
-  const [organizationExists, supplierExists , paymentTable  ] = await Promise.all([
+  const [organizationExists, supplierExists , paymentTable , existingPrefix ] = await Promise.all([
     Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
     Supplier.findOne({ organizationId, _id: supplierId, supplierDisplayName  }, { _id: 1, supplierDisplayName: 1 }),
     PurchaseBill.find({ organizationId , _id : { $in: billIds}},{ _id: 1, billNumber: 1 , billDate: 1 , dueDate:1 , grandTotal: 1 , }),
@@ -18,8 +18,23 @@ const dataExist = async (organizationId, unpaidBills ,supplierId, supplierDispla
 
   ]);
   
-  return { organizationExists, supplierExists, paymentTable };
+  return { organizationExists, supplierExists, paymentTable , existingPrefix };
 };
+
+
+
+
+const paymentDataExist = async ( organizationId, PaymentId ) => {    
+    
+  const [organizationExists, allPayments, payments ] = await Promise.all([
+    Organization.findOne({ organizationId }, { organizationId: 1}),
+    PurchasePayment.find({ organizationId }),
+    PurchasePayment.findOne({ organizationId , _id: PaymentId },)
+  ]);
+  return { organizationExists, allPayments, payments };
+};
+
+
 
 // Add Purchase Payment
 exports.addPayment = async (req, res) => {
@@ -49,7 +64,7 @@ exports.addPayment = async (req, res) => {
     }
 
     // Check if organization and supplier exist
-    const { organizationExists, supplierExists, paymentTable } = await dataExist(organizationId, unpaidBills, supplierId, supplierDisplayName);
+    const { organizationExists, supplierExists, paymentTable , existingPrefix } = await dataExist(organizationId, unpaidBills, supplierId, supplierDisplayName);
     
     // Validate supplier and organization
     if (!validateSupplierAndOrganization(organizationExists, supplierExists, res)) {
@@ -84,6 +99,8 @@ exports.addPayment = async (req, res) => {
     // Create and save new payment
     const savedPayment = await createNewPayment(cleanedData, openingDate, organizationId, userId, userName);
 
+    await purchaseOrderPrefix(cleanedData, existingPrefix );
+
     // Response
     return res.status(200).json({ message: 'Payment added successfully', savedPayment });
 
@@ -92,6 +109,103 @@ exports.addPayment = async (req, res) => {
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
+
+// Get All Purchase Orders
+
+exports.getAllPayment = async (req, res) => {
+  // const { organizationId } = req.body;
+  const {organizationId} = req.user.organizationId;
+  try {
+
+    // Check if an Organization already exists
+    const { organizationExists , allPayments} = await paymentDataExist(organizationId);
+
+    if (!organizationExists) {
+      return res.status(404).json({
+        message: "Organization not found",
+      });
+    }
+
+    
+    if (!allPayments.length) {
+      return res.status(404).json({
+        message: "No Payments found",
+      });
+    }
+
+  } catch (error) {
+    console.error("Error fetching purchase Bills:", error);
+    res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+// Get One Payment Quote
+exports.getOnePayment = async (req, res) => {
+  try {
+    const organizationId = req.user.organizationId;
+    const  PaymentId = req.params.PaymentId;
+
+    const { organizationExists, payments } = await paymentDataExist(organizationId,PaymentId);
+
+    if (!organizationExists) {
+      return res.status(404).json({
+        message: "Organization not found",
+      });
+    }
+
+    if (!payments) {
+      return res.status(404).json({
+        message: "No Quotes found",
+      });
+    }
+
+    res.status(200).json(payments);
+  } catch (error) {
+    console.error("Error fetching Quotes:", error);
+    res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+
+
+// Get Last Journal Prefix
+exports.getLastPurchaseOrderPrefix = async (req, res) => {
+  try {
+      const organizationId = "INDORG0007";
+
+      // Find all accounts where organizationId matches
+      const prefix = await Prefix.findOne({ organizationId:organizationId,'series.status': true });
+
+      if (!prefix) {
+          return res.status(404).json({
+              message: "No Prefix found for the provided organization ID.",
+          });
+      }
+      
+      const series = prefix.series[0];     
+      const lastPrefix = series.purchaseOrder + series.purchaseOrderNum;
+
+      res.status(200).json(lastPrefix);
+  } catch (error) {
+      console.error("Error fetching accounts:", error);
+      res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+// Purchase Prefix
+function purchaseOrderPrefix( cleanData, existingPrefix ) {
+  const activeSeries = existingPrefix.series.find(series => series.status === true);
+  if (!activeSeries) {
+      return res.status(404).json({ message: "No active series found for the organization." });
+  }
+  cleanData.purchaseOrder = `${activeSeries.purchaseOrder}${activeSeries.purchaseOrderNum}`;
+
+  activeSeries.purchaseOrderNum += 1;
+
+  existingPrefix.save()
+
+  return 
+}
 
 
 
@@ -185,8 +299,8 @@ function generateTimeAndDateForDB(
 
 
 //Validate inputs
-function validateInputs( data, supplierExists, unpaidBills , billExists, organizationExists, res) {
-  const validationErrors = validatePaymentData(data, supplierExists, unpaidBills, billExists, organizationExists);
+function validateInputs( data, supplierExists, unpaidBills , organizationExists, paymentTableExist ,  res) {
+  const validationErrors = validatePaymentData(data, supplierExists, unpaidBills, organizationExists , paymentTableExist);
 
   if (validationErrors.length > 0) {
     res.status(400).json({ message: validationErrors.join(", ") });
@@ -203,7 +317,7 @@ function createNewPayment( data, openingDate, organizationId, userId, userName )
 
 
 //Validate Data
-function validatePaymentData( data, supplierExists, unpaidBills, paymentTable, organizationExists ) {
+function validatePaymentData( data, supplierExists, unpaidBills, paymentTable ) {
   const errors = [];
 
   console.log("bills Request :",unpaidBills);
@@ -211,7 +325,7 @@ function validatePaymentData( data, supplierExists, unpaidBills, paymentTable, o
   
 
   //Basic Info
-  validateReqFields( data, errors );
+  validateReqFields( data, supplierExists , errors );
   validatePaymentTable(unpaidBills, paymentTable, errors);
 
 

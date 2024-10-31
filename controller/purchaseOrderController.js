@@ -32,7 +32,7 @@ const dataExist = async (organizationId, supplierId, itemTable) => {
 // Add a new purchase order
 exports.addPurchaseOrder = async (req, res) => {
   const { supplierId, itemTable } = req.body;
-  const { organizationId } = req.user
+  const { organizationId, id: userId, userName  } = req.user
 
   try {
 
@@ -72,7 +72,7 @@ exports.addPurchaseOrder = async (req, res) => {
      await purchaseOrderPrefix(cleanedData, existingPrefix );
 
     // Create new purchase order
-    const savedPurchaseOrder = await createNewPurchaseOrder(cleanedData, organizationId, openingDate);
+    const savedPurchaseOrder = await createNewPurchaseOrder(cleanedData, organizationId, userId, userName, openingDate);
 
     // Send success response
     res.status(201).json({ message: "Purchase order added successfully.", purchaseOrder: savedPurchaseOrder });
@@ -563,8 +563,8 @@ function validateDestinationOfSupply(destinationOfSupply, organization, errors) 
 
 
 // Create new purchase order
-async function createNewPurchaseOrder(data, organizationId, openingDate) {
-  const newPurchaseOrder = new PurchaseOrder({ ...data, organizationId,  createdDate:openingDate, status: "Open"});
+async function createNewPurchaseOrder(data, organizationId, userId, userName, openingDate) {
+  const newPurchaseOrder = new PurchaseOrder({ ...data, organizationId,  createdDate:openingDate, userId, userName, status: "Open"});
   return newPurchaseOrder.save();
 }
 
