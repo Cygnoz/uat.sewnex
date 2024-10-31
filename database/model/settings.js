@@ -1,4 +1,4 @@
-// v1.1
+// v1.2
 
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
@@ -104,7 +104,7 @@ const settingSchema = new Schema({
 
 
   //Credit Note
-  overideCostPrice: { type: Boolean },//default=false
+  overRideCostPrice: { type: Boolean },//default=false
   creditNoteQr: { type: Boolean },//default=false
   creditNoteQrType: { type: String },
   creditNoteQrDespriction: { type: String },
