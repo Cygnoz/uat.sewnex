@@ -2,7 +2,7 @@ const Settings = require('../database/model/settings')
 
 exports.updatePurchaseSettings = async (req, res) => {
     try {
-      const { organizationId } = req.body;
+      const organizationId = req.user.organizationId;
       console.log("Purchase Settings:", req.body);
   
       const purchaseSettings = {
