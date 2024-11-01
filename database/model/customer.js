@@ -1,4 +1,4 @@
-// v1.0
+// v1.1
 
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
@@ -32,6 +32,11 @@ const customerSchema = new Schema({
 
     dob : {type:String},
     cardNumber: {type:String},
+
+    //Opening Balance
+    debitOpeningBalance: {type:Number},
+    creditOpeningBalance: {type:Number},
+
     
     //Other Details
     pan: {type:String},

@@ -56,6 +56,16 @@ const dataExist = async (organizationId) => {
     return { organizationExists, taxExists, currencyExists, settings, allCustomer };
   };
 
+// Fetch Trial Balance
+const trialBalanceExist = async (organizationId,customerId) => {
+  const [trailbalance ] = await Promise.all([
+    TrialBalance.find({ organizationId, operationId: customerId}),
+  ]);
+  return { trailbalance };
+};
+
+
+
 // Add Customer
 exports.addCustomer = async (req, res) => {
     console.log("Add Customer:", req.body);
@@ -121,6 +131,8 @@ exports.editCustomer = async (req, res) => {
       const { customerDisplayName ,customerEmail ,mobile} = cleanedData;
   
       const { organizationExists, taxExists, currencyExists ,settings} = await dataExist(organizationId);
+
+      const { trailbalance } = await trialBalanceExist(organizationId,customerId);
       
       //Checking values from Customer settings
       const { duplicateCustomerDisplayName , duplicateCustomerEmail , duplicateCustomerMobile } = settings[0]
@@ -144,6 +156,11 @@ exports.editCustomer = async (req, res) => {
       await checkDuplicateCustomerFieldsEdit( duplicateCheck, customerDisplayName, customerEmail, mobile, organizationId,customerId, errors);  
       if (errors.length) {
       return res.status(409).json({ message: errors }); }
+
+      //Opening balance
+      editOpeningBalance(existingCustomer, cleanedData);
+      await updateOpeningBalance(trailbalance, cleanedData);
+
   
       // Update customer fields
       Object.assign(existingCustomer, cleanedData);
@@ -775,8 +792,72 @@ function generateTimeAndDateForDB(
   }
 
 
+//Edit Opening Balance
+function editOpeningBalance(existingCustomer, cleanedData) {
+  if (existingCustomer.debitOpeningBalance && cleanedData.creditOpeningBalance) {
+    cleanedData.debitOpeningBalance = undefined;
+  } else if (existingCustomer.creditOpeningBalance && cleanedData.debitOpeningBalance) {
+    cleanedData.creditOpeningBalance = undefined;
+  }
+  return
+}
 
-  
+
+// Update Opening Balance
+async function updateOpeningBalance(existingTrialBalance, cleanData) {
+  try {
+    const { debitOpeningBalance, creditOpeningBalance } = existingTrialBalance;
+    let trialEntry;
+
+    if (cleanData.debitOpeningBalance) {
+      trialEntry = {
+        organizationId: existingTrialBalance.organizationId,
+        operationId: existingTrialBalance._id,
+        date: existingTrialBalance.createdDate,
+        accountId: existingTrialBalance._id,
+        accountName: existingTrialBalance.accountName,
+        action: "Opening Balance",
+        debitAmount: cleanData.debitOpeningBalance,
+        creditAmount: 0,
+        remark: existingTrialBalance.remark,
+      };
+    } else {
+      trialEntry = {
+        organizationId: existingTrialBalance.organizationId,
+        operationId: existingTrialBalance._id,
+        date: existingTrialBalance.createdDate,
+        accountId: existingTrialBalance._id,
+        accountName: existingTrialBalance.accountName,
+        action: "Opening Balance",
+        debitAmount: 0,
+        creditAmount: cleanData.creditOpeningBalance,
+        remark: existingTrialBalance.remark,
+      };
+    }
+
+    Object.assign(existingTrialBalance, trialEntry);
+    const savedTrialBalance = await existingTrialBalance.save();
+
+    return savedTrialBalance;
+  } catch (error) {
+    console.error("Error updating trial balance opening balance:", error);
+    throw error;
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -802,6 +883,7 @@ function generateTimeAndDateForDB(
     validateWebsite(data.websiteURL, errors);
     validateContactPerson(data.contactPerson, errors);
     validatePhones(['workPhone', 'mobile', 'cardNumber','billingFaxNumber','shippingFaxNumber'], data, errors);
+    validateOpeningBalance(data,  errors);
 
     //OtherDetails
     validateAlphanumericFields(['pan','gstin_uin','vatNumber'], data, errors);
@@ -823,13 +905,17 @@ function generateTimeAndDateForDB(
     return errors;
   }
   
-  // Field validation utility
-  function validateField(condition, errorMsg, errors) {
+// Field validation utility
+function validateField(condition, errorMsg, errors) {
     if (condition) errors.push(errorMsg);
-  }
+}
 //Valid Req Fields
 function validateReqFields( data, errors ) {
   validateField( typeof data.customerDisplayName === 'undefined', `Customer Display Name required`, errors );  
+}
+//Valid Opening Balance
+function validateOpeningBalance( data, errors ) {
+  validateField( typeof data.debitOpeningBalance !== 'undefined' && typeof data.creditOpeningBalance !== 'undefined' , `Select Credit or Debit Opening Balance`, errors );  
 }
 //Valid interest percentage
 function validInterestPercentage( interestPercentage, errors ) {
