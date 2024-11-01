@@ -59,7 +59,7 @@ const dataExist = async (organizationId) => {
 // Fetch Trial Balance
 const trialBalanceExist = async (organizationId,customerId) => {
   const [trailbalance ] = await Promise.all([
-    TrialBalance.find({ organizationId, operationId: customerId}),
+    TrialBalance.findOne({ organizationId, operationId: customerId}),
   ]);
   return { trailbalance };
 };
@@ -811,27 +811,14 @@ async function updateOpeningBalance(existingTrialBalance, cleanData) {
 
     if (cleanData.debitOpeningBalance) {
       trialEntry = {
-        organizationId: existingTrialBalance.organizationId,
-        operationId: existingTrialBalance._id,
-        date: existingTrialBalance.createdDate,
-        accountId: existingTrialBalance._id,
-        accountName: existingTrialBalance.accountName,
-        action: "Opening Balance",
+        
         debitAmount: cleanData.debitOpeningBalance,
-        creditAmount: 0,
-        remark: existingTrialBalance.remark,
+        creditAmount: undefined,
       };
     } else {
       trialEntry = {
-        organizationId: existingTrialBalance.organizationId,
-        operationId: existingTrialBalance._id,
-        date: existingTrialBalance.createdDate,
-        accountId: existingTrialBalance._id,
-        accountName: existingTrialBalance.accountName,
-        action: "Opening Balance",
-        debitAmount: 0,
+        debitAmount: undefined,
         creditAmount: cleanData.creditOpeningBalance,
-        remark: existingTrialBalance.remark,
       };
     }
 
