@@ -14,25 +14,18 @@ exports.getSupplierTransactions = async (req, res) => {
       const { supplierId } = req.params;
       const { organizationId, id: userId, userName } = req.user; 
 
-    console.log(organizationId,supplierId)
-      // Step 1: Find the customer's account code in the Account collection
       const supplier = await Supplier.findOne({ _id:supplierId, organizationId});
       if (!supplier) {
           return res.status(404).json({ message: "Supplier not found" });
       }
-      console.log("customer",supplier)
 
-      const account = await Account.findOne({ accountCode: supplierId , organizationId });
+      const account = await Account.findOne({ accountId: supplierId , organizationId });
       if (!account) {
           return res.status(404).json({ message: "Account not found for this Supplier" });
       }
-      console.log("account",account)
 
-      // Step 2: Use account _id to find matching transactions in the TrialBalance collection
       const supplierTransactions = await TrialBalance.find({ accountId: account._id , organizationId });
-      console.log("trialbalance ",supplierTransactions)
 
-      // Step 3: Send the customer transactions as a response
       return res.status(200).json({ supplierTransactions });
   } catch (error) {
       console.error("Error fetching customer transactions:", error);
@@ -60,7 +53,6 @@ const dataExist = async (organizationId) => {
   
     // Add Customer
     exports.addSupplier = async (req, res) => {
-      console.log("Add Supplier:", req.user.userName);
       try {
         const { organizationId, id: userId, userName } = req.user;
   
@@ -111,7 +103,6 @@ const dataExist = async (organizationId) => {
   
     // Edit Customer
   exports.updateSupplier = async (req, res) => {
-      console.log("Edit Supplier:", req.body);
       try {
         const { organizationId, id: userId, userName } = req.user;
         const duplicateSupplierDisplayName = true;
@@ -136,7 +127,6 @@ const dataExist = async (organizationId) => {
     
         const existingSupplier = await Supplier.findById(  supplierId);
         if (!existingSupplier) {
-          console.log("Supplier not found with ID:",   supplierId);
           return res.status(404).json({ message: "Supplier not found" });
         }
     
@@ -193,13 +183,12 @@ const dataExist = async (organizationId) => {
         res.status(200).json({
           message: "supplier updated successfully.",
         });
-        console.log("supplier updated successfully:", savedSupplier);
       } catch (error) {
         console.error("Error updating supplier:", error);
         res.status(500).json({ message: "Internal server error." });
       }
     };
-  
+
     // Get All Customer for a given organizationId
   exports.getAllSuppliers = async (req, res) => {
     try {
@@ -265,7 +254,6 @@ const dataExist = async (organizationId) => {
   
   // Update the status of a Customer based on the provided status value
   exports.updateSupplierStatus = async (req, res) => {
-    console.log("Update Customer Status:", req.body);
     try {
       const {   supplierId } = req.params;
       const {organizationId , userName , userId} = req.user;
@@ -325,7 +313,6 @@ const dataExist = async (organizationId) => {
   
   // Customer Additional data
   exports.getSupplierAdditionalData = async (req, res) => {
-    // const { organizationId } = req.body;
     const  organizationId  = req.user.organizationId;
     try {
       // Check if an Organization already exists
@@ -838,6 +825,7 @@ const dataExist = async (organizationId) => {
       return errors;
     }
     
+
     function validateReqFields( data, errors ) {
       if (typeof data.supplierDisplayName === 'undefined' ) {
         errors.push("Supplier Display Name required");
