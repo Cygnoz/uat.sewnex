@@ -7,7 +7,6 @@ const moment = require("moment-timezone");
 const TrialBalance = require("../database/model/trialBalance");
 const SupplierHistory = require("../database/model/supplierHistory");
 const Settings = require("../database/model/settings")
-// Fetch existing data
 
 exports.getSupplierTransactions = async (req, res) => {
   try {
@@ -46,12 +45,6 @@ const dataExist = async (organizationId) => {
     return { organizationExists, taxExists, currencyExists, allSupplier , settings };
   };
 
-//   const dataExistsExclude = async (organizationId, supplierId) => {
-//     const allSuppliers = await Supplier.find({ organizationId, _id: { $ne: supplierId } });
-//     return allSuppliers;
-// };
-  
-    // Add Customer
     exports.addSupplier = async (req, res) => {
       try {
         const { organizationId, id: userId, userName } = req.user;
@@ -101,7 +94,6 @@ const dataExist = async (organizationId) => {
       }
     };
   
-    // Edit Customer
   exports.updateSupplier = async (req, res) => {
       try {
         const { organizationId, id: userId, userName } = req.user;
@@ -189,7 +181,6 @@ const dataExist = async (organizationId) => {
       }
     };
 
-    // Get All Customer for a given organizationId
   exports.getAllSuppliers = async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
@@ -219,7 +210,6 @@ const dataExist = async (organizationId) => {
     }
   };
   
-  //Get one Customer for a given organizationId
   exports.getOneSupplier = async (req, res) => {
     try {
       const {   supplierId } = req.params;
@@ -252,14 +242,12 @@ const dataExist = async (organizationId) => {
     }
   };
   
-  // Update the status of a Customer based on the provided status value
   exports.updateSupplierStatus = async (req, res) => {
     try {
       const {   supplierId } = req.params;
       const {organizationId , userName , userId} = req.user;
-      const { status } = req.body; // Status is now taken from the request body
+      const { status } = req.body; 
   
-      // Validate organizationId
       const organizationExists = await Organization.findOne({
         organizationId: organizationId,
       });
@@ -269,7 +257,6 @@ const dataExist = async (organizationId) => {
         });
       }
   
-      // Check if the customer exists
       const supplier = await Supplier.findOne({
         _id:   supplierId,
         organizationId: organizationId,
@@ -280,12 +267,9 @@ const dataExist = async (organizationId) => {
         });
       }
       const openingDate = generateOpeningDate(organizationExists);
-      // Update the customer status with the value provided by the frontend
       supplier.status = status;
   
-      // Save the updated customer
       await supplier.save();
-       // Add entry to Customer History
        const accountSupplierHistoryEntry = new SupplierHistory({
         organizationId,
         operationId: supplier._id,
@@ -311,11 +295,9 @@ const dataExist = async (organizationId) => {
     }
   };
   
-  // Customer Additional data
   exports.getSupplierAdditionalData = async (req, res) => {
     const  organizationId  = req.user.organizationId;
     try {
-      // Check if an Organization already exists
       const organization = await Organization.findOne({ organizationId });
       if (!organization) {
         return res.status(404).json({
@@ -323,7 +305,6 @@ const dataExist = async (organizationId) => {
         });
       }
   
-      // Fetch tax data to check tax type
       const taxData = await Tax.findOne({ organizationId });
       if (!taxData) {
         return res.status(404).json({
@@ -331,8 +312,6 @@ const dataExist = async (organizationId) => {
         });
       }
       
-      
-      // Prepare the response object
       const response = {
         taxType: taxData.taxType,
         gstTreatment: [
@@ -351,7 +330,6 @@ const dataExist = async (organizationId) => {
           "Small",
           "Medium"
         ],
-          // Define the data for percentages
      tds :
     [
       { "name": "Commission or Brokerage", "value": "5" },
@@ -380,11 +358,10 @@ const dataExist = async (organizationId) => {
     }
   };
   
-  //Get One Customer History for a given organizationId
   exports.getOneSupplierHistory = async (req, res) => {
     try {
       const { supplierId } = req.params;
-      // const { organizationId } = req.body;
+      
       const  organizationId  = req.user.organizationId;
   
       const {organizationExists} = await dataExist(organizationId);
@@ -395,14 +372,12 @@ const dataExist = async (organizationId) => {
         });
       }
   
-      // Find the Customer History by CustomerId and organizationId
       const supplierHistory = await SupplierHistory.find({
         supplierId,
         organizationId,
       });
-      // remove sensitive data
       const sanitizedHistory = supplierHistory.map((history) => {
-        const { organizationId, ...rest } = history.toObject(); // Convert to plain object and omit organizationId
+        const { organizationId, ...rest } = history.toObject(); 
         return rest;
       });
       if (!supplierHistory) {

@@ -32,11 +32,4 @@ router.get('/get-one-supplier-history/:supplierId',verifyToken,checkPermission('
 
 router.put('/update-supplier-customer-settings',verifyToken,checkPermission('Created a New Supplier'),supplierSettings.updateSupplierCustomerSettings)
 
-        //   { action: "SupplierCreate", note: "Created a New Supplier" },
-        //   { action: "SupplierView", note: "Viewed Supplier details" },
-        //   { action: "SupplierEdit", note: "Edited Supplier Information" },
-        //   { action: "SupplierStatus", note: "modified Supplier Status" },
-        //   { action: "SupplierImport", note: "Import new Suppliers" },
-        //   { action: "SupplierCustomerSettings", note: "Edited Supplier/Customer Settings" },
-
 module.exports = router

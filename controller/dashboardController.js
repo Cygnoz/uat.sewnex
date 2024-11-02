@@ -5,38 +5,31 @@ exports.getSupplierStats = async (req, res) => {
   try {
     const organizationId = req.user.organizationId;
     const { date } = req.params;
-    console.log(organizationId);
-    const givenMonth = moment(date, "YYYY-MM-DD").format("MMMM"); // Get the month as "September"
-    const givenYear = moment(date, "YYYY-MM-DD").format("YYYY");  // Get the year as "2024"
 
-    const previousMonth = moment(date, "YYYY-MM-DD").subtract(1, 'month').format("MMMM");
-    const previousYear = moment(date, "YYYY-MM-DD").subtract(1, 'month').format("YYYY");
-    // Find total Suppliers for the given organizationId
-    const totalSuppliers = await Supplier.countDocuments({ organizationId });
-    console.log(totalSuppliers);
+    const formattedDate = moment(date, "YYYY-MM-DD");
+    const givenMonthYear = formattedDate.format("MMMM/YYYY");
+    const previousMonthYear = formattedDate.clone().subtract(1, "month").format("MMMM/YYYY");
 
-    // Find active Suppliers for the given organizationId
-    const activeSuppliers = await Supplier.countDocuments({
-      organizationId,
-      status: "Active",
-    });
-    console.log(organizationId);
+    const countSuppliersByStatus = async (status) => {
+      const query = { organizationId };
+      if (status) query.status = status;
+      return await Supplier.countDocuments(query);
+    };
+
+    const totalSuppliers = await countSuppliersByStatus();
+    const activeSuppliers = await countSuppliersByStatus("Active");
+
     const recentlyAddedSuppliers = await Supplier.find({
-      organizationId: organizationId,
-      createdDate: {
-        $regex: new RegExp(`${givenMonth}/${givenYear}`)  // Match the "MMMM/YYYY" format
-      }
+      organizationId,
+      createdDate: { $regex: new RegExp(givenMonthYear) },
     }).sort({ _id: -1 });
-      const newSuppliersCount = recentlyAddedSuppliers.length
-    // Send the counts as response
+
     res.status(200).json({
       totalSuppliers,
       activeSuppliers,
-      newSuppliersCount
+      newSuppliersCount: recentlyAddedSuppliers.length,
     });
   } catch (error) {
     res.status(500).json({ message: "Error fetching Supplier stats", error });
   }
 };
-
-
