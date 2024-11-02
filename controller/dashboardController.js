@@ -8,7 +8,6 @@ exports.getSupplierStats = async (req, res) => {
 
     const formattedDate = moment(date, "YYYY-MM-DD");
     const givenMonthYear = formattedDate.format("MMMM/YYYY");
-    const previousMonthYear = formattedDate.clone().subtract(1, "month").format("MMMM/YYYY");
 
     const countSuppliersByStatus = async (status) => {
       const query = { organizationId };

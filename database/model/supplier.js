@@ -32,8 +32,8 @@ const supplierSchema = new Schema({
     supplierEmail: {type:String},
     workPhone: {type:String},
     mobile: {type:String},     
-
-
+    debitOpeningBalance:{type:Number},
+    creditOpeningBalance:{type:Number},
     //Other Details
     pan: {type:String},
     currency: {type:String},

@@ -84,7 +84,7 @@ const dataExist = async (organizationId) => {
         
         const savedAccount = await createNewAccount(supplierDisplayName, openingDate, organizationId, allSupplier , savedSupplier);
     
-        await saveTrialBalanceAndHistory(savedSupplier, savedAccount, debitOpeningBalance, creditOpeningBalance, cleanedData, openingDate, userId, userName );
+        await saveTrialBalanceAndHistory(savedSupplier, savedAccount, debitOpeningBalance, creditOpeningBalance, userId, userName );
     
         console.log("Supplier & Account created successfully");
         res.status(201).json({ message: "Supplier created successfully." });
@@ -633,36 +633,36 @@ const dataExist = async (organizationId) => {
     }
     
   // TrialBalance And History
-  async function saveTrialBalanceAndHistory(savedSupplier, savedAccount, debitOpeningBalance, creditOpeningBalance, data, openingDate, userId, userName) {
+  async function saveTrialBalanceAndHistory(savedSupplier, savedAccount, debitOpeningBalance, creditOpeningBalance, userId, userName) {
       const trialEntry = new TrialBalance({
         organizationId: savedSupplier.organizationId,
         operationId: savedSupplier._id,
-        date: openingDate,
+        date: savedSupplier.openingDate,
         accountId: savedAccount._id,
         accountName: savedAccount.accountName,
         action: "Opening Balance",
         debitAmount: debitOpeningBalance,
         creditAmount: creditOpeningBalance,
-        remark: data.remark,
+        remark: savedSupplier.remark,
       });
       await trialEntry.save();
     
-      const supplierHistory = createSupplierHistory(savedSupplier, savedAccount, data, openingDate,userId,userName);
+      const supplierHistory = createSupplierHistory(savedSupplier, savedAccount, userId,userName);
       await SupplierHistory.insertMany(supplierHistory);
     }
     
   // Create Customer History
-  function createSupplierHistory(savedSupplier, savedAccount, data, openingDate,userId,userName) {
-      const description = getTaxDescription(data, userName);
-      const description1 = getOpeningBalanceDescription( data, userName);
+  function createSupplierHistory(savedSupplier, savedAccount,userId,userName) {
+      const description = getTaxDescription(savedSupplier, userName);
+      const description1 = getOpeningBalanceDescription( savedSupplier, userName);
     
       return [
         {
           organizationId: savedSupplier.organizationId,
           operationId: savedSupplier._id,
             supplierId: savedSupplier._id,
-          supplierDisplayName: data.supplierDisplayName,
-          date: openingDate,
+          supplierDisplayName: savedSupplier.supplierDisplayName,
+          date: savedSupplier.openingDate,
           title: "Supplier Added",
           description,
           userId: userId,
@@ -672,8 +672,8 @@ const dataExist = async (organizationId) => {
           organizationId: savedSupplier.organizationId,
           operationId: savedAccount._id,
             supplierId: savedSupplier._id,
-          supplierDisplayName: data.supplierDisplayName,
-          date: openingDate,
+          supplierDisplayName: savedSupplier.supplierDisplayName,
+          date: savedSupplier.openingDate,
           title: "Supplier Account Created",
           description: description1,
           userId: userId,
@@ -683,50 +683,66 @@ const dataExist = async (organizationId) => {
     }
   
   // Tax Description
-  function getTaxDescription(data, userName) {
-      const descriptionBase = `${data.supplierDisplayName} Contact created with `;
-      const taxDescriptionGenerators = {
-        GST: () => createGSTDescription(data),
-        VAT: () => createVATDescription(data),
-        None: () => createTaxExemptionDescription(),
-      };
-    
-      return taxDescriptionGenerators[data.taxType]?.() 
-        ? descriptionBase + taxDescriptionGenerators[data.taxType]() + `
-  Created by ${userName}` 
-        : "";
-    }
-    //GST Description
-    function createGSTDescription({ gstTreatment, gstin_uin, sourceOfSupply }) {
-      return gstTreatment && gstin_uin && sourceOfSupply
-        ? `
-  GST Treatment '${gstTreatment}' & GSTIN '${gstin_uin}'. State updated to ${sourceOfSupply}. `
-        : "";
-    }
-    //VAT Description
-    function createVATDescription({ vatNumber, sourceOfSupply }) {
-      return vatNumber && sourceOfSupply
-        ? `VAT Number '${vatNumber}'. State updated to ${sourceOfSupply}. `
-        : "";
-    }
-    //Tax empt Description
-    function createTaxExemptionDescription() {
-      return "Tax Exemption. ";
-    }
+   
+function getTaxDescription(data, userName) {
+  const descriptionBase = `${data.supplierDisplayName || 'Unknown Supplier'} Contact created with `;
+  
+  const taxDescriptionGenerators = {
+    GST: () => createGSTDescription(data),
+    VAT: () => createVATDescription(data),
+    None: () => createTaxExemptionDescription(),
+  };
+
+  const taxDescription = taxDescriptionGenerators[data.taxType]?.();
+
+  // Handle the case where taxType is not recognized or there is no tax description
+  if (taxDescription) {
+    return descriptionBase + taxDescription + `Created by ${userName || 'Unknown User'}`;
+  } else {
+    return `${descriptionBase}no tax applicable. Created by ${userName || 'Unknown User'}`;
+  }
+}
+
+// GST Description
+function createGSTDescription({ gstTreatment, gstin_uin, sourceOfSupply }) {
+  return gstTreatment && gstin_uin && sourceOfSupply
+    ? `GST Treatment : ${gstTreatment} , GSTIN : ${gstin_uin}  &  State : ${sourceOfSupply}. `
+    : "Incomplete GST information. "; // Handle incomplete data case
+}
+
+// VAT Description
+function createVATDescription({ vatNumber, sourceOfSupply }) {
+  return vatNumber && sourceOfSupply
+    ? `VAT Number '${vatNumber}'. State updated to ${sourceOfSupply}. `
+    : "Incomplete VAT information. "; // Handle incomplete data case
+}
+
+// Tax Exemption Description
+function createTaxExemptionDescription() {
+  return "Tax Exemption. ";
+}
+
     
   // Opening Balance Description
-  function getOpeningBalanceDescription( data, userName) {
-      const { supplierDisplayName } = data;
-      const balanceDescription = data.debitOpeningBalance 
-        ? `Opening Balance (Debit): '${data.debitOpeningBalance}'. `
-        : data.creditOpeningBalance 
-          ? `Opening Balance (Credit): '${data.creditOpeningBalance}'. `
-          : "";
-    
-      return balanceDescription 
-        ? `${supplierDisplayName} Account created with ${balanceDescription}Created by ${userName}` 
-        : "";
+  function getOpeningBalanceDescription(data, userName) {
+    let balanceType = "";
+    console.log(data)
+    // Check for debit opening balance
+    if (data && data.debitOpeningBalance) {
+      balanceType = `Opening Balance (Debit): '${data.debitOpeningBalance}'. `;
+    } 
+    // Check for credit opening balance
+    else if (data && data.creditOpeningBalance) {
+      balanceType = `Opening Balance (Credit): '${data.creditOpeningBalance}'. `;
+    } 
+    // If neither balance exists
+    else {
+      return `${data.supplierDisplayName || 'Unknown Supplier'} Account created with  opening balance 0 , Created by ${userName || 'Unknown User'}`;
     }
+  
+    // Return description if there's a balance
+    return `${data.supplierDisplayName || 'Unknown Supplier'} Account created with ${balanceType}, Created by ${userName || 'Unknown User'}`;
+  } 
     
   // Function to generate time and date for storing in the database
   function generateTimeAndDateForDB(
