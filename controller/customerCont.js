@@ -44,6 +44,7 @@ exports.getCustomerTransactions = async (req, res) => {
 
 
 
+
 // Fetch existing data
 const dataExist = async (organizationId) => {
     const [organizationExists, taxExists, currencyExists, settings, allCustomer ] = await Promise.all([
