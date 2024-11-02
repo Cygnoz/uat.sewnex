@@ -1,4 +1,5 @@
-//bmcr - Brand Manufacturer Category Rack
+// v1.0
+
 const mongoose = require('mongoose');
 
 const bmcrSchema = new mongoose.Schema({

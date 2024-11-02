@@ -1,3 +1,5 @@
+// v1.0
+
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
 
@@ -10,8 +12,6 @@ const accountSchema = new Schema({
     accountSubhead: {type:String},
     accountHead: {type:String},
     accountGroup: {type:String},
-
-    //balance: {type:Number},
 
     openingDate: {type:String},
     description: {type:String},
