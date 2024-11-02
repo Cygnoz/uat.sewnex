@@ -617,6 +617,9 @@ function isValidEmail(value) {
 
 
 function calculateSalesOrder(cleanedData, res) {
+
+  console.log(cleanedData);
+  
   const errors = [];
   let totalAmount = 0;
   let subTotal = 0;

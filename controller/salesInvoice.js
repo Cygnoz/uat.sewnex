@@ -17,14 +17,15 @@ const Account = require("../database/model/account");
 
 // Fetch existing data
 const dataExist = async ( organizationId, customerId, customerName ) => {
-    const [organizationExists, customerExist , settings, existingPrefix, defaultAccount  ] = await Promise.all([
+    const [organizationExists, customerExist , settings, existingPrefix, defaultAccount, customerAccount ] = await Promise.all([
       Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
       Customer.findOne({ organizationId , _id:customerId, customerDisplayName: customerName}, { _id: 1, customerDisplayName: 1, taxType: 1 }),
       Settings.findOne({ organizationId },{ salesOrderAddress: 1, salesOrderCustomerNote: 1, salesOrderTermsCondition: 1, salesOrderClose: 1, restrictSalesOrderClose: 1, termCondition: 1 ,customerNote: 1 }),
       Prefix.findOne({ organizationId }),
       DefAcc.findOne({ organizationId },{ salesAccount: 1, salesDiscountAccount: 1, accountReceivableAccount: 1, outputCgst: 1, outputSgst: 1, outputIgst: 1 ,outputVat: 1 }),
+      Account.findOne({ organizationId , accountId:customerId },{ accountName:1 })
     ]);
-    return { organizationExists, customerExist , settings, existingPrefix, defaultAccount };
+    return { organizationExists, customerExist , settings, existingPrefix, defaultAccount, customerAccount };
 };
 
 
@@ -34,7 +35,7 @@ const newDataExists = async (organizationId,items) => {
   const itemIds = items.map(item => item.itemId);
 
   const [newItems] = await Promise.all([
-    Item.find({ organizationId, _id: { $in: itemIds } }, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }),
+    Item.find({ organizationId, _id: { $in: itemIds } }, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, costPrice:1,  taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }),
   ]);
 
   // Aggregate ItemTrack to get the latest entry for each itemId
@@ -106,7 +107,10 @@ exports.addInvoice = async (req, res) => {
         return res.status(400).json({ message: `Invalid item IDs: ${invalidItemIds.join(', ')}` });
       }   
   
-      const { organizationExists, customerExist , settings, existingPrefix, defaultAccount } = await dataExist( organizationId, customerId, customerName );
+      const { organizationExists, customerExist , settings, existingPrefix, defaultAccount, customerAccount } = await dataExist( organizationId, customerId, customerName );
+
+      console.log(customerAccount);
+      
       
       const { itemTable } = await newDataExists( organizationId, items );
 
@@ -135,6 +139,10 @@ exports.addInvoice = async (req, res) => {
 
       //Jornal
       await journal( savedOrder, defAcc );
+
+      //Item Track
+      await itemTrack( savedOrder, itemTable );
+
         
       res.status(201).json({ message: "Sale Order created successfully" });
       console.log( "Sale Order created successfully:", savedOrder );
@@ -875,89 +883,6 @@ const otherExpense = ( totalAmount, cleanedData ) => {
 
 
 
-// Jornal
-// async function journal ( savedOrder, defaultAccount, openingDate ) {
-
-//   //Discount
-//   if( savedOrder.totalDiscount !== 'undefined' && savedOrder.taxType == 'Non-Tax'){
-
-//   }
-//   if( savedOrder.totalDiscount !== 'undefined' && savedOrder.taxType == 'Inter'){
-
-//   }
-//   if( savedOrder.totalDiscount !== 'undefined' && savedOrder.taxType == 'Intra'){
-
-//   }
-//   if( savedOrder.totalDiscount !== 'undefined' && savedOrder.taxType == 'VAT'){
-
-//   }
-
-
-
-//   if( typeof savedOrder.totalDiscount === 'undefined' && savedOrder.taxType == 'Non-Tax'){
-
-//   }
-//   if( typeof savedOrder.totalDiscount === 'undefined' && savedOrder.taxType == 'Inter'){
-
-//   }
-//   if( typeof savedOrder.totalDiscount === 'undefined' && savedOrder.taxType == 'Intra'){
-
-//   }
-//   if( typeof savedOrder.totalDiscount === 'undefined' && savedOrder.taxType == 'VAT'){
-
-//   }
-
-
-
-
-
-//   if(cleanedData.totalDiscount !== 'undefined' ){
-
-//     const newJournalEntry = new Journal({
-//       organizationId: savedOrder.organizationId,
-//       journalId,
-//       date,
-//       entryDate,
-//       reference,
-//       note,
-//       cashBasedJournal,
-//       currency,
-//       transaction: Array.isArray(transaction)
-//           ? transaction.map(trans => ({
-//               accountId: trans.accountId,
-//               accountName: trans.accountName,
-//               debitAmount: trans.debitAmount,
-//               creditAmount: trans.creditAmount,
-//               description: trans.description,
-//               contact: trans.contact,
-//           }))
-//           : [],
-//       totalDebitAmount,
-//       totalCreditAmount
-//   });
-
-//   await newJournalEntry.save();
-
-
-//   const newTrialEntry = new TrialBalance({
-//     organizationId,
-//     operationId:newJournalEntry._id,
-//     transactionId: journalId,
-//     date:entryDate,
-//     accountId: trans.accountId,
-//     accountName: trans.accountName,
-//     action: "Journal",
-//     debitAmount: trans.debitAmount,
-//     creditAmount: trans.creditAmount,
-//     remark: note
-// });
-
-// await newTrialEntry.save();
-    
-//   return  
-// }};
-
-
 
 
 
@@ -1085,15 +1010,15 @@ async function journal(savedOrder, defAcc) {
     creditAmount: 0,
     remark: savedOrder.note,
   };
-  console.log("discount", discount);
-  console.log("sale", sale);
-  console.log("cgst", cgst);
-  console.log("sgst", sgst);
-  console.log("igst", igst);
-  console.log("vat", vat);
-  console.log("accountReceivable", accountReceivable);
+  // console.log("discount", discount);
+  // console.log("sale", sale);
+  // console.log("cgst", cgst);
+  // console.log("sgst", sgst);
+  // console.log("igst", igst);
+  // console.log("vat", vat);
+  // console.log("accountReceivable", accountReceivable);
 
-  console.log("Sum : ", ( savedOrder.totalAmount ),( savedOrder.saleAmount + savedOrder.cgst + savedOrder.sgst + savedOrder.igst + savedOrder.vat + savedOrder.otherExpenseAmount + savedOrder.freightAmount));
+  // console.log("Sum : ", ( savedOrder.totalAmount ),( savedOrder.saleAmount + savedOrder.cgst + savedOrder.sgst + savedOrder.igst + savedOrder.vat + savedOrder.otherExpenseAmount + savedOrder.freightAmount));
   
 
   if (savedOrder.totalDiscount !== 'undefined') {
@@ -1148,4 +1073,71 @@ async function createTrialEntry( data ) {
 
 await newTrialEntry.save();
 
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Item Track Function
+async function itemTrack(savedOrder, itemTable) {
+  const { items } = savedOrder;
+
+  for (const item of items) {
+    // Find the matching item in itemTable by itemId
+    const matchingItem = itemTable.find((entry) => entry._id.toString() === item.itemId);
+
+    if (!matchingItem) {
+      console.error(`Item with ID ${item.itemId} not found in itemTable`);
+      continue; // Skip this entry if not found
+    }
+
+    // Calculate the new stock level after the sale
+    const newStock = matchingItem.currentStock - item.quantity;
+    if (newStock < 0) {
+      console.error(`Insufficient stock for item ${item.itemName}`);
+      continue; // Skip this entry if stock is insufficient
+    }
+
+    // Create a new entry for item tracking
+    const newTrialEntry = new ItemTrack({
+      organizationId: savedOrder.organizationId,
+      operationId: savedOrder._id,
+      transactionId: savedOrder.salesInvoice,
+      action: "Invoice",
+      date: savedOrder.salesOrderDate,
+      itemId: matchingItem._id,
+      itemName: matchingItem.itemName,
+      sellingPrice: matchingItem.sellingPrice,
+      costPrice: matchingItem.costPrice || 0, // Assuming cost price is in itemTable
+      creditQuantity: item.quantity, // Quantity sold
+      currentStock: newStock,
+      remark: `Sold to ${savedOrder.customerName}`,
+    });
+
+    // Save the tracking entry and update the item's stock in the item table
+    //await newTrialEntry.save();
+
+    console.log(newTrialEntry);
+    
+    
+
+  }
 }
