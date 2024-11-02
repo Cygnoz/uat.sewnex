@@ -25,11 +25,11 @@ RUN npm install
 # Copy the rest of the application code to the working directory with ownership set to appuser
 COPY --chown=appuser:appuser . .
 
-# Remove the dependency-check-report.html file if it exists
-RUN rm -f dependency-check-report.html
+# Remove write permissions for all executable files in the working directory
+RUN find . -type f -executable -exec chmod a-w {} \;
 
-# Remove write permissions for the app user on the server.js file
-RUN chmod -w server.js
+# Remove the dependency-check-report.html file if it exists
+RUN rm -f ./dependency-check-report.html || true
 
 # Switch to the non-root user
 USER appuser
