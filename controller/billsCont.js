@@ -6,7 +6,6 @@ const Item = require('../database/model/item');
 const Settings = require("../database/model/settings");
 const ItemTrack = require("../database/model/itemTrack");
 const Tax = require('../database/model/tax');  // Add tax model
-const Prefix = require("../database/model/prefix");
 const moment = require("moment-timezone");
 
 
@@ -24,7 +23,6 @@ const dataExistForBill = async (organizationId, supplierId, itemTable, orderNumb
      : [],
     Settings.findOne({ organizationId }),
     Tax.findOne({ organizationId }), // Fetch tax details for the organization
-    Prefix.findOne({ organizationId }),
   ]);
 
   return { organizationExists, supplierExists, purchaseOrderExists, items, settings , taxExists , existingPrefix };
@@ -64,8 +62,18 @@ exports.addBill = async (req, res) => {
      if (!cleanedData.grandTotal || parseFloat(cleanedData.paidAmount) > parseFloat(cleanedData.grandTotal)) {
       return res.status(400).json({ message: "Paid amount cannot exceed the grand total." });
     }
-    
-    
+
+    // Set dueDate and handle potential errors from setDueDate
+    try {
+      cleanedData.dueDate = setDueDate(cleanedData.paymentTerms, cleanedData.billDate);
+    } catch (error) {
+      // Send the error message directly from setDueDate
+      return res.status(400).json({ message: error.message });
+    }
+  
+  //   // Check if the bill number is unique
+  // if (!(await isBillNumberUnique(cleanedData.billNumber, res))) return;
+
    // Verify itemTable fields with Item schema and supply locations
     if (!validateItemTable(items, itemTable, cleanedData, supplierExists, res)) return;  // Stop further execution if validation fails
 
@@ -73,11 +81,8 @@ exports.addBill = async (req, res) => {
     if (!validateLocationInputs(cleanedData, organizationExists, res)) return;
 
 
-    await purchaseBillsPrefix(cleanedData, existingPrefix );
-
-
-    //  // Check for existing bill
-    //  if (await checkExistingBill(cleanedData.billNumber, organizationId, res)) return;
+     // Check for existing bill
+     if (await checkExistingBill(cleanedData.billNumber, organizationId, res)) return;
 
 
       //Date & Time
@@ -89,6 +94,7 @@ exports.addBill = async (req, res) => {
 
     // Track the items from the bill
     await trackItemsFromBill(organizationId, itemTable, billDate, savedBill);
+
 
     // Send success response
     res.status(201).json({ message: "Bill added successfully.", bill: savedBill });
@@ -132,29 +138,6 @@ exports.getAllPurchaseBills = async (req, res) => {
 };
 
 
-// Get Last Journal Prefix
-exports.getLastPurchaseBillPrefix = async (req, res) => {
-  try {
-      const organizationId = "INDORG0003";
-
-      // Find all accounts where organizationId matches
-      const prefix = await Prefix.findOne({ organizationId:organizationId,'series.status': true });
-
-      if (!prefix) {
-          return res.status(404).json({
-              message: "No Prefix found for the provided organization ID.",
-          });
-      }
-      
-      const series = prefix.series[0];     
-      const lastPrefix = series.billOfSupply + series.billOfSupplyNum;
-
-      res.status(200).json(lastPrefix);
-  } catch (error) {
-      console.error("Error fetching accounts:", error);
-      res.status(500).json({ message: "Internal server error." });
-  }
-};
 
 
 //getPurchaseOrder
@@ -178,31 +161,41 @@ exports.getPurchaseBill = async (req, res) => {
     if (purchaseBill) {
       res.status(200).json(purchaseBill);
     } else {
-      res.status(404).json({ message: "Purchase order not found" });
+      res.status(404).json({ message: "Purchase Bill not found" });
     }
   } catch (error) {
-    console.error("Error fetching a purchase order:", error);
+    console.error("Error fetching a purchase Bill:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
 
 
-
-// Purchase Prefix
-function purchaseBillsPrefix( cleanData, existingPrefix ) {
-  const activeSeries = existingPrefix.series.find(series => series.status === true);
-  if (!activeSeries) {
-      return res.status(404).json({ message: "No active series found for the organization." });
+const setDueDate = (paymentTerms, billDate) => {
+  // Define valid payment terms
+  const validPaymentTerms = ["Net 15", "Net 30", "Net 45", "Net 60", "Pay Now", "due on receipt"];
+  
+  // Validate paymentTerms
+  if (!validPaymentTerms.includes(paymentTerms)) {
+    throw new Error("Invalid payment term.");
   }
-  cleanData.billOfSupply = `${activeSeries.billOfSupply}${activeSeries.billOfSupplyNum}`;
 
-  activeSeries.billOfSupplyNum += 1;
-
-  existingPrefix.save()
-
-  return 
-}
-
+  // Set dueDate based on paymentTerms
+  switch (paymentTerms) {
+    case "Net 15":
+      return moment(billDate, 'YYYY-MM-DD').add(15, 'days').format('YYYY-MM-DD');
+    case "Net 30":
+      return moment(billDate, 'YYYY-MM-DD').add(30, 'days').format('YYYY-MM-DD');
+    case "Net 45":
+      return moment(billDate, 'YYYY-MM-DD').add(45, 'days').format('YYYY-MM-DD');
+    case "Net 60":
+      return moment(billDate, 'YYYY-MM-DD').add(60, 'days').format('YYYY-MM-DD');
+    case "Pay Now":
+    case "due on receipt":
+      return billDate; // same as billDate
+    default:
+      throw new Error("Unknown payment term");
+  }
+};
 
 
 
@@ -228,7 +221,15 @@ const normalizeRequestData = (data) => {
 
 
 
-
+// const isBillNumberUnique = async (billNumber, res) => {
+//   const existingBill = await PurchaseBill.findOne({ billNumber });
+//   if (existingBill) {
+//     // If the bill number exists, send a response message
+//     res.status(400).json({ message: "This bill number already exists." });
+//     return false; // Return false to indicate it's not unique
+//   }
+//   return true; // Return true to indicate it's unique
+// };
 
 
 
@@ -435,22 +436,90 @@ const cleanBillData = (data, supplierExists, items) => {
     // Calculate grandTotal
     cleanedData.grandTotal = (parseFloat(total) - parseFloat(cleanedData.transactionDiscountAmount)).toFixed(2);
 
+<<<<<<< HEAD
     // Calculate balanceAmount
-    cleanedData.balanceAmount = (
-      parseFloat(cleanedData.grandTotal) - 
-      parseFloat(cleanedData.paidAmount || 0)
-    ).toFixed(2);
+    // cleanedData.balanceAmount = (
+    //   parseFloat(cleanedData.grandTotal) - 
+    //   parseFloat(cleanedData.paidAmount || 0)
+    // ).toFixed(2);
 
-    // Set paidStatus based on paidAmount and grandTotal
-    cleanedData.paidStatus = parseFloat(cleanedData.paidAmount) === parseFloat(cleanedData.grandTotal) ? "Completed" : "Pending";
 
-    // console.log("cleaneddata" ,cleanedData.grandTotal , total , cleanedData.transactionDiscountAmount)
+  // Call the existing updatePaidStatus function if needed
+=======
 
-    // console.log("cleaneddata" ,cleanedData)
+//   // Update paid status and set default payment mode if pending
+//   function updatePaidStatus(cleanedData) {
+//     const isOverdue = moment().isAfter(moment(cleanedData.dueDate, 'YYYY-MM-DD'));
+  
+//     if (cleanedData.paymentTerms === "Pay Now") {
+//       // Check if the payment is fully completed
+//       if (parseFloat(cleanedData.paidAmount) === parseFloat(cleanedData.grandTotal)) {
+//         cleanedData.paidStatus = "Completed";
+//       } else {
+//         cleanedData.paidStatus = "Pending";
+//         cleanedData.paymentMode = cleanedData.paymentMode || "Cash"; // Default to "Cash" if not specified
+//         cleanedData.paidAmount = parseFloat(cleanedData.paidAmount || 0).toFixed(2);
+//         cleanedData.balanceAmount = (
+//           parseFloat(cleanedData.grandTotal) - parseFloat(cleanedData.paidAmount)
+//         ).toFixed(2); // Recalculate balanceAmount
+//       }
+//     } 
+//       // For other payment terms, set paidStatus based on due date and payment completion
+//       if (isOverdue) {
+//         cleanedData.paidStatus = "Overdue";
+//       } else {
+//         cleanedData.paidStatus = parseFloat(cleanedData.paidAmount) === parseFloat(cleanedData.grandTotal)
+//           ? "Completed"
+//           : "Pending";
+//       }
+//   }  
 
-  return cleanedData;
-};
+// >>>>>>> 2fb31d010329cfb80e5f1d3ec767cfe529587854
+//   updatePaidStatus(cleanedData);
 
+//   return cleanedData;
+// };
+
+
+// // Set paidStatus based on dueDate and payment completion
+// function updatePaidStatus(cleanedData) {
+//   const isOverdue = moment().isAfter(moment(cleanedData.dueDate, 'YYYY-MM-DD'));
+  
+//   // Determine the paid status
+//   if (isOverdue) {
+//     cleanedData.paidStatus = "Overdue";
+//   } else {
+//     cleanedData.paidStatus = parseFloat(cleanedData.paidAmount) === parseFloat(cleanedData.grandTotal)
+//       ? "Completed"
+//       : "Pending";
+//   }
+// }
+
+
+function updatePaidStatus(cleanedData) {
+  const isOverdue = moment().isAfter(moment(cleanedData.dueDate, 'YYYY-MM-DD'));
+
+  // For other payment terms
+  if (isOverdue) {
+    cleanedData.paidStatus = "Overdue";
+  } 
+
+  //set paidStatus based on payment completion
+  if (cleanedData.paymentTerms === "Pay Now") {
+    // Check if the payment is fully completed
+    if (parseFloat(cleanedData.paidAmount) === parseFloat(cleanedData.grandTotal)) {
+      cleanedData.paymentMode = cleanedData.paymentMode || "Cash"; // Default to "Cash" if not specified
+      cleanedData.paidStatus = "Completed";
+    } else {
+      cleanedData.paidStatus = "Pending";
+      cleanedData.paymentMode = cleanedData.paymentMode || "Credit"; // Default to "Credit" if not specified
+      cleanedData.paidAmount = parseFloat(cleanedData.paidAmount || 0).toFixed(2);
+      cleanedData.balanceAmount = (
+        parseFloat(cleanedData.grandTotal) - parseFloat(cleanedData.paidAmount)
+      ).toFixed(2); // Recalculate balanceAmount
+    }
+  } 
+}
 
 
 // Validation Error Check
@@ -511,6 +580,12 @@ const hasValidationErrors = async (body, supplierExists, res) => {
     res.status(400).json({ message: "Invalid transaction discount type." });
     return true;
   }
+
+  //  // Validate paymentMode
+  //  if (paymentTerms && !validPaymentTerms.includes(paymentTerms)) {
+  //   res.status(400).json({ message: "Invalid payment mode." });
+  //   return true;
+  // }
 
   return false; // No validation errors
 };
@@ -596,15 +671,15 @@ function validateDestinationOfSupply(destinationOfSupply, organization, errors) 
 }
 
 
-// // Check for existing bill
-// async function checkExistingBill(billNumber, organizationId, res) {
-//   const existingBill = await PurchaseBill.findOne({ billNumber, organizationId });
-//   if (existingBill) {
-//     res.status(409).json({ message: "Bill already exists." });
-//     return true;
-//   }
-//   return false;
-// }
+// Check for existing bill
+async function checkExistingBill(billNumber, organizationId, res) {
+  const existingBill = await PurchaseBill.findOne({ billNumber, organizationId });
+  if (existingBill) {
+    res.status(409).json({ message: "Bill already exists." });
+    return true;
+  }
+  return false;
+}
 
 // Create new bill
 async function createNewBill(data, organizationId) {
@@ -690,7 +765,6 @@ function generateTimeAndDateForDB(
     dateTime: dateTime,
   };
 }
-
 
 
 // Define valid shipment preferences, payment and modes discount types

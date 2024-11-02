@@ -49,6 +49,7 @@ const PurchaseBillSchema = new Schema({
   shipmentPreference: { type: String },   // e.g., 'Road', 'Rail', 'Air', 'Sea'
   paymentTerms: { type: String },
   paymentMode: { type: String },
+  paidThrough: { type: String },
 
   billDate: { type: String }, 
   dueDate: { type: String },  
