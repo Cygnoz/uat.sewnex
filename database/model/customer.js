@@ -18,7 +18,8 @@ const customerSchema = new Schema({
     organizationId: {type:String},
     customerType: {type:String},
     customerProfile: {type:String},
-
+    debitOpeningBalance:{type:Number}, 
+    creditOpeningBalance:{type:Number},
     salutation: {type:String},
     firstName: {type:String},
     lastName: {type:String},

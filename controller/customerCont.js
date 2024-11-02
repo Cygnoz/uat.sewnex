@@ -64,7 +64,7 @@ exports.addCustomer = async (req, res) => {
       
       //Clean Data
       const cleanedData = cleanCustomerData(req.body);
-      cleanedData.contactPerson = cleanedData.contactPerson.map(person => cleanCustomerData(person));
+      cleanedData.contactPerson = cleanedData.contactPerson?.map(person => cleanCustomerData(person)) || [];
 
       const { customerEmail, debitOpeningBalance, creditOpeningBalance, customerDisplayName, mobile } = cleanedData;
   
@@ -94,7 +94,7 @@ exports.addCustomer = async (req, res) => {
       
       const savedAccount = await createNewAccount(customerDisplayName, openingDate, organizationId, allCustomer , savedCustomer );
   
-      await saveTrialBalanceAndHistory(savedCustomer, savedAccount, debitOpeningBalance, creditOpeningBalance );
+      await saveTrialBalanceAndHistory(savedCustomer, savedAccount, debitOpeningBalance, creditOpeningBalance, userId, userName);
   
       console.log("Customer & Account created successfully");
       res.status(201).json({ message: "Customer created successfully." });
@@ -112,7 +112,7 @@ exports.editCustomer = async (req, res) => {
       const { organizationId, id: userId, userName } = req.user;
 
       const cleanedData = cleanCustomerData(req.body);
-      cleanedData.contactPerson = cleanedData.contactPerson.map(person => cleanCustomerData(person));
+      cleanedData.contactPerson = cleanedData.contactPerson?.map(person => cleanCustomerData(person)) || [];
 
       console.log("Edit Customer:", cleanedData);
 
@@ -237,8 +237,8 @@ exports.getOneCustomer = async (req, res) => {
     // Find the Customer by CustomerId and organizationId
     const customers = await Customer.findOne({
       _id: customerId,
-      organizationId: organizationId,
-    });
+      organizationId: organizationId},{organizationId : 0}
+    );
 
     if (!customers) {
       return res.status(404).json({
@@ -633,7 +633,7 @@ async function checkDuplicateCustomerFieldsEdit(duplicateCheck,customerDisplayNa
   }
   
 // TrialBalance And History
-async function saveTrialBalanceAndHistory(savedCustomer, savedAccount, debitOpeningBalance, creditOpeningBalance) {
+async function saveTrialBalanceAndHistory(savedCustomer, savedAccount, debitOpeningBalance, creditOpeningBalance,userId, userName) {
     const trialEntry = new TrialBalance({
       organizationId: savedCustomer.organizationId,
       operationId: savedCustomer._id,
@@ -647,15 +647,15 @@ async function saveTrialBalanceAndHistory(savedCustomer, savedAccount, debitOpen
     });
     await trialEntry.save();
   
-    const customerHistory = createCustomerHistory(savedCustomer, savedAccount);
+    const customerHistory = createCustomerHistory(savedCustomer, savedAccount,userId, userName);
     await CustomerHistory.insertMany(customerHistory);
   }
   
   
 // Create Customer History
-function createCustomerHistory(savedCustomer, savedAccount) {
-    const taxDescription = getTaxDescription(savedCustomer);
-    const openingBalanceDescription = getOpeningBalanceDescription( savedCustomer);
+function createCustomerHistory(savedCustomer, savedAccount,userId, userName) {
+    const taxDescription = getTaxDescription(savedCustomer, userName);
+    const openingBalanceDescription = getOpeningBalanceDescription( savedCustomer, userName);
   
     return [
       {
@@ -666,8 +666,8 @@ function createCustomerHistory(savedCustomer, savedAccount) {
         date: savedCustomer.createdDate,
         title: "Customer Added",
         description: taxDescription,
-        userId: savedCustomer.userId,
-        userName: savedCustomer.userName,
+        userId: userId,
+        userName: userName,
       },
       {
         organizationId: savedCustomer.organizationId,
@@ -677,60 +677,118 @@ function createCustomerHistory(savedCustomer, savedAccount) {
         date: savedCustomer.createdDate,
         title: "Customer Account Created",
         description: openingBalanceDescription,
-        userId: savedCustomer.userId,
-        userName: savedCustomer.userName,
+        userId: userId,
+        userName: userName,
       },
     ];
   }
   
 
 // Tax Description
-function getTaxDescription(data) {
-    const descriptionBase = `${data.customerDisplayName} Contact created with `;
-    const taxDescriptionGenerators = {
-      GST: () => createGSTDescription(data),
-      VAT: () => createVATDescription(data),
-      None: () => createTaxExemptionDescription(),
-    };
+// function getTaxDescription(data, userName) {
+//     const descriptionBase = `${data.customerDisplayName} Contact created with `;
+//     const taxDescriptionGenerators = {
+//       GST: () => createGSTDescription(data),
+//       VAT: () => createVATDescription(data),
+//       None: () => createTaxExemptionDescription(),
+//     };
   
-    return taxDescriptionGenerators[data.taxType]?.() 
-      ? descriptionBase + taxDescriptionGenerators[data.taxType]() + `
-Created by ${data.userName}` 
-      : "";
-  }
-  //GST Description
-  function createGSTDescription({ gstTreatment, gstin_uin, placeOfSupply }) {
-    return gstTreatment && gstin_uin && placeOfSupply
-      ? `
-GST Treatment '${gstTreatment}' & GSTIN '${gstin_uin}'. State updated to ${placeOfSupply}. `
-      : "";
-  }
-  //VAT Description
-  function createVATDescription({ vatNumber, placeOfSupply }) {
-    return vatNumber && placeOfSupply
-      ? `VAT Number '${vatNumber}'. State updated to ${placeOfSupply}. `
-      : "";
-  }
-  //Tax empt Description
-  function createTaxExemptionDescription() {
-    return "Tax Exemption. ";
-  }
+//     return taxDescriptionGenerators[data.taxType]?.() 
+//       ? descriptionBase + taxDescriptionGenerators[data.taxType]() + `
+// Created by ${userName}` 
+//       : "";
+//   }
+//   //GST Description
+//   function createGSTDescription({ gstTreatment, gstin_uin, placeOfSupply }) {
+//     return gstTreatment && gstin_uin && placeOfSupply
+//       ? `
+// GST Treatment '${gstTreatment}' & GSTIN '${gstin_uin}'. State updated to ${placeOfSupply}. `
+//       : "";
+//   }
+//   //VAT Description
+//   function createVATDescription({ vatNumber, placeOfSupply}) {
+//     return vatNumber && placeOfSupply
+//       ? `VAT Number '${vatNumber}'. State updated to ${placeOfSupply}. `
+//       : "";
+//   }
+//   //Tax empt Description
+//   function createTaxExemptionDescription() {
+//     return "Tax Exemption. ";
+//   }
   
+function getTaxDescription(data, userName) {
+  const descriptionBase = `${data.customerDisplayName || 'Unknown Customer'} Contact created with `;
+  
+  const taxDescriptionGenerators = {
+    GST: () => createGSTDescription(data),
+    VAT: () => createVATDescription(data),
+    None: () => createTaxExemptionDescription(),
+  };
+
+  const taxDescription = taxDescriptionGenerators[data.taxType]?.();
+
+  // Handle the case where taxType is not recognized or there is no tax description
+  if (taxDescription) {
+    return descriptionBase + taxDescription + `Created by ${userName || 'Unknown User'}`;
+  } else {
+    return `${descriptionBase}no tax applicable. Created by ${userName || 'Unknown User'}`;
+  }
+}
+
+// GST Description
+function createGSTDescription({ gstTreatment, gstin_uin, placeOfSupply }) {
+  return gstTreatment && gstin_uin && placeOfSupply
+    ? `GST Treatment : ${gstTreatment} , GSTIN : ${gstin_uin}  &  State : ${placeOfSupply}. `
+    : "Incomplete GST information. "; // Handle incomplete data case
+}
+
+// VAT Description
+function createVATDescription({ vatNumber, placeOfSupply }) {
+  return vatNumber && placeOfSupply
+    ? `VAT Number '${vatNumber}'. State updated to ${placeOfSupply}. `
+    : "Incomplete VAT information. "; // Handle incomplete data case
+}
+
+// Tax Exemption Description
+function createTaxExemptionDescription() {
+  return "Tax Exemption. ";
+}
+
 
 // Opening Balance Description
-function getOpeningBalanceDescription(data) {
-  let balanceType = "";
+// function getOpeningBalanceDescription(data,userName) {
+//   let balanceType = "";
 
-  if (data.debitOpeningBalance) {
+//   if (data.debitOpeningBalance) {
+//     balanceType = `Opening Balance (Debit): '${data.debitOpeningBalance}'. `;
+//   } else if (data.creditOpeningBalance) {
+//     balanceType = `Opening Balance (Credit): '${data.creditOpeningBalance}'. `;
+//   }
+
+//   return balanceType
+//     ? `${data.customerDisplayName} Account created with ${balanceType}Created by ${userName}`
+//     : "";
+// }
+function getOpeningBalanceDescription(data, userName) {
+  let balanceType = "";
+  console.log(data)
+  // Check for debit opening balance
+  if (data && data.debitOpeningBalance) {
     balanceType = `Opening Balance (Debit): '${data.debitOpeningBalance}'. `;
-  } else if (data.creditOpeningBalance) {
+  } 
+  // Check for credit opening balance
+  else if (data && data.creditOpeningBalance) {
     balanceType = `Opening Balance (Credit): '${data.creditOpeningBalance}'. `;
+  } 
+  // If neither balance exists
+  else {
+    return `${data.customerDisplayName || 'Unknown Customer'} Account created with  opening balance 0 , Created by ${userName || 'Unknown User'}`;
   }
 
-  return balanceType
-    ? `${data.customerDisplayName} Account created with ${balanceType}Created by ${data.userName}`
-    : "";
+  // Return description if there's a balance
+  return `${data.customerDisplayName || 'Unknown Customer'} Account created with ${balanceType}, Created by ${userName || 'Unknown User'}`;
 }
+
   
   
 
