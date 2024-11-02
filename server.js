@@ -8,13 +8,15 @@ const server = express()
 
 const staffRouter = require("./router/staffRouter")
 
+const expenseRouter = require("./router/expenseRouter")
+
 require('./database/connection/connection')
 
 server.use(cors())
 
 server.use(express.json())
 
-server.use(staffRouter)
+server.use(staffRouter,expenseRouter)
 
 PORT = 5008
 

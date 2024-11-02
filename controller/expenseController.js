@@ -1,159 +1,126 @@
 const Organization = require("../database/model/organization");
 const Expense = require("../database/model/expense");
 const Category = require("../database/model/expenseCategory");
+const Account = require("../database/model/account")
+const TrialBalance = require("../database/model/trialBalance");
 
+const moment = require("moment-timezone");
+
+
+const dataExist = async (organizationId) => {
+    const [organizationExists, expenseExists,categoryExists,allAccounts] = await Promise.all([
+      Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }),
+      Expense.find({ organizationId }),
+      Category.find({ organizationId }),
+      Account.find({ organizationId })
+    ]);
+    return { organizationExists, expenseExists, categoryExists,allAccounts};
+  };
 // Expense
+
 //add expense
 exports.addExpense = async (req, res) => {
-    console.log("add expense:", req.body);
-    const {
-        organizationId,
-        expenseDate,
-        expenseCategory,
-        expenseName,
-        amount,
-        paymentMethod,
-        expenseAccount, 
-        expenseType, 
-        hsnCode, 
-        sacCode, 
-        vendor, 
-        gstTreatment, 
-        vendorGSTIN, 
-        source, 
-        destination, 
-        reverseCharge, 
-        currency, 
-        tax, 
-        invoiceNo, 
-        notes, 
-        uploadFiles, 
-        defaultMileageCategory, 
-        defaultUnit, 
-        startDate, 
-        mileageRate, 
-        date, 
-        employee, 
-        calculateMileageUsing, 
-        distance
-    } = req.body;
+  try {
+      const { organizationId} = req.user;
+      const cleanedData = cleanExpenseData(req.body);
 
-    try {
+      // Validate organizationId
+      const { organizationExists, allAccounts } = await dataExist(organizationId);
 
-        // Validate organizationId
-        const organizationExists = await Organization.findOne({
-            organizationId: organizationId,
-        });
-        if (!organizationExists) {
-            return res.status(404).json({
-            message: "Organization not found",
-            });
-        }
+      if (!organizationExists) {
+          return res.status(404).json({ message: "Organization not found" });
+      }
 
-         // Check if a expense with the same organizationId already exists
-        const existingExpense = await Expense.findOne({
-            expenseName: expenseName,
-            organizationId: organizationId,
-          });
-          if (existingExpense) {
-            return res.status(409).json({
-              message: "Expense with the provided organizationId already exists.",
-            });
-          }   
-          
-          const currentDate = new Date();
-        const day = String(currentDate.getDate()).padStart(2, "0");
-        const month = String(currentDate.getMonth() + 1).padStart(2, "0");
-        const year = currentDate.getFullYear();
-        const formattedDate = `${day}-${month}-${year}`;
-        
+      if (!validateInputs(cleanedData, res)) return;
 
-        // Create a new expense
-        const newExpense = new Expense({
-            organizationId,
-            expenseDate: formattedDate,
-            expenseCategory,
-            expenseName,
-            amount,
-            paymentMethod,
-            expenseAccount, 
-            expenseType, 
-            hsnCode, 
-            sacCode, 
-            vendor, 
-            gstTreatment, 
-            vendorGSTIN, 
-            source, 
-            destination, 
-            reverseCharge, 
-            currency, 
-            tax, 
-            invoiceNo, 
-            notes, 
-            uploadFiles, 
-            defaultMileageCategory, 
-            defaultUnit, 
-            startDate, 
-            mileageRate, 
-            date, 
-            employee, 
-            calculateMileageUsing, 
-            distance
-        });
+      // Extract all account IDs from allAccounts
+      const accountIds = allAccounts.map(account => account._id.toString());
+      // console.log(accountIds)
+      // Check if each expense's expenseAccountId exists in allAccounts
+      if(!accountIds.includes(cleanedData))
+      for (let expenseItem of cleanedData.expense) {
+          if (!accountIds.includes(expenseItem.expenseAccountId)) {
+              return res.status(404).json({ message: `Account with ID ${expenseItem.expenseAccountId} not found` });
+          }
+      }
 
-        // Save the expense to the database
-        await newExpense.save();
+      // Create a new expense
+      const savedExpense = await createNewExpense(cleanedData, organizationId);
+      console.log(savedExpense)
+      const savedTrialBalance= await createTrialBalance(savedExpense);
 
-    } catch (error) {
-        console.error("Error adding expense:", error);
-        res.status(400).json({ error: error.message });
-    }
+
+      res.status(201).json({ message: "Expense created successfully." });
+
+  } catch (error) {
+      console.error("Error adding expense:", error);
+      res.status(400).json({ error: error.message });
+  }
 };
 
 //get all expense
 exports.getAllExpense = async (req, res) => {
     try {
-        const { organizationId } = req.body;
-        console.log(organizationId);
-
-        const expense = await Expense.findOne({organizationId: organizationId});
-        console.log(expense);
-
-        if (!expense) {
-            return res.status(404).json({
-              message: "No expense found for the provided organization ID.",
-            });
-          }
-      
-        res.status(200).json(expense);
+      const organizationId = req.user.organizationId;
+  
+      const { organizationExists, expenseExists } = await dataExist(organizationId);
+  
+      if (!organizationExists) {
+        return res.status(404).json({
+          message: "Organization not found",
+        });
+      }
+  
+      if (!expenseExists.length) {
+        return res.status(404).json({
+          message: "No expense found",
+        });
+      }
+      const AllExpense = expenseExists.map((history) => {
+        const { organizationId, ...rest } = history.toObject(); // Convert to plain object and omit organizationId
+        return rest;
+      });
+  
+      res.status(200).json(AllExpense);
     } catch (error) {
-        console.error("Error fetching expense:", error);
-        res.status(500).json({ message: "Internal server error." });
+      console.error("Error fetching Expense:", error);
+      res.status(500).json({ message: "Internal server error." });
     }
-};
+  };
 
 //get a expense
-exports.getAExpense = async (req, res) => {
+exports.getOneExpense = async (req, res) => {
     try {
-        const expenseId = req.params.id;
-        const { organizationId } = req.body;
-
-        // Find the expense by expenseId and organizationId
-        const expense = await Expense.findById({
-            _id: expenseId,
-            organizationId: organizationId,
+      const {   id } = req.params;
+      const organizationId = req.user.organizationId;
+  
+      const {organizationExists} = await dataExist(organizationId);
+  
+      if (!organizationExists) {
+        return res.status(404).json({
+          message: "Organization not found",
         });
-
-        if (!expense) {
-            return res.status(404).json({ message: "Expense not found for the provided Organization ID." });
-        }
-
-        res.status(200).json(expense);
+      }
+  
+      // Find the Customer by   supplierId and organizationId
+      const expense = await Expense.findOne({
+        _id:   id,
+        organizationId: organizationId,
+      });
+  
+      if (!expense) {
+        return res.status(404).json({
+          message: "expense not found",
+        });
+      }
+    //   expense.organizationId = undefined;
+    delete expense.organizationId;
+      res.status(200).json(expense);
     } catch (error) {
-        console.error("Error fetching expense:", error);
-        res.status(500).json({ message: "Internal server error." });
+      console.error("Error fetching expense:", error);
+      res.status(500).json({ message: "Internal server error." });
     }
-};
+  };
 
 //update expense
 exports.updateExpense = async (req, res) => {
@@ -302,71 +269,74 @@ exports.deleteExpense = async (req, res) => {
 // Expense Category
 //add category
 exports.addCategory = async (req, res) => {
-    console.log("add category:", req.body);
-    const {
-        organizationId,
-        expenseCategory,
-        discription,
-    } = req.body;
 
     try {
+        const { organizationId } = req.user;
+        console.log(organizationId);
+        
+        const cleanBody = removeSpaces(req.body)
 
-        // Validate organizationId
-        const organizationExists = await Organization.findOne({
-            organizationId: organizationId,
-        });
+        const {  expenseCategory, description } = cleanBody;
+
+        const { organizationExists, categoryExists } = await dataExist(organizationId);
+
+        // Check if organization exists
         if (!organizationExists) {
-            return res.status(404).json({
-            message: "Organization not found",
+            return res.status(404).json({ message: "Organization not found" });
+        }
+
+        // Check if any category in categoryExists has the same expenseCategory
+        const duplicateCategory = categoryExists.some(
+            (category) => category.expenseCategory.toLowerCase().replace(/\s+/g, "") === expenseCategory.toLowerCase().replace(/\s+/g, "")
+        );
+
+        if (duplicateCategory) {
+            return res.status(409).json({
+                message: "Category  already exists ",
             });
         }
 
-         // Check if a category with the same organizationId already exists
-        const existingCategory = await Category.findOne({
-            expenseCategory: expenseCategory,
-            organizationId: organizationId,
-          });
-          if (existingCategory) {
-            return res.status(409).json({
-              message: "Category with the provided organizationId already exists.",
-            });
-          }      
-        
-
-        // Create a new category
-        const newCategory = new Category({
-            organizationId,
-            expenseCategory,
-            discription,
-        });
-
-        // Save the category to the database
+        // Create and save new category
+        const newCategory = new Category({ organizationId, expenseCategory, description });
         await newCategory.save();
 
+        res.status(201).json({ message: "Category created successfully"});
     } catch (error) {
         console.error("Error adding category:", error);
-        res.status(400).json({ error: error.message });
+        res.status(500).json({ message: "Server error", error: error.message });
     }
 };
 
-//get all category
+
 exports.getAllCategory = async (req, res) => {
     try {
-        const { organizationId } = req.body;
-        console.log(organizationId);
+        const  organizationId  = req.user.organizationId;
 
-        const categories = await Category.findOne({organizationId: organizationId});
-        console.log(categories);
 
-        if (!categories) {
+        const { organizationExists, categoryExists } = await dataExist(organizationId);
+
+
+        if (!organizationExists) {
             return res.status(404).json({
-              message: "No categories found for the provided organization ID.",
+                message: "Organization not found",
             });
-          }
-      
-        res.status(200).json(categories);
+        }
+
+        if (!categoryExists.length) {
+            return res.status(404).json({
+                message: "No category found",
+            });
+        }
+
+        // Map over all categories to remove the organizationId from each object
+        const AllCategories = categoryExists.map((history) => {
+            const { organizationId, ...rest } = history.toObject(); // Convert to plain object and omit organizationId
+            return rest;
+        });
+
+        res.status(200).json(AllCategories);
     } catch (error) {
-        console.error("Error fetching categories:", error);
+        console.error("Error fetching category:", error);
         res.status(500).json({ message: "Internal server error." });
     }
 };
@@ -374,42 +344,53 @@ exports.getAllCategory = async (req, res) => {
 //get a category
 exports.getACategory = async (req, res) => {
     try {
-        const categoryId = req.params.id;
-        const { organizationId } = req.body;
+      const {   id } = req.params;
+      const { organizationId } = req.user;
 
-        // Find the category by categoryId and organizationId
-        const category = await Category.findById({
-            _id: categoryId,
-            organizationId: organizationId,
+      const {organizationExists} = await dataExist(organizationId);
+  
+      if (!organizationExists) {
+        return res.status(404).json({
+          message: "Organization not found",
         });
-
-        if (!category) {
-            return res.status(404).json({ message: "Category not found for the provided Organization ID." });
-        }
-
-        res.status(200).json(category);
+      }
+  
+      // Find the Customer by   supplierId and organizationId
+      const category = await Category.findOne({
+        _id:   id,
+        organizationId: organizationId,
+      });
+  
+      if (!category) {
+        return res.status(404).json({
+          message: "category not found",
+        });
+      }
+      category.organizationId = undefined;
+      res.status(200).json(category);
     } catch (error) {
-        console.error("Error fetching category:", error);
-        res.status(500).json({ message: "Internal server error." });
+      console.error("Error fetching category:", error);
+      res.status(500).json({ message: "Internal server error." });
     }
-};
+  };
 
 //update category
 exports.updateCategory = async (req, res) => {
-    console.log("Update category:", req.body);
     
     try {
         const categoryId = req.params.id;
+        const cleanBody = removeSpaces(req.body)
+        const { organizationId } = req.user;
+
         const {
-            organizationId,
+            
             expenseCategory,
             discription,
-        } = req.body;
+        } = cleanBody;
 
         // Validate organizationId
-        const organizationExists = await Organization.findOne({
-            organizationId: organizationId,
-        });
+        const { organizationExists } = await dataExist(organizationId);
+
         if (!organizationExists) {
             return res.status(404).json({
             message: "Organization not found",
@@ -418,7 +399,7 @@ exports.updateCategory = async (req, res) => {
 
         // Check if supplierEmail already exists for another supplier
         const existingCategory = await Category.findOne({ expenseCategory });
-        if (existingCategory && existingCategory._id.toString() !== categoryId) {
+        if (existingCategory && existingCategory._id.toString().trim() !== categoryId.trim()) {
             return res.status(400).json({ message: "expenseCategory already exists for another category" });
         }
 
@@ -437,7 +418,7 @@ exports.updateCategory = async (req, res) => {
             return res.status(404).json({ message: "Category not found" });
         }
 
-        res.status(200).json({ message: "Category updated successfully", category: updatedCategory });
+        res.status(200).json({ message: "Category updated successfully"});
         console.log("Category updated successfully:", updatedCategory);
     } catch (error) {
         console.error("Error updating category:", error);
@@ -477,3 +458,151 @@ exports.deleteCategory = async (req, res) => {
         res.status(500).json({ message: "Internal server error." });
     }
 };
+
+function removeSpaces(body) {
+    const cleanedBody = {};
+
+    for (const key in body) {
+        if (typeof body[key] === 'string') {
+            // Trim the string and normalize spaces for string values
+            cleanedBody[key] = body[key].trim();
+        } else {
+            // Copy non-string values directly
+            cleanedBody[key] = body[key];
+        }
+    }
+
+    return cleanedBody;
+}
+
+//Clean Data 
+function cleanExpenseData(data) {
+    const cleanData = (value) => (value === null || value === undefined || value === "" ? undefined : value);
+    return Object.keys(data).reduce((acc, key) => {
+      acc[key] = cleanData(data[key]);
+      return acc;
+    }, {});
+  }
+  
+  function createNewExpense(data,organizationId) {
+    const newExpense = new Expense({ ...data, organizationId,});
+    return newExpense.save();
+  }
+
+  async function createTrialBalance(savedExpense) {
+    const { organizationId, paidThrough, paidThroughId, expenseDate, expense } = savedExpense;
+
+    // Loop through each expense item to create two entries in the trial balance
+    for (const expenseItem of expense) {
+        const { expenseAccountId, expenseAccount, note, amount } = expenseItem;
+
+        // First entry: Credit entry for the paidThrough account
+        const creditEntry = new TrialBalance({
+            organizationId,
+            operationId: savedExpense._id,
+            transactionId: savedExpense._id,
+            date: expenseDate,
+            accountId: paidThroughId,
+            accountName: paidThrough,
+            action: "Expense",
+            creditAmount: amount,
+            remark: note
+        });
+        
+        await creditEntry.save();
+        console.log("Credit Entry:", creditEntry);
+
+        // Second entry: Debit entry for the expense account
+        const debitEntry = new TrialBalance({
+            organizationId,
+            operationId: savedExpense._id,
+            transactionId: savedExpense._id,
+            date: expenseDate,
+            accountId: expenseAccountId,
+            accountName: expenseAccount,
+            action: "Expense",
+            debitAmount: amount,
+            remark: note
+        });
+        
+        await debitEntry.save();
+        console.log("Debit Entry:", debitEntry);
+    }
+}
+   
+
+
+  function validateInputs(data,  res) {
+    // const validCurrencies = currencyExists.map((currency) => currency.currencyCode);
+    // const validTaxTypes = ["None", taxExists.taxType];
+    const validationErrors = validateExpenseData(data);
+  
+    if (validationErrors.length > 0) {
+      res.status(400).json({ message: validationErrors.join(", ") });
+      return false;
+    }
+    return true;
+  }
+
+  function validateExpenseData(data) {
+    const errors = [];
+
+    //Basic Info
+    
+    // validateReqFields( data,  errors);
+    // validateIntegerFields(['distance', 'ratePerKm'], data, errors);
+    validateFloatFields(['distance', 'ratePerKm'], data, errors);
+    // validateAlphabetsFields(['department', 'designation','billingAttention','shippingAttention'], data, errors); 
+    return errors;
+  }
+
+  function validateReqFields( data, errors ) {
+    if (typeof data.supplierDisplayName === 'undefined' ) {
+      errors.push("Supplier Display Name required");
+    }
+    const interestPercentage = parseFloat(data.interestPercentage);
+    if ( interestPercentage > 100 ) {
+      errors.push("Interest Percentage cannot exceed 100%");
+    }
+  }
+
+ //Valid Float Fields  
+ function validateFloatFields(fields, data, errors) {
+  fields.forEach((balance) => {
+    validateField(data[balance] && !isFloat(data[balance]),
+      "Invalid " + balance.replace(/([A-Z])/g, " $1") + ": " + data[balance], errors);
+  });
+}
+
+  // Field validation utility
+  function validateField(condition, errorMsg, errors) {
+    if (condition) errors.push(errorMsg);
+  }
+
+
+  // Helper functions to handle formatting
+  function capitalize(word) {
+    return word.charAt(0).toUpperCase() + word.slice(1);
+  }
+  function formatCamelCase(word) {
+    return word.replace(/([A-Z])/g, " $1");
+  }
+  // Validation helpers
+  function isAlphabets(value) {
+    return /^[A-Za-z\s]+$/.test(value);
+  }
+  function isFloat(value) {
+    return /^-?\d+(\.\d+)?$/.test(value);
+  }
+  function isInteger(value) {
+    return /^\d+$/.test(value);
+  }
+  function isAlphanumeric(value) {
+    return /^[A-Za-z0-9]+$/.test(value);
+  }
+  function isValidEmail(value) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  }
+  function isValidURL(value) {
+    return /^(https?:\/\/)?([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(\/[^\s]*)?$/.test(value);
+  }
