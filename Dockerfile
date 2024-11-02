@@ -1,30 +1,21 @@
-# Use the official Node.js image as the base image
-FROM node:lts-slim
-
-# Create a non-root user for better security practices
-RUN useradd -m appuser
+# Use an official Node.js runtime as a parent image
+FROM node:22.11.0
 
 # Set the working directory inside the container
 WORKDIR /usr/src/app
 
-# Copy the package.json and package-lock.json to the working directory
+# Copy the package.json and package-lock.json files to the working directory
 COPY package*.json ./
 
 # Install the dependencies
-RUN npm install --production --ignore-scripts
+RUN npm install
 
 # Copy the rest of the application code to the working directory
 COPY . .
 
-# Change ownership of the application files to the non-root user
-RUN chown -R appuser:appuser /usr/src/app
-
-# Switch to the non-root user
-USER appuser
-
-# Expose port 5001
+# Expose the port the app runs on
 EXPOSE 5001
 
-# Command to run the application
-CMD ["node", "server.js"]
+# Define the command to run your application
+CMD [ "node", "server.js" ]
 
