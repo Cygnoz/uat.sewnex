@@ -1,7 +1,6 @@
 const BMCR = require('../database/model/bmcr');
 const Organization = require('../database/model/organization');
 const Item = require("../database/model/item"); 
-// const { log } = require('console');
 
 
 

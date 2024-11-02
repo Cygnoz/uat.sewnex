@@ -29,7 +29,6 @@ const checkPermission = (permissionAction) => {
 
       // Find the permission in the role's permissions array
       const permission = role.permissions.find(p => p.note === permissionAction);
-      // console.log(permissionAction);
       
       
 
