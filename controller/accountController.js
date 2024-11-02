@@ -646,6 +646,3 @@ function isAlphanumeric(value) {
   return /^[A-Za-z0-9]+$/.test(value);
 }
 
-function isValidEmail(value) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}

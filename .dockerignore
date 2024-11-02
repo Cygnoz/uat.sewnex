@@ -1,0 +1,9 @@
+# Ignore development files
+*.log
+*.md
+tests/
+node_modules/
+# .env
+
+# Ignore version control files
+.git/
