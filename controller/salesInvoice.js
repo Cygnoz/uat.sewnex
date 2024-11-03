@@ -23,7 +23,7 @@ const dataExist = async ( organizationId, customerId, customerName ) => {
       Settings.findOne({ organizationId },{ salesOrderAddress: 1, salesOrderCustomerNote: 1, salesOrderTermsCondition: 1, salesOrderClose: 1, restrictSalesOrderClose: 1, termCondition: 1 ,customerNote: 1 }),
       Prefix.findOne({ organizationId }),
       DefAcc.findOne({ organizationId },{ salesAccount: 1, salesDiscountAccount: 1, accountReceivableAccount: 1, outputCgst: 1, outputSgst: 1, outputIgst: 1 ,outputVat: 1 }),
-      Account.findOne({ organizationId , accountId:customerId },{ accountName:1 })
+      Account.findOne({ organizationId , accountName:customerName },{ _id:1, accountName:1 })
     ]);
     return { organizationExists, customerExist , settings, existingPrefix, defaultAccount, customerAccount };
 };
@@ -31,50 +31,57 @@ const dataExist = async ( organizationId, customerId, customerName ) => {
 
 //Fetch Item Data
 const newDataExists = async (organizationId,items) => {
-  // Retrieve items with specified fields
-  const itemIds = items.map(item => item.itemId);
+                // Retrieve items with specified fields
+                const itemIds = items.map(item => item.itemId);
 
-  const [newItems] = await Promise.all([
-    Item.find({ organizationId, _id: { $in: itemIds } }, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, costPrice:1,  taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }),
-  ]);
+                const [newItems] = await Promise.all([
+                  Item.find({ organizationId, _id: { $in: itemIds } }, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, costPrice:1,  taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }),
+                ]);
 
-  // Aggregate ItemTrack to get the latest entry for each itemId
-  const itemTracks = await ItemTrack.aggregate([
-    { $match: { itemId: { $in: itemIds } } },
-    { $sort: { _id: -1 } },
-    { $group: { _id: "$itemId", lastEntry: { $first: "$$ROOT" } } }
-  ]);
-  
+                // Aggregate ItemTrack to get the latest entry for each itemId
+                const itemTracks = await ItemTrack.aggregate([
+                  { $match: { itemId: { $in: itemIds } } },
+                  { $sort: { _id: -1 } },
+                  { $group: { _id: "$itemId", lastEntry: { $first: "$$ROOT" } } }
+                ]);
+                
 
-  // Map itemTracks by itemId for easier lookup
-  const itemTrackMap = itemTracks.reduce((acc, itemTrack) => {
-    acc[itemTrack._id] = itemTrack.lastEntry;
-    return acc;
-  }, {});
+                // Map itemTracks by itemId for easier lookup
+                const itemTrackMap = itemTracks.reduce((acc, itemTrack) => {
+                  acc[itemTrack._id] = itemTrack.lastEntry;
+                  return acc;
+                }, {});
 
-  // Attach the last entry from ItemTrack to each item in newItems
-  const itemTable = newItems.map(item => ({
-    ...item._doc, // Copy item fields
-    // lastEntry: itemTrackMap[item._id] || null, // Attach lastEntry if found
-    currentStock: itemTrackMap[item._id.toString()] ? itemTrackMap[item._id.toString()].currentStock : null
-  }));
+                // Attach the last entry from ItemTrack to each item in newItems
+                const itemTable = newItems.map(item => ({
+                  ...item._doc, // Copy item fields
+                  // lastEntry: itemTrackMap[item._id] || null, // Attach lastEntry if found
+                  currentStock: itemTrackMap[item._id.toString()] ? itemTrackMap[item._id.toString()].currentStock : null
+                }));
 
-  return { itemTable };
+                return { itemTable };
 };
 
 
 // Fetch Acc existing data
-const accDataExists = async ( defaultAccount, organizationId ) => {
-  const [ salesAccountName, salesDiscountAccountName , accountReceivableAccountName, outputCgstName, outputSgstName, outputIgstName, outputVatName ] = await Promise.all([
+const accDataExists = async ( defaultAccount, organizationId, otherExpenseAccountId, freightAmountId, depositAccountId ) => {
+  const [ salesAccountName, salesDiscountAccountName , outputCgstName, outputSgstName, outputIgstName, outputVatName, otherExpenseAcc, freightAcc, depositAcc ] = await Promise.all([
     Account.findOne({ organizationId , _id: defaultAccount.salesAccount }, { accountName: 1 }),
     Account.findOne({ organizationId , _id: defaultAccount.salesDiscountAccount}, { accountName: 1 }),
-    Account.findOne({ organizationId , _id: defaultAccount.accountReceivableAccount}, { accountName: 1 }),
+
     Account.findOne({ organizationId , _id: defaultAccount.outputCgst}, { accountName: 1 }),
     Account.findOne({ organizationId , _id: defaultAccount.outputSgst}, { accountName: 1 }),
     Account.findOne({ organizationId , _id: defaultAccount.outputIgst}, { accountName: 1 }),
+
     Account.findOne({ organizationId , _id: defaultAccount.outputVat}, { accountName: 1 }),
+
+    Account.findOne({ organizationId , _id: otherExpenseAccountId, accountHead: "Expenses" }, { _id:1, accountName: 1 }),
+    Account.findOne({ organizationId , _id: freightAmountId, accountHead: "Expenses" }, { _id:1, accountName: 1 }),
+
+    Account.findOne({ organizationId , _id: depositAccountId, accountHead: "Asset" }, { _id:1, accountName: 1 }),
+
   ]);
-  return { salesAccountName, salesDiscountAccountName , accountReceivableAccountName, outputCgstName, outputSgstName, outputIgstName, outputVatName };
+  return { salesAccountName, salesDiscountAccountName , outputCgstName, outputSgstName, outputIgstName, outputVatName, otherExpenseAcc, freightAcc, depositAcc };
 };
 
 // Add Sales Order
@@ -87,7 +94,7 @@ exports.addInvoice = async (req, res) => {
       const cleanedData = cleanCustomerData(req.body);
 
       const { items } = cleanedData;
-      const { customerId, customerName } = cleanedData;
+      const { customerId, customerName, otherExpenseAccountId, freightAmountId, depositAccountId } = cleanedData;
       const itemIds = items.map(item => item.itemId);
 
       // Check for duplicate itemIds
@@ -97,20 +104,30 @@ exports.addInvoice = async (req, res) => {
       }
 
 
-      //Validate Customer
+      //Validate Account Id
       if (!mongoose.Types.ObjectId.isValid(customerId) || customerId.length !== 24) {
         return res.status(400).json({ message: `Invalid customer ID: ${customerId}` });
+      }      
+
+      if ((!mongoose.Types.ObjectId.isValid(otherExpenseAccountId) || otherExpenseAccountId.length !== 24) && cleanedData.otherExpenseAmount !== undefined ) {
+        return res.status(400).json({ message: `Invalid Other Expense Account ID: ${otherExpenseAccountId}` });
       }
+
+      if ((!mongoose.Types.ObjectId.isValid(freightAmountId) || freightAmountId.length !== 24) && cleanedData.freightAmount !== undefined ) {
+        return res.status(400).json({ message: `Invalid Freight Amount ID: ${freightAmountId}` });
+      }
+
+      if ((!mongoose.Types.ObjectId.isValid(depositAccountId) || depositAccountId.length !== 24) && cleanedData.paidAmount !== undefined ) {
+        return res.status(400).json({ message: `Invalid Deposit Account ID: ${depositAccountId}` });
+      }
+
       // Validate ItemIds
       const invalidItemIds = itemIds.filter(itemId => !mongoose.Types.ObjectId.isValid(itemId) || itemId.length !== 24);
       if (invalidItemIds.length > 0) {
         return res.status(400).json({ message: `Invalid item IDs: ${invalidItemIds.join(', ')}` });
       }   
   
-      const { organizationExists, customerExist , settings, existingPrefix, defaultAccount, customerAccount } = await dataExist( organizationId, customerId, customerName );
-
-      console.log(customerAccount);
-      
+      const { organizationExists, customerExist , settings, existingPrefix, defaultAccount, customerAccount } = await dataExist( organizationId, customerId, customerName );   
       
       const { itemTable } = await newDataExists( organizationId, items );
 
@@ -127,7 +144,11 @@ exports.addInvoice = async (req, res) => {
       taxtype(cleanedData, customerExist,organizationExists );
 
       //Default Account
-      const defAcc = await defaultAccounting( cleanedData.taxtype, defaultAccount, organizationExists );
+      const { defAcc, error } = await defaultAccounting( cleanedData, defaultAccount, organizationExists );
+      if (error) { 
+        res.status(400).json({ message: error }); 
+        return false; 
+      }
 
       // Calculate Sales 
       if (!calculateSalesOrder( cleanedData, res )) return;      
@@ -138,14 +159,14 @@ exports.addInvoice = async (req, res) => {
       const savedOrder = await createNewOrder(cleanedData, openingDate, organizationId, userId, userName );
 
       //Jornal
-      await journal( savedOrder, defAcc );
+      await journal( savedOrder, defAcc, customerAccount );
 
       //Item Track
       await itemTrack( savedOrder, itemTable );
 
         
       res.status(201).json({ message: "Sale Order created successfully" });
-      console.log( "Sale Order created successfully:", savedOrder );
+      // console.log( "Sale Order created successfully:", savedOrder );
     } catch (error) {
       console.error("Error Creating Sales Order:", error);
       res.status(500).json({ message: "Internal server error." });
@@ -373,24 +394,63 @@ function taxtype( cleanedData, customerExist, organizationExists ) {
 }
 
 //Default Account
-async function defaultAccounting( taxtype, defaultAccount, organizationExists ) {
+async function defaultAccounting( data, defaultAccount, organizationExists ) {
 
   // Fetch data from accDataExists and destructure results
-  const { salesAccountName, salesDiscountAccountName, accountReceivableAccountName, outputCgstName, outputSgstName, outputIgstName, outputVatName } = await accDataExists(defaultAccount, organizationExists.organizationId);
+  const {
+    salesAccountName,
+    salesDiscountAccountName,
+    outputCgstName,
+    outputSgstName,
+    outputIgstName,
+    outputVatName,
+    otherExpenseAcc,
+    freightAcc,
+    depositAcc
+  } = await accDataExists(
+    defaultAccount,
+    organizationExists.organizationId,
+    data.otherExpenseAccountId,
+    data.freightAmountId,
+    data.depositAccountId
+  );
+  
+  
+  let errorMessage = '';
+  if (!otherExpenseAcc && data.otherExpenseAmount !== 'undefined') errorMessage += "Other Expense Account not found. ";
+  if (!freightAcc && data.freightAmount !== 'undefined') errorMessage += "Freight Account not found. ";
+  if (!depositAcc && data.paidAmount !== 'undefined') errorMessage += "Deposit Account not found. ";
+
+  // If there is an error message, return it as a response
+  if (errorMessage) {
+    return { defAcc: null, error: errorMessage.trim() }; // Return error message
+  }
+
+  console.log(otherExpenseAcc, freightAcc, depositAcc);
   
   // Update defaultAccount fields
   defaultAccount.salesAccountName = salesAccountName?.accountName;
   defaultAccount.salesDiscountAccountName = salesDiscountAccountName?.accountName;
-  defaultAccount.accountReceivableAccountName = accountReceivableAccountName?.accountName;
 
-  if (taxtype !== 'VAT') {
+  if (data.taxtype !== 'VAT') {
     defaultAccount.outputCgstName = outputCgstName?.accountName;
     defaultAccount.outputSgstName = outputSgstName?.accountName;
     defaultAccount.outputIgstName = outputIgstName?.accountName;
   } else {
     defaultAccount.outputVatName = outputVatName?.accountName;
   }
-  
+  if(data.otherExpenseAmount !=='undefined'){
+    defaultAccount.otherExpenseAccountName = otherExpenseAcc?.accountName;
+    defaultAccount.otherExpenseAccountId = otherExpenseAcc?._id;
+  }
+  if(data.freightAmount !=='undefined'){
+    defaultAccount.freightAccountName = freightAcc?.accountName;
+    defaultAccount.freightAccountId = freightAcc?._id;
+  }
+  if(data.paidAmount !=='undefined'){
+    defaultAccount.depositAccountName = depositAcc?.accountName;
+    defaultAccount.depositAccountId = depositAcc?._id;
+  }   
   return defaultAccount;
 }
   
@@ -460,24 +520,24 @@ function generateTimeAndDateForDB(
 function validateQuoteData( data, customerExist, items, itemTable, organizationExists, defaultAccount ) {
   const errors = [];
 
-  console.log("Item Request :",items);
-  console.log("Item Fetched :",itemTable);
+  // console.log("Item Request :",items);
+  // console.log("Item Fetched :",itemTable);
   
 
   //Basic Info
   validateReqFields( data, customerExist, defaultAccount, errors );
   validateItemTable(items, itemTable, errors);
-  // validateDiscountType(data.discountType, errors);
   validateDiscountTransactionType(data.discountTransactionType, errors);
-  //validateDiscountTax(data.discountTax, errors);
   validateShipmentPreference(data.shipmentPreference, errors);
   validatePaymentMode(data.paymentMode, errors);
+
+
 
 
   //OtherDetails
   //validateAlphanumericFields([''], data, errors);
   validateIntegerFields(['totalItem'], data, errors);
-  validateFloatFields(['discountTransactionAmount', 'subTotal','cgst','sgst','igst','vat','totalTax','totalAmount','totalDiscount','otherExpenseAmount','freightAmount','roundOffAmount'], data, errors);
+  validateFloatFields(['discountTransactionAmount', 'subTotal','cgst','sgst','igst','vat','totalTax','totalAmount','totalDiscount','otherExpenseAmount','freightAmount','roundOffAmount','paidAmount'], data, errors);
   //validateAlphabetsFields([''], data, errors);
 
   //Tax Details
@@ -492,15 +552,24 @@ function validateField(condition, errorMsg, errors) {
 }
 //Valid Req Fields
 function validateReqFields( data, customerExist, defaultAccount, errors ) {
+
 validateField( typeof data.customerId === 'undefined' || typeof data.customerName === 'undefined', "Please select a Customer", errors  );
 validateField( typeof data.placeOfSupply === 'undefined', "Place of supply required", errors  );
+
 validateField( typeof data.items === 'undefined', "Select an item", errors  );
+
 validateField( typeof data.otherExpenseAmount !== 'undefined' && typeof data.otherExpenseReason === 'undefined', "Please enter other expense reason", errors  );
-validateField( typeof data.roundOffAmount !== 'undefined' && !(data.roundOffAmount >= 0 && data.roundOffAmount <= 1), " Round Off Amount must be between 0 and 1", errors );
+
+validateField( typeof data.otherExpenseAmount !== 'undefined' && typeof data.otherExpenseAccountId === 'undefined', "Please select expense account", errors  );
+validateField( typeof data.freightAmount !== 'undefined' && typeof data.freightAmountId === 'undefined', "Please select freight account", errors  );
+
+validateField( typeof data.roundOffAmount !== 'undefined' && !(data.roundOffAmount >= 0 && data.roundOffAmount <= 1), "Round Off Amount must be between 0 and 1", errors );
+
+validateField( typeof data.paidAmount !== 'undefined' && !(data.paidAmount <= data.totalAmount), "Excess payment amount", errors );
+validateField( typeof data.paidAmount !== 'undefined' && !(data.paidAmount >= 0 ), "Negative payment amount", errors );
 
 validateField( typeof defaultAccount.salesAccount === 'undefined', "No Sales Account found", errors  );
 validateField( typeof defaultAccount.salesDiscountAccount === 'undefined', "No Sales Discount Account found", errors  );
-validateField( typeof defaultAccount.accountReceivableAccount === 'undefined', "No Account Receivable Account found", errors  );
 
 validateField( customerExist.taxType === 'GST' && typeof defaultAccount.outputCgst === 'undefined', "No Output Cgst Account found", errors  );
 validateField( customerExist.taxType === 'GST' && typeof defaultAccount.outputSgst === 'undefined', "No Output Sgst Account found", errors  );
@@ -508,6 +577,7 @@ validateField( customerExist.taxType === 'GST' && typeof defaultAccount.outputIg
 validateField( customerExist.taxType === 'VAT' && typeof defaultAccount.outputVat === 'undefined', "No Output Vat Account found", errors  );
 
 }
+
 // Function to Validate Item Table 
 function validateItemTable(items, itemTable, errors) {
 // Check for item count mismatch
@@ -910,7 +980,7 @@ const otherExpense = ( totalAmount, cleanedData ) => {
 
 
 
-async function journal(savedOrder, defAcc) {
+async function journal(savedOrder, defAcc, customerAccount ) {
   const discount = {
     organizationId: savedOrder.organizationId,
     operationId: savedOrder._id,
@@ -977,14 +1047,36 @@ async function journal(savedOrder, defAcc) {
     creditAmount: savedOrder.vat,
     remark: savedOrder.note,
   };
-  const accountReceivable = {
+  const customer = {
     organizationId: savedOrder.organizationId,
     operationId: savedOrder._id,
     transactionId: savedOrder.salesInvoice,
     date: savedOrder.createdDate,
-    accountId: defAcc.accountReceivableAccount,
-    accountName: defAcc.accountReceivableAccountName,
+    accountId: customerAccount._id,
+    accountName: customerAccount.accountName,
     debitAmount: savedOrder.totalAmount,
+    creditAmount: 0,
+    remark: savedOrder.note,
+  };
+  const customerPaid = {
+    organizationId: savedOrder.organizationId,
+    operationId: savedOrder._id,
+    transactionId: savedOrder.salesInvoice,
+    date: savedOrder.createdDate,
+    accountId: customerAccount._id,
+    accountName: customerAccount.accountName,
+    debitAmount: 0,
+    creditAmount: savedOrder.paidAmount,
+    remark: savedOrder.note,
+  };
+  const depositAccount = {
+    organizationId: savedOrder.organizationId,
+    operationId: savedOrder._id,
+    transactionId: savedOrder.salesInvoice,
+    date: savedOrder.createdDate,
+    accountId: defAcc.depositAccountId,
+    accountName: defAcc.depositAccountName,
+    debitAmount: savedOrder.paidAmount,
     creditAmount: 0,
     remark: savedOrder.note,
   };
@@ -993,10 +1085,10 @@ async function journal(savedOrder, defAcc) {
     operationId: savedOrder._id,
     transactionId: savedOrder.salesInvoice,
     date: savedOrder.createdDate,
-    accountId: defAcc.accountReceivableAccount,
-    accountName: defAcc.accountReceivableAccountName,
-    debitAmount: savedOrder.otherExpenseAmount,
-    creditAmount: 0,
+    accountId: defAcc.otherExpenseAccountId,
+    accountName: defAcc.otherExpenseAccountName,
+    debitAmount: 0,
+    creditAmount: savedOrder.otherExpenseAmount,
     remark: savedOrder.note,
   };
   const freight = {
@@ -1004,54 +1096,89 @@ async function journal(savedOrder, defAcc) {
     operationId: savedOrder._id,
     transactionId: savedOrder.salesInvoice,
     date: savedOrder.createdDate,
-    accountId: defAcc.accountReceivableAccount,
-    accountName: defAcc.accountReceivableAccountName,
-    debitAmount: savedOrder.freightAmount,
+    accountId: defAcc.freightAccountId,
+    accountName: defAcc.freightAccountName,
+    debitAmount: 0,
+    creditAmount: savedOrder.freightAmount,
+    remark: savedOrder.note,
+  };
+  const roundOff = {
+    organizationId: savedOrder.organizationId,
+    operationId: savedOrder._id,
+    transactionId: savedOrder.salesInvoice,
+    date: savedOrder.createdDate,
+    debitAmount: savedOrder.roundOffAmount,
     creditAmount: 0,
     remark: savedOrder.note,
   };
-  // console.log("discount", discount);
-  // console.log("sale", sale);
-  // console.log("cgst", cgst);
-  // console.log("sgst", sgst);
-  // console.log("igst", igst);
-  // console.log("vat", vat);
-  // console.log("accountReceivable", accountReceivable);
 
-  // console.log("Sum : ", ( savedOrder.totalAmount ),( savedOrder.saleAmount + savedOrder.cgst + savedOrder.sgst + savedOrder.igst + savedOrder.vat + savedOrder.otherExpenseAmount + savedOrder.freightAmount));
+  console.log("cgst", cgst.debitAmount,  cgst.creditAmount);
+  console.log("sgst", sgst.debitAmount,  sgst.creditAmount);
+  console.log("igst", igst.debitAmount,  igst.creditAmount);
+  console.log("vat", vat.debitAmount,  vat.creditAmount);
+
+  console.log("sale", sale.debitAmount,  sale.creditAmount);
+  console.log("customer", customer.debitAmount,  customer.creditAmount);
+  console.log("discount", discount.debitAmount,  discount.creditAmount);
+
   
+  console.log("otherExpense", otherExpense.debitAmount,  otherExpense.creditAmount);
+  console.log("freight", freight.debitAmount,  freight.creditAmount);
+  console.log("roundOff", roundOff.debitAmount,  roundOff.creditAmount);
 
-  if (savedOrder.totalDiscount !== 'undefined') {
-    switch (savedOrder.taxType) {
-      case 'Non-Tax':
-        await handleNonTaxWithDiscount(discount);
-        break;
-      case 'Inter':
-        await handleInterWithDiscount(savedOrder, defaultAccount);
-        break;
-      case 'Intra':
-        await handleIntraWithDiscount(savedOrder, defaultAccount);
-        break;
-      case 'VAT':
-        await handleVATWithDiscount(savedOrder, defaultAccount);
-        break;
-    }
-  } else {
-    switch (savedOrder.taxType) {
-      case 'Non-Tax':
-        await handleNonTaxWithoutDiscount(savedOrder, defaultAccount);
-        break;
-      case 'Inter':
-        await handleInterWithoutDiscount(savedOrder, defaultAccount);
-        break;
-      case 'Intra':
-        await handleIntraWithoutDiscount(savedOrder, defaultAccount);
-        break;
-      case 'VAT':
-        await handleVATWithoutDiscount(savedOrder, defaultAccount);
-        break;
-    }
+  console.log("customerPaid", customerPaid.debitAmount,  customerPaid.creditAmount);
+  console.log("depositAccount", depositAccount.debitAmount,  depositAccount.creditAmount);
+
+  const  debitAmount = cgst.debitAmount  + sgst.debitAmount + igst.debitAmount +  vat.debitAmount + sale.debitAmount + customer.debitAmount + discount.debitAmount + otherExpense.debitAmount + freight.debitAmount + roundOff.debitAmount + customerPaid.debitAmount + depositAccount.debitAmount ;
+  const  creditAmount = cgst.creditAmount  + sgst.creditAmount + igst.creditAmount +  vat.creditAmount + sale.creditAmount + customer.creditAmount + discount.creditAmount + otherExpense.creditAmount + freight.creditAmount + roundOff.creditAmount + customerPaid.creditAmount + depositAccount.creditAmount ;
+
+  console.log("Total Debit Amount: ", debitAmount );
+  console.log("Total Credit Amount: ", creditAmount );
+
+  // console.log( discount, sale, cgst, sgst, igst, vat, customer, otherExpense, freight, roundOff );
+
+
+  createTrialEntry( sale )
+
+  //Tax
+  if(savedOrder.cgst){
+    createTrialEntry( cgst )
   }
+  if(savedOrder.sgst){
+    createTrialEntry( sgst )
+  }
+  if(savedOrder.igst){
+    createTrialEntry( igst )
+  }
+  if(savedOrder.vat){
+    createTrialEntry( vat )
+  }
+
+  //Discount  
+  if(savedOrder.totalDiscount){
+    createTrialEntry( discount )
+  }
+
+  //Other Expense
+  if(savedOrder.otherExpenseAmount){
+    createTrialEntry( otherExpense )
+  }
+
+  //Freight
+  if(savedOrder.freightAmount){
+    createTrialEntry( freight )
+  }
+  
+  //Round Off
+  if(savedOrder.roundOffAmount){
+    createTrialEntry( roundOff )
+  }
+ 
+  //Customer
+  createTrialEntry( customer )
+  
+  //Paid
+  createTrialEntry( customerPaid )
 }
 
 
@@ -1135,7 +1262,7 @@ async function itemTrack(savedOrder, itemTable) {
     // Save the tracking entry and update the item's stock in the item table
     //await newTrialEntry.save();
 
-    console.log(newTrialEntry);
+    // console.log(newTrialEntry);
     
     
 
