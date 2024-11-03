@@ -1,41 +1,32 @@
 # Use the official Node.js image as the base image
 FROM node:lts-slim
 
-# Create a non-root user for better security practices
-RUN useradd -m appuser
+# Create a non-root user for better security
+RUN useradd --create-home appuser
 
 # Set the working directory inside the container
-WORKDIR /usr/src/app
+WORKDIR /home/appuser/app
 
-# Copy package.json and package-lock.json with ownership set to appuser
+# Copy package files first for more efficient caching of dependencies
 COPY --chown=appuser:appuser package*.json ./
 
-# Install the dependencies
-RUN npm install --production --ignore-scripts
+# Install dependencies with production flag and no scripts for security
+RUN npm install --production --ignore-scripts && npm cache clean --force
 
-# Install npm-check-updates globally
-RUN npm install -g npm-check-updates --ignore-scripts
-
-# Update packages using ncu
-RUN ncu -u
-
-# Install any new dependencies
-RUN npm install
-
-# Copy the rest of the application code to the working directory with ownership set to appuser
+# Copy the rest of the application files with ownership
 COPY --chown=appuser:appuser . .
 
-# Remove write permissions for all executable files in the working directory
+# Change permissions to remove write access for certain files
 RUN find . -type f -executable -exec chmod a-w {} \;
 
-# Remove the dependency-check-report.html file if it exists
+# Remove temporary or sensitive files if needed
 RUN rm -f ./dependency-check-report.html || true
 
-# Switch to the non-root user
+# Ensure only the non-root user runs the container
 USER appuser
 
-# Expose port 5001
+# Expose the necessary port
 EXPOSE 5003
 
-# Command to run the application
+# Start the application
 CMD ["node", "server.js"]
