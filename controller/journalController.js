@@ -13,17 +13,23 @@ const moment = require('moment-timezone');
 exports.addJournalEntry = async (req, res) => {
     console.log("Add journal Entry:", req.body);
     try {
-        const organizationId = req.user.organizationId;
-        const { 
-            date,
-            reference,
-            note,
-            cashBasedJournal,
-            currency,
-            transaction,
-            totalDebitAmount,
-            totalCreditAmount
-        } = req.body;
+        const { organizationId, id: userId, userName } = req.user;
+
+        //Clean Data
+        const cleanedData = cleanCustomerData(req.body);
+        cleanedData.transaction = cleanedData.transaction?.map(acc => cleanCustomerData(acc)) || [];
+
+        const { transaction } = cleanedData;
+
+        const transactionIds = transaction.map(item => item.accountId);
+        
+        // Check for duplicate itemIds
+        const uniqueItemIds = new Set(transactionIds);
+        if (uniqueItemIds.size !== transactionIds.length) {            
+          return res.status(400).json({ message: "Duplicate Accounts found" });
+        }
+
+        
 
         // Check if the organization exists
         const existingOrganization = await Organization.findOne({ organizationId });
@@ -50,25 +56,9 @@ exports.addJournalEntry = async (req, res) => {
             });
         }
 
-        // Calculate total debit and credit amounts from the array of transactions
-        const calculatedTotalDebitAmount = transaction.reduce((sum, trans) => sum + trans.debitAmount, 0);
-        const calculatedTotalCreditAmount = transaction.reduce((sum, trans) => sum + trans.creditAmount, 0);
+              //Validate Inputs  
+        if (!validateInputs(cleanedData, existingOrganization.organizationId, res)) return;
 
-        // console.log(calculatedTotalDebitAmount,calculatedTotalCreditAmount);
-
-        // Ensure the sum of debit and credit amounts are equal
-        if (calculatedTotalDebitAmount !== calculatedTotalCreditAmount) {
-            return res.status(400).json({
-                message: "Calculated debit and credit amounts must be equal."
-            });
-        }
-
-        // Ensure the provided total debit and credit amounts match the calculated amounts
-        if (totalDebitAmount !== calculatedTotalDebitAmount || totalCreditAmount !== calculatedTotalCreditAmount) {
-            return res.status(400).json({
-                message: "Provided total debit and credit amounts must match the calculated amounts."
-            });
-        }
 
         // Check if the organizationId exists in the Prefix collection
         const existingPrefix = await Prefix.findOne({ organizationId });
@@ -101,30 +91,13 @@ exports.addJournalEntry = async (req, res) => {
         await existingPrefix.save();
 
         // Create a new journal entry
-        const newJournalEntry = new Journal({
-            organizationId: organizationId,
-            journalId,
-            date,
-            entryDate,
-            reference,
-            note,
-            cashBasedJournal,
-            currency,
-            transaction: Array.isArray(transaction)
-                ? transaction.map(trans => ({
-                    accountId: trans.accountId,
-                    accountName: trans.accountName,
-                    debitAmount: trans.debitAmount,
-                    creditAmount: trans.creditAmount,
-                    description: trans.description,
-                    contact: trans.contact,
-                }))
-                : [],
-            totalDebitAmount,
-            totalCreditAmount
-        });
+        const newJournalEntry = new Journal({ ...cleanedData, organizationId, entryDate });
 
-        await newJournalEntry.save();
+
+        
+        const entry = await newJournalEntry.save();
+        console.log("Journal entry",entry);
+
         
 
         // Insert data into TrialBalance collection and update account balances
@@ -139,11 +112,11 @@ exports.addJournalEntry = async (req, res) => {
                 action: "Journal",
                 debitAmount: trans.debitAmount,
                 creditAmount: trans.creditAmount,
-                remark: note
+                remark: cleanedData.note
             });
 
-            const test = await newTrialEntry.save();
-            console.log("entry",test);
+            const entry = await newTrialEntry.save();
+            console.log("Trial entry",entry);
 
             
         }
@@ -264,3 +237,99 @@ function generateTimeAndDateForDB(timeZone, dateFormat, dateSplit, baseTime = ne
     };
   }
   
+
+
+
+
+
+
+
+
+
+
+  //Clean Data 
+function cleanCustomerData(data) {
+    const cleanData = (value) => (value === null || value === undefined || value === "" ? undefined : value);
+    return Object.keys(data).reduce((acc, key) => {
+      acc[key] = cleanData(data[key]);
+      return acc;
+    }, {});
+  }
+
+
+
+
+
+
+
+  //Validate inputs
+  function validateInputs( data, organizationId, res) {
+    const validationErrors = validateAccountData( data, organizationId );
+  
+    if (validationErrors.length > 0) {
+      res.status(400).json({ message: validationErrors.join(", ") });
+      return false;
+    }
+    return true;
+  }
+
+
+
+
+  //Validate Data
+  function validateAccountData( data, organizationId ) {
+    const errors = [];
+
+    //Basic Info
+    validateReqFields( data,  errors);
+    validTransaction ( data, data.transaction,  errors);
+    
+    
+    
+    return errors;
+  }
+
+// Field validation utility
+function validateField(condition, errorMsg, errors) {
+    if (condition) {errors.push(errorMsg);
+    console.log(errorMsg);}
+    
+}
+//Valid Req Fields
+function validateReqFields( data, errors ) {
+    validateField( typeof data.transaction === 'undefined', `Select an accounts`, errors );  
+    validateField( typeof data.date === 'undefined', `Please select a date`, errors );  
+}
+// Function to Validate transaction
+function validTransaction( data, transaction, errors ) {
+
+    const calculatedTotalDebitAmount = transaction.reduce((sum, trans) => sum + trans.debitAmount, 0);
+    const calculatedTotalCreditAmount = transaction.reduce((sum, trans) => sum + trans.creditAmount, 0);
+
+    validateField( calculatedTotalDebitAmount !== calculatedTotalCreditAmount , `Calculated debit and credit amounts must be equal.`, errors );  
+
+    validateField( data.totalDebitAmount !== calculatedTotalDebitAmount || data.totalCreditAmount !== calculatedTotalCreditAmount , `Provided total debit and credit amounts must match the calculated amounts.`, errors );  
+
+    validateField( transaction.length <2 ,`Select two or more Accounts. ${transaction.length}`, errors );  
+ 
+    transaction.forEach((transaction) => {        
+
+        validateField( typeof transaction.debitAmount === 'undefined' && typeof transaction.creditAmount === 'undefined' , `Please enter debit or credit amount`, errors );  
+
+        validateField( transaction.debitAmount === 0 &&  transaction.creditAmount === 0 , `Please enter debit or credit amount for account ${transaction.accountName}`, errors );  
+
+        validateFloatFields(['debitAmount', 'creditAmount'], transaction, errors);
+  
+  
+      });
+  }
+  //Valid Float Fields  
+  function validateFloatFields(fields, data, errors) {
+    fields.forEach((balance) => {
+      validateField(data[balance] && !isFloat(data[balance]),
+        "Invalid " + balance.replace(/([A-Z])/g, " $1") + ": " + data[balance], errors);
+    });
+  }
+  function isFloat(value) {
+    return /^-?\d+(\.\d+)?$/.test(value);
+  }
