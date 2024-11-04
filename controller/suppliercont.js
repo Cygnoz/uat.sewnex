@@ -45,6 +45,14 @@ const dataExist = async (organizationId) => {
     return { organizationExists, taxExists, currencyExists, allSupplier , settings };
   };
 
+  // Fetch Trial Balance
+const trialBalanceExist = async (organizationId,customerId) => {
+  const [trailbalance ] = await Promise.all([
+    TrialBalance.findOne({ organizationId, operationId: customerId}),
+  ]);
+  return { trailbalance };
+};
+
     exports.addSupplier = async (req, res) => {
       try {
         const { organizationId, id: userId, userName } = req.user;
@@ -97,20 +105,21 @@ const dataExist = async (organizationId) => {
   exports.updateSupplier = async (req, res) => {
       try {
         const { organizationId, id: userId, userName } = req.user;
-        const duplicateSupplierDisplayName = true;
-        const duplicateSupplierEmail = false;
-        const duplicateSupplierMobile = false;
-
+       
         const cleanedData = cleanSupplierData(req.body);
-  
+        cleanedData.contactPersons = cleanedData.contactPersons?.map(person => cleanSupplierData(person)) || [];
+        cleanedData.bankDetails = cleanedData.bankDetails?.map(bankDetail => cleanSupplierData(bankDetail)) || [];
+
         const {   supplierId } = req.params;
     
         const { supplierDisplayName, supplierEmail, mobile } = cleanedData;
     
         const { organizationExists, taxExists, currencyExists , settings} = await dataExist(organizationId);
         
+        const { trailbalance } = await trialBalanceExist(organizationId,supplierId);
+
          // checking values from supplier settings
-        // const { duplicateSupplierDisplayName , duplicateSupplierEmail , duplicateSupplierMobile } = settings[0]
+        const { duplicateSupplierDisplayName , duplicateSupplierEmail , duplicateSupplierMobile } = settings[0]
         
         
         if (!validateOrganizationTaxCurrency(organizationExists, taxExists, currencyExists, res)) return;
@@ -133,6 +142,10 @@ const dataExist = async (organizationId) => {
         await checkDuplicateSupplierFieldsEdit( duplicateCheck, supplierDisplayName, supplierEmail, mobile, organizationId,supplierId, errors);  
         if (errors.length) {
         return res.status(409).json({ message: errors }); }
+
+        editOpeningBalance(existingSupplier, cleanedData);
+        await updateOpeningBalance(trailbalance, cleanedData);
+
         // Update customer fields
         Object.assign(existingSupplier, cleanedData);
         const savedSupplier = await existingSupplier.save();
@@ -164,7 +177,7 @@ const dataExist = async (organizationId) => {
           supplierDisplayName: savedSupplier.supplierDisplayName,
           date: openingDate,
           title: "supplier Data Modified",
-          description: `Supplier data  Modified by ${userName}`,
+          description: `${savedSupplier.supplierDisplayName} Supplier data  Modified by ${userName}`,
   
           userId: userId,
           userName: userName,
@@ -616,7 +629,7 @@ const dataExist = async (organizationId) => {
       // Count existing organizations to generate the next organizationId
 
       const nextIdNumber = allSupplier.length + 1;    
-      const count = `CU${nextIdNumber.toString().padStart(4, '0')}`;
+      const count = `SU${nextIdNumber.toString().padStart(4, '0')}`;
       
       const newAccount = new Account({
         organizationId,
@@ -729,11 +742,11 @@ function createTaxExemptionDescription() {
     console.log(data)
     // Check for debit opening balance
     if (data && data.debitOpeningBalance) {
-      balanceType = `Opening Balance (Debit): '${data.debitOpeningBalance}'. `;
+      balanceType = `Opening Balance (Debit): ${data.debitOpeningBalance}. `;
     } 
     // Check for credit opening balance
     else if (data && data.creditOpeningBalance) {
-      balanceType = `Opening Balance (Credit): '${data.creditOpeningBalance}'. `;
+      balanceType = `Opening Balance (Credit): ${data.creditOpeningBalance}. `;
     } 
     // If neither balance exists
     else {
@@ -779,6 +792,50 @@ function createTaxExemptionDescription() {
         dateTime: dateTime,
       };
     }
+
+//Edit Opening Balance
+function editOpeningBalance(existingSupplier, cleanedData) {
+  if (existingSupplier.debitOpeningBalance && cleanedData.creditOpeningBalance) {
+    cleanedData.debitOpeningBalance = undefined;
+  } else if (existingSupplier.creditOpeningBalance && cleanedData.debitOpeningBalance) {
+    cleanedData.creditOpeningBalance = undefined;
+  }
+  return
+}
+
+
+// Update Opening Balance
+async function updateOpeningBalance(existingTrialBalance, cleanData) {
+  try {
+    const { debitOpeningBalance, creditOpeningBalance } = existingTrialBalance;
+    let trialEntry;
+
+    if (cleanData.debitOpeningBalance) {
+      trialEntry = {
+        
+        debitAmount: cleanData.debitOpeningBalance,
+        creditAmount: undefined,
+      };
+    } else {
+      trialEntry = {
+        debitAmount: undefined,
+        creditAmount: cleanData.creditOpeningBalance,
+      };
+    }
+
+    Object.assign(existingTrialBalance, trialEntry);
+    const savedTrialBalance = await existingTrialBalance.save();
+
+    return savedTrialBalance;
+  } catch (error) {
+    console.error("Error updating trial balance opening balance:", error);
+    throw error;
+  }
+}
+
+
+
+
 
   //Validate Data
     function validateSupplierData(data, validCurrencies, validTaxTypes, organization) {
