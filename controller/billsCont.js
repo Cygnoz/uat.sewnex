@@ -436,49 +436,17 @@ const cleanBillData = (data, supplierExists, items) => {
     // Calculate grandTotal
     cleanedData.grandTotal = (parseFloat(total) - parseFloat(cleanedData.transactionDiscountAmount)).toFixed(2);
 
-<<<<<<< HEAD
     // Calculate balanceAmount
-    // cleanedData.balanceAmount = (
-    //   parseFloat(cleanedData.grandTotal) - 
-    //   parseFloat(cleanedData.paidAmount || 0)
-    // ).toFixed(2);
+    cleanedData.balanceAmount = (
+      parseFloat(cleanedData.grandTotal) - 
+      parseFloat(cleanedData.paidAmount || 0)
+    ).toFixed(2);
 
 
-  // Call the existing updatePaidStatus function if needed
-=======
+updatePaidStatus(cleanedData);
 
-//   // Update paid status and set default payment mode if pending
-//   function updatePaidStatus(cleanedData) {
-//     const isOverdue = moment().isAfter(moment(cleanedData.dueDate, 'YYYY-MM-DD'));
-  
-//     if (cleanedData.paymentTerms === "Pay Now") {
-//       // Check if the payment is fully completed
-//       if (parseFloat(cleanedData.paidAmount) === parseFloat(cleanedData.grandTotal)) {
-//         cleanedData.paidStatus = "Completed";
-//       } else {
-//         cleanedData.paidStatus = "Pending";
-//         cleanedData.paymentMode = cleanedData.paymentMode || "Cash"; // Default to "Cash" if not specified
-//         cleanedData.paidAmount = parseFloat(cleanedData.paidAmount || 0).toFixed(2);
-//         cleanedData.balanceAmount = (
-//           parseFloat(cleanedData.grandTotal) - parseFloat(cleanedData.paidAmount)
-//         ).toFixed(2); // Recalculate balanceAmount
-//       }
-//     } 
-//       // For other payment terms, set paidStatus based on due date and payment completion
-//       if (isOverdue) {
-//         cleanedData.paidStatus = "Overdue";
-//       } else {
-//         cleanedData.paidStatus = parseFloat(cleanedData.paidAmount) === parseFloat(cleanedData.grandTotal)
-//           ? "Completed"
-//           : "Pending";
-//       }
-//   }  
-
-// >>>>>>> 2fb31d010329cfb80e5f1d3ec767cfe529587854
-//   updatePaidStatus(cleanedData);
-
-//   return cleanedData;
-// };
+  return cleanedData;
+};
 
 
 // // Set paidStatus based on dueDate and payment completion

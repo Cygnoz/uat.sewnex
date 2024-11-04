@@ -15,6 +15,7 @@ const paymentSchema = new Schema({
   organizationId: { type: String },
   supplierId: { type: String },
   supplierDisplayName: { type: String },
+  payment:{type:String},
   paymentMade :  { type: Number },
   paymentDate: { type: String },
   paymentId: { type: String },

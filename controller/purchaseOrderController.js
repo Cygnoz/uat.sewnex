@@ -148,7 +148,7 @@ exports.getPurchaseOrder = async (req, res) => {
 
 
 // Get Last Journal Prefix
-exports.getLastPurchaseOrderPrefix = async (req, res) => {
+exports. getLastPurchaseOrderPrefix = async (req, res) => {
   try {
       const organizationId = "INDORG0005";
 

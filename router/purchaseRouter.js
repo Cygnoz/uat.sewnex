@@ -37,6 +37,7 @@ router.get('/get-a-Bill/:id',verifyToken,billsCont.getPurchaseBill)
  //paymentmade
 router.post('/add-payment', verifyToken , PaymentMadeController.addPayment);
 router.get('/getAllPayments', verifyToken , PaymentMadeController.getAllPayment );
+router.get('/get-last-payment-made-prefix',verifyToken,PaymentMadeController.getLastPaymentMadePrefix )
 // router.get('/getPayment/:id', PaymentMadeController.getPurchasePayment);
 // router.put('/updatePayment/:id', PaymentMadeController.updatePurchasePayment);
 // router.delete('/deletePayment/:id', PaymentMadeController.deletePurchasePayment);
