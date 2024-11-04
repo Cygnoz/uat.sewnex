@@ -11,6 +11,10 @@ const CustomerHistory = require("../database/model/customerHistory");
 const Settings = require("../database/model/settings")
   
 
+
+
+
+
 exports.getCustomerTransactions = async (req, res) => {
   try {
       const { customerId } = req.params;
@@ -701,37 +705,7 @@ function createCustomerHistory(savedCustomer, savedAccount,userId, userName) {
   }
   
 
-// Tax Description
-// function getTaxDescription(data, userName) {
-//     const descriptionBase = `${data.customerDisplayName} Contact created with `;
-//     const taxDescriptionGenerators = {
-//       GST: () => createGSTDescription(data),
-//       VAT: () => createVATDescription(data),
-//       None: () => createTaxExemptionDescription(),
-//     };
-  
-//     return taxDescriptionGenerators[data.taxType]?.() 
-//       ? descriptionBase + taxDescriptionGenerators[data.taxType]() + `
-// Created by ${userName}` 
-//       : "";
-//   }
-//   //GST Description
-//   function createGSTDescription({ gstTreatment, gstin_uin, placeOfSupply }) {
-//     return gstTreatment && gstin_uin && placeOfSupply
-//       ? `
-// GST Treatment '${gstTreatment}' & GSTIN '${gstin_uin}'. State updated to ${placeOfSupply}. `
-//       : "";
-//   }
-//   //VAT Description
-//   function createVATDescription({ vatNumber, placeOfSupply}) {
-//     return vatNumber && placeOfSupply
-//       ? `VAT Number '${vatNumber}'. State updated to ${placeOfSupply}. `
-//       : "";
-//   }
-//   //Tax empt Description
-//   function createTaxExemptionDescription() {
-//     return "Tax Exemption. ";
-//   }
+
   
 function getTaxDescription(data, userName) {
   const descriptionBase = `${data.customerDisplayName || 'Unknown Customer'} Contact created with `;
@@ -791,11 +765,11 @@ function getOpeningBalanceDescription(data, userName) {
   console.log(data)
   // Check for debit opening balance
   if (data && data.debitOpeningBalance) {
-    balanceType = `Opening Balance (Debit): '${data.debitOpeningBalance}'. `;
+    balanceType = `Opening Balance (Debit): ${data.debitOpeningBalance}. `;
   } 
   // Check for credit opening balance
   else if (data && data.creditOpeningBalance) {
-    balanceType = `Opening Balance (Credit): '${data.creditOpeningBalance}'. `;
+    balanceType = `Opening Balance (Credit): ${data.creditOpeningBalance}. `;
   } 
   // If neither balance exists
   else {
