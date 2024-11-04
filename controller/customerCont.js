@@ -702,38 +702,7 @@ function createCustomerHistory(savedCustomer, savedAccount,userId, userName) {
   }
   
 
-// Tax Description
-// function getTaxDescription(data, userName) {
-//     const descriptionBase = `${data.customerDisplayName} Contact created with `;
-//     const taxDescriptionGenerators = {
-//       GST: () => createGSTDescription(data),
-//       VAT: () => createVATDescription(data),
-//       None: () => createTaxExemptionDescription(),
-//     };
-  
-//     return taxDescriptionGenerators[data.taxType]?.() 
-//       ? descriptionBase + taxDescriptionGenerators[data.taxType]() + `
-// Created by ${userName}` 
-//       : "";
-//   }
-//   //GST Description
-//   function createGSTDescription({ gstTreatment, gstin_uin, placeOfSupply }) {
-//     return gstTreatment && gstin_uin && placeOfSupply
-//       ? `
-// GST Treatment '${gstTreatment}' & GSTIN '${gstin_uin}'. State updated to ${placeOfSupply}. `
-//       : "";
-//   }
-//   //VAT Description
-//   function createVATDescription({ vatNumber, placeOfSupply}) {
-//     return vatNumber && placeOfSupply
-//       ? `VAT Number '${vatNumber}'. State updated to ${placeOfSupply}. `
-//       : "";
-//   }
-//   //Tax empt Description
-//   function createTaxExemptionDescription() {
-//     return "Tax Exemption. ";
-//   }
-  
+// Tax Description  
 function getTaxDescription(data, userName) {
   const descriptionBase = `${data.customerDisplayName || 'Unknown Customer'} Contact created with `;
   
@@ -749,21 +718,30 @@ function getTaxDescription(data, userName) {
   if (taxDescription) {
     return descriptionBase + taxDescription + `Created by ${userName || 'Unknown User'}`;
   } else {
-    return `${descriptionBase}no tax applicable. Created by ${userName || 'Unknown User'}`;
+    return `${descriptionBase}No Tax applicable. Created by ${userName || 'Unknown User'}`;
   }
 }
 
 // GST Description
 function createGSTDescription({ gstTreatment, gstin_uin, placeOfSupply }) {
-  return gstTreatment && gstin_uin && placeOfSupply
-    ? `GST Treatment : ${gstTreatment} , GSTIN : ${gstin_uin}  &  State : ${placeOfSupply}. `
-    : "Incomplete GST information. "; // Handle incomplete data case
+  const details = {
+    'GST Treatment': gstTreatment,
+    'GSTIN': gstin_uin,
+    'State': placeOfSupply
+  };
+
+  const description = Object.entries(details)
+    .filter(([, value]) => value)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join(' , ');
+
+  return description ? `${description}.` : "Incomplete GST information.";
 }
 
 // VAT Description
-function createVATDescription({ vatNumber, placeOfSupply }) {
-  return vatNumber && placeOfSupply
-    ? `VAT Number '${vatNumber}'. State updated to ${placeOfSupply}. `
+function createVATDescription({ vatNumber }) {
+  return vatNumber 
+    ? `VAT Number '${vatNumber}'. `
     : "Incomplete VAT information. "; // Handle incomplete data case
 }
 
@@ -774,19 +752,6 @@ function createTaxExemptionDescription() {
 
 
 // Opening Balance Description
-// function getOpeningBalanceDescription(data,userName) {
-//   let balanceType = "";
-
-//   if (data.debitOpeningBalance) {
-//     balanceType = `Opening Balance (Debit): '${data.debitOpeningBalance}'. `;
-//   } else if (data.creditOpeningBalance) {
-//     balanceType = `Opening Balance (Credit): '${data.creditOpeningBalance}'. `;
-//   }
-
-//   return balanceType
-//     ? `${data.customerDisplayName} Account created with ${balanceType}Created by ${userName}`
-//     : "";
-// }
 function getOpeningBalanceDescription(data, userName) {
   let balanceType = "";
   console.log(data)
@@ -800,7 +765,7 @@ function getOpeningBalanceDescription(data, userName) {
   } 
   // If neither balance exists
   else {
-    return `${data.customerDisplayName || 'Unknown Customer'} Account created with  opening balance 0 , Created by ${userName || 'Unknown User'}`;
+    balanceType = `Opening Balance : 0`;
   }
 
   // Return description if there's a balance
