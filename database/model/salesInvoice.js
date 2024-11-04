@@ -48,7 +48,7 @@ const SalesInvoiceSchema = new Schema ({
   expectedShipmentDate: { type: String },
 
   salesInvoiceDate: { type: String },  
-  expiryDate: { type: String },
+  dueDate: { type: String },
 
   // subject: { type: String },
   
