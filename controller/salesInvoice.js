@@ -64,7 +64,7 @@ const newDataExists = async (organizationId,items) => {
 
 
 // Fetch Acc existing data
-const accDataExists = async ( defaultAccount, organizationId, otherExpenseAccountId, freightAmountId, depositAccountId ) => {
+const accDataExists = async ( defaultAccount, organizationId, otherExpenseAccountId, freightAccountId, depositAccountId ) => {
   const [ salesAccountName, salesDiscountAccountName , outputCgstName, outputSgstName, outputIgstName, outputVatName, otherExpenseAcc, freightAcc, depositAcc ] = await Promise.all([
     Account.findOne({ organizationId , _id: defaultAccount.salesAccount }, { accountName: 1 }),
     Account.findOne({ organizationId , _id: defaultAccount.salesDiscountAccount}, { accountName: 1 }),
@@ -76,7 +76,7 @@ const accDataExists = async ( defaultAccount, organizationId, otherExpenseAccoun
     Account.findOne({ organizationId , _id: defaultAccount.outputVat}, { accountName: 1 }),
 
     Account.findOne({ organizationId , _id: otherExpenseAccountId, accountHead: "Expenses" }, { _id:1, accountName: 1 }),
-    Account.findOne({ organizationId , _id: freightAmountId, accountHead: "Expenses" }, { _id:1, accountName: 1 }),
+    Account.findOne({ organizationId , _id: freightAccountId, accountHead: "Expenses" }, { _id:1, accountName: 1 }),
 
     Account.findOne({ organizationId , _id: depositAccountId, accountHead: "Asset" }, { _id:1, accountName: 1 }),
 
@@ -94,7 +94,7 @@ exports.addInvoice = async (req, res) => {
       const cleanedData = cleanCustomerData(req.body);
 
       const { items } = cleanedData;
-      const { customerId, customerName, otherExpenseAccountId, freightAmountId, depositAccountId } = cleanedData;
+      const { customerId, customerName, otherExpenseAccountId, freightAccountId, depositAccountId } = cleanedData;
       const itemIds = items.map(item => item.itemId);
 
       // Check for duplicate itemIds
@@ -113,8 +113,8 @@ exports.addInvoice = async (req, res) => {
         return res.status(400).json({ message: `Invalid Other Expense Account ID: ${otherExpenseAccountId}` });
       }
 
-      if ((!mongoose.Types.ObjectId.isValid(freightAmountId) || freightAmountId.length !== 24) && cleanedData.freightAmount !== undefined ) {
-        return res.status(400).json({ message: `Invalid Freight Amount ID: ${freightAmountId}` });
+      if ((!mongoose.Types.ObjectId.isValid(freightAccountId) || freightAccountId.length !== 24) && cleanedData.freightAmount !== undefined ) {
+        return res.status(400).json({ message: `Invalid Freight Account ID: ${freightAccountId}` });
       }
 
       if ((!mongoose.Types.ObjectId.isValid(depositAccountId) || depositAccountId.length !== 24) && cleanedData.paidAmount !== undefined ) {
@@ -176,8 +176,8 @@ exports.addInvoice = async (req, res) => {
 
 
 
-// Get Last Order Prefix
-exports.getLastOrderPrefix = async (req, res) => {
+// Get Last Invoice Prefix
+exports.getLastInvoicePrefix = async (req, res) => {
   try {
       const organizationId = req.user.organizationId;
 
@@ -411,7 +411,7 @@ async function defaultAccounting( data, defaultAccount, organizationExists ) {
     defaultAccount,
     organizationExists.organizationId,
     data.otherExpenseAccountId,
-    data.freightAmountId,
+    data.freightAccountId,
     data.depositAccountId
   );
   
@@ -561,7 +561,7 @@ validateField( typeof data.items === 'undefined', "Select an item", errors  );
 validateField( typeof data.otherExpenseAmount !== 'undefined' && typeof data.otherExpenseReason === 'undefined', "Please enter other expense reason", errors  );
 
 validateField( typeof data.otherExpenseAmount !== 'undefined' && typeof data.otherExpenseAccountId === 'undefined', "Please select expense account", errors  );
-validateField( typeof data.freightAmount !== 'undefined' && typeof data.freightAmountId === 'undefined', "Please select freight account", errors  );
+validateField( typeof data.freightAmount !== 'undefined' && typeof data.freightAccountId === 'undefined', "Please select freight account", errors  );
 
 validateField( typeof data.roundOffAmount !== 'undefined' && !(data.roundOffAmount >= 0 && data.roundOffAmount <= 1), "Round Off Amount must be between 0 and 1", errors );
 

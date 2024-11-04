@@ -56,6 +56,8 @@ router.post('/add-sales-invoice',verifyToken,salesInvoice.addInvoice)
 
 router.put('/add-salesInvoice-settings',verifyToken,salesSettings.addInvoiceSettings)
 
+router.get('/get-last-sales-invoice-prefix',verifyToken,salesInvoice.getLastInvoicePrefix)
+
 
 
 module.exports = router
