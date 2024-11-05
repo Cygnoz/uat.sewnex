@@ -106,19 +106,19 @@ exports.addInvoice = async (req, res) => {
 
       //Validate Account Id
       if (!mongoose.Types.ObjectId.isValid(customerId) || customerId.length !== 24) {
-        return res.status(400).json({ message: `Invalid customer ID: ${customerId}` });
+        return res.status(400).json({ message: `Select a customer` });
       }      
 
       if ((!mongoose.Types.ObjectId.isValid(otherExpenseAccountId) || otherExpenseAccountId.length !== 24) && cleanedData.otherExpenseAmount !== undefined ) {
-        return res.status(400).json({ message: `Invalid Other Expense Account ID: ${otherExpenseAccountId}` });
+        return res.status(400).json({ message: `Select other expense account` });
       }
 
       if ((!mongoose.Types.ObjectId.isValid(freightAccountId) || freightAccountId.length !== 24) && cleanedData.freightAmount !== undefined ) {
-        return res.status(400).json({ message: `Invalid Freight Account ID: ${freightAccountId}` });
+        return res.status(400).json({ message: `Select freight account` });
       }
 
       if ((!mongoose.Types.ObjectId.isValid(depositAccountId) || depositAccountId.length !== 24) && cleanedData.paidAmount !== undefined ) {
-        return res.status(400).json({ message: `Invalid Deposit Account ID: ${depositAccountId}` });
+        return res.status(400).json({ message: `Select deposit account` });
       }
 
       // Validate ItemIds
