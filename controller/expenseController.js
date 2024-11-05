@@ -492,27 +492,30 @@ function cleanExpenseData(data) {
   async function createTrialBalance(savedExpense) {
     const { organizationId, paidThrough, paidThroughId, expenseDate, expense } = savedExpense;
 
-    // Loop through each expense item to create two entries in the trial balance
+    // Calculate the total credit amount by summing up the amount for all expense items
+    const totalCreditAmount = expense.reduce((sum, expenseItem) => sum + parseFloat(expenseItem.amount), 0);
+
+    // Create a single credit entry for the paidThrough account
+    const creditEntry = new TrialBalance({
+        organizationId,
+        operationId: savedExpense._id,
+        transactionId: savedExpense._id,
+        date: expenseDate,
+        accountId: paidThroughId,
+        accountName: paidThrough,
+        action: "Expense",
+        creditAmount: totalCreditAmount,
+        remark: "Total credit for expenses"
+    });
+
+    await creditEntry.save();
+    console.log("Credit Entry:", creditEntry);
+
+    // Loop through each expense item to create individual debit entries
     for (const expenseItem of expense) {
         const { expenseAccountId, expenseAccount, note, amount } = expenseItem;
 
-        // First entry: Credit entry for the paidThrough account
-        const creditEntry = new TrialBalance({
-            organizationId,
-            operationId: savedExpense._id,
-            transactionId: savedExpense._id,
-            date: expenseDate,
-            accountId: paidThroughId,
-            accountName: paidThrough,
-            action: "Expense",
-            creditAmount: amount,
-            remark: note
-        });
-        
-        await creditEntry.save();
-        console.log("Credit Entry:", creditEntry);
-
-        // Second entry: Debit entry for the expense account
+        // Create a debit entry for the expense account
         const debitEntry = new TrialBalance({
             organizationId,
             operationId: savedExpense._id,
@@ -521,14 +524,15 @@ function cleanExpenseData(data) {
             accountId: expenseAccountId,
             accountName: expenseAccount,
             action: "Expense",
-            debitAmount: amount,
+            debitAmount: parseFloat(amount),
             remark: note
         });
-        
+
         await debitEntry.save();
         console.log("Debit Entry:", debitEntry);
     }
 }
+
    
 
 
