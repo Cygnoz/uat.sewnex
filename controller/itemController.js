@@ -34,9 +34,9 @@ const dataExists = async (organizationId) => {
 const xsItemDataExists = async (organizationId) => {
                 // Retrieve items with specified fields
                 const [newItems] = await Promise.all([
-                  Item.find( { organizationId }, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 } ),
+                  Item.find( { organizationId }, { _id: 1, itemName: 1, itemImage: 1, taxPreference: 1, sellingPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 } ),
                 ]);
-                console.log("newItems",newItems);
+
                 
 
                 // Extract itemIds from newItems
