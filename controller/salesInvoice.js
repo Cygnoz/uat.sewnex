@@ -439,7 +439,7 @@ async function defaultAccounting( data, defaultAccount, organizationExists ) {
   
   let errorMessage = '';
   if (!defaultAccount.salesAccount && typeof data.totalAmount !== 'undefined') errorMessage += "Sales Account not found. ";
-  if (!defaultAccount.salesDiscountAccount && typeof data.totalDiscount !== 'undefined') errorMessage += "Discount Account not found. ";
+  if (!defaultAccount.salesDiscountAccount && (typeof data.totalDiscount !== 'undefined' || data.totalDiscount !== 0 )) errorMessage += "Discount Account not found. ";
  
   if (!defaultAccount.outputCgst && typeof data.cgst !== 'undefined') errorMessage += "CGST Account not found. ";
   if (!defaultAccount.outputSgst && typeof data.sgst !== 'undefined') errorMessage += "SGST Account not found. ";
@@ -455,8 +455,6 @@ async function defaultAccounting( data, defaultAccount, organizationExists ) {
   if (errorMessage) {
     return { defAcc: null, error: errorMessage.trim() }; // Return error message
   }
-
-  console.log(otherExpenseAcc, freightAcc, depositAcc);
   
   // Update defaultAccount fields
   defaultAccount.salesAccountName = salesAccountName?.accountName;
@@ -480,8 +478,8 @@ async function defaultAccounting( data, defaultAccount, organizationExists ) {
   if(data.paidAmount !=='undefined'){
     defaultAccount.depositAccountName = depositAcc?.accountName;
     defaultAccount.depositAccountId = depositAcc?._id;
-  }   
-  return defaultAccount;
+  }    
+  return { defAcc:defaultAccount ,error:null };
 }
   
 
@@ -1010,7 +1008,7 @@ const otherExpense = ( totalAmount, cleanedData ) => {
 
 
 
-async function journal(savedOrder, defAcc, customerAccount ) {
+async function journal(savedOrder, defAcc, customerAccount ) {  
   const discount = {
     organizationId: savedOrder.organizationId,
     operationId: savedOrder._id,
@@ -1225,7 +1223,7 @@ async function createTrialEntry( data ) {
       date:data.date,
       accountId: data.accountId,
       accountName: data.accountName,
-      action: data.action,
+      action: "Sales Invoice",
       debitAmount: data.debitAmount,
       creditAmount: data.creditAmount,
       remark: data.remark
