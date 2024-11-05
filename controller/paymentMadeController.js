@@ -179,7 +179,7 @@ exports.getAllPayment = async (req, res) => {
     }
 
   } catch (error) {
-    console.error("Error fetching purchase Bills:", error);
+    console.error("Error fetching purchase paymentMade:", error);
     res.status(500).json({ message: "Internal server error." });
   }
 };

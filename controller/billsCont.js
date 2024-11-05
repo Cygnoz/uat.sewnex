@@ -28,84 +28,132 @@ const dataExistForBill = async (organizationId, supplierId, itemTable, orderNumb
   return { organizationExists, supplierExists, purchaseOrderExists, items, settings , taxExists , existingPrefix };
 };
 
+// exports.addBill = async (req, res) => {
+//   const { supplierId, itemTable, orderNumber, billDate } = req.body;
+//   const { organizationId } = req.user;
+
+//   try {
+//     // Fetch existing data including tax and settings
+//     const { organizationExists, supplierExists, items, settings, taxExists, existingPrefix } = await dataExistForBill(organizationId, supplierId, itemTable, orderNumber);
+
+//     // Normalize request body to handle null, empty strings, and 0 values
+//     const normalizedBody = normalizeRequestData(req.body);
+
+//     // Validate payment terms and calculate due date
+//     let calculatedDueDate;
+//     try {
+//       calculatedDueDate = validateAndUpdateDueDate(normalizedBody.paymentTerms, normalizedBody.billDate, normalizedBody.existingDueDate);
+//     } catch (error) {
+//       return res.status(400).json({ message: error.message }); // Return the error message from validateAndUpdateDueDate
+//     }
+
+//     // Perform additional validation checks
+//     if (await hasValidationErrors(normalizedBody, res)) return;
+
+//     if (!validateBillInputs(organizationExists, supplierExists, items, settings, taxExists, existingPrefix, res)) return;
+
+//     taxtype(normalizedBody, supplierExists);
+
+//     // Clean Data
+//     const cleanedData = cleanBillData(normalizedBody, supplierExists, items);
+//     cleanedData.dueDate = calculatedDueDate; // Set the calculated due date in the cleaned data
+
+//     // Check if paidAmount is valid
+//     if (!cleanedData.grandTotal || parseFloat(cleanedData.paidAmount) > parseFloat(cleanedData.grandTotal)) {
+//       return res.status(400).json({ message: "Paid amount cannot exceed the grand total." });
+//     }
+
+//     // Verify itemTable fields with Item schema and supply locations
+//     if (!validateItemTable(items, itemTable, cleanedData, supplierExists, res)) return;
+
+//     if (!validateLocationInputs(cleanedData, organizationExists, res)) return;
+
+//     // Check for existing bill
+//     if (await checkExistingBill(cleanedData.billNumber, organizationId, res)) return;
+
+//     // Date & Time
+//     const openingDate = generateOpeningDate(organizationExists);
+
+//     // Create new bill
+//     const savedBill = await createNewBill(cleanedData, organizationId, openingDate);
+
+//     // Track the items from the bill
+//     await trackItemsFromBill(organizationId, itemTable, billDate, savedBill);
+
+//     // Send success response
+//     res.status(201).json({ message: "Bill added successfully.", bill: savedBill });
+//   } catch (error) {
+//     console.error("Error adding bill:", error);
+//     res.status(500).json({ message: "Internal server error." }); // Return a generic server error message
+//   }
+// };
+
+
+
+// Get All Purchase Orders
+
 exports.addBill = async (req, res) => {
-  // console.log("Add purchase bill:", req.body);
-  const { supplierId, itemTable , orderNumber , billDate } = req.body;
-  const { organizationId } = req.user
-
-
-   //const { organizationId, supplierId, itemTable, billDate, orderNumber , } = req.body;
+  const { supplierId, itemTable, orderNumber, billDate } = req.body;
+  const { organizationId } = req.user;
 
   try {
-
     // Fetch existing data including tax and settings
-    const { organizationExists, supplierExists, items, settings, taxExists , existingPrefix } = await dataExistForBill(organizationId, supplierId, itemTable, orderNumber);
-    
+    const { organizationExists, supplierExists, items, settings, taxExists, existingPrefix } = await dataExistForBill(organizationId, supplierId, itemTable, orderNumber);
 
     // Normalize request body to handle null, empty strings, and 0 values
     const normalizedBody = normalizeRequestData(req.body);
-   
 
+    // Validate payment terms and calculate due date
+    const calculatedDueDateResponse = validateAndUpdateDueDate(normalizedBody.paymentTerms, normalizedBody.billDate, normalizedBody.existingDueDate);
 
-    // Perform validation checks using the refactored functions
+    // Check for errors in calculatedDueDateResponse
+    if (calculatedDueDateResponse.error) {
+      return res.status(400).json({ message: calculatedDueDateResponse.error }); // Return the specific error message
+    }
+
+    const calculatedDueDate = calculatedDueDateResponse.dueDate; // Extract the valid due date
+
+    // Perform additional validation checks
     if (await hasValidationErrors(normalizedBody, res)) return;
 
     if (!validateBillInputs(organizationExists, supplierExists, items, settings, taxExists, existingPrefix, res)) return;
 
-
-    taxtype(normalizedBody, supplierExists );  
+    taxtype(normalizedBody, supplierExists);
 
     // Clean Data
-    const cleanedData = cleanBillData(normalizedBody, supplierExists , items );
+    const cleanedData = cleanBillData(normalizedBody, supplierExists, items);
+    cleanedData.dueDate = calculatedDueDate; // Set the calculated due date in the cleaned data
 
-     // Check if paidAmount is valid
-     if (!cleanedData.grandTotal || parseFloat(cleanedData.paidAmount) > parseFloat(cleanedData.grandTotal)) {
+    // Check if paidAmount is valid
+    if (!cleanedData.grandTotal || parseFloat(cleanedData.paidAmount) > parseFloat(cleanedData.grandTotal)) {
       return res.status(400).json({ message: "Paid amount cannot exceed the grand total." });
     }
 
-    // Set dueDate and handle potential errors from setDueDate
-    try {
-      cleanedData.dueDate = setDueDate(cleanedData.paymentTerms, cleanedData.billDate);
-    } catch (error) {
-      // Send the error message directly from setDueDate
-      return res.status(400).json({ message: error.message });
-    }
-  
-  //   // Check if the bill number is unique
-  // if (!(await isBillNumberUnique(cleanedData.billNumber, res))) return;
-
-   // Verify itemTable fields with Item schema and supply locations
-    if (!validateItemTable(items, itemTable, cleanedData, supplierExists, res)) return;  // Stop further execution if validation fails
-
+    // Verify itemTable fields with Item schema and supply locations
+    if (!validateItemTable(items, itemTable, cleanedData, supplierExists, res)) return;
 
     if (!validateLocationInputs(cleanedData, organizationExists, res)) return;
 
+    // Check for existing bill
+    if (await checkExistingBill(cleanedData.billNumber, organizationId, res)) return;
 
-     // Check for existing bill
-     if (await checkExistingBill(cleanedData.billNumber, organizationId, res)) return;
+    // Date & Time
+    const openingDate = generateOpeningDate(organizationExists);
 
-
-      //Date & Time
-      const openingDate = generateOpeningDate(organizationExists);
-
-      
+    
     // Create new bill
-    const savedBill = await createNewBill(cleanedData, organizationId , openingDate);
+    const savedBill = await createNewBill(cleanedData, organizationId, openingDate);
 
     // Track the items from the bill
     await trackItemsFromBill(organizationId, itemTable, billDate, savedBill);
-
 
     // Send success response
     res.status(201).json({ message: "Bill added successfully.", bill: savedBill });
   } catch (error) {
     console.error("Error adding bill:", error);
-    res.status(500).json({ message: "Internal server error." });
+    res.status(500).json({ message: "Internal server error." }); // Return a generic server error message
   }
 };
-
-
-// Get All Purchase Orders
 
 exports.getAllPurchaseBills = async (req, res) => {
   // const { organizationId } = req.body;
@@ -121,15 +169,34 @@ exports.getAllPurchaseBills = async (req, res) => {
       });
     }
 
+    
+
     const purchaseBills = await PurchaseBill.find( {organizationId} );
 
     if (!purchaseBills || purchaseBills.length === 0) {
       return res.status(404).json({ message: "No purchase Bills found." });
     }
-    const PurchaseBills = purchaseBills.map((history) => {
-      const { organizationId, ...rest } = history.toObject(); // Convert to plain object and omit organizationId
-      return rest;
+
+    // Get current date for comparison
+    const currentDate = new Date();
+
+    // Map through purchase bills and modify with paidStatus
+    const PurchaseBills = purchaseBills.map((bill) => {
+      const { organizationId, balanceAmount, dueDate, ...rest } = bill.toObject(); // Convert to plain object and omit organizationId
+
+      // Determine paidStatus based on balanceAmount and dueDate
+      let paidStatus;
+      if (balanceAmount === 0) {
+        paidStatus = 'completed';
+      } else if (dueDate && new Date(dueDate) < currentDate) {
+        paidStatus = 'overdue';
+      } else {
+        paidStatus = 'pending';
+      }
+
+      return { ...rest, paidStatus }; // Include the new paidStatus in the return object
     });
+
     res.status(200).json({ PurchaseBills });
   } catch (error) {
     console.error("Error fetching purchase Bills:", error);
@@ -170,37 +237,78 @@ exports.getPurchaseBill = async (req, res) => {
 };
 
 
-const setDueDate = (paymentTerms, billDate) => {
-  // Define valid payment terms
-  const validPaymentTerms = ["Net 15", "Net 30", "Net 45", "Net 60", "Pay Now", "due on receipt"];
+// const setDueDate = (paymentTerms, billDate) => {
+//   // Define valid payment terms
+//   const validPaymentTerms = ["Net 15", "Net 30", "Net 45", "Net 60", "Pay Now", "due on receipt"];
   
-  // Validate paymentTerms
-  if (!validPaymentTerms.includes(paymentTerms)) {
-    throw new Error("Invalid payment term.");
-  }
+//   // Validate paymentTerms
+//   if (!validPaymentTerms.includes(paymentTerms)) {
+//     throw new Error("Invalid payment term.");
+//   }
 
-  // Set dueDate based on paymentTerms
-  switch (paymentTerms) {
-    case "Net 15":
-      return moment(billDate, 'YYYY-MM-DD').add(15, 'days').format('YYYY-MM-DD');
-    case "Net 30":
-      return moment(billDate, 'YYYY-MM-DD').add(30, 'days').format('YYYY-MM-DD');
-    case "Net 45":
-      return moment(billDate, 'YYYY-MM-DD').add(45, 'days').format('YYYY-MM-DD');
-    case "Net 60":
-      return moment(billDate, 'YYYY-MM-DD').add(60, 'days').format('YYYY-MM-DD');
-    case "Pay Now":
-    case "due on receipt":
-      return billDate; // same as billDate
-    default:
-      throw new Error("Unknown payment term");
-  }
-};
-
-
+//   // Set dueDate based on paymentTerms
+//   switch (paymentTerms) {
+//     case "Net 15":
+//       return moment(billDate, 'YYYY-MM-DD').add(15, 'days').format('YYYY-MM-DD');
+//     case "Net 30":
+//       return moment(billDate, 'YYYY-MM-DD').add(30, 'days').format('YYYY-MM-DD');
+//     case "Net 45":
+//       return moment(billDate, 'YYYY-MM-DD').add(45, 'days').format('YYYY-MM-DD');
+//     case "Net 60":
+//       return moment(billDate, 'YYYY-MM-DD').add(60, 'days').format('YYYY-MM-DD');
+//     case "Pay Now":
+//     case "due on receipt":
+//       return billDate; // same as billDate
+//     default:
+//       throw new Error("Unknown payment term");
+//   }
+// };
 
 
-// Normalize request body: convert null, empty strings, and 0 to undefined
+
+
+// // Normalize request body: convert null, empty strings, and 0 to undefined
+
+
+// const setDueDate = (paymentTerms, billDate ) => {
+//   // Define valid payment terms
+//   const validPaymentTerms = ["Net 15", "Net 30", "Net 45", "Net 60", "Pay Now", "due on receipt", "End of This Month", "End of Next Month", "Custom"];
+  
+//   // Validate paymentTerms
+//   if (!validPaymentTerms.includes(paymentTerms)) {
+//     throw new Error("Invalid payment term.");
+//   }
+
+//   // Set dueDate based on paymentTerms
+//   switch (paymentTerms) {
+//     case "Net 15":
+//       return moment(billDate).add(15, 'days').format('YYYY-MM-DD');
+//     case "Net 30":
+//       return moment(billDate).add(30, 'days').format('YYYY-MM-DD');
+//     case "Net 45":
+//       return moment(billDate).add(45, 'days').format('YYYY-MM-DD');
+//     case "Net 60":
+//       return moment(billDate).add(60, 'days').format('YYYY-MM-DD');
+//     case "Pay Now":
+//     case "due on receipt":
+//       return billDate; // same as billDate
+//     case "End of This Month":
+//       return moment(billDate).endOf('month').format('YYYY-MM-DD');
+//     case "End of Next Month":
+//       return moment(billDate).add(1, 'month').endOf('month').format('YYYY-MM-DD');
+//     //   case "Custom":
+//     //   // Ensure customDate is on or after billDate
+//     //   if (!customDate || moment(customDate).isBefore(billDate)) {
+//     //     throw new Error("Custom date must be on or after the bill date.");
+//     //   }
+//     //   return customDate; // Return customDate if it’s valid
+//      default:
+//       return null;
+//   }
+// };
+
+
+
 const normalizeRequestData = (data) => {
   const normalizedData = {};
 
@@ -492,9 +600,10 @@ function updatePaidStatus(cleanedData) {
 
 // Validation Error Check
 const hasValidationErrors = async (body, supplierExists, res) => {
-  const { itemTable, transactionDiscountType } = body;
+  const { itemTable, transactionDiscountType  } = body;
   let shipmentPreference = body.shipmentPreference; // Declare shipmentPreference with let
   let paymentMode = body.paymentMode; // Declare paymentMode with let
+
 
   // Normalize shipmentPreference and paymentMode: convert null, empty string, and 0 to undefined
   shipmentPreference = (shipmentPreference == null || shipmentPreference === "" || shipmentPreference === 0) ? undefined : shipmentPreference;
@@ -549,16 +658,59 @@ const hasValidationErrors = async (body, supplierExists, res) => {
     return true;
   }
 
-  //  // Validate paymentMode
-  //  if (paymentTerms && !validPaymentTerms.includes(paymentTerms)) {
-  //   res.status(400).json({ message: "Invalid payment mode." });
-  //   return true;
-  // }
 
   return false; // No validation errors
 };
 
+const validateAndUpdateDueDate = (paymentTerms, billDate, existingDueDate) => {
+  const validPaymentTerms = [
+    "Net 15", "Net 30", "Net 45", "Net 60", "Pay Now", "due on receipt", "End of This Month", "End of Next Month"
+  ];
 
+  // Check if paymentTerms is valid
+  if (!validPaymentTerms.includes(paymentTerms)) {
+    return { error: "Invalid payment terms." }; // Return error message for invalid payment terms
+  }
+
+  // Calculate due date based on payment terms
+  let dueDate;
+
+  switch (paymentTerms) {
+    case "Net 15":
+      dueDate = moment(billDate).add(15, 'days').format('YYYY-MM-DD');
+      break;
+    case "Net 30":
+      dueDate = moment(billDate).add(30, 'days').format('YYYY-MM-DD');
+      break;
+    case "Net 45":
+      dueDate = moment(billDate).add(45, 'days').format('YYYY-MM-DD');
+      break;
+    case "Net 60":
+      dueDate = moment(billDate).add(60, 'days').format('YYYY-MM-DD');
+      break;
+    case "Pay Now":
+      dueDate = billDate; // Due date is the same as bill date
+      break;
+    case "due on receipt":
+      dueDate = existingDueDate; // Allow any date as existing due date
+      break;
+    case "End of This Month":
+      dueDate = moment(billDate).endOf('month').format('YYYY-MM-DD');
+      break;
+    case "End of Next Month":
+      dueDate = moment(billDate).add(1, 'month').endOf('month').format('YYYY-MM-DD');
+      break;
+    default:
+      return { error: "Invalid payment terms." }; // Handle invalid payment terms
+  }
+
+  // Ensure the due date is not earlier than the bill date
+  if (moment(dueDate).isBefore(billDate)) {
+    return { error: "Due date cannot be earlier than the bill date." }; // Return error message for invalid due date
+  }
+
+  return { dueDate }; // Return the calculated due date
+};
 
 // Function to check for duplicate items by itemId in itemTable
 function hasDuplicateItems(itemTable) {
@@ -736,6 +888,7 @@ function generateTimeAndDateForDB(
 
 
 // Define valid shipment preferences, payment and modes discount types
+const validPaymentTerms = ["Net 15", "Net 30", "Net 45", "Net 60", "Pay Now", "due on receipt", "End of This Month", "End of Next Month"];
 const validShipmentPreferences = ["Road", "Rail", "Air", "Sea", "Courier", "Hand Delivery", "Pickup"];
 const validPaymentModes = ["Cash", "Credit"];
 const validItemDiscountTypes = ["percentage", "currency"];
