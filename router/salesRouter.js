@@ -52,13 +52,16 @@ router.put('/add-shipment-address-settings',verifyToken,salesSettings.addShipmen
 
 
 //Sales Invoice
-router.post('/add-sales-invoice',verifyToken,salesInvoice.addInvoice)
+router.post('/sales-invoice',verifyToken,salesInvoice.addInvoice)
 
-router.put('/add-salesInvoice-settings',verifyToken,salesSettings.addInvoiceSettings)
+router.put('/sales-invoice-settings',verifyToken,salesSettings.addInvoiceSettings)
 
-router.get('/get-last-sales-invoice-prefix',verifyToken,salesInvoice.getLastInvoicePrefix)
+router.get('/sales-invoice-prefix',verifyToken,salesInvoice.getLastInvoicePrefix)
 
-router.get('/invoice-journal/:operationId',verifyToken,salesInvoice.invoiceJournal)
+router.get('/invoice-journal/:invoiceId',verifyToken,salesInvoice.invoiceJournal)
 
+router.get('/sales-invoice',verifyToken,salesInvoice.getAllSalesInvoice)
+
+router.get('/sales-order/:invoiceId',verifyToken,salesInvoice.getOneSalesInvoice)
 
 module.exports = router

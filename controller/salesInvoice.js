@@ -84,6 +84,20 @@ const accDataExists = async ( defaultAccount, organizationId, otherExpenseAccoun
   return { salesAccountName, salesDiscountAccountName , outputCgstName, outputSgstName, outputIgstName, outputVatName, otherExpenseAcc, freightAcc, depositAcc };
 };
 
+
+//Get one and All
+const salesDataExist = async ( organizationId, invoiceId ) => {    
+    
+  const [organizationExists, allinvoice, invoice ] = await Promise.all([
+    Organization.findOne({ organizationId }, { organizationId: 1}),
+    Invoice.find({ organizationId }),
+    Invoice.findOne({ organizationId , _id: invoiceId },)
+  ]);
+  return { organizationExists, allinvoice, invoice };
+};
+
+
+
 // Add Sales Order
 exports.addInvoice = async (req, res) => {
     console.log("Add Sales Invoice :", req.body);
@@ -156,19 +170,19 @@ exports.addInvoice = async (req, res) => {
       //Prefix
       await salesPrefix(cleanedData, existingPrefix );
       
-      const savedOrder = await createNewOrder(cleanedData, openingDate, organizationId, userId, userName );
+      const savedInvoice = await createNewInvoice(cleanedData, openingDate, organizationId, userId, userName );
 
       //Jornal
-      await journal( savedOrder, defAcc, customerAccount );
+      await journal( savedInvoice, defAcc, customerAccount );
 
       //Item Track
-      await itemTrack( savedOrder, itemTable );
+      await itemTrack( savedInvoice, itemTable );
 
         
-      res.status(201).json({ message: "Sale Order created successfully" });
-      // console.log( "Sale Order created successfully:", savedOrder );
+      res.status(201).json({ message: "Sale Invoice created successfully" });
+      // console.log( "Sale Invoice created successfully:", savedInvoice );
     } catch (error) {
-      console.error("Error Creating Sales Order:", error);
+      console.error("Error Creating Sales Invoice:", error);
       res.status(500).json({ message: "Internal server error." });
     }
   };
@@ -206,11 +220,11 @@ exports.getLastInvoicePrefix = async (req, res) => {
 exports.invoiceJournal = async (req, res) => {
   try {
       const organizationId = req.user.organizationId;
-      const { operationId } = req.params;
+      const { invoiceId } = req.params;
 
 
       // Find all accounts where organizationId matches
-      const invoiceJournal = await TrialBalance.find({ organizationId : organizationId, operationId : operationId });
+      const invoiceJournal = await TrialBalance.find({ organizationId : organizationId, operationId : invoiceId });
 
       if (!invoiceJournal) {
           return res.status(404).json({
@@ -224,6 +238,63 @@ exports.invoiceJournal = async (req, res) => {
       res.status(500).json({ message: "Internal server error." });
   }
 };
+
+
+// Get All Sales allinvoice
+exports.getAllSalesInvoice = async (req, res) => {
+  try {
+    const organizationId = req.user.organizationId;
+
+    const { organizationExists, allinvoice } = await salesDataExist(organizationId);
+
+    if (!organizationExists) {
+      return res.status(404).json({
+        message: "Organization not found",
+      });
+    }
+
+    if (!allinvoice.length) {
+      return res.status(404).json({
+        message: "No Invoice found",
+      });
+    }
+
+    res.status(200).json(allinvoice);
+  } catch (error) {
+    console.error("Error fetching Invoice:", error);
+    res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+
+
+// Get One Sales Order
+exports.getOneSalesInvoice = async (req, res) => {
+try {
+  const organizationId = req.user.organizationId;
+  const invoiceId = req.params.invoiceId;
+
+  const { organizationExists, invoice } = await salesDataExist( organizationId, invoiceId );
+
+  if (!organizationExists) {
+    return res.status(404).json({
+      message: "Organization not found",
+    });
+  }
+
+  if (!invoice) {
+    return res.status(404).json({
+      message: "No Invoice found",
+    });
+  }
+
+  res.status(200).json(invoice);
+} catch (error) {
+  console.error("Error fetching Invoice:", error);
+  res.status(500).json({ message: "Internal server error." });
+}
+};
+
 
 
 
@@ -372,10 +443,10 @@ function validateInputs( data, customerExist, items, itemExists, organizationExi
   return true;
 }
 
-// Create New Order
-function createNewOrder( data, openingDate, organizationId, userId, userName ) {
-    const newOrder = new Invoice({ ...data, organizationId, status :"Sent", createdDate: openingDate, userId, userName });
-    return newOrder.save();
+// Create New Invoice
+function createNewInvoice( data, openingDate, organizationId, userId, userName ) {
+    const newInvoice = new Invoice({ ...data, organizationId, status :"Sent", createdDate: openingDate, userId, userName });
+    return newInvoice.save();
 }
   
 
@@ -1008,148 +1079,148 @@ const otherExpense = ( totalAmount, cleanedData ) => {
 
 
 
-async function journal(savedOrder, defAcc, customerAccount ) {  
+async function journal(savedInvoice, defAcc, customerAccount ) {  
   const discount = {
-    organizationId: savedOrder.organizationId,
-    operationId: savedOrder._id,
-    transactionId: savedOrder.salesInvoice,
-    date: savedOrder.createdDate,
+    organizationId: savedInvoice.organizationId,
+    operationId: savedInvoice._id,
+    transactionId: savedInvoice.salesInvoice,
+    date: savedInvoice.createdDate,
     accountId: defAcc.salesDiscountAccount || undefined,
     accountName: defAcc.salesDiscountAccountName || undefined,
     action: "Sales Invoice",
-    debitAmount: savedOrder.totalDiscount,
+    debitAmount: savedInvoice.totalDiscount,
     creditAmount: 0,
-    remark: savedOrder.note,
+    remark: savedInvoice.note,
   };
   const sale = {
-    organizationId: savedOrder.organizationId,
-    operationId: savedOrder._id,
-    transactionId: savedOrder.salesInvoice,
-    date: savedOrder.createdDate,
+    organizationId: savedInvoice.organizationId,
+    operationId: savedInvoice._id,
+    transactionId: savedInvoice.salesInvoice,
+    date: savedInvoice.createdDate,
     accountId: defAcc.salesAccount || undefined,
     accountName: defAcc.salesAccountName || undefined,
     action: "Sales Invoice",
     debitAmount: 0,
-    creditAmount: savedOrder.saleAmount,
-    remark: savedOrder.note,
+    creditAmount: savedInvoice.saleAmount,
+    remark: savedInvoice.note,
   };
   const cgst = {
-    organizationId: savedOrder.organizationId,
-    operationId: savedOrder._id,
-    transactionId: savedOrder.salesInvoice,
-    date: savedOrder.createdDate,
+    organizationId: savedInvoice.organizationId,
+    operationId: savedInvoice._id,
+    transactionId: savedInvoice.salesInvoice,
+    date: savedInvoice.createdDate,
     accountId: defAcc.outputCgst || undefined,
     accountName: defAcc.outputCgstName || undefined,
     action: "Sales Invoice",
     debitAmount: 0,
-    creditAmount: savedOrder.cgst,
-    remark: savedOrder.note,
+    creditAmount: savedInvoice.cgst,
+    remark: savedInvoice.note,
   };
   const sgst = {
-    organizationId: savedOrder.organizationId,
-    operationId: savedOrder._id,
-    transactionId: savedOrder.salesInvoice,
-    date: savedOrder.createdDate,
+    organizationId: savedInvoice.organizationId,
+    operationId: savedInvoice._id,
+    transactionId: savedInvoice.salesInvoice,
+    date: savedInvoice.createdDate,
     accountId: defAcc.outputSgst || undefined,
     accountName: defAcc.outputSgstName || undefined,
     action: "Sales Invoice",
     debitAmount: 0,
-    creditAmount: savedOrder.sgst,
-    remark: savedOrder.note,
+    creditAmount: savedInvoice.sgst,
+    remark: savedInvoice.note,
   };
   const igst = {
-    organizationId: savedOrder.organizationId,
-    operationId: savedOrder._id,
-    transactionId: savedOrder.salesInvoice,
-    date: savedOrder.createdDate,
+    organizationId: savedInvoice.organizationId,
+    operationId: savedInvoice._id,
+    transactionId: savedInvoice.salesInvoice,
+    date: savedInvoice.createdDate,
     accountId: defAcc.outputIgst || undefined,
     accountName: defAcc.outputIgstName || undefined,
     action: "Sales Invoice",
     debitAmount: 0,
-    creditAmount: savedOrder.igst,
-    remark: savedOrder.note,
+    creditAmount: savedInvoice.igst,
+    remark: savedInvoice.note,
   };
   const vat = {
-    organizationId: savedOrder.organizationId,
-    operationId: savedOrder._id,
-    transactionId: savedOrder.salesInvoice,
-    date: savedOrder.createdDate,
+    organizationId: savedInvoice.organizationId,
+    operationId: savedInvoice._id,
+    transactionId: savedInvoice.salesInvoice,
+    date: savedInvoice.createdDate,
     accountId: defAcc.outputVat || undefined,
     accountName: defAcc.outputVatName || undefined,
     action: "Sales Invoice",
     debitAmount: 0,
-    creditAmount: savedOrder.vat,
-    remark: savedOrder.note,
+    creditAmount: savedInvoice.vat,
+    remark: savedInvoice.note,
   };
   const customer = {
-    organizationId: savedOrder.organizationId,
-    operationId: savedOrder._id,
-    transactionId: savedOrder.salesInvoice,
-    date: savedOrder.createdDate,
+    organizationId: savedInvoice.organizationId,
+    operationId: savedInvoice._id,
+    transactionId: savedInvoice.salesInvoice,
+    date: savedInvoice.createdDate,
     accountId: customerAccount._id || undefined,
     accountName: customerAccount.accountName || undefined,
     action: "Sales Invoice",
-    debitAmount: savedOrder.totalAmount,
+    debitAmount: savedInvoice.totalAmount,
     creditAmount: 0,
-    remark: savedOrder.note,
+    remark: savedInvoice.note,
   };
   const customerPaid = {
-    organizationId: savedOrder.organizationId,
-    operationId: savedOrder._id,
-    transactionId: savedOrder.salesInvoice,
-    date: savedOrder.createdDate,
+    organizationId: savedInvoice.organizationId,
+    operationId: savedInvoice._id,
+    transactionId: savedInvoice.salesInvoice,
+    date: savedInvoice.createdDate,
     accountId: customerAccount._id || undefined,
     accountName: customerAccount.accountName || undefined,
     action: "Receipt",
     debitAmount: 0,
-    creditAmount: savedOrder.paidAmount,
-    remark: savedOrder.note,
+    creditAmount: savedInvoice.paidAmount,
+    remark: savedInvoice.note,
   };
   const depositAccount = {
-    organizationId: savedOrder.organizationId,
-    operationId: savedOrder._id,
-    transactionId: savedOrder.salesInvoice,
-    date: savedOrder.createdDate,
+    organizationId: savedInvoice.organizationId,
+    operationId: savedInvoice._id,
+    transactionId: savedInvoice.salesInvoice,
+    date: savedInvoice.createdDate,
     accountId: defAcc.depositAccountId || undefined,
     accountName: defAcc.depositAccountName || undefined,
     action: "Receipt",
-    debitAmount: savedOrder.paidAmount,
+    debitAmount: savedInvoice.paidAmount,
     creditAmount: 0,
-    remark: savedOrder.note,
+    remark: savedInvoice.note,
   };
   const otherExpense = {
-    organizationId: savedOrder.organizationId,
-    operationId: savedOrder._id,
-    transactionId: savedOrder.salesInvoice,
-    date: savedOrder.createdDate,
+    organizationId: savedInvoice.organizationId,
+    operationId: savedInvoice._id,
+    transactionId: savedInvoice.salesInvoice,
+    date: savedInvoice.createdDate,
     accountId: defAcc.otherExpenseAccountId || undefined,
     accountName: defAcc.otherExpenseAccountName || undefined,
     action: "Sales Invoice",
     debitAmount: 0,
-    creditAmount: savedOrder.otherExpenseAmount,
-    remark: savedOrder.note,
+    creditAmount: savedInvoice.otherExpenseAmount,
+    remark: savedInvoice.note,
   };
   const freight = {
-    organizationId: savedOrder.organizationId,
-    operationId: savedOrder._id,
-    transactionId: savedOrder.salesInvoice,
-    date: savedOrder.createdDate,
+    organizationId: savedInvoice.organizationId,
+    operationId: savedInvoice._id,
+    transactionId: savedInvoice.salesInvoice,
+    date: savedInvoice.createdDate,
     accountId: defAcc.freightAccountId || undefined,
     accountName: defAcc.freightAccountName || undefined,
     action: "Sales Invoice",
     debitAmount: 0,
-    creditAmount: savedOrder.freightAmount,
-    remark: savedOrder.note,
+    creditAmount: savedInvoice.freightAmount,
+    remark: savedInvoice.note,
   };
   const roundOff = {
-    organizationId: savedOrder.organizationId,
-    operationId: savedOrder._id,
-    transactionId: savedOrder.salesInvoice,
-    date: savedOrder.createdDate,
+    organizationId: savedInvoice.organizationId,
+    operationId: savedInvoice._id,
+    transactionId: savedInvoice.salesInvoice,
+    date: savedInvoice.createdDate,
     action: "Sales Invoice",
-    debitAmount: savedOrder.roundOffAmount,
+    debitAmount: savedInvoice.roundOffAmount,
     creditAmount: 0,
-    remark: savedOrder.note,
+    remark: savedInvoice.note,
   };
 
   console.log("cgst", cgst.debitAmount,  cgst.creditAmount);
@@ -1181,36 +1252,36 @@ async function journal(savedOrder, defAcc, customerAccount ) {
   createTrialEntry( sale )
 
   //Tax
-  if(savedOrder.cgst){
+  if(savedInvoice.cgst){
     createTrialEntry( cgst )
   }
-  if(savedOrder.sgst){
+  if(savedInvoice.sgst){
     createTrialEntry( sgst )
   }
-  if(savedOrder.igst){
+  if(savedInvoice.igst){
     createTrialEntry( igst )
   }
-  if(savedOrder.vat){
+  if(savedInvoice.vat){
     createTrialEntry( vat )
   }
 
   //Discount  
-  if(savedOrder.totalDiscount){
+  if(savedInvoice.totalDiscount){
     createTrialEntry( discount )
   }
 
   //Other Expense
-  if(savedOrder.otherExpenseAmount){
+  if(savedInvoice.otherExpenseAmount){
     createTrialEntry( otherExpense )
   }
 
   //Freight
-  if(savedOrder.freightAmount){
+  if(savedInvoice.freightAmount){
     createTrialEntry( freight )
   }
   
   //Round Off
-  if(savedOrder.roundOffAmount){
+  if(savedInvoice.roundOffAmount){
     createTrialEntry( roundOff )
   }
  
@@ -1218,7 +1289,7 @@ async function journal(savedOrder, defAcc, customerAccount ) {
   createTrialEntry( customer )
   
   //Paid
-  if(savedOrder.paidAmount){
+  if(savedInvoice.paidAmount){
     createTrialEntry( customerPaid )
     createTrialEntry( depositAccount )
   }
@@ -1267,8 +1338,8 @@ await newTrialEntry.save();
 
 
 // Item Track Function
-async function itemTrack(savedOrder, itemTable) {
-  const { items } = savedOrder;
+async function itemTrack(savedInvoice, itemTable) {
+  const { items } = savedInvoice;
 
   for (const item of items) {
     // Find the matching item in itemTable by itemId
@@ -1288,18 +1359,18 @@ async function itemTrack(savedOrder, itemTable) {
 
     // Create a new entry for item tracking
     const newTrialEntry = new ItemTrack({
-      organizationId: savedOrder.organizationId,
-      operationId: savedOrder._id,
-      transactionId: savedOrder.salesInvoice,
+      organizationId: savedInvoice.organizationId,
+      operationId: savedInvoice._id,
+      transactionId: savedInvoice.salesInvoice,
       action: "Invoice",
-      date: savedOrder.salesOrderDate,
+      date: savedInvoice.salesInvoiceDate,
       itemId: matchingItem._id,
       itemName: matchingItem.itemName,
       sellingPrice: matchingItem.sellingPrice,
       costPrice: matchingItem.costPrice || 0, // Assuming cost price is in itemTable
       creditQuantity: item.quantity, // Quantity sold
       currentStock: newStock,
-      remark: `Sold to ${savedOrder.customerName}`,
+      remark: `Sold to ${savedInvoice.customerName}`,
     });
 
     // Save the tracking entry and update the item's stock in the item table
