@@ -438,17 +438,17 @@ async function defaultAccounting( data, defaultAccount, organizationExists ) {
   
   
   let errorMessage = '';
-  if (!defaultAccount.salesAccount && data.totalAmount !== 'undefined') errorMessage += "Sales Account not found. ";
-  if (!defaultAccount.salesDiscountAccount && data.totalDiscount !== 'undefined') errorMessage += "Discount Account not found. ";
+  if (!defaultAccount.salesAccount && typeof data.totalAmount !== 'undefined') errorMessage += "Sales Account not found. ";
+  if (!defaultAccount.salesDiscountAccount && typeof data.totalDiscount !== 'undefined') errorMessage += "Discount Account not found. ";
  
-  if (!defaultAccount.outputCgst && data.cgst !== 'undefined') errorMessage += "CGST Account not found. ";
-  if (!defaultAccount.outputSgst && data.sgst !== 'undefined') errorMessage += "SGST Account not found. ";
-  if (!defaultAccount.outputIgst && data.igst !== 'undefined') errorMessage += "IGST Account not found. ";
-  if (!defaultAccount.outputVat && data.vat !== 'undefined') errorMessage += "VAT Account not found. ";
+  if (!defaultAccount.outputCgst && typeof data.cgst !== 'undefined') errorMessage += "CGST Account not found. ";
+  if (!defaultAccount.outputSgst && typeof data.sgst !== 'undefined') errorMessage += "SGST Account not found. ";
+  if (!defaultAccount.outputIgst && typeof data.igst !== 'undefined') errorMessage += "IGST Account not found. ";
+  if (!defaultAccount.outputVat && typeof data.vat !== 'undefined') errorMessage += "VAT Account not found. ";
    
-  if (!otherExpenseAcc && data.otherExpenseAmount !== 'undefined') errorMessage += "Other Expense Account not found. ";
-  if (!freightAcc && data.freightAmount !== 'undefined') errorMessage += "Freight Account not found. ";
-  if (!depositAcc && data.paidAmount !== 'undefined') errorMessage += "Deposit Account not found. ";
+  if (!otherExpenseAcc && typeof data.otherExpenseAmount !== 'undefined') errorMessage += "Other Expense Account not found. ";
+  if (!freightAcc && typeof data.freightAmount !== 'undefined') errorMessage += "Freight Account not found. ";
+  if (!depositAcc && typeof data.paidAmount !== 'undefined') errorMessage += "Deposit Account not found. ";
 
 
   // If there is an error message, return it as a response
