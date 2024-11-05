@@ -3,7 +3,6 @@ const router = new express.Router()
 
 const accountController = require("../controller/accountController")
 const journalController = require("../controller/journalController")
-const lw = require("../controller/lw")
 
 
 const checkPermission = require('../controller/permission');
@@ -53,7 +52,6 @@ router.get('/get-one-trial-balance/:accountId',verifyToken,checkPermission('View
 
 
 
-//Life water
-router.post('/lw-account',lw.lifeWater)
+
 
 module.exports = router
