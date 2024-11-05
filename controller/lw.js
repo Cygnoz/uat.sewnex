@@ -38,14 +38,11 @@ exports.lifeWater = async (req, res) => {
   
       
       res.status(201).json({ message: "Account created successfully." });
-      console.log("Account created successfully",newAccount,trialEntry);
+      console.log("Life Water Account created successfully",newAccount,trialEntry);
     } catch (error) {
       console.error("Error creating Account:", error);
       res.status(500).json({ message: "Internal server error." });
     } 
-    const endTime = Date.now();
-    const responseTime = endTime - startTime;
-    console.log(`Response time: ${responseTime} ms`); 
 };
 
 
