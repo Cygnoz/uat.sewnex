@@ -3,6 +3,8 @@ const router = new express.Router()
 
 const accountController = require("../controller/accountController")
 const journalController = require("../controller/journalController")
+const lw = require("../controller/lw")
+
 
 const checkPermission = require('../controller/permission');
 const { verifyToken } = require('../controller/middleware');
@@ -49,5 +51,9 @@ router.get('/get-last-journal-prefix',verifyToken,checkPermission('Added a Journ
 
 router.get('/get-one-trial-balance/:accountId',verifyToken,checkPermission('Viewed Account Information'),accountController.getOneTrailBalance)
 
+
+
+//Life water
+router.post('/lw-account',lw.lifeWater)
 
 module.exports = router
