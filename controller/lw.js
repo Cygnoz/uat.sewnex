@@ -13,6 +13,10 @@ exports.lifeWater = async (req, res) => {
     try {
       const cleanedData = cleanCustomerData(req.body);
 
+      if (typeof cleanedData.customerDisplayName ==='undefined'){
+        return res.status(400).json({ message: "Customer Display Name is required" });
+      }
+
       const newAccount = new Account({
         organizationId: "INDORG0010",
         accountName: cleanedData.customerDisplayName,
