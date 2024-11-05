@@ -202,7 +202,28 @@ exports.getLastInvoicePrefix = async (req, res) => {
 
 
 
+// Get Invoice Journal
+exports.invoiceJournal = async (req, res) => {
+  try {
+      const organizationId = req.user.organizationId;
+      const { operationId } = req.params;
 
+
+      // Find all accounts where organizationId matches
+      const invoiceJournal = await TrialBalance.find({ organizationId : organizationId, operationId : operationId });
+
+      if (!invoiceJournal) {
+          return res.status(404).json({
+              message: "No Journal found for the Invoice.",
+          });
+      }
+      
+      res.status(200).json(invoiceJournal);
+  } catch (error) {
+      console.error("Error fetching journal:", error);
+      res.status(500).json({ message: "Internal server error." });
+  }
+};
 
 
 
@@ -417,9 +438,18 @@ async function defaultAccounting( data, defaultAccount, organizationExists ) {
   
   
   let errorMessage = '';
+  if (!defaultAccount.salesAccount && data.totalAmount !== 'undefined') errorMessage += "Sales Account not found. ";
+  if (!defaultAccount.salesDiscountAccount && data.totalDiscount !== 'undefined') errorMessage += "Discount Account not found. ";
+ 
+  if (!defaultAccount.outputCgst && data.cgst !== 'undefined') errorMessage += "CGST Account not found. ";
+  if (!defaultAccount.outputSgst && data.sgst !== 'undefined') errorMessage += "SGST Account not found. ";
+  if (!defaultAccount.outputIgst && data.igst !== 'undefined') errorMessage += "IGST Account not found. ";
+  if (!defaultAccount.outputVat && data.vat !== 'undefined') errorMessage += "VAT Account not found. ";
+   
   if (!otherExpenseAcc && data.otherExpenseAmount !== 'undefined') errorMessage += "Other Expense Account not found. ";
   if (!freightAcc && data.freightAmount !== 'undefined') errorMessage += "Freight Account not found. ";
   if (!depositAcc && data.paidAmount !== 'undefined') errorMessage += "Deposit Account not found. ";
+
 
   // If there is an error message, return it as a response
   if (errorMessage) {
@@ -986,8 +1016,8 @@ async function journal(savedOrder, defAcc, customerAccount ) {
     operationId: savedOrder._id,
     transactionId: savedOrder.salesInvoice,
     date: savedOrder.createdDate,
-    accountId: defAcc.salesDiscountAccount,
-    accountName: defAcc.salesDiscountAccountName,
+    accountId: defAcc.salesDiscountAccount || undefined,
+    accountName: defAcc.salesDiscountAccountName || undefined,
     debitAmount: savedOrder.totalDiscount,
     creditAmount: 0,
     remark: savedOrder.note,
@@ -997,8 +1027,8 @@ async function journal(savedOrder, defAcc, customerAccount ) {
     operationId: savedOrder._id,
     transactionId: savedOrder.salesInvoice,
     date: savedOrder.createdDate,
-    accountId: defAcc.salesAccount,
-    accountName: defAcc.salesAccountName,
+    accountId: defAcc.salesAccount || undefined,
+    accountName: defAcc.salesAccountName || undefined,
     debitAmount: 0,
     creditAmount: savedOrder.saleAmount,
     remark: savedOrder.note,
@@ -1008,8 +1038,8 @@ async function journal(savedOrder, defAcc, customerAccount ) {
     operationId: savedOrder._id,
     transactionId: savedOrder.salesInvoice,
     date: savedOrder.createdDate,
-    accountId: defAcc.outputCgst,
-    accountName: defAcc.outputCgstName,
+    accountId: defAcc.outputCgst || undefined,
+    accountName: defAcc.outputCgstName || undefined,
     debitAmount: 0,
     creditAmount: savedOrder.cgst,
     remark: savedOrder.note,
@@ -1019,8 +1049,8 @@ async function journal(savedOrder, defAcc, customerAccount ) {
     operationId: savedOrder._id,
     transactionId: savedOrder.salesInvoice,
     date: savedOrder.createdDate,
-    accountId: defAcc.outputSgst,
-    accountName: defAcc.outputSgstName,
+    accountId: defAcc.outputSgst || undefined,
+    accountName: defAcc.outputSgstName || undefined,
     debitAmount: 0,
     creditAmount: savedOrder.sgst,
     remark: savedOrder.note,
@@ -1030,8 +1060,8 @@ async function journal(savedOrder, defAcc, customerAccount ) {
     operationId: savedOrder._id,
     transactionId: savedOrder.salesInvoice,
     date: savedOrder.createdDate,
-    accountId: defAcc.outputIgst,
-    accountName: defAcc.outputIgstName,
+    accountId: defAcc.outputIgst || undefined,
+    accountName: defAcc.outputIgstName || undefined,
     debitAmount: 0,
     creditAmount: savedOrder.igst,
     remark: savedOrder.note,
@@ -1041,8 +1071,8 @@ async function journal(savedOrder, defAcc, customerAccount ) {
     operationId: savedOrder._id,
     transactionId: savedOrder.salesInvoice,
     date: savedOrder.createdDate,
-    accountId: defAcc.outputVat,
-    accountName: defAcc.outputVatName,
+    accountId: defAcc.outputVat || undefined,
+    accountName: defAcc.outputVatName || undefined,
     debitAmount: 0,
     creditAmount: savedOrder.vat,
     remark: savedOrder.note,
@@ -1052,8 +1082,8 @@ async function journal(savedOrder, defAcc, customerAccount ) {
     operationId: savedOrder._id,
     transactionId: savedOrder.salesInvoice,
     date: savedOrder.createdDate,
-    accountId: customerAccount._id,
-    accountName: customerAccount.accountName,
+    accountId: customerAccount._id || undefined,
+    accountName: customerAccount.accountName || undefined,
     debitAmount: savedOrder.totalAmount,
     creditAmount: 0,
     remark: savedOrder.note,
@@ -1063,8 +1093,8 @@ async function journal(savedOrder, defAcc, customerAccount ) {
     operationId: savedOrder._id,
     transactionId: savedOrder.salesInvoice,
     date: savedOrder.createdDate,
-    accountId: customerAccount._id,
-    accountName: customerAccount.accountName,
+    accountId: customerAccount._id || undefined,
+    accountName: customerAccount.accountName || undefined,
     debitAmount: 0,
     creditAmount: savedOrder.paidAmount,
     remark: savedOrder.note,
@@ -1074,8 +1104,8 @@ async function journal(savedOrder, defAcc, customerAccount ) {
     operationId: savedOrder._id,
     transactionId: savedOrder.salesInvoice,
     date: savedOrder.createdDate,
-    accountId: defAcc.depositAccountId,
-    accountName: defAcc.depositAccountName,
+    accountId: defAcc.depositAccountId || undefined,
+    accountName: defAcc.depositAccountName || undefined,
     debitAmount: savedOrder.paidAmount,
     creditAmount: 0,
     remark: savedOrder.note,
@@ -1085,8 +1115,8 @@ async function journal(savedOrder, defAcc, customerAccount ) {
     operationId: savedOrder._id,
     transactionId: savedOrder.salesInvoice,
     date: savedOrder.createdDate,
-    accountId: defAcc.otherExpenseAccountId,
-    accountName: defAcc.otherExpenseAccountName,
+    accountId: defAcc.otherExpenseAccountId || undefined,
+    accountName: defAcc.otherExpenseAccountName || undefined,
     debitAmount: 0,
     creditAmount: savedOrder.otherExpenseAmount,
     remark: savedOrder.note,
@@ -1096,8 +1126,8 @@ async function journal(savedOrder, defAcc, customerAccount ) {
     operationId: savedOrder._id,
     transactionId: savedOrder.salesInvoice,
     date: savedOrder.createdDate,
-    accountId: defAcc.freightAccountId,
-    accountName: defAcc.freightAccountName,
+    accountId: defAcc.freightAccountId || undefined,
+    accountName: defAcc.freightAccountName || undefined,
     debitAmount: 0,
     creditAmount: savedOrder.freightAmount,
     remark: savedOrder.note,
@@ -1178,7 +1208,10 @@ async function journal(savedOrder, defAcc, customerAccount ) {
   createTrialEntry( customer )
   
   //Paid
-  createTrialEntry( customerPaid )
+  if(savedOrder.paidAmount){
+    createTrialEntry( customerPaid )
+    createTrialEntry( depositAccount )
+  }
 }
 
 
