@@ -208,7 +208,7 @@ exports.deletePrefix = async (req, res) => {
     }
 
     // Check if there is more than one series
-    if (prefix.series.length <= 1) {
+    if (prefix.series.length < 2) {
       return res.status(400).json({ message: "Cannot delete the series as only one series remains" });
     }
 
