@@ -198,7 +198,7 @@ exports.updatePrefix = async (req, res) => {
 exports.deletePrefix = async (req, res) => {
   try {
     const organizationId = req.user.organizationId;
-    const { seriesId } = req.param;
+    const { seriesId } = req.params;
 
     // Find the prefix collection by organizationId
     const prefix = await Prefix.findOne({ organizationId: organizationId });
