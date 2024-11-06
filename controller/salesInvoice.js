@@ -923,7 +923,10 @@ function calculateSalesOrder(cleanedData, res) {
   totalDiscount +=  parseFloat(transactionDiscount); 
 
   // Total amount calculation
-  totalAmount -= transactionDiscount; 
+  totalAmount -= transactionDiscount;
+  
+  //Sale amount
+  cleanedData.balanceAmount=totalAmount-(cleanedData.paidAmount || 0);
 
   
   // Round the totals for comparison
