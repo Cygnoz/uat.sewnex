@@ -198,7 +198,7 @@ exports.updatePrefix = async (req, res) => {
 exports.deletePrefix = async (req, res) => {
   try {
     const organizationId = req.user.organizationId;
-    const { seriesId } = req.body;
+    const { seriesId } = req.param;
 
     // Find the prefix collection by organizationId
     const prefix = await Prefix.findOne({ organizationId: organizationId });
@@ -210,6 +210,17 @@ exports.deletePrefix = async (req, res) => {
     // Check if there is more than one series
     if (prefix.series.length < 2) {
       return res.status(400).json({ message: "Cannot delete the series as only one series remains" });
+    }
+
+    // Find the series by seriesId to check its status
+    const seriesToDelete = prefix.series.find(series => series._id.toString() === seriesId);
+
+    // If series not found or its status is 'true', reject the deletion
+    if (!seriesToDelete) {
+      return res.status(404).json({ message: "Series not found" });
+    }
+    if (seriesToDelete.status === 'true') {
+      return res.status(400).json({ message: "Cannot delete the series with status 'true'" });
     }
 
     
