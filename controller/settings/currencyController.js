@@ -7,8 +7,6 @@ exports.getCurrency = async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
   
-      // Log the ID being fetched
-      // console.log("Fetching organization with ID:", organizationId);
   
       const currencies = await Currency.find({organizationId:organizationId});
   
@@ -48,7 +46,8 @@ exports.viewCurrency = async (req, res) => {
 exports.addCurrency = async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
-      const { currencyCode, currencySymbol, currencyName, decimalPlaces, format  } = req.body;
+      const cleanedData = cleanCustomerData(req.body);
+      const { currencyCode, currencySymbol, currencyName, decimalPlaces, format  } = cleanedData;
   
       const organization = await Organization.findOne({ organizationId });
       if (!organization) {
@@ -83,7 +82,8 @@ exports.addCurrency = async (req, res) => {
 exports.editCurrency = async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
-      const { currencyId, currencyCode, currencySymbol, currencyName, decimalPlaces, format } = req.body;
+      const cleanedData = cleanCustomerData(req.body);
+      const { currencyId, currencyCode, currencySymbol, currencyName, decimalPlaces, format } = cleanedData;
   
       const updatedCurrency = await Currency.findByIdAndUpdate(
         currencyId,
@@ -135,3 +135,24 @@ exports.deleteCurrency = async (req, res) => {
     }
 };
   
+
+
+
+
+
+
+
+
+
+
+
+
+
+//Clean Data 
+function cleanCustomerData(data) {
+  const cleanData = (value) => (value === null || value === undefined || value === "" ? undefined : value);
+  return Object.keys(data).reduce((acc, key) => {
+    acc[key] = cleanData(data[key]);
+    return acc;
+  }, {});
+}
