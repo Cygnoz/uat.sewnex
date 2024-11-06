@@ -77,6 +77,8 @@ exports.addPrefix = async (req, res) => {
 exports.getPrefix = async (req, res) => {
   try {
     const organizationId = req.user.organizationId;
+    console.log(organizationId);
+    
 
     const prefix = await Prefix.findOne({ organizationId });
 
@@ -203,6 +205,11 @@ exports.deletePrefix = async (req, res) => {
 
     if (!prefix) {
       return res.status(404).json({ message: "Prefix collection not found" });
+    }
+
+    // Check if there is more than one series
+    if (prefix.series.length <= 1) {
+      return res.status(400).json({ message: "Cannot delete the series as only one series remains" });
     }
 
     
