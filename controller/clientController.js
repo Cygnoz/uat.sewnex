@@ -200,6 +200,7 @@ const createPaymentTermForOrganization = async (organizationId) => {
 
     // Create Payment terms
     const paymentTerm = [
+      { organizationId, name: 'Pay Now',description:"Payment is doing right now"},
       { organizationId, name: 'Due on Receipt',description:"Payment is required immediately after receiving the invoice"},
       { organizationId, name: 'Due end of the month',description:"Payment is due by the last day of the month in which the invoice is issued"},
       { organizationId, name: 'Due end of next month',description:"Payment is due by the last day of the next month in which the invoice is issued"},

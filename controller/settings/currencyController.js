@@ -49,7 +49,6 @@ exports.addCurrency = async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
       const { currencyCode, currencySymbol, currencyName, decimalPlaces, format  } = req.body;
-  
       const organization = await Organization.findOne({ organizationId });
       if (!organization) {
         return res.status(404).json({ message: "Organization not found" });
@@ -60,6 +59,7 @@ exports.addCurrency = async (req, res) => {
         return res.status(400).json({ message: "Currency code already exists for this organization" });
       }
   
+
       const newCurrency = new Currency({
         organizationId,
         currencyCode,
