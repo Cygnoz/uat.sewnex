@@ -166,16 +166,11 @@ exports.getAllOrganization = async (req, res) => {
 // get One organization
 exports.getOneOrganization = async (req, res) => {
   try {
-    // const { organizationId } = req.body;
-    const organization = req.user.organizationId;
+    const organizationId = req.user.organizationId;
 
-    const existingOrganization = await Organization.findOne({ organizationId : organization });
+    const existingOrganization = await Organization.findOne({ organizationId });
 
     if (existingOrganization) {
-      existingOrganization.organizationCountry= existingOrganization.organizationCountry|| "a";
-      existingOrganization.organizationPhNum = existingOrganization.organizationPhNum|| "";
-      // Remove sensitive data
-      // existingOrganization.organizationId = undefined;
       res.status(200).json(existingOrganization);
     } else {
       res.status(404).json({ message: "Organization not found" });

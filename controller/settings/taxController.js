@@ -321,7 +321,7 @@ exports.getTax = async (req, res) => {
   try {
     const organizationId = req.user.organizationId;
 
-    const tax = await Tax.findOne({organizationId:organizationId});
+    const tax = await Tax.findOne({organizationId:organizationId},{organizationId:0});
 
     if (tax) {
       res.status(200).json(tax);
