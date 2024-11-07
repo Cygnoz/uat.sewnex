@@ -1220,6 +1220,7 @@ async function journal(savedInvoice, defAcc, customerAccount ) {
     operationId: savedInvoice._id,
     transactionId: savedInvoice.salesInvoice,
     date: savedInvoice.createdDate,
+    accountName: "Round Off",
     action: "Sales Invoice",
     debitAmount: savedInvoice.roundOffAmount,
     creditAmount: 0,

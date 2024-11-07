@@ -64,4 +64,9 @@ router.get('/sales-invoice',verifyToken,salesInvoice.getAllSalesInvoice)
 
 router.get('/sales-order/:invoiceId',verifyToken,salesInvoice.getOneSalesInvoice)
 
+
+
+
+
+
 module.exports = router
