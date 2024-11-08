@@ -36,7 +36,78 @@ const paymentDataExist = async ( organizationId, PaymentId ) => {
 
 
 
+// // Add Purchase Payment
+// exports.addPayment = async (req, res) => {
+//   try {
+//     const { organizationId, id: userId, userName } = req.user; // Assuming user contains organization info
+//     const cleanedData = cleanSupplierData(req.body); // Cleaning data based on your custom method
+
+//     const { unpaidBills, paymentMade } = cleanedData; // Extract paymentMade from cleanedData
+//     const { supplierId, supplierDisplayName } = cleanedData;
+//     const billIds = unpaidBills.map(unpaidBill => unpaidBill.billId);
+
+//     // Check for duplicate billIds
+//     const uniqueBillIds = new Set(billIds);
+//     if (uniqueBillIds.size !== billIds.length) {
+//       return res.status(400).json({ message: "Duplicate bill found" });
+//     }
+
+//     // Validate SupplierId
+//     if (!mongoose.Types.ObjectId.isValid(supplierId) || supplierId.length !== 24) {
+//       return res.status(400).json({ message: `Invalid supplier ID: ${supplierId}` });
+//     }
+
+//     // Validate Bill IDs
+//     const invalidBillIds = billIds.filter(billId => !mongoose.Types.ObjectId.isValid(billId) || billId.length !== 24);
+//     if (invalidBillIds.length > 0) {
+//       return res.status(400).json({ message: `Invalid bill IDs: ${invalidBillIds.join(', ')}` });
+//     }
+
+//     // Check if organization and supplier exist
+//     const { organizationExists, supplierExists, paymentTable , existingPrefix } = await dataExist(organizationId, unpaidBills, supplierId, supplierDisplayName);
+    
+//     // Validate supplier and organization
+//     if (!validateSupplierAndOrganization(organizationExists, supplierExists, existingPrefix ,res)) {
+//       return; // Stops execution if validation fails
+//     }
+
+
+//     if (!validateInputs( cleanedData, supplierExists, unpaidBills, paymentTable, organizationExists, res)) return;
+
+
+//     //calculate payment made
+//     const updatedData = await calculateTotalPaymentMade(cleanedData, paymentMade);
+
+//     //openingDate
+//     const openingDate = generateOpeningDate({ timeZoneExp: organizationId.timeZoneExp, dateFormatExp: organizationId.dateFormatExp, dateSplit: organizationId.dateSplit });
+
+//     // Create and save new payment
+//     const payment = await createNewPayment(updatedData , openingDate, organizationId, userId, userName);
+
+//     //Prefix 
+//     await vendorPaymentPrefix(cleanedData, existingPrefix );
+
+//     // Log the payment made
+//     await handlePaymentMadeLog(cleanedData); // Call the function to log payment details
+
+//     // Response
+//     return res.status(200).json({ message: 'Payment added successfully', payment });
+
+//   } catch (error) {
+//     console.error('Error adding payment:', error);
+//     return res.status(500).json({ message: 'Internal server error' });
+//   }
+// };
+
 // Add Purchase Payment
+// Add Purchase Payment
+
+
+
+
+// Get All Purchase Orders
+
+
 exports.addPayment = async (req, res) => {
   try {
     const { organizationId, id: userId, userName } = req.user; // Assuming user contains organization info
@@ -64,32 +135,60 @@ exports.addPayment = async (req, res) => {
     }
 
     // Check if organization and supplier exist
-    const { organizationExists, supplierExists, paymentTable , existingPrefix } = await dataExist(organizationId, unpaidBills, supplierId, supplierDisplayName);
+    const { organizationExists, supplierExists, paymentTable, existingPrefix } = await dataExist(organizationId, unpaidBills, supplierId, supplierDisplayName);
     
     // Validate supplier and organization
-    if (!validateSupplierAndOrganization(organizationExists, supplierExists, existingPrefix ,res)) {
+    if (!validateSupplierAndOrganization(organizationExists, supplierExists, existingPrefix, res)) {
       return; // Stops execution if validation fails
     }
 
-    // Generate date & time
-    const openingDate = generateOpeningDate(organizationExists);
+    if (!validateInputs(cleanedData, supplierExists, unpaidBills, paymentTable, organizationExists, res)) return;
 
+    // Calculate total payment made
+    const updatedData = await calculateTotalPaymentMade(cleanedData, paymentMade);
 
-    if (!validateInputs( cleanedData, supplierExists, unpaidBills, paymentTable, organizationExists, res)) return;
-
-    await calculatePaymentMade(cleanedData, paymentMade);
+    // Opening Date
+    const openingDate = generateOpeningDate({ timeZoneExp: organizationId.timeZoneExp, dateFormatExp: organizationId.dateFormatExp, dateSplit: organizationId.dateSplit });
 
     // Create and save new payment
-    const savedPayment = await createNewPayment(cleanedData, openingDate, organizationId, userId, userName);
+    const payment = await createNewPayment(updatedData, openingDate, organizationId, userId, userName);
 
-    //Prefix
-    await vendorPaymentPrefix(cleanedData, existingPrefix );
+    // Prefix 
+    await vendorPaymentPrefix(cleanedData, existingPrefix);
 
-        // Log the payment made
+    // Log the payment made
     await handlePaymentMadeLog(cleanedData); // Call the function to log payment details
 
-    // Response
-    return res.status(200).json({ message: 'Payment added successfully', savedPayment });
+    // Ensure 'payment' field is set for each bill, if not default to 0
+    updatedData.unpaidBills.forEach(bill => {
+      if (typeof bill.payment === 'undefined') {
+        console.warn(`Payment field missing for bill ID: ${bill.billId}`);
+        bill.payment = 0; // Default payment to 0 if it's missing
+      }
+    });
+
+    // Store messages if any bills have zero amountDue
+    let zeroAmountDueMessages = [];
+
+    // Update amountDue for each unpaid bill with the new payment
+    for (const unpaidBill of updatedData.unpaidBills) {
+      const { amountDue, message } = await calculateAmountDue(unpaidBill.billId, { amount: unpaidBill.payment });
+
+      if (message) {
+        zeroAmountDueMessages.push(message); // Add any messages about zero balance
+      }
+
+      // Update the amountDue in the unpaidBill object for response purposes
+      unpaidBill.amountDue = amountDue;
+    }
+
+    // Response with the updated payment details and zero balance messages
+    return res.status(200).json({
+      message: 'Payment added successfully',
+      payment,
+      unpaidBills: updatedData.unpaidBills, // Include updated bills with amountDue
+      zeroAmountDueMessages, // Any bills with zero balance messages
+    });
 
   } catch (error) {
     console.error('Error adding payment:', error);
@@ -97,70 +196,13 @@ exports.addPayment = async (req, res) => {
   }
 };
 
-// // Add Purchase Payment
-// exports.addPayment = async (req, res) => {
-//   try {
-//     const { organizationId, id: userId, userName } = req.user; // Assuming user contains organization info
-//     const cleanedData = cleanSupplierData(req.body); // Cleaning data based on your custom method
 
-//     const { unpaidBills, paymentMade, supplierId, supplierDisplayName } = cleanedData;
-//     const billIds = unpaidBills.map(unpaidBill => unpaidBill.billId);
-
-//     // Check for duplicate billIds
-//     const uniqueBillIds = new Set(billIds);
-//     if (uniqueBillIds.size !== billIds.length) {
-//       return res.status(400).json({ message: "Duplicate bill found" });
-//     }
-
-//     // Validate SupplierId
-//     if (!mongoose.Types.ObjectId.isValid(supplierId) || supplierId.length !== 24) {
-//       return res.status(400).json({ message: `Invalid supplier ID: ${supplierId}` });
-//     }
-
-//     // Validate Bill IDs
-//     const invalidBillIds = billIds.filter(billId => !mongoose.Types.ObjectId.isValid(billId) || billId.length !== 24);
-//     if (invalidBillIds.length > 0) {
-//       return res.status(400).json({ message: `Invalid bill IDs: ${invalidBillIds.join(', ')}` });
-//     }
-
-//     // Check if organization and supplier exist
-//     const { organizationExists, supplierExists, paymentTable, existingPrefix } = await dataExist(organizationId, unpaidBills, supplierId, supplierDisplayName);
-    
-//     // Validate supplier and organization
-//     if (!validateSupplierAndOrganization(organizationExists, supplierExists, existingPrefix, res)) {
-//       return; // Stops execution if validation fails
-//     }
-
-//     // Generate date & time
-//     const openingDate = generateOpeningDate(organizationExists);
-
-//     if (!validateInputs(cleanedData, supplierExists, unpaidBills, paymentTable, organizationExists, res)) return;
-
-//     // Create and save new payment
-//     const savedPayment = await createNewPayment(cleanedData, openingDate, organizationId, userId, userName);
-
-//     // Log the payment made
-//     await handlePaymentMadeLog(cleanedData); // Call the function to log payment details
-
-//     // Prefix
-//     await vendorPaymentPrefix(cleanedData, existingPrefix);
-
-//     // Response
-//     return res.status(200).json({ message: 'Payment added successfully', savedPayment });
-
-//   } catch (error) {
-//     console.error('Error adding payment:', error);
-//     return res.status(500).json({ message: 'Internal server error' });
-//   }
-// };
-
-
-// Get All Purchase Orders
 
 exports.getAllPayment = async (req, res) => {
   // const { organizationId } = req.body;
-  const {organizationId} = req.user.organizationId;
   try {
+
+    const organizationId  = req.user.organizationId;
 
     // Check if an Organization already exists
     const { organizationExists , allPayments} = await paymentDataExist(organizationId);
@@ -177,6 +219,7 @@ exports.getAllPayment = async (req, res) => {
         message: "No Payments found",
       });
     }
+    res.status(200).json(allPayments);
 
   } catch (error) {
     console.error("Error fetching purchase paymentMade:", error);
@@ -185,12 +228,12 @@ exports.getAllPayment = async (req, res) => {
 };
 
 // Get One Payment Quote
-exports.getOnePayment = async (req, res) => {
+exports.getPurchasePayment = async (req, res) => {
   try {
     const organizationId = req.user.organizationId;
     const  PaymentId = req.params.PaymentId;
 
-    const { organizationExists, payments } = await paymentDataExist(organizationId,PaymentId);
+    const { organizationExists } = await paymentDataExist(organizationId);
 
     if (!organizationExists) {
       return res.status(404).json({
@@ -198,15 +241,20 @@ exports.getOnePayment = async (req, res) => {
       });
     }
 
-    if (!payments) {
+    const payment = await PurchasePayment.findOne({
+      _id:   PaymentId,
+      organizationId: organizationId
+  });
+
+    if (!payment) {
       return res.status(404).json({
-        message: "No Quotes found",
+        message: "No payment found",
       });
     }
 
-    res.status(200).json(payments);
+    res.status(200).json(payment);
   } catch (error) {
-    console.error("Error fetching Quotes:", error);
+    console.error("Error fetching Payments:", error);
     res.status(500).json({ message: "Internal server error." });
   }
 };
@@ -312,7 +360,7 @@ async function handlePaymentMadeLog(cleanedData) {
 
   //Clean Data 
 function cleanSupplierData(data) {
-    const cleanData = (value) => (value === null || value === undefined || value === "" || value === 0 ? undefined : value);
+    const cleanData = (value) => (value === null || value === undefined || value === "" ? undefined : value);
     return Object.keys(data).reduce((acc, key) => {
       acc[key] = cleanData(data[key]);
       return acc;
@@ -412,10 +460,16 @@ function validateInputs( data, supplierExists, unpaidBills , organizationExists,
   return true;
 }
 
-// Create New payment
-function createNewPayment( data, openingDate, organizationId, userId, userName ) {
-  const newPayment = new PurchasePayment({ ...data, organizationId, createdDate: openingDate, userId, userName });
-  return newPayment.save();
+// Function to create a new payment record
+function createNewPayment(data, openingDate, organizationId, userId, userName) {
+  const newPayment = new PurchasePayment({
+    ...data,
+    organizationId,
+    createdDate: openingDate,
+    userId,
+    userName
+  });
+  return newPayment.save(); // Save the payment to the database
 }
 
 
@@ -480,11 +534,14 @@ function validatePaymentTable(unpaidBills, paymentTable, errors) {
     // Validate billamount
     validateField( unpaidBill.billAmount !== fetchedBills.grandTotal, `Grand Total for Bill Number${unpaidBill.billNumber}: ${unpaidBill.billAmount}`, errors );
 
-    // 
+    // // 
     validateField( unpaidBill.amountDue !== fetchedBills.balanceAmount, `Amount Due for bill number ${unpaidBill.billNumber}: ${unpaidBill.amountDue}`, errors );
 
+    
   // Validate float fields
   validateFloatFields(['amountDue', 'billAmount', 'payment'], unpaidBill, errors);
+
+
   });
 }
 
@@ -538,22 +595,95 @@ function isAlphanumeric(value) {
 
 
 
-//cslculation
-// Calculate Payment Made
-async function calculatePaymentMade(cleanedData, paymentMade) {
+//Calculate Payment Made
+// async function calculatePaymentMade(cleanedData, paymentMade) {
 
-  // Calculate total payment from all unpaid bills
-  const totalPayment = cleanedData.unpaidBills.reduce((acc, bill) => acc + (bill.payment || 0), 0);
-  cleanedData.total = totalPayment;
+//   // Calculate total payment and update amountDue for each unpaid bill
+//   const totalPayment = cleanedData.unpaidBills.reduce((acc, bill) => {
+//     // Ensure payment is accumulated and deduct from billAmount to get current amountDue
+//     const previousPayments = bill.payment || 0; // Previous payments made towards this bill
+//     bill.amountDue = (bill.billAmount || 0) - previousPayments;
 
-  // Set amountPaid and amountUsedForPayments to totalPayment
-  cleanedData.amountPaid = totalPayment;
-  cleanedData.amountUsedForPayments = totalPayment;
+//     // Accumulate current payment amount
+//     return acc + previousPayments;
+//   }, 0);
 
-  // Calculate amountInExcess
-  const amountInExcess = paymentMade - totalPayment;
-  cleanedData.amountInExcess = amountInExcess;
-}
+//   console.log('Bill Amountttttt:', billAmount);
+
+//   // Set total payment in cleanedData
+//   cleanedData.total = totalPayment;
+
+//   // Set amountPaid and amountUsedForPayments to totalPayment
+//   cleanedData.amountPaid = totalPayment;
+//   cleanedData.amountUsedForPayments = totalPayment;
+
+//   // Calculate amountInExcess
+//   const amountInExcess = paymentMade - totalPayment;
+//   cleanedData.amountInExcess = amountInExcess;
+// }
 
 
+
+
+
+
+// Function to calculate and update the amountDue for a bill
+const calculateAmountDue = async (billId, { amount }) => {
+  try {
+    // Find the bill by its ID
+    const bill = await PurchaseBill.findById(billId);
+
+    if (!bill) {
+      throw new Error(`Bill not found with ID: ${billId}`);
+    }
+
+    // Check if the payment amount is a valid number
+    if (typeof amount !== 'number' || isNaN(amount)) {
+      throw new Error(`Invalid payment amount: ${amount}`);
+    }
+
+    // Initialize bill.payment if undefined
+    bill.payment = typeof bill.payment === 'number' ? bill.payment : 0;
+
+    // Ensure grandTotal is valid
+    if (typeof bill.grandTotal !== 'number' || isNaN(bill.grandTotal)) {
+      throw new Error(`Invalid grandTotal for Bill ID: ${billId}`);
+    }
+
+    // Update the amount paid and calculate the new amount due
+    bill.payment += amount;  // Add payment to the current paid amount
+    const amountDue = bill.grandTotal - bill.payment;
+
+    // Ensure amountDue does not go negative
+    bill.amountDue = amountDue >= 0 ? amountDue : 0;
+
+    // Save the updated bill with the new amountDue and payment
+    await bill.save();
+
+    // Log the updated bill status (optional, for debugging)
+    console.log(`Updated Bill ID ${billId}: Payment: ${bill.payment}, Amount Due: ${bill.amountDue}`);
+
+    return bill;
+
+  } catch (error) {
+    console.error(`Error calculating amount due for Bill ID ${billId}:`, error);
+    throw new Error(`Error calculating amount due for Bill ID ${billId}: ${error.message}`);
+  }
+};
+
+
+
+
+
+const calculateTotalPaymentMade = async (cleanedData, paymentMade) => {
+  let totalPayment = 0;
+  for (const bill of cleanedData.unpaidBills) {
+    totalPayment += bill.paymentAmount; // Assuming each unpaid bill has a `paymentAmount`
+  }
+  return {
+    ...cleanedData,
+    totalPayment,
+    paymentMade,
+  };
+};
 
