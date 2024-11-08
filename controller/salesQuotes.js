@@ -142,6 +142,7 @@ exports.getAllSalesQuote = async (req, res) => {
         });
       }
   
+
       if (!allQuotes.length) {
         return res.status(404).json({
           message: "No Quotes found",
@@ -370,8 +371,15 @@ function taxtype( cleanedData, customerExist, organizationExists ) {
   
 
   
-    
+  
 
+  
+
+
+  
+
+
+  
   
 
 
@@ -701,15 +709,7 @@ function calculateSalesOrder(cleanedData, res) {
   // Total amount calculation
   totalAmount = subTotal - transactionDiscount; 
 
-
-
-  // Validate calculated totals against cleanedData data
-  const calculatedSubTotal = subTotal;
-  const calculatedTotalTax = totalTax;
-  const calculatedTotalAmount = totalAmount;
-=======
  
->>>>>>> 1de9ce59d25df5581e36b78fb3a773edf9f0297d
 
   // Round the totals for comparison
   const roundedSubTotal = roundToTwoDecimals(subTotal);
@@ -736,6 +736,8 @@ function calculateSalesOrder(cleanedData, res) {
 
   return true;
 }
+
+
 
 
 // Calculate item discount
