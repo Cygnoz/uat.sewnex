@@ -112,7 +112,6 @@ exports.getSettings = async (req, res) => {
         duplicateCustomerMobile: settings.duplicateCustomerMobile
       }
     };
-    console.log(organizedSettings);
 
 
     // Return the organized settings
