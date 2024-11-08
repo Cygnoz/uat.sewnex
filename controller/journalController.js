@@ -89,6 +89,8 @@ exports.addJournalEntry = async (req, res) => {
 
         // Save the updated prefix collection
         await existingPrefix.save();
+        
+        cleanedData.journalId =journalId;
 
         // Create a new journal entry
         const newJournalEntry = new Journal({ ...cleanedData, organizationId, entryDate });
@@ -139,7 +141,7 @@ exports.getAllJournal = async (req, res) => {
         const organizationId = req.user.organizationId;
 
         // Find all accounts where organizationId matches
-        const journal = await Journal.find({ organizationId:organizationId });
+        const journal = await Journal.find({ organizationId });
 
         if (!journal.length) {
             return res.status(404).json({
