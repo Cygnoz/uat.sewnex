@@ -67,7 +67,7 @@ const trialBalanceExist = async (organizationId,customerId) => {
         const { supplierEmail, debitOpeningBalance, creditOpeningBalance, supplierDisplayName, mobile } = cleanedData;
     
         const { organizationExists, taxExists, currencyExists , allSupplier, settings} = await dataExist(organizationId);
-        
+        cleanedData.taxType = taxExists.taxType
         // checking values from supplier settings
         const { duplicateSupplierDisplayName , duplicateSupplierEmail , duplicateSupplierMobile } = settings[0]
         
@@ -331,7 +331,6 @@ const trialBalanceExist = async (organizationId,customerId) => {
           "Registered Business - Regular",
           "Registered Business - Composition",
           "Unregistered Business",
-          "Consumer",
           "Overseas",
           "Special Economic Zone",
           "Deemed Export",
@@ -607,7 +606,7 @@ const trialBalanceExist = async (organizationId,customerId) => {
   //Validate inputs
     function validateInputs(data, currencyExists, taxExists, organizationExists, res) {
       const validCurrencies = currencyExists.map((currency) => currency.currencyCode);
-      const validTaxTypes = ["None", taxExists.taxType];
+      const validTaxTypes = [taxExists.taxType];
       const validationErrors = validateSupplierData(data, validCurrencies, validTaxTypes, organizationExists);
     
       if (validationErrors.length > 0) {
