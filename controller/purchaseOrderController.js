@@ -33,11 +33,7 @@ const dataExist = async (organizationId, supplierId, itemTable) => {
 exports.addPurchaseOrder = async (req, res) => {
   const { supplierId, itemTable } = req.body;
   const { organizationId, id: userId, userName  } = req.user
-<<<<<<< HEAD
 console.log("Add Purchase Order:",req.body)
-=======
-console.log("request body:",req.body)
->>>>>>> b8f8e781559d52bdf6f2fee6281c4a4adbea7f1f
   try {
 
     // Fetch existing data
@@ -201,11 +197,7 @@ const normalizeRequestData = (data) => {
     const value = data[key];
 
     // If value is null, empty string, or 0, set to undefined
-<<<<<<< HEAD
     if (value === null || value === "" && key !== "taxMode") {
-=======
-    if (value === null || value === "" || value === 0 && key !== "taxMode") {
->>>>>>> b8f8e781559d52bdf6f2fee6281c4a4adbea7f1f
       normalizedData[key] = undefined;
     } else {
       normalizedData[key] = value; // Otherwise, keep the value as is

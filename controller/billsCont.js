@@ -28,19 +28,12 @@ const dataExistForBill = async (organizationId, supplierId, itemTable, orderNumb
   return { organizationExists, supplierExists, purchaseOrderExists, items, settings , taxExists , existingPrefix };
 };
 
-<<<<<<< HEAD
-// addBill 
-exports.addBill = async (req, res) => {
-  const { supplierId, itemTable, orderNumber, billDate } = req.body;
-  const { organizationId } = req.user;
-=======
 
 exports.addBill = async (req, res) => {
   const { supplierId, itemTable, orderNumber, billDate } = req.body;
   const { organizationId } = req.user;
   console.log("reqbody:",req.body)
 
->>>>>>> b8f8e781559d52bdf6f2fee6281c4a4adbea7f1f
 
   try {
     // Fetch existing data including tax and settings
@@ -86,10 +79,6 @@ exports.addBill = async (req, res) => {
     // Date & Time
     const openingDate = generateOpeningDate(organizationExists);
 
-<<<<<<< HEAD
-    
-=======
->>>>>>> b8f8e781559d52bdf6f2fee6281c4a4adbea7f1f
     // Create new bill
     const savedBill = await createNewBill(cleanedData, organizationId, openingDate);
 
@@ -138,19 +127,11 @@ exports.getAllPurchaseBills = async (req, res) => {
       // Determine the correct paidStatus based on balanceAmount and dueDate
       let newStatus;
       if (balanceAmount === 0) {
-<<<<<<< HEAD
-        newStatus = 'completed';
-      } else if (dueDate && new Date(dueDate) < currentDate) {
-        newStatus = 'overdue';
-      } else {
-        newStatus = 'pending';
-=======
         newStatus = 'Completed';
       } else if (dueDate && new Date(dueDate) < currentDate) {
         newStatus = 'Overdue';
       } else {
         newStatus = 'Pending';
->>>>>>> b8f8e781559d52bdf6f2fee6281c4a4adbea7f1f
       }
 
       // Update the bill's status only if it differs from the current status in the database
@@ -201,10 +182,6 @@ exports.getPurchaseBill = async (req, res) => {
 };
 
 
-<<<<<<< HEAD
-=======
-
->>>>>>> b8f8e781559d52bdf6f2fee6281c4a4adbea7f1f
 const normalizeRequestData = (data) => {
   const normalizedData = {};
 
@@ -224,8 +201,6 @@ const normalizeRequestData = (data) => {
 
 
 
-<<<<<<< HEAD
-=======
 
 // const isBillNumberUnique = async (billNumber, res) => {
 //   const existingBill = await PurchaseBill.findOne({ billNumber });
@@ -239,7 +214,6 @@ const normalizeRequestData = (data) => {
 
 
 
->>>>>>> b8f8e781559d52bdf6f2fee6281c4a4adbea7f1f
 // Tax Type
 function taxtype( cleanedData, supplierExists ) {
   if(supplierExists.taxType === 'GST' ){
@@ -451,31 +425,23 @@ const cleanBillData = (data, supplierExists, items) => {
     // Calculate grandTotal
     cleanedData.grandTotal = (parseFloat(total) - parseFloat(cleanedData.transactionDiscountAmount)).toFixed(2);
 
-<<<<<<< HEAD
-=======
     
     console.log("Backend - Grand Total:", cleanedData.grandTotal);
     console.log("Backend - Paid Amount:", cleanedData.paidAmount);
->>>>>>> b8f8e781559d52bdf6f2fee6281c4a4adbea7f1f
     // Calculate balanceAmount
     cleanedData.balanceAmount = (
       parseFloat(cleanedData.grandTotal) - 
       parseFloat(cleanedData.paidAmount || 0)
     ).toFixed(2);
-<<<<<<< HEAD
-=======
     console.log("Backend - Calculated Balance Amount:", cleanedData.balanceAmount);
 
     // console.log("cleaned data:",cleanedData)
 // updatePaidStatus(cleanedData);
->>>>>>> b8f8e781559d52bdf6f2fee6281c4a4adbea7f1f
 
   return cleanedData;
 };
 
 
-<<<<<<< HEAD
-=======
 // // Set paidStatus based on dueDate and payment completion
 // function updatePaidStatus(cleanedData) {
 //   const isOverdue = moment().isAfter(moment(cleanedData.dueDate, 'YYYY-MM-DD'));
@@ -517,7 +483,6 @@ const cleanBillData = (data, supplierExists, items) => {
 // }
 
 
->>>>>>> b8f8e781559d52bdf6f2fee6281c4a4adbea7f1f
 // Validation Error Check
 const hasValidationErrors = async (body, supplierExists, res) => {
   const { itemTable, transactionDiscountType  } = body;
