@@ -42,7 +42,7 @@ router.post('/add-payment', verifyToken , PaymentMadeController.addPayment);
 // router.delete('/deletePayment/:id', PaymentMadeController.deletePurchasePayment);
 
 //Debit Note
-router.post('/add-DebitNote', verifyToken, debitNoteController.addDebitNote);
+router.post('/add-DebitNote', debitNoteController.addDebitNote);
 // router.get('/getAllDebitNotes/:id', debitNoteController.getAllDebitNotes);
 // router.get('/getDebitNote/:id', debitNoteController.getDebitNoteById);
 // router.put('/updateDebitNote/:id', debitNoteController.updateDebitNote);

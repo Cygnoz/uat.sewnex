@@ -6,7 +6,6 @@ const Item = require('../database/model/item');
 const Settings = require("../database/model/settings");
 const ItemTrack = require("../database/model/itemTrack");
 const Tax = require('../database/model/tax');  // Add tax model
-const Prefix = require("../database/model/prefix");
 const moment = require("moment-timezone");
 
 
@@ -24,68 +23,63 @@ const dataExistForBill = async (organizationId, supplierId, itemTable, orderNumb
      : [],
     Settings.findOne({ organizationId }),
     Tax.findOne({ organizationId }), // Fetch tax details for the organization
-    Prefix.findOne({ organizationId }),
   ]);
 
   return { organizationExists, supplierExists, purchaseOrderExists, items, settings , taxExists , existingPrefix };
 };
 
+// addBill 
 exports.addBill = async (req, res) => {
-  // console.log("Add purchase bill:", req.body);
-  const { supplierId, itemTable , orderNumber , billDate } = req.body;
-  const { organizationId } = req.user
-
-
-   //const { organizationId, supplierId, itemTable, billDate, orderNumber , } = req.body;
+  const { supplierId, itemTable, orderNumber, billDate } = req.body;
+  const { organizationId } = req.user;
 
   try {
-
     // Fetch existing data including tax and settings
-    const { organizationExists, supplierExists, items, settings, taxExists , existingPrefix } = await dataExistForBill(organizationId, supplierId, itemTable, orderNumber);
-    
+    const { organizationExists, supplierExists, items, settings, taxExists, existingPrefix } = await dataExistForBill(organizationId, supplierId, itemTable, orderNumber);
 
     // Normalize request body to handle null, empty strings, and 0 values
     const normalizedBody = normalizeRequestData(req.body);
-   
 
+    // Validate payment terms and calculate due date
+    const calculatedDueDateResponse = validateAndUpdateDueDate(normalizedBody.paymentTerms, normalizedBody.billDate, normalizedBody.existingDueDate);
 
-    // Perform validation checks using the refactored functions
+    // Check for errors in calculatedDueDateResponse
+    if (calculatedDueDateResponse.error) {
+      return res.status(400).json({ message: calculatedDueDateResponse.error }); // Return the specific error message
+    }
+
+    const calculatedDueDate = calculatedDueDateResponse.dueDate; // Extract the valid due date
+
+    // Perform additional validation checks
     if (await hasValidationErrors(normalizedBody, res)) return;
 
     if (!validateBillInputs(organizationExists, supplierExists, items, settings, taxExists, existingPrefix, res)) return;
 
-
-    taxtype(normalizedBody, supplierExists );  
+    taxtype(normalizedBody, supplierExists);
 
     // Clean Data
-    const cleanedData = cleanBillData(normalizedBody, supplierExists , items );
+    const cleanedData = cleanBillData(normalizedBody, supplierExists, items);
+    cleanedData.dueDate = calculatedDueDate; // Set the calculated due date in the cleaned data
 
-     // Check if paidAmount is valid
-     if (!cleanedData.grandTotal || parseFloat(cleanedData.paidAmount) > parseFloat(cleanedData.grandTotal)) {
+    // Check if paidAmount is valid
+    if (!cleanedData.grandTotal || parseFloat(cleanedData.paidAmount) > parseFloat(cleanedData.grandTotal)) {
       return res.status(400).json({ message: "Paid amount cannot exceed the grand total." });
     }
-    
-    
-   // Verify itemTable fields with Item schema and supply locations
-    if (!validateItemTable(items, itemTable, cleanedData, supplierExists, res)) return;  // Stop further execution if validation fails
 
+    // Verify itemTable fields with Item schema and supply locations
+    if (!validateItemTable(items, itemTable, cleanedData, supplierExists, res)) return;
 
     if (!validateLocationInputs(cleanedData, organizationExists, res)) return;
 
+    // Check for existing bill
+    if (await checkExistingBill(cleanedData.billNumber, organizationId, res)) return;
 
-    await purchaseBillsPrefix(cleanedData, existingPrefix );
+    // Date & Time
+    const openingDate = generateOpeningDate(organizationExists);
 
-
-    //  // Check for existing bill
-    //  if (await checkExistingBill(cleanedData.billNumber, organizationId, res)) return;
-
-
-      //Date & Time
-      const openingDate = generateOpeningDate(organizationExists);
-
-      
+    
     // Create new bill
-    const savedBill = await createNewBill(cleanedData, organizationId , openingDate);
+    const savedBill = await createNewBill(cleanedData, organizationId, openingDate);
 
     // Track the items from the bill
     await trackItemsFromBill(organizationId, itemTable, billDate, savedBill);
@@ -94,12 +88,10 @@ exports.addBill = async (req, res) => {
     res.status(201).json({ message: "Bill added successfully.", bill: savedBill });
   } catch (error) {
     console.error("Error adding bill:", error);
-    res.status(500).json({ message: "Internal server error." });
+    res.status(500).json({ message: "Internal server error." }); // Return a generic server error message
   }
 };
 
-
-// Get All Purchase Orders
 
 exports.getAllPurchaseBills = async (req, res) => {
   // const { organizationId } = req.body;
@@ -120,41 +112,43 @@ exports.getAllPurchaseBills = async (req, res) => {
     if (!purchaseBills || purchaseBills.length === 0) {
       return res.status(404).json({ message: "No purchase Bills found." });
     }
-    const PurchaseBills = purchaseBills.map((history) => {
-      const { organizationId, ...rest } = history.toObject(); // Convert to plain object and omit organizationId
-      return rest;
-    });
-    res.status(200).json({ PurchaseBills });
+
+    // Get current date for comparison
+    const currentDate = new Date();
+
+    // Array to store purchase bills with updated status
+    const updatedBills = [];
+
+    // Map through purchase bills and update paidStatus if needed
+    for (const bill of purchaseBills) {
+      const { organizationId, balanceAmount, dueDate, paidStatus: currentStatus, ...rest } = bill.toObject();
+      
+      // Determine the correct paidStatus based on balanceAmount and dueDate
+      let newStatus;
+      if (balanceAmount === 0) {
+        newStatus = 'completed';
+      } else if (dueDate && new Date(dueDate) < currentDate) {
+        newStatus = 'overdue';
+      } else {
+        newStatus = 'pending';
+      }
+
+      // Update the bill's status only if it differs from the current status in the database
+      if (newStatus !== currentStatus) {
+        await PurchaseBill.updateOne({ _id: bill._id }, { paidStatus: newStatus });
+      }
+
+      // Push the bill object with the updated status to the result array
+      updatedBills.push({ ...rest, paidStatus: newStatus });
+    }
+
+    res.status(200).json({ PurchaseBills: updatedBills });
   } catch (error) {
     console.error("Error fetching purchase Bills:", error);
     res.status(500).json({ message: "Internal server error." });
   }
 };
 
-
-// Get Last Journal Prefix
-exports.getLastPurchaseBillPrefix = async (req, res) => {
-  try {
-      const organizationId = "INDORG0003";
-
-      // Find all accounts where organizationId matches
-      const prefix = await Prefix.findOne({ organizationId:organizationId,'series.status': true });
-
-      if (!prefix) {
-          return res.status(404).json({
-              message: "No Prefix found for the provided organization ID.",
-          });
-      }
-      
-      const series = prefix.series[0];     
-      const lastPrefix = series.billOfSupply + series.billOfSupplyNum;
-
-      res.status(200).json(lastPrefix);
-  } catch (error) {
-      console.error("Error fetching accounts:", error);
-      res.status(500).json({ message: "Internal server error." });
-  }
-};
 
 
 //getPurchaseOrder
@@ -178,36 +172,15 @@ exports.getPurchaseBill = async (req, res) => {
     if (purchaseBill) {
       res.status(200).json(purchaseBill);
     } else {
-      res.status(404).json({ message: "Purchase order not found" });
+      res.status(404).json({ message: "Purchase Bill not found" });
     }
   } catch (error) {
-    console.error("Error fetching a purchase order:", error);
+    console.error("Error fetching a purchase Bill:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
 
 
-
-// Purchase Prefix
-function purchaseBillsPrefix( cleanData, existingPrefix ) {
-  const activeSeries = existingPrefix.series.find(series => series.status === true);
-  if (!activeSeries) {
-      return res.status(404).json({ message: "No active series found for the organization." });
-  }
-  cleanData.billOfSupply = `${activeSeries.billOfSupply}${activeSeries.billOfSupplyNum}`;
-
-  activeSeries.billOfSupplyNum += 1;
-
-  existingPrefix.save()
-
-  return 
-}
-
-
-
-
-
-// Normalize request body: convert null, empty strings, and 0 to undefined
 const normalizeRequestData = (data) => {
   const normalizedData = {};
 
@@ -215,7 +188,7 @@ const normalizeRequestData = (data) => {
     const value = data[key];
 
     // If value is null, empty string, or 0, set to undefined
-    if (value === null || value === "" || value === 0) {
+    if (value === null || value === "" || value === 0 && key !== "taxMode") {
       normalizedData[key] = undefined;
     } else {
       normalizedData[key] = value; // Otherwise, keep the value as is
@@ -224,11 +197,6 @@ const normalizeRequestData = (data) => {
 
   return normalizedData;
 };
-
-
-
-
-
 
 
 
@@ -435,46 +403,22 @@ const cleanBillData = (data, supplierExists, items) => {
     // Calculate grandTotal
     cleanedData.grandTotal = (parseFloat(total) - parseFloat(cleanedData.transactionDiscountAmount)).toFixed(2);
 
-
-  // Update paid status and set default payment mode if pending
-  function updatePaidStatus(cleanedData) {
-    const isOverdue = moment().isAfter(moment(cleanedData.dueDate, 'YYYY-MM-DD'));
-  
-    if (cleanedData.paymentTerms === "Pay Now") {
-      // Check if the payment is fully completed
-      if (parseFloat(cleanedData.paidAmount) === parseFloat(cleanedData.grandTotal)) {
-        cleanedData.paidStatus = "Completed";
-      } else {
-        cleanedData.paidStatus = "Pending";
-        cleanedData.paymentMode = cleanedData.paymentMode || "Cash"; // Default to "Cash" if not specified
-        cleanedData.paidAmount = parseFloat(cleanedData.paidAmount || 0).toFixed(2);
-        cleanedData.balanceAmount = (
-          parseFloat(cleanedData.grandTotal) - parseFloat(cleanedData.paidAmount)
-        ).toFixed(2); // Recalculate balanceAmount
-      }
-    } 
-      // For other payment terms, set paidStatus based on due date and payment completion
-      if (isOverdue) {
-        cleanedData.paidStatus = "Overdue";
-      } else {
-        cleanedData.paidStatus = parseFloat(cleanedData.paidAmount) === parseFloat(cleanedData.grandTotal)
-          ? "Completed"
-          : "Pending";
-      }
-  }  
-
-  updatePaidStatus(cleanedData);
+    // Calculate balanceAmount
+    cleanedData.balanceAmount = (
+      parseFloat(cleanedData.grandTotal) - 
+      parseFloat(cleanedData.paidAmount || 0)
+    ).toFixed(2);
 
   return cleanedData;
 };
 
 
-
 // Validation Error Check
 const hasValidationErrors = async (body, supplierExists, res) => {
-  const { itemTable, transactionDiscountType } = body;
+  const { itemTable, transactionDiscountType  } = body;
   let shipmentPreference = body.shipmentPreference; // Declare shipmentPreference with let
   let paymentMode = body.paymentMode; // Declare paymentMode with let
+
 
   // Normalize shipmentPreference and paymentMode: convert null, empty string, and 0 to undefined
   shipmentPreference = (shipmentPreference == null || shipmentPreference === "" || shipmentPreference === 0) ? undefined : shipmentPreference;
@@ -529,10 +473,59 @@ const hasValidationErrors = async (body, supplierExists, res) => {
     return true;
   }
 
+
   return false; // No validation errors
 };
 
+const validateAndUpdateDueDate = (paymentTerms, billDate, existingDueDate) => {
+  const validPaymentTerms = [
+    "Net 15", "Net 30", "Net 45", "Net 60", "Pay Now", "due on receipt", "End of This Month", "End of Next Month"
+  ];
 
+  // Check if paymentTerms is valid
+  if (!validPaymentTerms.includes(paymentTerms)) {
+    return { error: "Invalid payment terms." }; // Return error message for invalid payment terms
+  }
+
+  // Calculate due date based on payment terms
+  let dueDate;
+
+  switch (paymentTerms) {
+    case "Net 15":
+      dueDate = moment(billDate).add(15, 'days').format('YYYY-MM-DD');
+      break;
+    case "Net 30":
+      dueDate = moment(billDate).add(30, 'days').format('YYYY-MM-DD');
+      break;
+    case "Net 45":
+      dueDate = moment(billDate).add(45, 'days').format('YYYY-MM-DD');
+      break;
+    case "Net 60":
+      dueDate = moment(billDate).add(60, 'days').format('YYYY-MM-DD');
+      break;
+    case "Pay Now":
+      dueDate = billDate; // Due date is the same as bill date
+      break;
+    case "due on receipt":
+      dueDate = existingDueDate; // Allow any date as existing due date
+      break;
+    case "End of This Month":
+      dueDate = moment(billDate).endOf('month').format('YYYY-MM-DD');
+      break;
+    case "End of Next Month":
+      dueDate = moment(billDate).add(1, 'month').endOf('month').format('YYYY-MM-DD');
+      break;
+    default:
+      return { error: "Invalid payment terms." }; // Handle invalid payment terms
+  }
+
+  // Ensure the due date is not earlier than the bill date
+  if (moment(dueDate).isBefore(billDate)) {
+    return { error: "Due date cannot be earlier than the bill date." }; // Return error message for invalid due date
+  }
+
+  return { dueDate }; // Return the calculated due date
+};
 
 // Function to check for duplicate items by itemId in itemTable
 function hasDuplicateItems(itemTable) {
@@ -571,7 +564,6 @@ const validateBillInputs = (organizationExists, supplierExists, items, taxExists
   }
   return true; // All validations passed
 };
-// Amal
 
 // Validate supply locations
 function validateLocationInputs(data, organizationExists, res) {
@@ -587,14 +579,6 @@ function validateLocationInputs(data, organizationExists, res) {
 // Validate source and destination of supply
 function validateSupplyLocations(data, organization) {
   const errors = [];
-  // // Check if sourceOfSupply is selected
-  // if (!data.sourceOfSupply) {
-  //   errors.push("Source of Supply must be selected.");
-  // }
-  // // Check if destinationOfSupply is selected
-  // if (!data.destinationOfSupply) {
-  //   errors.push("Destination of Supply must be selected.");
-  // }
   validateSourceOfSupply(data.sourceOfSupply, organization, errors);
   validateDestinationOfSupply(data.destinationOfSupply, organization, errors);
   return errors;
@@ -613,15 +597,15 @@ function validateDestinationOfSupply(destinationOfSupply, organization, errors) 
 }
 
 
-// // Check for existing bill
-// async function checkExistingBill(billNumber, organizationId, res) {
-//   const existingBill = await PurchaseBill.findOne({ billNumber, organizationId });
-//   if (existingBill) {
-//     res.status(409).json({ message: "Bill already exists." });
-//     return true;
-//   }
-//   return false;
-// }
+// Check for existing bill
+async function checkExistingBill(billNumber, organizationId, res) {
+  const existingBill = await PurchaseBill.findOne({ billNumber, organizationId });
+  if (existingBill) {
+    res.status(409).json({ message: "Bill already exists." });
+    return true;
+  }
+  return false;
+}
 
 // Create new bill
 async function createNewBill(data, organizationId) {
@@ -709,8 +693,8 @@ function generateTimeAndDateForDB(
 }
 
 
-
 // Define valid shipment preferences, payment and modes discount types
+const validPaymentTerms = ["Net 15", "Net 30", "Net 45", "Net 60", "Pay Now", "due on receipt", "End of This Month", "End of Next Month"];
 const validShipmentPreferences = ["Road", "Rail", "Air", "Sea", "Courier", "Hand Delivery", "Pickup"];
 const validPaymentModes = ["Cash", "Credit"];
 const validItemDiscountTypes = ["percentage", "currency"];

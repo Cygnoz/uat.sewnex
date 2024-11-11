@@ -32,8 +32,8 @@ const dataExist = async (organizationId, supplierId, itemTable) => {
 // Add a new purchase order
 exports.addPurchaseOrder = async (req, res) => {
   const { supplierId, itemTable } = req.body;
-  const { organizationId } = req.user
-
+  const { organizationId, id: userId, userName  } = req.user
+console.log("Add Purchase Order:",req.body)
   try {
 
     // Fetch existing data
@@ -72,7 +72,7 @@ exports.addPurchaseOrder = async (req, res) => {
      await purchaseOrderPrefix(cleanedData, existingPrefix );
 
     // Create new purchase order
-    const savedPurchaseOrder = await createNewPurchaseOrder(cleanedData, organizationId, openingDate);
+    const savedPurchaseOrder = await createNewPurchaseOrder(cleanedData, organizationId, userId, userName, openingDate);
 
     // Send success response
     res.status(201).json({ message: "Purchase order added successfully.", purchaseOrder: savedPurchaseOrder });
@@ -148,7 +148,7 @@ exports.getPurchaseOrder = async (req, res) => {
 
 
 // Get Last Journal Prefix
-exports.getLastPurchaseOrderPrefix = async (req, res) => {
+exports. getLastPurchaseOrderPrefix = async (req, res) => {
   try {
       const organizationId = "INDORG0005";
 
@@ -197,7 +197,7 @@ const normalizeRequestData = (data) => {
     const value = data[key];
 
     // If value is null, empty string, or 0, set to undefined
-    if (value === null || value === "" || value === 0) {
+    if (value === null || value === "" && key !== "taxMode") {
       normalizedData[key] = undefined;
     } else {
       normalizedData[key] = value; // Otherwise, keep the value as is
@@ -282,7 +282,7 @@ const validateItemTable = (items, itemTable, cleanedData, supplierExists, res) =
 
 // Clean data
 const cleanPurchaseOrderData = (data, supplierExists, items) => {    
-  const cleanData = value => (value == null || value === "" || value === 0 ? undefined : value);
+  const cleanData = value => (value == null || value === "" ? undefined : value);
   const { taxMode } = data;
 
   // Initialize overall totals
@@ -563,8 +563,8 @@ function validateDestinationOfSupply(destinationOfSupply, organization, errors) 
 
 
 // Create new purchase order
-async function createNewPurchaseOrder(data, organizationId, openingDate) {
-  const newPurchaseOrder = new PurchaseOrder({ ...data, organizationId,  createdDate:openingDate, status: "Open"});
+async function createNewPurchaseOrder(data, organizationId, userId, userName, openingDate) {
+  const newPurchaseOrder = new PurchaseOrder({ ...data, organizationId,  createdDate:openingDate, userId, userName, status: "Open"});
   return newPurchaseOrder.save();
 }
 
