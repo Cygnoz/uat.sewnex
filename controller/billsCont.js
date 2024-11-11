@@ -28,10 +28,19 @@ const dataExistForBill = async (organizationId, supplierId, itemTable, orderNumb
   return { organizationExists, supplierExists, purchaseOrderExists, items, settings , taxExists , existingPrefix };
 };
 
+<<<<<<< HEAD
 // addBill 
 exports.addBill = async (req, res) => {
   const { supplierId, itemTable, orderNumber, billDate } = req.body;
   const { organizationId } = req.user;
+=======
+
+exports.addBill = async (req, res) => {
+  const { supplierId, itemTable, orderNumber, billDate } = req.body;
+  const { organizationId } = req.user;
+  console.log("reqbody:",req.body)
+
+>>>>>>> b8f8e781559d52bdf6f2fee6281c4a4adbea7f1f
 
   try {
     // Fetch existing data including tax and settings
@@ -77,7 +86,10 @@ exports.addBill = async (req, res) => {
     // Date & Time
     const openingDate = generateOpeningDate(organizationExists);
 
+<<<<<<< HEAD
     
+=======
+>>>>>>> b8f8e781559d52bdf6f2fee6281c4a4adbea7f1f
     // Create new bill
     const savedBill = await createNewBill(cleanedData, organizationId, openingDate);
 
@@ -126,11 +138,19 @@ exports.getAllPurchaseBills = async (req, res) => {
       // Determine the correct paidStatus based on balanceAmount and dueDate
       let newStatus;
       if (balanceAmount === 0) {
+<<<<<<< HEAD
         newStatus = 'completed';
       } else if (dueDate && new Date(dueDate) < currentDate) {
         newStatus = 'overdue';
       } else {
         newStatus = 'pending';
+=======
+        newStatus = 'Completed';
+      } else if (dueDate && new Date(dueDate) < currentDate) {
+        newStatus = 'Overdue';
+      } else {
+        newStatus = 'Pending';
+>>>>>>> b8f8e781559d52bdf6f2fee6281c4a4adbea7f1f
       }
 
       // Update the bill's status only if it differs from the current status in the database
@@ -181,6 +201,10 @@ exports.getPurchaseBill = async (req, res) => {
 };
 
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> b8f8e781559d52bdf6f2fee6281c4a4adbea7f1f
 const normalizeRequestData = (data) => {
   const normalizedData = {};
 
@@ -200,6 +224,22 @@ const normalizeRequestData = (data) => {
 
 
 
+<<<<<<< HEAD
+=======
+
+// const isBillNumberUnique = async (billNumber, res) => {
+//   const existingBill = await PurchaseBill.findOne({ billNumber });
+//   if (existingBill) {
+//     // If the bill number exists, send a response message
+//     res.status(400).json({ message: "This bill number already exists." });
+//     return false; // Return false to indicate it's not unique
+//   }
+//   return true; // Return true to indicate it's unique
+// };
+
+
+
+>>>>>>> b8f8e781559d52bdf6f2fee6281c4a4adbea7f1f
 // Tax Type
 function taxtype( cleanedData, supplierExists ) {
   if(supplierExists.taxType === 'GST' ){
@@ -272,6 +312,7 @@ const validateItemTable = (items, itemTable, cleanedData, supplierExists, res) =
 const cleanBillData = (data, supplierExists, items) => {    
   const cleanData = value => (value == null || value === "" || value === 0 ? undefined : value);
   const { taxMode } = data;
+
 
   // Initialize overall totals
   let subTotal = 0; 
@@ -347,6 +388,7 @@ const cleanBillData = (data, supplierExists, items) => {
         cleanedItem.itemIgst = cleanedItem.itemCgst = cleanedItem.itemSgst = cleanedItem.itemTax = undefined;
         cleanedItem.itemIgstAmount = cleanedItem.itemCgstAmount = cleanedItem.itemSgstAmount = undefined; 
       }
+      console.log("totaltax amount:",totalTaxAmount)
 
       // console.log("cleanedItem",cleanedItem);
       return cleanedItem;
@@ -380,6 +422,10 @@ const cleanBillData = (data, supplierExists, items) => {
     cleanedData.totalItem = totalItem;  // Overall totalItem quantity
     cleanedData.totalTaxAmount = totalTaxAmount.toFixed(2);  // Total tax amount
     cleanedData.itemTotalDiscount = itemTotalDiscount.toFixed(2);  // Total discount
+    console.log("TsubTotal:", cleanedData.subTotal);
+    console.log("TtotalItem:", cleanedData.totalItem);
+    console.log("TtotalTaxAmount:", cleanedData.totalTaxAmount);
+    console.log("TitemTotalDiscount:", cleanedData.itemTotalDiscount);
 
      // Calculate the grandTotal using the formula you provided
   const total = (
@@ -399,20 +445,79 @@ const cleanBillData = (data, supplierExists, items) => {
       // If currency, apply the discount directly
       cleanedData.transactionDiscountAmount = parseFloat(transactionDiscount.toFixed(2));
     } 
+    console.log("Grand Total before balance calculation:", cleanedData.grandTotal);
+    console.log("Total:", total);
 
     // Calculate grandTotal
     cleanedData.grandTotal = (parseFloat(total) - parseFloat(cleanedData.transactionDiscountAmount)).toFixed(2);
 
+<<<<<<< HEAD
+=======
+    
+    console.log("Backend - Grand Total:", cleanedData.grandTotal);
+    console.log("Backend - Paid Amount:", cleanedData.paidAmount);
+>>>>>>> b8f8e781559d52bdf6f2fee6281c4a4adbea7f1f
     // Calculate balanceAmount
     cleanedData.balanceAmount = (
       parseFloat(cleanedData.grandTotal) - 
       parseFloat(cleanedData.paidAmount || 0)
     ).toFixed(2);
+<<<<<<< HEAD
+=======
+    console.log("Backend - Calculated Balance Amount:", cleanedData.balanceAmount);
+
+    // console.log("cleaned data:",cleanedData)
+// updatePaidStatus(cleanedData);
+>>>>>>> b8f8e781559d52bdf6f2fee6281c4a4adbea7f1f
 
   return cleanedData;
 };
 
 
+<<<<<<< HEAD
+=======
+// // Set paidStatus based on dueDate and payment completion
+// function updatePaidStatus(cleanedData) {
+//   const isOverdue = moment().isAfter(moment(cleanedData.dueDate, 'YYYY-MM-DD'));
+  
+//   // Determine the paid status
+//   if (isOverdue) {
+//     cleanedData.paidStatus = "Overdue";
+//   } else {
+//     cleanedData.paidStatus = parseFloat(cleanedData.paidAmount) === parseFloat(cleanedData.grandTotal)
+//       ? "Completed"
+//       : "Pending";
+//   }
+// }
+
+
+// function updatePaidStatus(cleanedData) {
+//   const isOverdue = moment().isAfter(moment(cleanedData.dueDate, 'YYYY-MM-DD'));
+
+//   // For other payment terms
+//   if (isOverdue) {
+//     cleanedData.paidStatus = "Overdue";
+//   } 
+
+//   //set paidStatus based on payment completion
+//   if (cleanedData.paymentTerms === "Pay Now") {
+//     // Check if the payment is fully completed
+//     if (parseFloat(cleanedData.paidAmount) === parseFloat(cleanedData.grandTotal)) {
+//       cleanedData.paymentMode = cleanedData.paymentMode || "Cash"; // Default to "Cash" if not specified
+//       cleanedData.paidStatus = "Completed";
+//     } else {
+//       cleanedData.paidStatus = "Pending";
+//       cleanedData.paymentMode = cleanedData.paymentMode || "Credit"; // Default to "Credit" if not specified
+//       cleanedData.paidAmount = parseFloat(cleanedData.paidAmount || 0).toFixed(2);
+//       cleanedData.balanceAmount = (
+//         parseFloat(cleanedData.grandTotal) - parseFloat(cleanedData.paidAmount)
+//       ).toFixed(2); // Recalculate balanceAmount
+//     }
+//   } 
+// }
+
+
+>>>>>>> b8f8e781559d52bdf6f2fee6281c4a4adbea7f1f
 // Validation Error Check
 const hasValidationErrors = async (body, supplierExists, res) => {
   const { itemTable, transactionDiscountType  } = body;
@@ -641,7 +746,7 @@ const trackItemsFromBill = async (organizationId, itemTable, billDate, savedBill
 
       // console.log("Item Track Added for Bill:", trackEntry);
     } else {
-      console.error(`Item not found: ${itemId}`);
+      // console.error(`Item not found: ${itemId}`);
     }
   }
 };
