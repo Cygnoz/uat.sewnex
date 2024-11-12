@@ -318,7 +318,7 @@ const createTaxForOrganization = async (organizationId) => {
 const createAccountsForOrganization = async (organizationId) => {
   try {
     
-    insertAccounts(accounts, organizationId, createdDateAndTime);
+    insertAccounts(accounts, organizationId, );
     
   
     console.log("Accounts created successfully for organization:", organizationId);
@@ -670,7 +670,7 @@ exports.deleteAll = async (req, res) => {
 
 
 
-async function insertAccounts(accounts,organizationId,createdDateAndTime) {
+async function insertAccounts(accounts,organizationId,) {
 
   const accountDocuments = accounts.map(account => {
       return {
@@ -682,7 +682,6 @@ async function insertAccounts(accounts,organizationId,createdDateAndTime) {
           accountHead: account.accountHead,
           accountGroup: account.accountGroup,
 
-          openingDate: createdDateAndTime, 
           description: account.description
       };});
 
