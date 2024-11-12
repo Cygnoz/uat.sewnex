@@ -729,7 +729,7 @@ const accounts = [
   { accountName: "Sales to Customers (Cash)", accountSubhead: "Current Asset", accountHead: "Asset", accountGroup: "Asset",accountCode:"AC-05",description: "Sales to Customers (Cash)." },
   { accountName: "Reverse Charge Tax Input but not due", accountSubhead: "Current Asset", accountHead: "Asset", accountGroup: "Asset",accountCode:"AC-06",description: "The amount of tax payable for your reverse charge purchases can be tracked here." },
   
-  { accountName: "Accounts Receivable", accountSubhead: "Accounts Receivable", accountHead: "Asset", accountGroup: "Asset",accountCode:"AC-07",description: "The money that customers owe you becomes the accounts receivable. A good example of this is a payment expected from an invoice sent to your customer." },
+  // { accountName: "Accounts Receivable", accountSubhead: "Accounts Receivable", accountHead: "Asset", accountGroup: "Asset",accountCode:"AC-07",description: "The money that customers owe you becomes the accounts receivable. A good example of this is a payment expected from an invoice sent to your customer." },
   
   { accountName: "Inventory Asset", accountSubhead: "Stock", accountHead: "Asset", accountGroup: "Asset",accountCode:"AC-08",description: "An account which tracks the value of goods in your inventory.." },
   
@@ -756,7 +756,7 @@ const accounts = [
   { accountName: "Employee Reimbursements", accountSubhead: "Current Liability", accountHead: "Liabilities", accountGroup: "Liability",accountCode:"AC-25",description: "This account can be used to track the reimbursements that are due to be paid out to employees." },
   { accountName: "TDS Payable", accountSubhead: "Current Liability", accountHead: "Liabilities", accountGroup: "Liability",accountCode:"AC-26",description: "TDS Payable" },
   
-  { accountName: "Accounts Payable", accountSubhead: "Accounts Payable", accountHead: "Liabilities", accountGroup: "Liability",accountCode:"AC-27",description: "This is an account of all the money which you owe to others like a pending bill payment to a vendor,etc." },
+  // { accountName: "Accounts Payable", accountSubhead: "Accounts Payable", accountHead: "Liabilities", accountGroup: "Liability",accountCode:"AC-27",description: "This is an account of all the money which you owe to others like a pending bill payment to a vendor,etc." },
   
   { accountName: "Construction Loan", accountSubhead: "Long Term Liability", accountHead: "Liabilities", accountGroup: "Liability",accountCode:"AC-28",description: "An expense account that tracks the amount you repay for construction loans." },
   { accountName: "Mortgages", accountSubhead: "Long Term Liability", accountHead: "Liabilities", accountGroup: "Liability",accountCode:"AC-29" ,description: "An expense account that tracks the amounts you pay for the mortgage loan."},
