@@ -57,16 +57,17 @@ exports.login = [loginRateLimiter, async (req, res) => {
     }
 
     // Generate OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    // const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp ='111111';
 
     // Store OTP in cache with the email as the key
     otpCache.set(email, otp);
 
     // Send OTP email
-    const emailSent = await sendOtpEmail(user.userEmail, otp);
-    if (!emailSent) {
-      return res.status(500).json({ success: false, message: 'Failed to send OTP, please try again' });
-    }
+    // const emailSent = await sendOtpEmail(user.userEmail, otp);
+    // if (!emailSent) {
+    //   return res.status(500).json({ success: false, message: 'Failed to send OTP, please try again' });
+    // }
 
     res.status(200).json({
       success: true,

@@ -110,7 +110,7 @@ router.get('/get-prefix',verifyToken,checkPermission('Viewed Prefix'),prefixCont
 
 router.put('/edit-prefix',verifyToken,checkPermission('Edited Prefix'),prefixController.updatePrefix)
 
-router.delete('/delete-prefix',verifyToken,checkPermission('Deleted Prefix'),prefixController.deletePrefix)
+router.delete('/prefix/:seriesId',verifyToken,checkPermission('Deleted Prefix'),prefixController.deletePrefix)
 
 router.put('/status-prefix',verifyToken,checkPermission('Modified Prefix Status'),prefixController.setPrefixSeriesStatusTrue)
 

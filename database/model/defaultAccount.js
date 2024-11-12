@@ -7,16 +7,14 @@ const { Schema } = mongoose;
 const defaultAccountSchema = new Schema({
     organizationId: {type:String},
 
-    salesAccount: {type:String},
-    
+    salesAccount: {type:String},    
     purchaseAccount: {type:String},
 
     salesDiscountAccount: {type:String},
     purchaseDiscountAccount: {type:String},
 
     
-    accountReceivableAccount: {type:String},
-    
+    accountReceivableAccount: {type:String},    
     accountPayableAccount: {type:String},
 
     outputCgst: {type:String},
@@ -28,6 +26,11 @@ const defaultAccountSchema = new Schema({
     inputSgst: {type:String},
     inputIgst: {type:String},
     inputVat: {type:String},
+
+    freightOutward: {type:String}, //Sales
+    freightInward: {type:String},
+    otherExpenseSales: {type:String},
+    otherExpensePurchase: {type:String},
 
 });
 

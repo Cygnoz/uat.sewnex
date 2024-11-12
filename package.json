@@ -12,16 +12,16 @@
   "description": "",
   "dependencies": {
     "bcrypt": "^5.1.1",
-    "cookie-parser": "^1.4.6",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
-    "express": "^4.19.2",
+    "express": "^4.21.1",
     "express-rate-limit": "^7.4.1",
     "jsonwebtoken": "^9.0.2",
-    "moment-timezone": "^0.5.45",
-    "mongoose": "^8.4.4",
+    "moment-timezone": "^0.5.46",
+    "mongoose": "^8.8.0",
     "node-cache": "^5.1.2",
-    "nodemailer": "^6.9.14",
-    "nodemon": "^3.1.4"
+    "nodemailer": "^6.9.16",
+    "nodemon": "^3.1.7"
   }
 }

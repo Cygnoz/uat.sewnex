@@ -33,15 +33,23 @@ exports.addDefaultAccount = async (req, res) => {
       const cleanedData = cleanCustomerData(req.body);
 
       const {
-        salesAccount, purchaseAccount, salesDiscountAccount, purchaseDiscountAccount,
-        accountReceivableAccount, accountPayableAccount, outputCgst, outputSgst,
-        outputIgst, outputVat, inputCgst, inputSgst, inputIgst, inputVat
+        salesAccount, purchaseAccount, 
+        salesDiscountAccount, purchaseDiscountAccount,
+        accountReceivableAccount, accountPayableAccount, 
+        outputCgst, outputSgst, outputIgst, outputVat, 
+        inputCgst, inputSgst, inputIgst, inputVat,
+        freightOutward,freightInward,
+        otherExpenseSales,otherExpensePurchase
       } = cleanedData;
   
       const accountIds = [
-        salesAccount, purchaseAccount, salesDiscountAccount, purchaseDiscountAccount,
-        accountReceivableAccount, accountPayableAccount, outputCgst, outputSgst, outputIgst,
-        outputVat, inputCgst, inputSgst, inputIgst, inputVat
+        salesAccount, purchaseAccount, 
+        salesDiscountAccount, purchaseDiscountAccount,
+        accountReceivableAccount, accountPayableAccount, 
+        outputCgst, outputSgst, outputIgst, outputVat, 
+        inputCgst, inputSgst, inputIgst, inputVat,
+        freightOutward,freightInward,
+        otherExpenseSales,otherExpensePurchase
       ].filter(id => id !== undefined);
   
       // Validate account IDs only if there are any valid account IDs
@@ -65,9 +73,14 @@ exports.addDefaultAccount = async (req, res) => {
   
       // Create or update default account
     const defaultAccountData = {
-      organizationId, salesAccount, purchaseAccount, salesDiscountAccount,
-      purchaseDiscountAccount, accountReceivableAccount, accountPayableAccount,
-      outputCgst, outputSgst, outputIgst, outputVat, inputCgst, inputSgst, inputIgst, inputVat
+      organizationId, 
+      salesAccount, purchaseAccount, 
+      salesDiscountAccount, purchaseDiscountAccount,
+      accountReceivableAccount, accountPayableAccount, 
+      outputCgst, outputSgst, outputIgst, outputVat, 
+      inputCgst, inputSgst, inputIgst, inputVat,
+      freightOutward,freightInward,
+      otherExpenseSales,otherExpensePurchase
     };
 
     if (defAccExist) {
@@ -137,18 +150,29 @@ function validateAccountID(cleanedData, accountIds, res) {
   const idsToValidate = [
     { id: cleanedData.salesAccount, name: 'Sales Account ID' },
     { id: cleanedData.purchaseAccount, name: 'Purchase Account ID' },
+
     { id: cleanedData.salesDiscountAccount, name: 'Sales Discount Account ID' },
     { id: cleanedData.purchaseDiscountAccount, name: 'Purchase Discount Account ID' },
+
     { id: cleanedData.accountReceivableAccount, name: 'Account Receivable Account ID' },
     { id: cleanedData.accountPayableAccount, name: 'Account Payable Account ID' },
+
     { id: cleanedData.outputCgst, name: 'Output CGST Account ID' },
     { id: cleanedData.outputSgst, name: 'Output SGST Account ID' },
     { id: cleanedData.outputIgst, name: 'Output IGST Account ID' },
     { id: cleanedData.outputVat, name: 'Output VAT Account ID' },
+
     { id: cleanedData.inputCgst, name: 'Input CGST Account ID' },
     { id: cleanedData.inputSgst, name: 'Input SGST Account ID' },
     { id: cleanedData.inputIgst, name: 'Input IGST Account ID' },
-    { id: cleanedData.inputVat, name: 'Input VAT Account ID' }
+    { id: cleanedData.inputVat, name: 'Input VAT Account ID' },
+    
+    { id: cleanedData.freightOutward, name: 'Freight Outward' },
+    { id: cleanedData.freightInward, name: 'Freight Inward' },
+
+    { id: cleanedData.otherExpenseSales, name: 'other Expense Sales' },
+    { id: cleanedData.otherExpensePurchase, name: 'Other Expense Purchase' }
+    
   ].filter(({ id }) => id !== undefined);
 
   const idErrors = validateAllIds(idsToValidate);

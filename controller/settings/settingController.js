@@ -7,7 +7,7 @@ const Settings = require('../../database/model/settings')
 // Get settings
 exports.getSettings = async (req, res) => {
   try {
-    const organizationId = req.user.organizationId;
+    const organizationId = req.user.organizationId;    
 
     const settings = await Settings.findOne({ organizationId });
 
@@ -90,10 +90,10 @@ exports.getSettings = async (req, res) => {
         deliveryChellanCN: settings.deliveryChellanCN
       },
       creditNoteSettings: {
-        overideCostPrice: settings.overideCostPrice,
+        overRideCostPrice: settings.overRideCostPrice,
         creditNoteQr: settings.creditNoteQr,
         creditNoteQrType: settings.creditNoteQrType,
-        creditNoteQrDespriction: settings.creditNoteQrDespriction,
+        creditNoteQrDescription: settings.creditNoteQrDescription,
         recordLocking: settings.recordLocking,
         creditNoteTC: settings.creditNoteTC,
         creditNoteCN: settings.creditNoteCN
@@ -112,6 +112,8 @@ exports.getSettings = async (req, res) => {
         duplicateCustomerMobile: settings.duplicateCustomerMobile
       }
     };
+    console.log(organizedSettings);
+
 
     // Return the organized settings
     res.status(200).json(organizedSettings);
