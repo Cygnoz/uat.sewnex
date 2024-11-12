@@ -8,7 +8,7 @@ exports.getCurrency = async (req, res) => {
       const organizationId = req.user.organizationId;
   
   
-      const currencies = await Currency.find({organizationId:organizationId});
+      const currencies = await Currency.find({organizationId:organizationId},{organizationId:0});
   
       if (currencies) {
         res.status(200).json(currencies);

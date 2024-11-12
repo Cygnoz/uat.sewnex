@@ -80,7 +80,7 @@ exports.getPrefix = async (req, res) => {
     console.log(organizationId);
     
 
-    const prefix = await Prefix.findOne({ organizationId });
+    const prefix = await Prefix.findOne({ organizationId },{organizationId:0});
 
     if (!prefix) {
       return res.status(404).json({ message: "Prefix collection not found" });

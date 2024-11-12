@@ -9,7 +9,7 @@ exports.getSettings = async (req, res) => {
   try {
     const organizationId = req.user.organizationId;    
 
-    const settings = await Settings.findOne({ organizationId });
+    const settings = await Settings.findOne({ organizationId },{organizationId:0});
 
     if (!settings) {
       return res.status(404).json({ message: "No settings found for this organization" });
@@ -112,7 +112,6 @@ exports.getSettings = async (req, res) => {
         duplicateCustomerMobile: settings.duplicateCustomerMobile
       }
     };
-    console.log(organizedSettings);
 
 
     // Return the organized settings
