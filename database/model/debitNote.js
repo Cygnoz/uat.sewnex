@@ -6,6 +6,7 @@ const itemsSchema = new Schema({
   itemName: { type: String },
 
   itemQuantity: { type: Number },
+  itemSellingPrice: { type: Number },
   itemCostPrice: { type: Number },
 
   itemTax: { type: Number },
@@ -51,6 +52,7 @@ const debitNoteSchema = new mongoose.Schema({
   // Other details:
   addNotes: { type: String },
   attachFiles: { type: String }, 
+  termsAndConditions: { type: String }, 
 
   //transaction details
   subTotal: { type: Number },
