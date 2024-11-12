@@ -43,7 +43,7 @@ exports.addBill = async (req, res) => {
     const normalizedBody = normalizeRequestData(req.body);
 
     // Validate payment terms and calculate due date
-    const calculatedDueDateResponse = validateAndUpdateDueDate(normalizedBody.paymentTerms, normalizedBody.billDate, normalizedBody.existingDueDate);
+    //const calculatedDueDateResponse = validateAndUpdateDueDate(normalizedBody.paymentTerms, normalizedBody.billDate, normalizedBody.existingDueDate);
 
     // Check for errors in calculatedDueDateResponse
     if (calculatedDueDateResponse.error) {
@@ -140,7 +140,7 @@ exports.getAllPurchaseBills = async (req, res) => {
       }
 
       // Push the bill object with the updated status to the result array
-      updatedBills.push({ ...rest, paidStatus: newStatus });
+      updatedBills.push({ ...rest, balanceAmount , dueDate , paidStatus: newStatus });
     }
 
     res.status(200).json({ PurchaseBills: updatedBills });
@@ -202,16 +202,6 @@ const normalizeRequestData = (data) => {
 
 
 
-
-// const isBillNumberUnique = async (billNumber, res) => {
-//   const existingBill = await PurchaseBill.findOne({ billNumber });
-//   if (existingBill) {
-//     // If the bill number exists, send a response message
-//     res.status(400).json({ message: "This bill number already exists." });
-//     return false; // Return false to indicate it's not unique
-//   }
-//   return true; // Return true to indicate it's unique
-// };
 
 
 
@@ -443,6 +433,7 @@ const cleanBillData = (data, supplierExists, items) => {
 };
 
 
+
 // // Set paidStatus based on dueDate and payment completion
 // function updatePaidStatus(cleanedData) {
 //   const isOverdue = moment().isAfter(moment(cleanedData.dueDate, 'YYYY-MM-DD'));
@@ -485,6 +476,9 @@ const cleanBillData = (data, supplierExists, items) => {
 
 
 // Validation Error Check
+
+
+
 const hasValidationErrors = async (body, supplierExists, res) => {
   const { itemTable, transactionDiscountType  } = body;
   let shipmentPreference = body.shipmentPreference; // Declare shipmentPreference with let
@@ -545,60 +539,71 @@ const hasValidationErrors = async (body, supplierExists, res) => {
   }
 
 
-  return false; // No validation errors
-};
-
-const validateAndUpdateDueDate = (paymentTerms, billDate, existingDueDate) => {
-  const validPaymentTerms = [
-    "Net 15", "Net 30", "Net 45", "Net 60", "Pay Now", "due on receipt", "End of This Month", "End of Next Month"
-  ];
-
   // Check if paymentTerms is valid
   if (!validPaymentTerms.includes(paymentTerms)) {
     return { error: "Invalid payment terms." }; // Return error message for invalid payment terms
   }
 
-  // Calculate due date based on payment terms
-  let dueDate;
-
-  switch (paymentTerms) {
-    case "Net 15":
-      dueDate = moment(billDate).add(15, 'days').format('YYYY-MM-DD');
-      break;
-    case "Net 30":
-      dueDate = moment(billDate).add(30, 'days').format('YYYY-MM-DD');
-      break;
-    case "Net 45":
-      dueDate = moment(billDate).add(45, 'days').format('YYYY-MM-DD');
-      break;
-    case "Net 60":
-      dueDate = moment(billDate).add(60, 'days').format('YYYY-MM-DD');
-      break;
-    case "Pay Now":
-      dueDate = billDate; // Due date is the same as bill date
-      break;
-    case "due on receipt":
-      dueDate = existingDueDate; // Allow any date as existing due date
-      break;
-    case "End of This Month":
-      dueDate = moment(billDate).endOf('month').format('YYYY-MM-DD');
-      break;
-    case "End of Next Month":
-      dueDate = moment(billDate).add(1, 'month').endOf('month').format('YYYY-MM-DD');
-      break;
-    default:
-      return { error: "Invalid payment terms." }; // Handle invalid payment terms
-  }
-
-  // Ensure the due date is not earlier than the bill date
-  if (moment(dueDate).isBefore(billDate)) {
-    return { error: "Due date cannot be earlier than the bill date." }; // Return error message for invalid due date
-  }
-
-  return { dueDate }; // Return the calculated due date
+  return false; // No validation errors
 };
 
+// const validateAndUpdateDueDate = (paymentTerms, billDate, existingDueDate) => {
+//   const validPaymentTerms = [
+//     "Net 15", "Net 30", "Net 45", "Net 60", "Pay Now", "due on receipt", "End of This Month", "End of Next Month"
+//   ];
+
+//   // Check if paymentTerms is valid
+//   if (!validPaymentTerms.includes(paymentTerms)) {
+//     return { error: "Invalid payment terms." }; // Return error message for invalid payment terms
+//   }
+
+//   // Calculate due date based on payment terms
+//   let dueDate;
+
+//   switch (paymentTerms) {
+//     case "Net 15":
+//       dueDate = moment(billDate).add(15, 'days').format('YYYY-MM-DD');
+//       break;
+//     case "Net 30":
+//       dueDate = moment(billDate).add(30, 'days').format('YYYY-MM-DD');
+//       break;
+//     case "Net 45":
+//       dueDate = moment(billDate).add(45, 'days').format('YYYY-MM-DD');
+//       break;
+//     case "Net 60":
+//       dueDate = moment(billDate).add(60, 'days').format('YYYY-MM-DD');
+//       break;
+//     case "Pay Now":
+//       dueDate = billDate; // Due date is the same as bill date
+//       break;
+//     case "due on receipt":
+//       dueDate = existingDueDate; // Allow any date as existing due date
+//       break;
+//     case "End of This Month":
+//       dueDate = moment(billDate).endOf('month').format('YYYY-MM-DD');
+//       break;
+//     case "End of Next Month":
+//       dueDate = moment(billDate).add(1, 'month').endOf('month').format('YYYY-MM-DD');
+//       break;
+//     default:
+//       return { error: "Invalid payment terms." }; // Handle invalid payment terms
+//   }
+
+//   // Ensure the due date is not earlier than the bill date
+//   if (moment(dueDate).isBefore(billDate)) {
+//     return { error: "Due date cannot be earlier than the bill date." }; // Return error message for invalid due date
+//   }
+
+//   return { dueDate }; // Return the calculated due date
+// };
+
+
+
 // Function to check for duplicate items by itemId in itemTable
+
+
+
+
 function hasDuplicateItems(itemTable) {
   const itemIds = itemTable.map(item => item.itemId);
   const uniqueItemIds = new Set(itemIds);
@@ -651,14 +656,7 @@ function validateLocationInputs(data, organizationExists, res) {
 // Validate source and destination of supply
 function validateSupplyLocations(data, organization) {
   const errors = [];
-  // // Check if sourceOfSupply is selected
-  // if (!data.sourceOfSupply) {
-  //   errors.push("Source of Supply must be selected.");
-  // }
-  // // Check if destinationOfSupply is selected
-  // if (!data.destinationOfSupply) {
-  //   errors.push("Destination of Supply must be selected.");
-  // }
+  
   validateSourceOfSupply(data.sourceOfSupply, organization, errors);
   validateDestinationOfSupply(data.destinationOfSupply, organization, errors);
   return errors;

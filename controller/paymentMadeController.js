@@ -87,9 +87,6 @@ const paymentDataExist = async ( organizationId, PaymentId ) => {
 //     //Prefix 
 //     await vendorPaymentPrefix(cleanedData, existingPrefix );
 
-//     // Log the payment made
-//     await handlePaymentMadeLog(cleanedData); // Call the function to log payment details
-
 //     // Response
 //     return res.status(200).json({ message: 'Payment added successfully', payment });
 
@@ -106,7 +103,6 @@ const paymentDataExist = async ( organizationId, PaymentId ) => {
 
 
 // Get All Purchase Orders
-
 
 exports.addPayment = async (req, res) => {
   try {
@@ -142,24 +138,21 @@ exports.addPayment = async (req, res) => {
       return; // Stops execution if validation fails
     }
 
-    if (!validateInputs(cleanedData, supplierExists, unpaidBills, paymentTable, organizationExists, res)) return;
+    // Validate input values, unpaidBills, and paymentTable
+    if (!validateInputs(cleanedData, supplierExists, unpaidBills, paymentTable, organizationExists, res)) {
+      return; // Stops execution if validation fails
+    }
 
-    // Calculate total payment made
+    // Calculate the total payment made
     const updatedData = await calculateTotalPaymentMade(cleanedData, paymentMade);
 
-    // Opening Date
-    const openingDate = generateOpeningDate({ timeZoneExp: organizationId.timeZoneExp, dateFormatExp: organizationId.dateFormatExp, dateSplit: organizationId.dateSplit });
-
-    // Create and save new payment
-    const payment = await createNewPayment(updatedData, openingDate, organizationId, userId, userName);
-
-    // Prefix 
+    // Generate prefix for vendor payment
     await vendorPaymentPrefix(cleanedData, existingPrefix);
 
-    // Log the payment made
-    await handlePaymentMadeLog(cleanedData); // Call the function to log payment details
+    // Log the payment made for tracking
+  
 
-    // Ensure 'payment' field is set for each bill, if not default to 0
+    // Ensure 'payment' field is set for each bill, default to 0 if not defined
     updatedData.unpaidBills.forEach(bill => {
       if (typeof bill.payment === 'undefined') {
         console.warn(`Payment field missing for bill ID: ${bill.billId}`);
@@ -167,27 +160,19 @@ exports.addPayment = async (req, res) => {
       }
     });
 
-    // Store messages if any bills have zero amountDue
-    let zeroAmountDueMessages = [];
-
-    // Update amountDue for each unpaid bill with the new payment
+    // Update `amountDue` for each unpaid bill and store the results
+    const paymentResults = [];
     for (const unpaidBill of updatedData.unpaidBills) {
-      const { amountDue, message } = await calculateAmountDue(unpaidBill.billId, { amount: unpaidBill.payment });
-
-      if (message) {
-        zeroAmountDueMessages.push(message); // Add any messages about zero balance
-      }
-
-      // Update the amountDue in the unpaidBill object for response purposes
-      unpaidBill.amountDue = amountDue;
+      const result = await calculateAmountDue(unpaidBill.billId, { amount: unpaidBill.payment });
+      paymentResults.push(result);
     }
 
-    // Response with the updated payment details and zero balance messages
+    // Re-fetch the updated bills to get the latest `amountDue` and `balanceAmount`
+    const updatedBills = await PurchaseBill.find({ _id: { $in: updatedData.unpaidBills.map(bill => bill.billId) } });
+
+    // Response with the updated bills and the success message
     return res.status(200).json({
-      message: 'Payment added successfully',
-      payment,
-      unpaidBills: updatedData.unpaidBills, // Include updated bills with amountDue
-      zeroAmountDueMessages, // Any bills with zero balance messages
+      message: 'Payment added successfully',updatedBills,
     });
 
   } catch (error) {
@@ -195,6 +180,7 @@ exports.addPayment = async (req, res) => {
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
+
 
 
 
@@ -304,54 +290,6 @@ function vendorPaymentPrefix( cleanData, existingPrefix ) {
 
 
 
-async function handlePaymentMadeLog(cleanedData) {
-  try {
-    // Automatically set paymentMode to "Credit" for any term other than "Pay Now"
-    if (cleanedData.paymentTerms !== "Pay Now") {
-      cleanedData.paymentMode = "Credit";
-    }
-
-    // Only log into "Payment Made" if paymentTerms is not "Pay Now"
-    if (cleanedData.paymentTerms !== "Pay Now") {
-      const paymentEntry = {
-        billId: cleanedData.billId,
-        paymentMode: cleanedData.paymentMode, // This will be "Credit" as per the logic above
-        balanceAmount: cleanedData.balanceAmount,
-        paidAmount: cleanedData.paidAmount,
-        paymentTerms: cleanedData.paymentTerms,
-        dueDate: cleanedData.dueDate,
-      };
-
-      // Save to the PaymentMade collection
-      await PurchasePayment.create(paymentEntry);
-      console.log("Payment Made entry created:", paymentEntry);
-    }
-  } catch (error) {
-    console.error("Error creating Payment Made entry:", error);
-  }
-}
-
-// async function addPaymentMade(paymentData) {
-//   try {
-//     // Clean and process paymentData as needed
-//     const cleanedData = {
-//       billId: paymentData.billId,
-//       paymentMode: paymentData.paymentMode,
-//       balanceAmount: paymentData.balanceAmount,
-//       paidAmount: paymentData.paidAmount,
-//       paymentTerms: paymentData.paymentTerms,
-//       dueDate: paymentData.dueDate,
-//     };
-
-//     // Call the handlePaymentMadeLog function
-//     await handlePaymentMadeLog(cleanedData);
-
-//     // Continue with the rest of the addPayment logic
-//     // (e.g., updating the bill status, notifying users, etc.)
-//   } catch (error) {
-//     console.error("Error adding payment:", error);
-//   }
-// }
 
 
 
@@ -359,7 +297,9 @@ async function handlePaymentMadeLog(cleanedData) {
 
 
   //Clean Data 
-function cleanSupplierData(data) {
+
+
+  function cleanSupplierData(data) {
     const cleanData = (value) => (value === null || value === undefined || value === "" ? undefined : value);
     return Object.keys(data).reduce((acc, key) => {
       acc[key] = cleanData(data[key]);
@@ -627,7 +567,6 @@ function isAlphanumeric(value) {
 
 
 
-// Function to calculate and update the amountDue for a bill
 const calculateAmountDue = async (billId, { amount }) => {
   try {
     // Find the bill by its ID
@@ -642,28 +581,42 @@ const calculateAmountDue = async (billId, { amount }) => {
       throw new Error(`Invalid payment amount: ${amount}`);
     }
 
-    // Initialize bill.payment if undefined
-    bill.payment = typeof bill.payment === 'number' ? bill.payment : 0;
+    // Initialize fields if undefined
+    bill.paidAmount = typeof bill.paidAmount === 'number' ? bill.paidAmount : 0;
+    bill.balanceAmount = typeof bill.balanceAmount === 'number' ? bill.balanceAmount : bill.grandTotal;
 
     // Ensure grandTotal is valid
     if (typeof bill.grandTotal !== 'number' || isNaN(bill.grandTotal)) {
       throw new Error(`Invalid grandTotal for Bill ID: ${billId}`);
     }
 
-    // Update the amount paid and calculate the new amount due
-    bill.payment += amount;  // Add payment to the current paid amount
-    const amountDue = bill.grandTotal - bill.payment;
+    // Calculate new paidAmount and balanceAmount
+    bill.paidAmount += amount;
+    bill.balanceAmount = bill.grandTotal - bill.paidAmount;
 
-    // Ensure amountDue does not go negative
-    bill.amountDue = amountDue >= 0 ? amountDue : 0;
+    // Ensure values are within correct bounds
+    if (bill.balanceAmount < 0) {
+      bill.balanceAmount = 0;
+    }
+    if (bill.paidAmount > bill.grandTotal) {
+      bill.paidAmount = bill.grandTotal;
+    }
 
-    // Save the updated bill with the new amountDue and payment
+    // Save the updated bill with new balanceAmount and paidAmount
     await bill.save();
 
-    // Log the updated bill status (optional, for debugging)
-    console.log(`Updated Bill ID ${billId}: Payment: ${bill.payment}, Amount Due: ${bill.amountDue}`);
+    // Log the updated bill status for debugging
+    console.log(`Updated Bill ID ${billId}: Paid Amount: ${bill.paidAmount}, Balance Amount: ${bill.balanceAmount}`);
 
-    return bill;
+    // Check if payment is complete
+    if (bill.balanceAmount === 0) {
+      return {
+        message: `Payment completed for Bill ID ${billId}. No further payments are needed.`,
+        bill,
+      };
+    }
+
+    return { message: 'Payment processed', bill };
 
   } catch (error) {
     console.error(`Error calculating amount due for Bill ID ${billId}:`, error);
