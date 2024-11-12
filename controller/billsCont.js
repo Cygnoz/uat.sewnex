@@ -182,7 +182,6 @@ exports.getPurchaseBill = async (req, res) => {
 };
 
 
-
 const normalizeRequestData = (data) => {
   const normalizedData = {};
 
@@ -640,7 +639,6 @@ const validateBillInputs = (organizationExists, supplierExists, items, taxExists
   }
   return true; // All validations passed
 };
-// Amal
 
 // Validate supply locations
 function validateLocationInputs(data, organizationExists, res) {
@@ -656,7 +654,7 @@ function validateLocationInputs(data, organizationExists, res) {
 // Validate source and destination of supply
 function validateSupplyLocations(data, organization) {
   const errors = [];
-  
+
   validateSourceOfSupply(data.sourceOfSupply, organization, errors);
   validateDestinationOfSupply(data.destinationOfSupply, organization, errors);
   return errors;

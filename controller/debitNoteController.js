@@ -18,12 +18,11 @@ const dataExist = async ( organizationId, supplierId, billId, items ) => {
     const [organizationExists, supplierExist, billExist, settings, itemTable, existingPrefix  ] = await Promise.all([
       Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
       Supplier.findOne({ organizationId , _id:supplierId}, { _id: 1, supplierDisplayName: 1, taxType: 1 }),
-      Bills.findOne({ organizationId, _id:billId }, { _id: 1, billNumber: 1, billDate: 1, orderNumber: 1, supplierId: 1, sourceOfSupply: 1, destinationOfSupply: 1 }),
+      Bills.findOne({ organizationId, _id:billId }, { _id: 1, billNumber: 1, billDate: 1, orderNumber: 1, supplierId: 1, sourceOfSupply: 1, destinationOfSupply: 1, itemTable: 1 }),
       Settings.findOne({ organizationId }),
       Item.find({ organizationId, _id: { $in: itemIds } }, { _id: 1, itemName: 1, taxPreference: 1, costPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }),
       Prefix.findOne({ organizationId })
-    ]);
-    
+    ]);    
   return { organizationExists, supplierExist, billExist, settings, itemTable, existingPrefix };
 };
 
@@ -41,7 +40,7 @@ exports.addDebitNote = async (req, res) => {
 
     const { items } = cleanedData;
     const { supplierId } = cleanedData;
-    const { billId } = cleanedData;
+    const { billId, billDate } = cleanedData;
     
     const itemIds = items.map(item => item.itemId);
     
@@ -83,7 +82,7 @@ exports.addDebitNote = async (req, res) => {
     
     
     // Calculate Sales 
-    if (!calculateDebitNote( cleanedData, res )) return;
+    if (!calculateDebitNote( cleanedData, itemTable, res )) return;
 
     // // console.log('Calculation Result:', result);
 
@@ -94,11 +93,11 @@ exports.addDebitNote = async (req, res) => {
       // , userId, userName 
     );
 
-    // Track the items from the Debit Note
-    // await trackItemsFromBill(organizationId, itemTable, billDate, savedBill);
+    // // Track the items from the Debit Note
+    // await trackItemsFromDebitNote(organizationId, itemTable, billDate, savedDebitNote);
       
-    res.status(201).json({ message: "Debit Note created successfully" });
-    console.log( "Debit Note created successfully:", savedDebitNote );
+    res.status(201).json({ message: "Debit Note created successfully",savedDebitNote });
+    // console.log( "Debit Note created successfully:", savedDebitNote );
   } catch (error) {
     console.error("Error Creating Debit Note:", error);
     res.status(500).json({ message: "Internal server error." });
@@ -111,10 +110,10 @@ exports.addDebitNote = async (req, res) => {
 function createNewDebitNote( data, organizationId, openingDate
   // , userId, userName 
 ) {
-  const newQuotes = new DebitNote({ ...data, organizationId, createdDate: openingDate
+  const newDebitNote = new DebitNote({ ...data, organizationId, createdDate: openingDate
     // , userId, userName 
   });
-  return newQuotes.save();
+  return newDebitNote.save();
 }
 
 
@@ -155,6 +154,7 @@ function validateOrganizationTaxCurrency( organizationExists, supplierExist, bil
 
 // Tax Type
 function taxtype( cleanedData, supplierExist ) {
+
   if(supplierExist.taxType === 'GST' ){
     if(cleanedData.sourceOfSupply === cleanedData.destinationOfSupply){
       cleanedData.taxMode ='Intra';
@@ -166,17 +166,13 @@ function taxtype( cleanedData, supplierExist ) {
   if(supplierExist.taxType === 'VAT' ){
     cleanedData.taxMode ='VAT'; 
   }
-  if(supplierExist.taxType === 'Non-Tax' ){
-    cleanedData.taxMode ='Non-Tax';
-  } 
   return   
 }
 
 
 
 
-
-function calculateDebitNote(cleanedData, res) {
+function calculateDebitNote(cleanedData, itemTable, res) {
   const errors = [];
 
   let subTotal = 0;
@@ -187,7 +183,7 @@ function calculateDebitNote(cleanedData, res) {
   let grandTotal = 0;
 
   // Utility function to round values to two decimal places
-  const roundToTwoDecimals = (value) => Number(value.toFixed(2));
+  const roundToTwoDecimals = (value) => Number(value.toFixed(2));  
 
   cleanedData.items.forEach(item => {
 
@@ -207,29 +203,22 @@ function calculateDebitNote(cleanedData, res) {
     subTotal += parseFloat(item.itemQuantity * item.itemCostPrice);
 
     itemAmount = (item.itemCostPrice * item.itemQuantity - itemDiscAmt);
-    
+
     // Handle tax calculation only for taxable items
-    if (item.taxPreference === 'Taxable') {
-      // const itemIgstPercentage = parseFloat(item.itemIgst) || 0; 
-      // const itemIgstAmount = (parseFloat(item.itemAmount) * itemIgstPercentage) / 100;
+    itemTable.forEach(i => {
+    if (i.taxPreference === 'Taxable') {
       switch (taxMode) {
         
         case 'Intra':
-          // const halfIgst = itemIgstAmount / 2;
-          // calculatedItemCgstAmount = halfIgst;
-          // calculatedItemSgstAmount = halfIgst;
           calculatedItemCgstAmount = roundToTwoDecimals((item.itemCgst / 100) * itemAmount);
           calculatedItemSgstAmount = roundToTwoDecimals((item.itemSgst / 100) * itemAmount);
         break;
 
         case 'Inter':
-          // calculatedItemIgstAmount = itemIgstAmount;
           calculatedItemIgstAmount = roundToTwoDecimals((item.itemIgst / 100) * itemAmount);
         break;
         
         case 'VAT':
-          // const itemVatPercentage = parseFloat(item.itemVat) || 0; 
-          // calculatedItemVatAmount = (item.itemCostPrice * item.itemQuantity * itemVatPercentage) / 100;
           calculatedItemVatAmount = roundToTwoDecimals((item.itemVat / 100) * itemAmount);
         break;
 
@@ -244,15 +233,13 @@ function calculateDebitNote(cleanedData, res) {
       checkAmount(calculatedItemVatAmount, item.itemVatAmount, item.itemName, 'VAT',errors);
       checkAmount(calculatedItemTaxAmount, item.itemTax, item.itemName, 'Item tax',errors);
 
-      totalTaxAmount += calculatedItemCgstAmount + calculatedItemSgstAmount + calculatedItemIgstAmount + calculatedItemVatAmount || 0 ;      
+      totalTaxAmount += calculatedItemTaxAmount;     
 
     } else {
       console.log(`Skipping Tax for Non-Taxable item: ${item.itemName}`);
       console.log(`Item: ${item.itemName}, Calculated Discount: ${itemDiscAmt}`);
     }
-
-    console.log("totalTaxAmount....................:",totalTaxAmount);
-
+    })
 
     checkAmount(itemAmount, item.itemAmount, item.itemName, 'Item Total',errors);
 
@@ -272,18 +259,15 @@ function calculateDebitNote(cleanedData, res) {
   grandTotal = total - transDisAmt; 
 
   // Round the totals for comparison
-  const roundedSubTotal = roundToTwoDecimals(subTotal);
+  const roundedSubTotal = roundToTwoDecimals(subTotal); //23.24 
   const roundedTotalTaxAmount = roundToTwoDecimals(totalTaxAmount);
   const roundedGrandTotalAmount = roundToTwoDecimals(grandTotal);
   const roundedTotalItemDiscount = roundToTwoDecimals(itemTotalDiscount);
 
-
   console.log(`Final Sub Total: ${roundedSubTotal} , Provided ${cleanedData.subTotal}` );
-  console.log(`Final Total Tax: ${roundedTotalTaxAmount} , Provided ${cleanedData.totalTaxAmount}` );
+  console.log(`Final Total Tax Amount: ${roundedTotalTaxAmount} , Provided ${cleanedData.totalTaxAmount}` );
   console.log(`Final Total Amount: ${roundedGrandTotalAmount} , Provided ${cleanedData.grandTotal}` );
   console.log(`Final Total Item Discount Amount: ${roundedTotalItemDiscount} , Provided ${cleanedData.itemTotalDiscount}` );
-  // console.log(`Final Total Discount Amount: ${transactionDiscountAmount} , Provided ${cleanedData.transactionDiscountAmount}` );
-
 
   validateAmount(roundedSubTotal, cleanedData.subTotal, 'SubTotal', errors);
   validateAmount(roundedTotalTaxAmount, cleanedData.totalTaxAmount, 'Total Tax Amount', errors);
@@ -462,13 +446,13 @@ function validateInputs( data, supplierExist, billExist, items, itemExists, orga
 function validateDebitNoteData( data, supplierExist, billExist, items, itemTable, organizationExists ) {
   const errors = [];
 
-  console.log("Item Request :",items);
-  console.log("Item Fetched :",itemTable);
+  // console.log("Item Request :",items);
+  // console.log("Item Fetched :",itemTable);
 
   //Basic Info
   validateReqFields( data, supplierExist, errors );
   validateItemTable(items, itemTable, errors);
-  validateBillData(data, billExist, errors);
+  validateBillData(data, items, billExist, errors);
   validateTransactionDiscountType(data.transactionDiscountType, errors);
   // console.log("billExist Data:", billExist.billNumber, billExist.billDate, billExist.orderNumber)
 
@@ -551,14 +535,57 @@ items.forEach((item) => {
 }
 
 
-function validateBillData(data, billExist, errors) {
-  console.log("data.....:", data);
-  console.log("billExist.....:", billExist);
-  
-  // Validate billDate 
+
+function validateBillData(data, items, billExist, errors) {  
+  // console.log("data:", data);
+  // console.log("billExist:", billExist);
+  // console.log("items:", items);
+
+  // if (!billExist) {
+  //   errors.push("billExist is not defined.");
+  //   return;
+  // }
+
+  // Initialize `billExist.items` to an empty array if undefined
+  billExist.items = Array.isArray(billExist.items) ? billExist.items : [];
+
+  // Validate basic fields
   validateField( billExist.billDate !== data.billDate, `Bill Date mismatch for ${billExist.billDate}`, errors  );
-  // Validate orderNumber 
   validateField( billExist.orderNumber !== data.orderNumber, `Order Number mismatch for ${billExist.orderNumber}`, errors  );
+
+  // Loop through each item in billExist.items
+  billExist.items.forEach(billItem => {
+    const dNItem = items.find(dataItem => dataItem.itemId === billItem.itemId);
+
+    if (!dNItem) {
+      errors.push(`Item ID ${billItem.itemId} not found in provided items`);
+    } else {
+      validateField(dNItem.itemName !== billItem.itemName, 
+                    `Item Name mismatch for ${billItem.itemId}: Expected ${billItem.itemName}, got ${dNItem.itemName}`, 
+                    errors);
+      validateField(dNItem.itemCostPrice !== billItem.itemCostPrice, 
+                    `Item Cost Price mismatch for ${billItem.itemId}: Expected ${billItem.itemCostPrice}, got ${dNItem.itemCostPrice}`, 
+                    errors);
+      validateField(dNItem.itemCgst !== billItem.itemCgst, 
+                    `Item CGST mismatch for ${billItem.itemId}: Expected ${billItem.itemCgst}, got ${dNItem.itemCgst}`, 
+                    errors);
+      validateField(dNItem.itemSgst !== billItem.itemSgst, 
+                    `Item SGST mismatch for ${billItem.itemId}: Expected ${billItem.itemSgst}, got ${dNItem.itemSgst}`, 
+                    errors);
+      validateField(dNItem.itemIgst !== billItem.itemIgst, 
+                    `Item IGST mismatch for ${billItem.itemId}: Expected ${billItem.itemIgst}, got ${dNItem.itemIgst}`, 
+                    errors);
+      validateField(dNItem.itemDiscount !== billItem.itemDiscount, 
+                    `Item Discount mismatch for ${billItem.itemId}: Expected ${billItem.itemDiscount}, got ${dNItem.itemDiscount}`, 
+                    errors);
+      validateField(dNItem.itemTax !== billItem.itemTax, 
+                    `Item Discount mismatch for ${billItem.itemId}: Expected ${billItem.itemTax}, got ${dNItem.itemTax}`, 
+                    errors);
+      validateField(dNItem.itemAmount !== billItem.itemAmount, 
+                    `Item Discount mismatch for ${billItem.itemId}: Expected ${billItem.itemAmount}, got ${dNItem.itemAmount}`, 
+                    errors);
+    }
+  });
 }
 
 
@@ -653,6 +680,47 @@ return /^[A-Za-z0-9]+$/.test(value);
 function isValidEmail(value) {
 return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
+
+
+
+
+// // Track items from the debit note (decrease item quantities)
+// const trackItemsFromDebitNote = async (organizationId, itemTable, billDate, savedDebitNote) => {
+//   for (const debitItem of itemTable) {
+//     const { itemId, itemName, itemQuantity } = debitItem; // Assuming 'itemQuantity' is the quantity to be debited
+//     const savedItem = await Item.findOne({ _id: itemId, organizationId });
+
+//     if (savedItem) {
+//       const newStock = (savedItem.currentStock || 0) - Number(itemQuantity);
+      
+//       if (newStock < 0) {
+//         console.warn(`Warning: Stock for item ${itemName} will become negative. Skipping this item.`);
+//         continue;
+//       }
+
+//       const trackEntry = new ItemTrack({
+//         organizationId,
+//         operationId: savedDebitNote._id,
+//         action: "Debit",
+//         date: billDate,
+//         itemId: savedItem._id,
+//         itemName: savedItem.itemName,
+//         debitQuantity: Number(itemQuantity),
+//         currentStock: newStock,
+//         remark: `Debit note for ${itemQuantity} units`,
+//       });
+
+//       await trackEntry.save();
+//       savedItem.currentStock = newStock;
+//       await savedItem.save();
+
+//       console.log("Item Track Added for Debit Note:", trackEntry);
+//     } else {
+//       console.error(`Item not found: ${itemId}`);
+//     }
+//   }
+// };
+
 
 
 

@@ -15,7 +15,6 @@ const { verifyToken } = require('../controller/middleware');
 // router.post('/add-purchaseOrder',verifyToken,checkPermission('Created a New Supplier'), purchaseOrderController.addPurchaseOrder);
 
 //Purchase Order
-
 router.post('/add-purchaseOrder', verifyToken, purchaseOrderController.addPurchaseOrder);
 router.get('/get-last-purchase-order-prefix', verifyToken,purchaseOrderController.getLastPurchaseOrderPrefix)
 
@@ -45,7 +44,7 @@ router.get('/getPayment/:id', verifyToken, PaymentMadeController.getPurchasePaym
 // router.delete('/deletePayment/:id', PaymentMadeController.deletePurchasePayment);
 
 //Debit Note
-router.post('/add-DebitNote', verifyToken, debitNoteController.addDebitNote);
+router.post('/add-DebitNote', debitNoteController.addDebitNote);
 // router.get('/getAllDebitNotes/:id', debitNoteController.getAllDebitNotes);
 // router.get('/getDebitNote/:id', debitNoteController.getDebitNoteById);
 // router.put('/updateDebitNote/:id', debitNoteController.updateDebitNote);
