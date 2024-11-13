@@ -13,19 +13,62 @@ const moment = require("moment-timezone");
 
 
 // Fetch existing data
-const dataExist = async ( organizationId, supplierId, billId, items ) => {
-  const itemIds = items.map(item => item.itemId);
-    const [organizationExists, supplierExist, billExist, settings, itemTable, existingPrefix  ] = await Promise.all([
+const dataExist = async ( organizationId, supplierId, billId ) => {
+    const [organizationExists, supplierExist, billExist, settings, existingPrefix  ] = await Promise.all([
       Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
       Supplier.findOne({ organizationId , _id:supplierId}, { _id: 1, supplierDisplayName: 1, taxType: 1 }),
-      Bills.findOne({ organizationId, _id:billId }, { _id: 1, billNumber: 1, billDate: 1, orderNumber: 1, supplierId: 1, sourceOfSupply: 1, destinationOfSupply: 1 }),
+      Bills.findOne({ organizationId, _id:billId }, { _id: 1, billNumber: 1, billDate: 1, orderNumber: 1, supplierId: 1, sourceOfSupply: 1, destinationOfSupply: 1, itemTable: 1 }),
       Settings.findOne({ organizationId }),
-      Item.find({ organizationId, _id: { $in: itemIds } }, { _id: 1, itemName: 1, taxPreference: 1, costPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }),
       Prefix.findOne({ organizationId })
-    ]);
-    
-  return { organizationExists, supplierExist, billExist, settings, itemTable, existingPrefix };
+    ]);    
+  return { organizationExists, supplierExist, billExist, settings, existingPrefix };
 };
+
+
+//Fetch Item Data
+const newDataExists = async (organizationId,items) => {
+  // Retrieve items with specified fields
+  const itemIds = items.map(item => item.itemId);
+
+  const [newItems] = await Promise.all([
+    Item.find({ organizationId, _id: { $in: itemIds } }, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, costPrice:1,  taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }),
+  ]);
+
+  // Aggregate ItemTrack to get the latest entry for each itemId
+  const itemTracks = await ItemTrack.aggregate([
+    { $match: { itemId: { $in: itemIds } } },
+    { $sort: { _id: -1 } },
+    { $group: { _id: "$itemId", lastEntry: { $first: "$$ROOT" } } }
+  ]);
+
+  // Map itemTracks by itemId for easier lookup
+  const itemTrackMap = itemTracks.reduce((acc, itemTrack) => {
+    acc[itemTrack._id] = itemTrack.lastEntry;
+    return acc;
+  }, {});
+
+  // Attach the last entry from ItemTrack to each item in newItems
+  const itemTable = newItems.map(item => ({
+    ...item._doc, // Copy item fields
+    // lastEntry: itemTrackMap[item._id] || null, // Attach lastEntry if found
+    currentStock: itemTrackMap[item._id.toString()] ? itemTrackMap[item._id.toString()].currentStock : null
+  }));
+
+  return { itemTable };
+};
+
+
+
+const debitDataExist = async ( organizationId, debitId ) => {    
+  const [organizationExists, allDebitNote, debitNote ] = await Promise.all([
+    Organization.findOne({ organizationId }, { organizationId: 1}),
+    DebitNote.find({ organizationId }),
+    DebitNote.findOne({ organizationId , _id: debitId })
+  ]);
+  return { organizationExists, allDebitNote, debitNote };
+};
+
+
 
 
 // Add debit note
@@ -33,8 +76,8 @@ exports.addDebitNote = async (req, res) => {
   //console.log("Add debit note:", req.body);
 
   try {
-    // const { organizationId, id: userId, userName } = req.user;
-    const { organizationId } = req.body;
+    const { organizationId, id: userId, userName } = req.user;
+    // const { organizationId } = req.body;
 
     //Clean Data
     const cleanedData = cleanDebitNoteData(req.body);
@@ -67,7 +110,9 @@ exports.addDebitNote = async (req, res) => {
       return res.status(400).json({ message: `Invalid item IDs: ${invalidItemIds.join(', ')}` });
     }   
 
-    const { organizationExists, supplierExist, billExist, settings, itemTable, existingPrefix } = await dataExist( organizationId, supplierId, billId, items );
+    const { organizationExists, supplierExist, billExist, settings, existingPrefix } = await dataExist( organizationId, supplierId, billId );
+
+    const { itemTable } = await newDataExists( organizationId, items );
 
     //Data Exist Validation
     if (!validateOrganizationTaxCurrency( organizationExists, supplierExist, billExist, existingPrefix, res )) return;
@@ -83,22 +128,20 @@ exports.addDebitNote = async (req, res) => {
     
     
     // Calculate Sales 
-    if (!calculateDebitNote( cleanedData, res )) return;
+    if (!calculateDebitNote( cleanedData, itemTable, res )) return;
 
     // // console.log('Calculation Result:', result);
 
     //Prefix
     await debitNotePrefix(cleanedData, existingPrefix );
 
-    const savedDebitNote = await createNewDebitNote(cleanedData, organizationId, openingDate
-      // , userId, userName 
-    );
+    const savedDebitNote = await createNewDebitNote(cleanedData, organizationId, openingDate, userId, userName );
 
-    // Track the items from the Debit Note
-    // await trackItemsFromBill(organizationId, itemTable, billDate, savedBill);
+    //Item Track
+    await itemTrack( savedDebitNote, itemTable );
       
-    res.status(201).json({ message: "Debit Note created successfully" });
-    console.log( "Debit Note created successfully:", savedDebitNote );
+    res.status(201).json({ message: "Debit Note created successfully",savedDebitNote });
+    // console.log( "Debit Note created successfully:", savedDebitNote );
   } catch (error) {
     console.error("Error Creating Debit Note:", error);
     res.status(500).json({ message: "Internal server error." });
@@ -107,21 +150,120 @@ exports.addDebitNote = async (req, res) => {
 
 
 
+// Get All Debit Note
+exports.getAllDebitNote = async (req, res) => {
+  try {
+    const organizationId = req.user.organizationId;
+
+    const { organizationExists, allDebitNote } = await debitDataExist(organizationId);
+
+    if (!organizationExists) {
+      return res.status(404).json({
+        message: "Organization not found",
+      });
+    }
+
+    if (!allDebitNote.length) {
+      return res.status(404).json({
+        message: "No Debit Note found",
+      });
+    }
+
+    res.status(200).json(allDebitNote);
+  } catch (error) {
+    console.error("Error fetching Debit Note:", error);
+    res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+
+// Get One Debit Note
+exports.getOneDebitNote = async (req, res) => {
+try {
+  const organizationId = req.user.organizationId;
+  const debitId = req.params.debitId;
+
+  const { organizationExists, debitNote } = await debitDataExist(organizationId, debitId);
+
+  if (!organizationExists) {
+    return res.status(404).json({
+      message: "Organization not found",
+    });
+  }
+
+  if (!debitNote) {
+    return res.status(404).json({
+      message: "No Debit Note found",
+    });
+  }
+
+  res.status(200).json(debitNote);
+} catch (error) {
+  console.error("Error fetching Debit Note:", error);
+  res.status(500).json({ message: "Internal server error." });
+}
+};
+
+
+// Get last debit note prefix
+exports.getLastDebitNotePrefix = async (req, res) => {
+  try {
+    const organizationId = req.user.organizationId;
+
+      // Find all accounts where organizationId matches
+      const prefix = await Prefix.findOne({ organizationId:organizationId,'series.status': true });
+
+      if (!prefix) {
+          return res.status(404).json({
+              message: "No Prefix found for the provided organization ID.",
+          });
+      }
+      
+      const series = prefix.series[0];     
+      const lastPrefix = series.debitNote + series.debitNoteNum;
+
+      res.status(200).json(lastPrefix);
+  } catch (error) {
+      console.error("Error fetching accounts:", error);
+      res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+// Debit Note Prefix
+function debitNotePrefix( cleanData, existingPrefix ) {
+  const activeSeries = existingPrefix.series.find(series => series.status === true);
+  if (!activeSeries) {
+      return res.status(404).json({ message: "No active series found for the organization." });
+  }
+  cleanData.debitNote = `${activeSeries.debitNote}${activeSeries.debitNoteNum}`;
+
+  activeSeries.debitNoteNum += 1;
+
+  existingPrefix.save()
+
+  return 
+}
+
+
+
+
+
+
+
+
+
+
 // Create New Debit Note
-function createNewDebitNote( data, organizationId, openingDate
-  // , userId, userName 
-) {
-  const newQuotes = new DebitNote({ ...data, organizationId, createdDate: openingDate
-    // , userId, userName 
-  });
-  return newQuotes.save();
+function createNewDebitNote( data, organizationId, openingDate, userId, userName ) {
+  const newDebitNote = new DebitNote({ ...data, organizationId, createdDate: openingDate, userId, userName });
+  return newDebitNote.save();
 }
 
 
 
 //Clean Data 
 function cleanDebitNoteData(data) {
-  const cleanData = (value) => (value === null || value === undefined || value === "" || value === 0 ? undefined : value);
+  const cleanData = (value) => (value === null || value === undefined || value === "" ? undefined : value);
   return Object.keys(data).reduce((acc, key) => {
     acc[key] = cleanData(data[key]);
     return acc;
@@ -155,6 +297,7 @@ function validateOrganizationTaxCurrency( organizationExists, supplierExist, bil
 
 // Tax Type
 function taxtype( cleanedData, supplierExist ) {
+
   if(supplierExist.taxType === 'GST' ){
     if(cleanedData.sourceOfSupply === cleanedData.destinationOfSupply){
       cleanedData.taxMode ='Intra';
@@ -166,17 +309,13 @@ function taxtype( cleanedData, supplierExist ) {
   if(supplierExist.taxType === 'VAT' ){
     cleanedData.taxMode ='VAT'; 
   }
-  if(supplierExist.taxType === 'Non-Tax' ){
-    cleanedData.taxMode ='Non-Tax';
-  } 
   return   
 }
 
 
 
 
-
-function calculateDebitNote(cleanedData, res) {
+function calculateDebitNote(cleanedData, itemTable, res) {
   const errors = [];
 
   let subTotal = 0;
@@ -187,7 +326,7 @@ function calculateDebitNote(cleanedData, res) {
   let grandTotal = 0;
 
   // Utility function to round values to two decimal places
-  const roundToTwoDecimals = (value) => Number(value.toFixed(2));
+  const roundToTwoDecimals = (value) => Number(value.toFixed(2));  
 
   cleanedData.items.forEach(item => {
 
@@ -207,29 +346,22 @@ function calculateDebitNote(cleanedData, res) {
     subTotal += parseFloat(item.itemQuantity * item.itemCostPrice);
 
     itemAmount = (item.itemCostPrice * item.itemQuantity - itemDiscAmt);
-    
+
     // Handle tax calculation only for taxable items
-    if (item.taxPreference === 'Taxable') {
-      // const itemIgstPercentage = parseFloat(item.itemIgst) || 0; 
-      // const itemIgstAmount = (parseFloat(item.itemAmount) * itemIgstPercentage) / 100;
+    itemTable.forEach(i => {
+    if (i.taxPreference === 'Taxable') {
       switch (taxMode) {
         
         case 'Intra':
-          // const halfIgst = itemIgstAmount / 2;
-          // calculatedItemCgstAmount = halfIgst;
-          // calculatedItemSgstAmount = halfIgst;
           calculatedItemCgstAmount = roundToTwoDecimals((item.itemCgst / 100) * itemAmount);
           calculatedItemSgstAmount = roundToTwoDecimals((item.itemSgst / 100) * itemAmount);
         break;
 
         case 'Inter':
-          // calculatedItemIgstAmount = itemIgstAmount;
           calculatedItemIgstAmount = roundToTwoDecimals((item.itemIgst / 100) * itemAmount);
         break;
         
         case 'VAT':
-          // const itemVatPercentage = parseFloat(item.itemVat) || 0; 
-          // calculatedItemVatAmount = (item.itemCostPrice * item.itemQuantity * itemVatPercentage) / 100;
           calculatedItemVatAmount = roundToTwoDecimals((item.itemVat / 100) * itemAmount);
         break;
 
@@ -244,15 +376,13 @@ function calculateDebitNote(cleanedData, res) {
       checkAmount(calculatedItemVatAmount, item.itemVatAmount, item.itemName, 'VAT',errors);
       checkAmount(calculatedItemTaxAmount, item.itemTax, item.itemName, 'Item tax',errors);
 
-      totalTaxAmount += calculatedItemCgstAmount + calculatedItemSgstAmount + calculatedItemIgstAmount + calculatedItemVatAmount || 0 ;      
+      totalTaxAmount += calculatedItemTaxAmount;     
 
     } else {
       console.log(`Skipping Tax for Non-Taxable item: ${item.itemName}`);
       console.log(`Item: ${item.itemName}, Calculated Discount: ${itemDiscAmt}`);
     }
-
-    console.log("totalTaxAmount....................:",totalTaxAmount);
-
+    })
 
     checkAmount(itemAmount, item.itemAmount, item.itemName, 'Item Total',errors);
 
@@ -272,18 +402,15 @@ function calculateDebitNote(cleanedData, res) {
   grandTotal = total - transDisAmt; 
 
   // Round the totals for comparison
-  const roundedSubTotal = roundToTwoDecimals(subTotal);
+  const roundedSubTotal = roundToTwoDecimals(subTotal); //23.24 
   const roundedTotalTaxAmount = roundToTwoDecimals(totalTaxAmount);
   const roundedGrandTotalAmount = roundToTwoDecimals(grandTotal);
   const roundedTotalItemDiscount = roundToTwoDecimals(itemTotalDiscount);
 
-
   console.log(`Final Sub Total: ${roundedSubTotal} , Provided ${cleanedData.subTotal}` );
-  console.log(`Final Total Tax: ${roundedTotalTaxAmount} , Provided ${cleanedData.totalTaxAmount}` );
+  console.log(`Final Total Tax Amount: ${roundedTotalTaxAmount} , Provided ${cleanedData.totalTaxAmount}` );
   console.log(`Final Total Amount: ${roundedGrandTotalAmount} , Provided ${cleanedData.grandTotal}` );
   console.log(`Final Total Item Discount Amount: ${roundedTotalItemDiscount} , Provided ${cleanedData.itemTotalDiscount}` );
-  // console.log(`Final Total Discount Amount: ${transactionDiscountAmount} , Provided ${cleanedData.transactionDiscountAmount}` );
-
 
   validateAmount(roundedSubTotal, cleanedData.subTotal, 'SubTotal', errors);
   validateAmount(roundedTotalTaxAmount, cleanedData.totalTaxAmount, 'Total Tax Amount', errors);
@@ -344,49 +471,6 @@ const validateAmount = ( calculatedValue, cleanedValue, label, errors ) => {
 
 
 
-
-
-
-
-
-// Get last debit note prefix
-exports.getLastDebitNotePrefix = async (req, res) => {
-  try {
-      const organizationId = "INDORG0005";
-
-      // Find all accounts where organizationId matches
-      const prefix = await Prefix.findOne({ organizationId:organizationId,'series.status': true });
-
-      if (!prefix) {
-          return res.status(404).json({
-              message: "No Prefix found for the provided organization ID.",
-          });
-      }
-      
-      const series = prefix.series[0];     
-      const lastPrefix = series.debitNote + series.debitNoteNum;
-
-      res.status(200).json(lastPrefix);
-  } catch (error) {
-      console.error("Error fetching accounts:", error);
-      res.status(500).json({ message: "Internal server error." });
-  }
-};
-
-// Debit Note Prefix
-function debitNotePrefix( cleanData, existingPrefix ) {
-  const activeSeries = existingPrefix.series.find(series => series.status === true);
-  if (!activeSeries) {
-      return res.status(404).json({ message: "No active series found for the organization." });
-  }
-  cleanData.debitNote = `${activeSeries.debitNote}${activeSeries.debitNoteNum}`;
-
-  activeSeries.debitNoteNum += 1;
-
-  existingPrefix.save()
-
-  return 
-}
 
 
 
@@ -462,13 +546,13 @@ function validateInputs( data, supplierExist, billExist, items, itemExists, orga
 function validateDebitNoteData( data, supplierExist, billExist, items, itemTable, organizationExists ) {
   const errors = [];
 
-  console.log("Item Request :",items);
-  console.log("Item Fetched :",itemTable);
+  // console.log("Item Request :",items);
+  // console.log("Item Fetched :",itemTable);
 
   //Basic Info
   validateReqFields( data, supplierExist, errors );
   validateItemTable(items, itemTable, errors);
-  validateBillData(data, billExist, errors);
+  validateBillData(data, items, billExist, errors);
   validateTransactionDiscountType(data.transactionDiscountType, errors);
   // console.log("billExist Data:", billExist.billNumber, billExist.billDate, billExist.orderNumber)
 
@@ -481,6 +565,7 @@ function validateDebitNoteData( data, supplierExist, billExist, items, itemTable
   //validateTaxType(data.taxType, validTaxTypes, errors);
   validateSourceOfSupply(data.sourceOfSupply, organizationExists, errors);
   validateDestinationOfSupply(data.destinationOfSupply, organizationExists, errors);
+  validateBillType(data.billType, errors);
   //validateGSTorVAT(data, errors);
 
   //Currency
@@ -545,20 +630,67 @@ items.forEach((item) => {
   // Validate integer fields
   validateIntegerFields(['itemQuantity'], item, errors);
 
+  // Validate Stock Count 
+  validateField( item.itemQuantity > fetchedItem.currentStock, `Insufficient Stock for ${item.itemName}: Requested quantity ${item.itemQuantity}, Available stock ${fetchedItem.currentStock}`, errors );
+
   // Validate float fields
   validateFloatFields(['itemCostPrice', 'itemTotaltax', 'itemAmount'], item, errors);
 });
 }
 
 
-function validateBillData(data, billExist, errors) {
-  console.log("data.....:", data);
-  console.log("billExist.....:", billExist);
-  
-  // Validate billDate 
+// valiadate bill data
+function validateBillData(data, items, billExist, errors) {  
+  // console.log("data:", data);
+  // console.log("billExist:", billExist);
+  // console.log("items:", items);
+
+   // Initialize `billExist.items` to an empty array if undefined
+   billExist.items = Array.isArray(billExist.itemTable) ? billExist.itemTable : [];
+
+  // Validate basic fields
   validateField( billExist.billDate !== data.billDate, `Bill Date mismatch for ${billExist.billDate}`, errors  );
-  // Validate orderNumber 
   validateField( billExist.orderNumber !== data.orderNumber, `Order Number mismatch for ${billExist.orderNumber}`, errors  );
+
+  // Loop through each item in billExist.items
+  billExist.items.forEach(billItem => {
+    const dNItem = items.find(dataItem => dataItem.itemId === billItem.itemId);
+
+    if (!dNItem) {
+      errors.push(`Item ID ${billItem.itemId} not found in provided items`);
+    } else {
+      
+     // Convert quantities to numbers for comparison
+     const dNItemQuantity = Number(dNItem.itemQuantity);
+     const billItemQuantity = Number(billItem.itemQuantity);
+
+     // Check if the debit note item quantity exceeds the allowed quantity in the bill
+     if (dNItemQuantity > billItemQuantity) {
+       errors.push(
+         `Item Quantity for ${billItem.itemId} exceeds allowed quantity: Maximum ${billItemQuantity}, got ${dNItemQuantity}`
+       );
+     }
+      
+      validateField(dNItem.itemName !== billItem.itemName, 
+                    `Item Name mismatch for ${billItem.itemId}: Expected ${billItem.itemName}, got ${dNItem.itemName}`, 
+                    errors);
+      validateField(dNItem.itemCostPrice !== billItem.itemCostPrice, 
+                    `Item Cost Price mismatch for ${billItem.itemId}: Expected ${billItem.itemCostPrice}, got ${dNItem.itemCostPrice}`, 
+                    errors);
+      validateField(dNItem.itemCgst !== billItem.itemCgst, 
+                    `Item CGST mismatch for ${billItem.itemId}: Expected ${billItem.itemCgst}, got ${dNItem.itemCgst}`, 
+                    errors);
+      validateField(dNItem.itemSgst !== billItem.itemSgst, 
+                    `Item SGST mismatch for ${billItem.itemId}: Expected ${billItem.itemSgst}, got ${dNItem.itemSgst}`, 
+                    errors);
+      // validateField(dNItem.itemIgst !== billItem.itemIgst, 
+      //               `Item IGST mismatch for ${billItem.itemId}: Expected ${billItem.itemIgst}, got ${dNItem.itemIgst}`, 
+      //               errors);
+      validateField(dNItem.itemDiscount !== billItem.itemDiscount, 
+                    `Item Discount mismatch for ${billItem.itemId}: Expected ${billItem.itemDiscount}, got ${dNItem.itemDiscount}`, 
+                    errors);
+    }
+  });
 }
 
 
@@ -580,13 +712,20 @@ function validateDestinationOfSupply(destinationOfSupply, organization, errors) 
 //Validate Discount Transaction Type
 function validateTransactionDiscountType(transactionDiscountType, errors) {
 validateField(transactionDiscountType && !validTransactionDiscountType.includes(transactionDiscountType),
-  "Invalid Discount: " + transactionDiscountType, errors);
+  "Invalid Transaction Discount: " + transactionDiscountType, errors);
 } 
 
 //Validate Item Discount Transaction Type
 function validateItemDiscountType(itemDiscountType, errors) {
   validateField(itemDiscountType && !validItemDiscountType.includes(itemDiscountType),
-    "Invalid Discount: " + itemDiscountType, errors);
+    "Invalid Item Discount: " + itemDiscountType, errors);
+}
+
+// Validate Bill Type
+function validateBillType(billType, errors) {
+  validateField(
+    billType && !validBillType.includes(billType),
+    "Invalid Bill Type: " + billType, errors );
 }
 
 
@@ -657,9 +796,66 @@ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
 
 
+// Item Track Function
+async function itemTrack(savedDebitNote, itemTable) {
+  const { items } = savedDebitNote;
+
+  for (const item of items) {
+    // Find the matching item in itemTable by itemId
+    const matchingItem = itemTable.find((entry) => entry._id.toString() === item.itemId);
+
+    if (!matchingItem) {
+      console.error(`Item with ID ${item.itemId} not found in itemTable`);
+      continue; // Skip this entry if not found
+    }
+
+    // Calculate the new stock level after the sale
+    const newStock = matchingItem.currentStock - item.itemQuantity;
+    if (newStock < 0) {
+      console.error(`Insufficient stock for item ${item.itemName}`);
+      continue; // Skip this entry if stock is insufficient
+    }
+
+    // Create a new entry for item tracking
+    const newTrialEntry = new ItemTrack({
+      organizationId: savedDebitNote.organizationId,
+      operationId: savedDebitNote._id,
+      transactionId: savedDebitNote.debitNote,
+      action: "Debit Note",
+      date: savedDebitNote.supplierDebitDate,
+      itemId: matchingItem._id,
+      itemName: matchingItem.itemName,
+      sellingPrice: matchingItem.itemSellingPrice,
+      costPrice: matchingItem.itemCostPrice || 0, // Assuming cost price is in itemTable
+      creditQuantity: item.itemQuantity, // Quantity sold
+      currentStock: newStock,
+      remark: `Sold to ${savedDebitNote.supplierDisplayName}`,
+    });
+
+    // Save the tracking entry and update the item's stock in the item table
+    // await newTrialEntry.save();
+
+    console.log("1",newTrialEntry);
+  }
+}
+
+
+
+
+
 // Utility functions
 const validItemDiscountType = ["percentage", "currency"];
 const validTransactionDiscountType = ["percentage", "currency"];
+const validBillType = [
+  "Registered", 
+  "Deemed Export", 
+  "SEZ With Payment", 
+  "SEZ Without Payment", 
+  "SEZ Without Payment", 
+  "Export With Payment", 
+  "Export Without Payment", 
+  "B2C (Large)", "B2C Others"
+];
 const validCountries = {
   "United Arab Emirates": [
     "Abu Dhabi",
