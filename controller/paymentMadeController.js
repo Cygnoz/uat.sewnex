@@ -36,74 +36,6 @@ const paymentDataExist = async ( organizationId, PaymentId ) => {
 
 
 
-// // Add Purchase Payment
-// exports.addPayment = async (req, res) => {
-//   try {
-//     const { organizationId, id: userId, userName } = req.user; // Assuming user contains organization info
-//     const cleanedData = cleanSupplierData(req.body); // Cleaning data based on your custom method
-
-//     const { unpaidBills, paymentMade } = cleanedData; // Extract paymentMade from cleanedData
-//     const { supplierId, supplierDisplayName } = cleanedData;
-//     const billIds = unpaidBills.map(unpaidBill => unpaidBill.billId);
-
-//     // Check for duplicate billIds
-//     const uniqueBillIds = new Set(billIds);
-//     if (uniqueBillIds.size !== billIds.length) {
-//       return res.status(400).json({ message: "Duplicate bill found" });
-//     }
-
-//     // Validate SupplierId
-//     if (!mongoose.Types.ObjectId.isValid(supplierId) || supplierId.length !== 24) {
-//       return res.status(400).json({ message: `Invalid supplier ID: ${supplierId}` });
-//     }
-
-//     // Validate Bill IDs
-//     const invalidBillIds = billIds.filter(billId => !mongoose.Types.ObjectId.isValid(billId) || billId.length !== 24);
-//     if (invalidBillIds.length > 0) {
-//       return res.status(400).json({ message: `Invalid bill IDs: ${invalidBillIds.join(', ')}` });
-//     }
-
-//     // Check if organization and supplier exist
-//     const { organizationExists, supplierExists, paymentTable , existingPrefix } = await dataExist(organizationId, unpaidBills, supplierId, supplierDisplayName);
-    
-//     // Validate supplier and organization
-//     if (!validateSupplierAndOrganization(organizationExists, supplierExists, existingPrefix ,res)) {
-//       return; // Stops execution if validation fails
-//     }
-
-
-//     if (!validateInputs( cleanedData, supplierExists, unpaidBills, paymentTable, organizationExists, res)) return;
-
-
-//     //calculate payment made
-//     const updatedData = await calculateTotalPaymentMade(cleanedData, paymentMade);
-
-//     //openingDate
-//     const openingDate = generateOpeningDate({ timeZoneExp: organizationId.timeZoneExp, dateFormatExp: organizationId.dateFormatExp, dateSplit: organizationId.dateSplit });
-
-//     // Create and save new payment
-//     const payment = await createNewPayment(updatedData , openingDate, organizationId, userId, userName);
-
-//     //Prefix 
-//     await vendorPaymentPrefix(cleanedData, existingPrefix );
-
-//     // Response
-//     return res.status(200).json({ message: 'Payment added successfully', payment });
-
-//   } catch (error) {
-//     console.error('Error adding payment:', error);
-//     return res.status(500).json({ message: 'Internal server error' });
-//   }
-// };
-
-// Add Purchase Payment
-// Add Purchase Payment
-
-
-
-
-// Get All Purchase Orders
-
 exports.addPayment = async (req, res) => {
   try {
     const { organizationId, id: userId, userName } = req.user; // Assuming user contains organization info
@@ -144,7 +76,7 @@ exports.addPayment = async (req, res) => {
     }
 
     // Calculate the total payment made
-    const updatedData = await calculateTotalPaymentMade(cleanedData, paymentMade);
+    const updatedData = await calculateTotalPaymentMade(cleanedData, paymentMade );
 
     // Generate prefix for vendor payment
     await vendorPaymentPrefix(cleanedData, existingPrefix);
@@ -170,9 +102,16 @@ exports.addPayment = async (req, res) => {
     // Re-fetch the updated bills to get the latest `amountDue` and `balanceAmount`
     const updatedBills = await PurchaseBill.find({ _id: { $in: updatedData.unpaidBills.map(bill => bill.billId) } });
 
-    // Response with the updated bills and the success message
+    //openingDate
+    const openingDate = generateOpeningDate({ timeZoneExp: organizationId.timeZoneExp, dateFormatExp: organizationId.dateFormatExp, dateSplit: organizationId.dateSplit });
+
+    // Create and save new payment
+    const payment = await createNewPayment(updatedData , openingDate, organizationId, userId, userName);
+
+    //Response with the updated bills and the success message
     return res.status(200).json({
-      message: 'Payment added successfully',updatedBills,
+      message: 'Payment added successfully',  payment , updatedBills,
+
     });
 
   } catch (error) {
@@ -180,6 +119,7 @@ exports.addPayment = async (req, res) => {
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
+
 
 
 
@@ -291,15 +231,8 @@ function vendorPaymentPrefix( cleanData, existingPrefix ) {
 
 
 
-
-
-
-
-
   //Clean Data 
-
-
-  function cleanSupplierData(data) {
+function cleanSupplierData(data) {
     const cleanData = (value) => (value === null || value === undefined || value === "" ? undefined : value);
     return Object.keys(data).reduce((acc, key) => {
       acc[key] = cleanData(data[key]);
@@ -534,39 +467,6 @@ function isAlphanumeric(value) {
 }
 
 
-
-//Calculate Payment Made
-// async function calculatePaymentMade(cleanedData, paymentMade) {
-
-//   // Calculate total payment and update amountDue for each unpaid bill
-//   const totalPayment = cleanedData.unpaidBills.reduce((acc, bill) => {
-//     // Ensure payment is accumulated and deduct from billAmount to get current amountDue
-//     const previousPayments = bill.payment || 0; // Previous payments made towards this bill
-//     bill.amountDue = (bill.billAmount || 0) - previousPayments;
-
-//     // Accumulate current payment amount
-//     return acc + previousPayments;
-//   }, 0);
-
-//   console.log('Bill Amountttttt:', billAmount);
-
-//   // Set total payment in cleanedData
-//   cleanedData.total = totalPayment;
-
-//   // Set amountPaid and amountUsedForPayments to totalPayment
-//   cleanedData.amountPaid = totalPayment;
-//   cleanedData.amountUsedForPayments = totalPayment;
-
-//   // Calculate amountInExcess
-//   const amountInExcess = paymentMade - totalPayment;
-//   cleanedData.amountInExcess = amountInExcess;
-// }
-
-
-
-
-
-
 const calculateAmountDue = async (billId, { amount }) => {
   try {
     // Find the bill by its ID
@@ -626,17 +526,22 @@ const calculateAmountDue = async (billId, { amount }) => {
 
 
 
-
-
-const calculateTotalPaymentMade = async (cleanedData, paymentMade) => {
+const calculateTotalPaymentMade = async (cleanedData) => {
   let totalPayment = 0;
-  for (const bill of cleanedData.unpaidBills) {
-    totalPayment += bill.paymentAmount; // Assuming each unpaid bill has a `paymentAmount`
-  }
-  return {
-    ...cleanedData,
-    totalPayment,
-    paymentMade,
-  };
-};
 
+  // Sum the `payment` amounts from each unpaid bill in the array
+  for (const bill of cleanedData.unpaidBills) {
+    totalPayment += bill.payment || 0; // Ensure `payment` is a number and add it
+  }
+
+  // Assign the total to both `total` and `amountPaid` field in `cleanedData`
+  cleanedData.total = totalPayment;
+  cleanedData.amountPaid = totalPayment;
+
+  // Calculate amountUsedForPayments and amountInExcess
+  const paymentMade = cleanedData.paymentMade || 0;
+  cleanedData.amountUsedForPayments = paymentMade - totalPayment;
+  cleanedData.amountInExcess = paymentMade - totalPayment;
+
+  return cleanedData;
+};

@@ -42,15 +42,6 @@ exports.addBill = async (req, res) => {
     // Normalize request body to handle null, empty strings, and 0 values
     const normalizedBody = normalizeRequestData(req.body);
 
-    // Validate payment terms and calculate due date
-    //const calculatedDueDateResponse = validateAndUpdateDueDate(normalizedBody.paymentTerms, normalizedBody.billDate, normalizedBody.existingDueDate);
-
-    // Check for errors in calculatedDueDateResponse
-    if (calculatedDueDateResponse.error) {
-      return res.status(400).json({ message: calculatedDueDateResponse.error }); // Return the specific error message
-    }
-
-    const calculatedDueDate = calculatedDueDateResponse.dueDate; // Extract the valid due date
 
     // Perform additional validation checks
     if (await hasValidationErrors(normalizedBody, res)) return;
@@ -61,7 +52,7 @@ exports.addBill = async (req, res) => {
 
     // Clean Data
     const cleanedData = cleanBillData(normalizedBody, supplierExists, items);
-    cleanedData.dueDate = calculatedDueDate; // Set the calculated due date in the cleaned data
+    //cleanedData.dueDate = calculatedDueDate; // Set the calculated due date in the cleaned data
 
     // Check if paidAmount is valid
     if (!cleanedData.grandTotal || parseFloat(cleanedData.paidAmount) > parseFloat(cleanedData.grandTotal)) {
@@ -482,6 +473,7 @@ const hasValidationErrors = async (body, supplierExists, res) => {
   const { itemTable, transactionDiscountType  } = body;
   let shipmentPreference = body.shipmentPreference; // Declare shipmentPreference with let
   let paymentMode = body.paymentMode; // Declare paymentMode with let
+  let paymentTerms = body.paymentTerms;
 
 
   // Normalize shipmentPreference and paymentMode: convert null, empty string, and 0 to undefined
@@ -546,59 +538,10 @@ const hasValidationErrors = async (body, supplierExists, res) => {
   return false; // No validation errors
 };
 
-// const validateAndUpdateDueDate = (paymentTerms, billDate, existingDueDate) => {
-//   const validPaymentTerms = [
-//     "Net 15", "Net 30", "Net 45", "Net 60", "Pay Now", "due on receipt", "End of This Month", "End of Next Month"
-//   ];
-
-//   // Check if paymentTerms is valid
-//   if (!validPaymentTerms.includes(paymentTerms)) {
-//     return { error: "Invalid payment terms." }; // Return error message for invalid payment terms
-//   }
-
-//   // Calculate due date based on payment terms
-//   let dueDate;
-
-//   switch (paymentTerms) {
-//     case "Net 15":
-//       dueDate = moment(billDate).add(15, 'days').format('YYYY-MM-DD');
-//       break;
-//     case "Net 30":
-//       dueDate = moment(billDate).add(30, 'days').format('YYYY-MM-DD');
-//       break;
-//     case "Net 45":
-//       dueDate = moment(billDate).add(45, 'days').format('YYYY-MM-DD');
-//       break;
-//     case "Net 60":
-//       dueDate = moment(billDate).add(60, 'days').format('YYYY-MM-DD');
-//       break;
-//     case "Pay Now":
-//       dueDate = billDate; // Due date is the same as bill date
-//       break;
-//     case "due on receipt":
-//       dueDate = existingDueDate; // Allow any date as existing due date
-//       break;
-//     case "End of This Month":
-//       dueDate = moment(billDate).endOf('month').format('YYYY-MM-DD');
-//       break;
-//     case "End of Next Month":
-//       dueDate = moment(billDate).add(1, 'month').endOf('month').format('YYYY-MM-DD');
-//       break;
-//     default:
-//       return { error: "Invalid payment terms." }; // Handle invalid payment terms
-//   }
-
-//   // Ensure the due date is not earlier than the bill date
-//   if (moment(dueDate).isBefore(billDate)) {
-//     return { error: "Due date cannot be earlier than the bill date." }; // Return error message for invalid due date
-//   }
-
-//   return { dueDate }; // Return the calculated due date
-// };
 
 
 
-// Function to check for duplicate items by itemId in itemTable
+
 
 
 
@@ -697,7 +640,7 @@ const trackItemsFromBill = async (organizationId, itemTable, billDate, savedBill
 
     if (savedItem) {
       const newStock = (savedItem.currentStock || 0) + Number(itemQuantity);
-      // console.log(`Processing item: ${itemName}`);
+       console.log(`Processing item: ${itemName}`);
 
       const trackEntry = new ItemTrack({
         organizationId,
@@ -715,7 +658,7 @@ const trackItemsFromBill = async (organizationId, itemTable, billDate, savedBill
       savedItem.currentStock = newStock;
       await savedItem.save();
 
-      // console.log("Item Track Added for Bill:", trackEntry);
+       console.log("Item Track Added for Bill:", trackEntry);
     } else {
       // console.error(`Item not found: ${itemId}`);
     }
