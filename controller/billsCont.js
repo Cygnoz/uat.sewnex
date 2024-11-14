@@ -424,51 +424,7 @@ const cleanBillData = (data, supplierExists, items) => {
 
 
 
-// // Set paidStatus based on dueDate and payment completion
-// function updatePaidStatus(cleanedData) {
-//   const isOverdue = moment().isAfter(moment(cleanedData.dueDate, 'YYYY-MM-DD'));
-  
-//   // Determine the paid status
-//   if (isOverdue) {
-//     cleanedData.paidStatus = "Overdue";
-//   } else {
-//     cleanedData.paidStatus = parseFloat(cleanedData.paidAmount) === parseFloat(cleanedData.grandTotal)
-//       ? "Completed"
-//       : "Pending";
-//   }
-// }
-
-
-// function updatePaidStatus(cleanedData) {
-//   const isOverdue = moment().isAfter(moment(cleanedData.dueDate, 'YYYY-MM-DD'));
-
-//   // For other payment terms
-//   if (isOverdue) {
-//     cleanedData.paidStatus = "Overdue";
-//   } 
-
-//   //set paidStatus based on payment completion
-//   if (cleanedData.paymentTerms === "Pay Now") {
-//     // Check if the payment is fully completed
-//     if (parseFloat(cleanedData.paidAmount) === parseFloat(cleanedData.grandTotal)) {
-//       cleanedData.paymentMode = cleanedData.paymentMode || "Cash"; // Default to "Cash" if not specified
-//       cleanedData.paidStatus = "Completed";
-//     } else {
-//       cleanedData.paidStatus = "Pending";
-//       cleanedData.paymentMode = cleanedData.paymentMode || "Credit"; // Default to "Credit" if not specified
-//       cleanedData.paidAmount = parseFloat(cleanedData.paidAmount || 0).toFixed(2);
-//       cleanedData.balanceAmount = (
-//         parseFloat(cleanedData.grandTotal) - parseFloat(cleanedData.paidAmount)
-//       ).toFixed(2); // Recalculate balanceAmount
-//     }
-//   } 
-// }
-
-
 // Validation Error Check
-
-
-
 const hasValidationErrors = async (body, supplierExists, res) => {
   const { itemTable, transactionDiscountType  } = body;
   let shipmentPreference = body.shipmentPreference; // Declare shipmentPreference with let
@@ -632,16 +588,60 @@ async function createNewBill(data, organizationId) {
   return newBill.save();
 }
 
-// Track purchased items from the bill
+// // Track purchased items from the bill
+// const trackItemsFromBill = async (organizationId, itemTable, billDate, savedBill) => {
+//   for (const billItem of itemTable) {
+//     const { itemId, itemName, itemQuantity } = billItem;
+//     const savedItem = await Item.findOne({ _id: itemId, organizationId });
+
+//     if (savedItem) {
+//       const newStock = (savedItem.currentStock || 0) + Number(itemQuantity);
+//        console.log(`Processing item: ${itemName}`);
+
+//       const trackEntry = new ItemTrack({
+//         organizationId,
+//         operationId: savedBill._id,
+//         action: "Purchase",
+//         date: billDate,
+//         itemId: savedItem._id,
+//         itemName: savedItem.itemName,
+//         creditQuantity: Number(itemQuantity),
+//         currentStock: newStock,
+//         remark: `Bill of ${itemQuantity} units`,
+//       });
+
+//       await trackEntry.save();
+//       savedItem.currentStock = newStock;
+//       await savedItem.save();
+
+//        console.log("Item Track Added for Bill:", trackEntry);
+//     } else {
+//       // console.error(`Item not found: ${itemId}`);
+//     }
+//   }
+//};
+
+//Return Date and Time 
+
+
 const trackItemsFromBill = async (organizationId, itemTable, billDate, savedBill) => {
   for (const billItem of itemTable) {
     const { itemId, itemName, itemQuantity } = billItem;
     const savedItem = await Item.findOne({ _id: itemId, organizationId });
 
     if (savedItem) {
+      // Calculate the new stock in Item schema after the purchase
       const newStock = (savedItem.currentStock || 0) + Number(itemQuantity);
        console.log(`Processing item: ${itemName}`);
 
+      // Check if an ItemTrack entry exists for the same itemId and organizationId
+      const existingTrack = await ItemTrack.findOne({
+        itemId: savedItem._id,
+        organizationId,
+        action: "Purchase",
+      });
+
+      // Update or create a new ItemTrack entry
       const trackEntry = new ItemTrack({
         organizationId,
         operationId: savedBill._id,
@@ -650,22 +650,28 @@ const trackItemsFromBill = async (organizationId, itemTable, billDate, savedBill
         itemId: savedItem._id,
         itemName: savedItem.itemName,
         creditQuantity: Number(itemQuantity),
-        currentStock: newStock,
+        currentStock: (existingTrack ? existingTrack.currentStock : 0) + Number(itemQuantity), // Increment currentStock
         remark: `Bill of ${itemQuantity} units`,
       });
 
+      // Save the new ItemTrack entry into the database
       await trackEntry.save();
+      console.log("New Item Track Added for Bill:", trackEntry);
+
+      // Update the current stock of the item in the Item collection
       savedItem.currentStock = newStock;
       await savedItem.save();
 
        console.log("Item Track Added for Bill:", trackEntry);
     } else {
-      // console.error(`Item not found: ${itemId}`);
+      console.error(`Item not found: ${itemId}`);
     }
   }
 };
 
-//Return Date and Time 
+
+
+
 function generateOpeningDate(organizationExists) {
   const date = generateTimeAndDateForDB(
       organizationExists.timeZoneExp,
