@@ -6,13 +6,12 @@ const itemsSchema = new Schema({
   itemName: { type: String },
 
   itemQuantity: { type: Number },
-  itemSellingPrice: { type: Number },
   itemCostPrice: { type: Number },
 
   itemTax: { type: Number },
 
-  itemDiscountType: { type: String }, //percentage/currency
-  itemDiscount: { type: Number },
+  // itemDiscountType: { type: String }, //percentage/currency
+  // itemDiscount: { type: Number },
 
   itemAmount: { type: Number },
 
@@ -64,11 +63,11 @@ const debitNoteSchema = new mongoose.Schema({
   vat: { type: Number },
 
   totalTaxAmount: { type: Number },   // sgst + cgst
-  itemTotalDiscount: { type: Number },
+  // itemTotalDiscount: { type: Number },
 
-  transactionDiscountType: { type: String }, //percentage/currency
-  transactionDiscount: { type: Number },
-  transactionDiscountAmount: { type: Number },  // if percentage
+  // transactionDiscountType: { type: String }, //percentage/currency
+  // transactionDiscount: { type: Number },
+  // transactionDiscountAmount: { type: Number },  // if percentage
   grandTotal: { type: Number },
   status: { type: String }, // Open/Closed
   createdDate: { type: String },

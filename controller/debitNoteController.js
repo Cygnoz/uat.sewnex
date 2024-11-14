@@ -320,9 +320,9 @@ function calculateDebitNote(cleanedData, itemTable, res) {
 
   let subTotal = 0;
   let totalTaxAmount = 0;
-  let itemTotalDiscount= 0;
+  // let itemTotalDiscount= 0;
   let totalItem = 0;
-  let transactionDiscountAmount = 0;
+  // let transactionDiscountAmount = 0;
   let grandTotal = 0;
 
   // Utility function to round values to two decimal places
@@ -339,13 +339,14 @@ function calculateDebitNote(cleanedData, itemTable, res) {
     let taxMode = cleanedData.taxMode;
 
     // Calculate item line discount 
-    const itemDiscAmt = calculateItemDiscount(item);
+    // const itemDiscAmt = calculateItemDiscount(item);
 
-    itemTotalDiscount +=  parseFloat(itemDiscAmt);
+    // itemTotalDiscount +=  parseFloat(itemDiscAmt);
     totalItem +=  parseInt(item.itemQuantity);
     subTotal += parseFloat(item.itemQuantity * item.itemCostPrice);
 
-    itemAmount = (item.itemCostPrice * item.itemQuantity - itemDiscAmt);
+    // itemAmount = (item.itemCostPrice * item.itemQuantity - itemDiscAmt);
+    itemAmount = (item.itemCostPrice * item.itemQuantity);
 
     // Handle tax calculation only for taxable items
     itemTable.forEach(i => {
@@ -380,7 +381,7 @@ function calculateDebitNote(cleanedData, itemTable, res) {
 
     } else {
       console.log(`Skipping Tax for Non-Taxable item: ${item.itemName}`);
-      console.log(`Item: ${item.itemName}, Calculated Discount: ${itemDiscAmt}`);
+      // console.log(`Item: ${item.itemName}, Calculated Discount: ${itemDiscAmt}`);
     }
     })
 
@@ -391,31 +392,33 @@ function calculateDebitNote(cleanedData, itemTable, res) {
     console.log("");
   });
 
-  const total = ((parseFloat(subTotal) + parseFloat(totalTaxAmount)) - itemTotalDiscount);
+  // const total = ((parseFloat(subTotal) + parseFloat(totalTaxAmount)) - itemTotalDiscount);
+  const total = ((parseFloat(subTotal) + parseFloat(totalTaxAmount)));
 
   console.log(`SubTotal: ${subTotal} , Provided ${cleanedData.subTotal}`);
 
   // Transaction Discount
-  let transDisAmt = calculateTransactionDiscount(cleanedData, total, transactionDiscountAmount); 
+  // let transDisAmt = calculateTransactionDiscount(cleanedData, total, transactionDiscountAmount); 
 
   // grandTotal amount calculation with including transactionDiscount
-  grandTotal = total - transDisAmt; 
+  // grandTotal = total - transDisAmt; 
+  grandTotal = total; 
 
   // Round the totals for comparison
   const roundedSubTotal = roundToTwoDecimals(subTotal); //23.24 
   const roundedTotalTaxAmount = roundToTwoDecimals(totalTaxAmount);
   const roundedGrandTotalAmount = roundToTwoDecimals(grandTotal);
-  const roundedTotalItemDiscount = roundToTwoDecimals(itemTotalDiscount);
+  // const roundedTotalItemDiscount = roundToTwoDecimals(itemTotalDiscount);
 
   console.log(`Final Sub Total: ${roundedSubTotal} , Provided ${cleanedData.subTotal}` );
   console.log(`Final Total Tax Amount: ${roundedTotalTaxAmount} , Provided ${cleanedData.totalTaxAmount}` );
   console.log(`Final Total Amount: ${roundedGrandTotalAmount} , Provided ${cleanedData.grandTotal}` );
-  console.log(`Final Total Item Discount Amount: ${roundedTotalItemDiscount} , Provided ${cleanedData.itemTotalDiscount}` );
+  // console.log(`Final Total Item Discount Amount: ${roundedTotalItemDiscount} , Provided ${cleanedData.itemTotalDiscount}` );
 
   validateAmount(roundedSubTotal, cleanedData.subTotal, 'SubTotal', errors);
   validateAmount(roundedTotalTaxAmount, cleanedData.totalTaxAmount, 'Total Tax Amount', errors);
   validateAmount(roundedGrandTotalAmount, cleanedData.grandTotal, 'Grand Total', errors);
-  validateAmount(roundedTotalItemDiscount, cleanedData.itemTotalDiscount, 'Total Item Discount Amount', errors);
+  // validateAmount(roundedTotalItemDiscount, cleanedData.itemTotalDiscount, 'Total Item Discount Amount', errors);
   validateAmount(totalItem, cleanedData.totalItem, 'Total Item count', errors);
 
   if (errors.length > 0) {
@@ -427,22 +430,22 @@ function calculateDebitNote(cleanedData, itemTable, res) {
 }
 
 
-// Calculate item discount
-function calculateItemDiscount(item) {
-  return item.itemDiscountType === 'currency'
-    ? item.itemDiscount || 0
-    : (item.itemCostPrice * item.itemQuantity * (item.itemDiscount || 0)) / 100;    //if percentage
-}
+// // Calculate item discount
+// function calculateItemDiscount(item) {
+//   return item.itemDiscountType === 'currency'
+//     ? item.itemDiscount || 0
+//     : (item.itemCostPrice * item.itemQuantity * (item.itemDiscount || 0)) / 100;    //if percentage
+// }
 
 
-//TransactionDiscount
-function calculateTransactionDiscount(cleanedData, total, transactionDiscountAmount) {
-  transactionDiscountAmount = cleanedData.transactionDiscount || 0;
+// //TransactionDiscount
+// function calculateTransactionDiscount(cleanedData, total, transactionDiscountAmount) {
+//   transactionDiscountAmount = cleanedData.transactionDiscount || 0;
 
-  return cleanedData.transactionDiscountType === 'currency'
-    ? transactionDiscountAmount
-    : (total * cleanedData.transactionDiscount) / 100;    //if percentage
-}
+//   return cleanedData.transactionDiscountType === 'currency'
+//     ? transactionDiscountAmount
+//     : (total * cleanedData.transactionDiscount) / 100;    //if percentage
+// }
 
 
 //Mismatch Check
@@ -553,12 +556,13 @@ function validateDebitNoteData( data, supplierExist, billExist, items, itemTable
   validateReqFields( data, supplierExist, errors );
   validateItemTable(items, itemTable, errors);
   validateBillData(data, items, billExist, errors);
-  validateTransactionDiscountType(data.transactionDiscountType, errors);
+  // validateTransactionDiscountType(data.transactionDiscountType, errors);
   // console.log("billExist Data:", billExist.billNumber, billExist.billDate, billExist.orderNumber)
 
   //OtherDetails
   validateIntegerFields(['totalItem'], data, errors);
-  validateFloatFields(['transactionDiscountAmount', 'subTotal','cgst','sgst','igst','vat','totalTaxAmount','grandTotal'], data, errors);
+  // validateFloatFields(['transactionDiscountAmount', 'subTotal','cgst','sgst','igst','vat','totalTaxAmount','grandTotal'], data, errors);
+  validateFloatFields(['subTotal','cgst','sgst','igst','vat','totalTaxAmount','grandTotal'], data, errors);
   //validateAlphabetsFields(['department', 'designation'], data, errors);
 
   //Tax Details
@@ -612,8 +616,8 @@ items.forEach((item) => {
   // Validate item name
   validateField( item.itemName !== fetchedItem.itemName, `Item Name Mismatch : ${item.itemName}`, errors );
 
-  // Validate selling price
-  validateField( item.itemCostPrice !== fetchedItem.costPrice, `Cost price Mismatch for ${item.itemName}:  ${item.itemCostPrice}`, errors );
+  // Validate cost price
+  // validateField( item.itemCostPrice !== fetchedItem.costPrice, `Cost price Mismatch for ${item.itemName}:  ${item.itemCostPrice}`, errors );
 
   // Validate CGST
   validateField( item.itemCgst !== fetchedItem.cgst, `CGST Mismatch for ${item.itemName}: ${item.itemCgst}`, errors );
@@ -686,9 +690,9 @@ function validateBillData(data, items, billExist, errors) {
       // validateField(dNItem.itemIgst !== billItem.itemIgst, 
       //               `Item IGST mismatch for ${billItem.itemId}: Expected ${billItem.itemIgst}, got ${dNItem.itemIgst}`, 
       //               errors);
-      validateField(dNItem.itemDiscount !== billItem.itemDiscount, 
-                    `Item Discount mismatch for ${billItem.itemId}: Expected ${billItem.itemDiscount}, got ${dNItem.itemDiscount}`, 
-                    errors);
+      // validateField(dNItem.itemDiscount !== billItem.itemDiscount, 
+      //               `Item Discount mismatch for ${billItem.itemId}: Expected ${billItem.itemDiscount}, got ${dNItem.itemDiscount}`, 
+      //               errors);
     }
   });
 }
@@ -709,17 +713,17 @@ function validateDestinationOfSupply(destinationOfSupply, organization, errors) 
     "Invalid Destination of Supply: " + destinationOfSupply, errors );
 }
 
-//Validate Discount Transaction Type
-function validateTransactionDiscountType(transactionDiscountType, errors) {
-validateField(transactionDiscountType && !validTransactionDiscountType.includes(transactionDiscountType),
-  "Invalid Transaction Discount: " + transactionDiscountType, errors);
-} 
+// //Validate Discount Transaction Type
+// function validateTransactionDiscountType(transactionDiscountType, errors) {
+// validateField(transactionDiscountType && !validTransactionDiscountType.includes(transactionDiscountType),
+//   "Invalid Transaction Discount: " + transactionDiscountType, errors);
+// } 
 
-//Validate Item Discount Transaction Type
-function validateItemDiscountType(itemDiscountType, errors) {
-  validateField(itemDiscountType && !validItemDiscountType.includes(itemDiscountType),
-    "Invalid Item Discount: " + itemDiscountType, errors);
-}
+// //Validate Item Discount Transaction Type
+// function validateItemDiscountType(itemDiscountType, errors) {
+//   validateField(itemDiscountType && !validItemDiscountType.includes(itemDiscountType),
+//     "Invalid Item Discount: " + itemDiscountType, errors);
+// }
 
 // Validate Bill Type
 function validateBillType(billType, errors) {
@@ -844,8 +848,8 @@ async function itemTrack(savedDebitNote, itemTable) {
 
 
 // Utility functions
-const validItemDiscountType = ["percentage", "currency"];
-const validTransactionDiscountType = ["percentage", "currency"];
+// const validItemDiscountType = ["percentage", "currency"];
+// const validTransactionDiscountType = ["percentage", "currency"];
 const validBillType = [
   "Registered", 
   "Deemed Export", 
