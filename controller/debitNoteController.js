@@ -629,7 +629,7 @@ items.forEach((item) => {
   validateField( item.itemIgst !== fetchedItem.igst, `IGST Mismatch for ${item.itemName}: ${item.itemIgst}`, errors );
 
   // Validate discount type
-  validateItemDiscountType(item.itemDiscountType, errors);
+  // validateItemDiscountType(item.itemDiscountType, errors);
 
   // Validate integer fields
   validateIntegerFields(['itemQuantity'], item, errors);
