@@ -43,6 +43,8 @@ const debitNoteSchema = new mongoose.Schema({
   debitNote: { type: String },  //prefix
   orderNumber: { type: String },
   supplierDebitDate: { type: String },
+  paymentMode: { type: String },  // cash/credit
+  depositTo: { type: String },
   subject: { type: String }, 
 
   // Item table
@@ -69,8 +71,8 @@ const debitNoteSchema = new mongoose.Schema({
   // transactionDiscount: { type: Number },
   // transactionDiscountAmount: { type: Number },  // if percentage
   grandTotal: { type: Number },
-  status: { type: String }, // Open/Closed
   createdDate: { type: String },
+  // status: { type: String }, // Open/Closed
 
 });
 
