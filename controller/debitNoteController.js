@@ -570,6 +570,7 @@ function validateDebitNoteData( data, supplierExist, billExist, items, itemTable
   validateSourceOfSupply(data.sourceOfSupply, organizationExists, errors);
   validateDestinationOfSupply(data.destinationOfSupply, organizationExists, errors);
   validateBillType(data.billType, errors);
+  validatePaymentMode(data.paymentMode, errors);
   //validateGSTorVAT(data, errors);
 
   //Currency
@@ -629,7 +630,7 @@ items.forEach((item) => {
   validateField( item.itemIgst !== fetchedItem.igst, `IGST Mismatch for ${item.itemName}: ${item.itemIgst}`, errors );
 
   // Validate discount type
-  validateItemDiscountType(item.itemDiscountType, errors);
+  // validateItemDiscountType(item.itemDiscountType, errors);
 
   // Validate integer fields
   validateIntegerFields(['itemQuantity'], item, errors);
@@ -730,6 +731,14 @@ function validateBillType(billType, errors) {
   validateField(
     billType && !validBillType.includes(billType),
     "Invalid Bill Type: " + billType, errors );
+}
+
+
+// Validate Payment Mode
+function validatePaymentMode(paymentMode, errors) {
+  validateField(
+    paymentMode && !validPaymentMode.includes(paymentMode),
+    "Invalid Payment Mode: " + paymentMode, errors );
 }
 
 
@@ -850,6 +859,7 @@ async function itemTrack(savedDebitNote, itemTable) {
 // Utility functions
 // const validItemDiscountType = ["percentage", "currency"];
 // const validTransactionDiscountType = ["percentage", "currency"];
+const validPaymentMode = [ "Cash", "Credit" ]
 const validBillType = [
   "Registered", 
   "Deemed Export", 

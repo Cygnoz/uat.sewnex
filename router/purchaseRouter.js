@@ -30,7 +30,7 @@ router.post('/add-Bills',verifyToken,billsCont.addBill);
 router.get('/get-all-Bills',verifyToken,billsCont.getAllPurchaseBills);
 router.get('/get-a-Bill/:id',verifyToken,billsCont.getPurchaseBill)
 // router.put('/update-Bill/:id',billsController.updatePurchaseBill)
-// router.delete('/delete-Bill/:id',billsController.deletePurchaseBill)
+// router.delete('/delete-Bill/:id',billsController.deletePurchaseBill) 
 
 
  //paymentmade
