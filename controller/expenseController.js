@@ -3,7 +3,6 @@ const Expense = require("../database/model/expense");
 const Category = require("../database/model/expenseCategory");
 const Account = require("../database/model/account")
 const TrialBalance = require("../database/model/trialBalance");
-
 const moment = require("moment-timezone");
 
 
@@ -489,7 +488,8 @@ function cleanExpenseData(data) {
     return newExpense.save();
   }
 
-  async function createTrialBalance(savedExpense) {
+  async function createTrialBalance (savedExpense) {
+
     const { organizationId, paidThrough, paidThroughId, expenseDate, expense } = savedExpense;
 
     // Calculate the total credit amount by summing up the amount for all expense items

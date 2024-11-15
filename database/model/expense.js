@@ -19,8 +19,8 @@ const expenseSchema = new Schema({
     ratePerKm: {type:Number},
     Ventor: {type:String},
     invoice: {type:String},
+    uploadFiles: {type:String},
     expense : [expenseCategorySchema]
-
 
 });
  
