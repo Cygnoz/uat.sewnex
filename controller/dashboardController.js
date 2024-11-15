@@ -133,7 +133,7 @@ const topSellingProductsUtil = async (organizationId) => {
       // Proceed with top-selling product calculations if there are sales records
       if (purchaseTrack.length > 0) {
         // Calculate the total units sold (sum of debitQuantity)
-        const unitBought = purchaseTrack.reduce((total, track) => total + track.debitQuantity, 0);
+        const unitBought = purchaseTrack.reduce((total, track) => total + track.creditQuantity, 0);
 
         // Calculate the sale volume (unitBought * sellingPrice)
         const saleVolume = unitBought * (item.sellingPrice || 0);

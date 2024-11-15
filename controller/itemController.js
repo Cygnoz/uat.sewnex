@@ -197,7 +197,7 @@ exports.addItem = async (req, res) => {
           itemName,
           sellingPrice:savedItem.sellingPrice,
           costPrice:savedItem.costPrice,
-          creditQuantity: openingStock || 0 ,
+          debitQuantity: openingStock || 0 ,
           currentStock: openingStock || 0,
           currentStock: openingStock || 0
       });  
