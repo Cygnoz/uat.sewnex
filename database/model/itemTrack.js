@@ -1,3 +1,5 @@
+// v1.0
+
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
 
@@ -12,6 +14,8 @@ const itemTrackSchema = new Schema({
 
     itemId: {type:String},
     itemName: {type:String},
+    sellingPrice:{ type:Number },
+    costPrice: { type: Number },
 
     creditQuantity: {type:Number},
     debitQuantity: {type:Number},
@@ -19,8 +23,8 @@ const itemTrackSchema = new Schema({
     currentStock: {type:Number},
     
     remark: {type:String},
-});
-
+}); 
+// , { timestamps: true }
 const ItemTrack = mongoose.model("ItemTrack", itemTrackSchema);
 
 module.exports = ItemTrack;

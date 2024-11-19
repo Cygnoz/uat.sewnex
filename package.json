@@ -13,10 +13,10 @@
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
-    "express": "^4.19.2",
-    "mongoose": "^8.4.4",
-    "nodemon": "^3.1.4",
-    "moment-timezone": "^0.5.45",
+    "express": "^4.21.1",
+    "mongoose": "^8.8.0",
+    "nodemon": "^3.1.7",
+    "moment-timezone": "^0.5.46",
     "jsonwebtoken": "^9.0.2"
   }
 }

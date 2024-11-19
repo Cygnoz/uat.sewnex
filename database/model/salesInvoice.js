@@ -9,6 +9,7 @@ const itemsSchema = new Schema({
   quantity: {type:Number},
   sellingPrice: {type:Number},
 
+  taxPreference: {type:String},
   taxGroup: {type:String},
   cgst: { type: Number },
   sgst: { type: Number },
@@ -47,7 +48,7 @@ const SalesInvoiceSchema = new Schema ({
   expectedShipmentDate: { type: String },
 
   salesInvoiceDate: { type: String },  
-  expiryDate: { type: String },
+  dueDate: { type: String },
 
   // subject: { type: String },
   
@@ -59,8 +60,10 @@ const SalesInvoiceSchema = new Schema ({
   //new
   otherExpenseAmount: { type: Number },
   otherExpenseReason: { type: String },
+  otherExpenseAccountId: { type: String },
   vehicleNumber: { type: String },
   freightAmount: { type: Number },
+  freightAccountId: { type: String },
   roundOffAmount: { type: Number },
 
 
@@ -80,6 +83,10 @@ const SalesInvoiceSchema = new Schema ({
   totalTax: { type: Number },
   totalAmount: { type: Number },
   totalDiscount: { type: Number },
+
+  paidAmount: { type: Number },
+  balanceAmount: { type: Number },
+  depositAccountId: { type: String },
 
   status: { type: String },
 
