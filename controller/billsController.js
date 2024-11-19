@@ -12,11 +12,11 @@ const mongoose = require('mongoose');
 
 
 // Fetch existing data
-const dataExist = async ( organizationId, supplierId, orderId ) => {
+const dataExist = async ( organizationId, supplierId ) => {
     const [organizationExists, supplierExist, purchaseOrderExist, taxExists, settings] = await Promise.all([
       Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
       Supplier.findOne({ organizationId , _id:supplierId}, { _id: 1, supplierDisplayName: 1, taxType: 1 }),
-      PurchaseOrder.findOne({organizationId, _id:orderId}),
+      PurchaseOrder.findOne({organizationId}),
       Tax.findOne({ organizationId }),
       Settings.findOne({ organizationId })
     ]);    
@@ -25,7 +25,7 @@ const dataExist = async ( organizationId, supplierId, orderId ) => {
 
 
 //Fetch Item Data
-const newDataExists = async (organizationId,items) => {
+const newDataExists = async (organizationId, items) => {
   // Retrieve items with specified fields
   const itemIds = items.map(item => item.itemId);
 
@@ -70,7 +70,7 @@ const billsDataExist = async ( organizationId, billId ) => {
 
 // Add Bills
 exports.addBills = async (req, res) => {
-    //console.log("Add bills:", req.body);
+    console.log("Add bills:", req.body);
   
     try {
       const { organizationId, id: userId, userName } = req.user;
@@ -82,7 +82,7 @@ exports.addBills = async (req, res) => {
       const { supplierId } = cleanedData;
     //   const { orderNumber } = cleanedData;
       
-      const itemIds = items.map(item => item.itemId);
+        const itemIds = items.map(item => item.itemId);      
       
       // Check for duplicate itemIds
       const uniqueItemIds = new Set(itemIds);
@@ -95,10 +95,10 @@ exports.addBills = async (req, res) => {
         return res.status(400).json({ message: `Invalid supplier ID: ${supplierId}` });
       }
   
-      //Validate purchase oredr
-      if (!mongoose.Types.ObjectId.isValid(orderId) || orderId.length !== 24) {
-        return res.status(400).json({ message: `Invalid bill ID: ${orderId}` });
-      }
+    //   //Validate purchase oredr
+    //   if (!mongoose.Types.ObjectId.isValid(orderId) || orderId.length !== 24) {
+    //     return res.status(400).json({ message: `Invalid bill ID: ${orderId}` });
+    //   }
   
       // Validate ItemIds
       const invalidItemIds = itemIds.filter(itemId => !mongoose.Types.ObjectId.isValid(itemId) || itemId.length !== 24);
@@ -106,7 +106,7 @@ exports.addBills = async (req, res) => {
         return res.status(400).json({ message: `Invalid item IDs: ${invalidItemIds.join(', ')}` });
       }   
   
-      const { organizationExists, supplierExist, purchaseOrderExist, taxExists, settings } = await dataExist( organizationId, supplierId, orderId );
+      const { organizationExists, supplierExist, purchaseOrderExist, taxExists, settings } = await dataExist( organizationId, supplierId );
   
       const { itemTable } = await newDataExists( organizationId, items );
   
@@ -161,37 +161,37 @@ exports.addBills = async (req, res) => {
           message: "No Bills Note found",
         });
       }
+
+        // Get current date for comparison
+        const currentDate = new Date();
+
+        // Array to store purchase bills with updated status
+        const updatedBills = [];
+
+        // Map through purchase bills and update paidStatus if needed
+        for (const bill of allBills) {
+        const { organizationId, balanceAmount, dueDate, paidStatus: currentStatus, ...rest } = bill.toObject();
+        
+        // Determine the correct paidStatus based on balanceAmount and dueDate
+        let newStatus;
+        if (balanceAmount === 0) {
+            newStatus = 'Completed';
+        } else if (dueDate && new Date(dueDate) < currentDate) {
+            newStatus = 'Overdue';
+        } else {
+            newStatus = 'Pending';
+        }
+
+        // Update the bill's status only if it differs from the current status in the database
+        if (newStatus !== currentStatus) {
+            await PurchaseBill.updateOne({ _id: bill._id }, { paidStatus: newStatus });
+        }
+
+        // Push the bill object with the updated status to the result array
+        updatedBills.push({ ...rest, balanceAmount , dueDate , paidStatus: newStatus });
+        }
   
-      // Get current date for comparison
-      const currentDate = new Date();
-
-      // Array to store purchase bills with updated status
-      const updatedBills = [];
-
-      // Map through purchase bills and update paidStatus if needed
-      for (const bill of allBills) {
-      const { organizationId, balanceAmount, dueDate, paidStatus: currentStatus, ...rest } = bill.toObject();
-      
-      // Determine the correct paidStatus based on balanceAmount and dueDate
-      let newStatus;
-      if (balanceAmount === 0) {
-          newStatus = 'Completed';
-      } else if (dueDate && new Date(dueDate) < currentDate) {
-          newStatus = 'Overdue';
-      } else {
-          newStatus = 'Pending';
-      }
-
-      // Update the bill's status only if it differs from the current status in the database
-      if (newStatus !== currentStatus) {
-          await PurchaseBill.updateOne({ _id: bill._id }, { paidStatus: newStatus });
-      }
-
-      // Push the bill object with the updated status to the result array
-      updatedBills.push({ ...rest, balanceAmount , dueDate , paidStatus: newStatus });
-      }
-
-    res.status(200).json({allBills: updatedBills});
+      res.status(200).json({allBills: updatedBills});
     } catch (error) {
       console.error("Error fetching bills:", error);
       res.status(500).json({ message: "Internal server error." });
@@ -218,6 +218,29 @@ exports.addBills = async (req, res) => {
         message: "No bill found",
       });
     }
+
+
+
+     // Dynamically populate itemImage for each item in the itemTable
+     const updatedItemTable = await Promise.all(
+        Bills.items.map(async (item) => {
+          const itemDetails = await Item.findOne({ itemId: item.itemId });
+          return {
+            ...item._doc, // Include other item fields
+            itemImage: itemDetails?.itemImage || null, // Add itemImage or null if not found
+          };
+        })
+      );
+   
+      Bills.organizationId = undefined; // Remove organizationId from response
+   
+      // Respond with updated purchase bill
+      res.status(200).json({
+        ...Bills._doc,
+        items: updatedItemTable, // Include updated itemTable with images
+      });
+
+
   
     res.status(200).json(bill);
   } catch (error) {
@@ -302,9 +325,9 @@ exports.addBills = async (req, res) => {
   function calculateBills(cleanedData, itemTable, res) {
     const errors = [];
   
-    let otherExpense = 0;
-    let freightAmount = 0;
-    let roundOffAmount = 0;
+    let otherExpense = (cleanedData.otherExpense || 0);
+    let freightAmount = (cleanedData.freight || 0);
+    let roundOffAmount = (cleanedData.roundOff || 0);
     let subTotal = 0;
     let totalTaxAmount = 0;
     let itemTotalDiscount= 0;
@@ -312,7 +335,7 @@ exports.addBills = async (req, res) => {
     let transactionDiscountAmount = 0;
     let grandTotal = 0;
     let balanceAmount = 0;
-    let paidAmount = 0;
+    let paidAmount = (cleanedData.paidAmount || 0);
   
     // Utility function to round values to two decimal places
     const roundToTwoDecimals = (value) => Number(value.toFixed(2));  
@@ -381,16 +404,24 @@ exports.addBills = async (req, res) => {
     });
   
     const total = (
-        ((parseFloat(subTotal) + parseFloat(totalTaxAmount) + otherExpense + freightAmount) - roundOffAmount) - itemTotalDiscount
+        (subTotal + totalTaxAmount + otherExpense + freightAmount - roundOffAmount) - itemTotalDiscount
     );
   
     console.log(`SubTotal: ${subTotal} , Provided ${cleanedData.subTotal}`);
+    console.log(`Total: ${total} , Provided ${total}`);
+    console.log(`subTotal: ${subTotal} , Provided ${cleanedData.subTotal}`);
+    console.log(`totalTaxAmount: ${totalTaxAmount} , Provided ${cleanedData.totalTaxAmount}`);
+    console.log(`otherExpense: ${otherExpense} , Provided ${cleanedData.otherExpense}`);
+    console.log(`freightAmount: ${freightAmount} , Provided ${cleanedData.freightAmount}`);
+    console.log(`roundOffAmount: ${roundOffAmount} , Provided ${cleanedData.roundOffAmount}`);
+    console.log(`itemTotalDiscount: ${itemTotalDiscount} , Provided ${cleanedData.itemTotalDiscount}`);
   
     // Transaction Discount
     let transDisAmt = calculateTransactionDiscount(cleanedData, total, transactionDiscountAmount); 
   
     // grandTotal amount calculation with including transactionDiscount
     grandTotal = total - transDisAmt; 
+    console.log(`Grand Total: ${grandTotal} , Provided ${cleanedData.grandTotal}`);
 
     // Calculate balanceAmount
     balanceAmount = grandTotal - parseFloat(paidAmount)
@@ -406,6 +437,7 @@ exports.addBills = async (req, res) => {
     console.log(`Final Total Tax Amount: ${roundedTotalTaxAmount} , Provided ${cleanedData.totalTaxAmount}` );
     console.log(`Final Total Amount: ${roundedGrandTotalAmount} , Provided ${cleanedData.grandTotal}` );
     console.log(`Final Total Item Discount Amount: ${roundedTotalItemDiscount} , Provided ${cleanedData.itemTotalDiscount}` );
+    console.log(`Final Balance Amount: ${roundedBalanceAmount} , Provided ${cleanedData.balanceAmount}` );
   
     validateAmount(roundedSubTotal, cleanedData.subTotal, 'SubTotal', errors);
     validateAmount(roundedTotalTaxAmount, cleanedData.totalTaxAmount, 'Total Tax Amount', errors);
@@ -541,7 +573,7 @@ function validateInputs( data, supplierExist, purchaseOrderExist, items, itemExi
     //Basic Info
     validateReqFields( data, supplierExist, errors );
     validateItemTable(items, itemTable, errors);
-    validatePurchaseOrderData(data, items, purchaseOrderExist, errors);
+    // validatePurchaseOrderData(data, items, purchaseOrderExist, errors);
     validateShipmentPreferences(data.shipmentPreference, errors)
     validateTransactionDiscountType(data.transactionDiscountType, errors);
     // console.log("billExist Data:", billExist.billNumber, billExist.billDate, billExist.orderNumber)
