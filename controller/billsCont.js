@@ -143,34 +143,84 @@ exports.getAllPurchaseBills = async (req, res) => {
 
 
 
+// //getPurchaseOrder
+// exports.getPurchaseBill = async (req, res) => {
+//   try {
+//     const purchaseBillId = req.params.id;
+//     // const { organizationId } = req.body;
+//     const {organizationId} = req.user
+
+//     // Check if an Organization already exists
+//     const { organizationExists } = await dataExistForBill(organizationId);
+
+//     if (!organizationExists) {
+//       return res.status(404).json({
+//         message: "Organization not found",
+//       });
+//     }
+
+//     const purchaseBill = await PurchaseBill.findById({_id: purchaseBillId});
+//     purchaseBill.organizationId = undefined;
+//     if (purchaseBill) {
+//       res.status(200).json(purchaseBill);
+//     } else {
+//       res.status(404).json({ message: "Purchase Bill not found" });
+//     }
+//   } catch (error) {
+//     console.error("Error fetching a purchase Bill:", error);
+//     res.status(500).json({ message: "Internal server error" });
+//   }
+// };
+
+
+
+
 //getPurchaseOrder
 exports.getPurchaseBill = async (req, res) => {
   try {
     const purchaseBillId = req.params.id;
-    // const { organizationId } = req.body;
-    const {organizationId} = req.user
+    const { organizationId } = req.user;
 
-    // Check if an Organization already exists
+    // Check if the organization exists
     const { organizationExists } = await dataExistForBill(organizationId);
-
     if (!organizationExists) {
       return res.status(404).json({
         message: "Organization not found",
       });
     }
 
-    const purchaseBill = await PurchaseBill.findById({_id: purchaseBillId});
-    purchaseBill.organizationId = undefined;
-    if (purchaseBill) {
-      res.status(200).json(purchaseBill);
-    } else {
-      res.status(404).json({ message: "Purchase Bill not found" });
+    // Fetch the purchase bill
+    const purchaseBill = await PurchaseBill.findById({ _id: purchaseBillId });
+    if (!purchaseBill) {
+      return res.status(404).json({ message: "Purchase Bill not found" });
     }
+
+    // Dynamically populate itemImage for each item in the itemTable
+    const updatedItemTable = await Promise.all(
+      purchaseBill.itemTable.map(async (item) => {
+        const itemDetails = await Item.findOne({ itemId: item.itemId });
+        return {
+          ...item._doc, // Include other item fields
+          itemImage: itemDetails?.itemImage || null, // Add itemImage or null if not found
+        };
+      })
+    );
+
+    purchaseBill.organizationId = undefined; // Remove organizationId from response
+
+    // Respond with updated purchase bill
+    res.status(200).json({
+      ...purchaseBill._doc,
+      itemTable: updatedItemTable, // Include updated itemTable with images
+    });
   } catch (error) {
     console.error("Error fetching a purchase Bill:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
+
+
 
 
 const normalizeRequestData = (data) => {
@@ -321,14 +371,14 @@ const cleanBillData = (data, supplierExists, items) => {
             cleanedItem.itemCgstAmount = halfIgst.toFixed(2);
             cleanedItem.itemSgstAmount = halfIgst.toFixed(2);
             cleanedItem.itemTax = itemIgstAmount.toFixed(2); // Total tax is the IGST amount
-            cleanedItem.itemIgstAmount = cleanedItem.itemIgst = undefined; // IGST should be undefined for intra-state
+            cleanedItem.itemIgstAmount = undefined; // IGST should be undefined for intra-state
             totalTaxAmount += itemIgstAmount;  // Add to total tax
           } else {
             // For inter-state, assign the full IGST amount
             cleanedItem.itemIgstAmount = itemIgstAmount.toFixed(2);
             cleanedItem.itemTax = itemIgstAmount.toFixed(2); // Total tax is the IGST amount
-            cleanedItem.itemCgstAmount = cleanedItem.itemCgst = undefined; // No CGST for inter-state
-            cleanedItem.itemSgstAmount = cleanedItem.itemSgst = undefined; // No SGST for inter-state
+            cleanedItem.itemCgstAmount = undefined; // No CGST for inter-state
+            cleanedItem.itemSgstAmount = undefined; // No SGST for inter-state
             totalTaxAmount += itemIgstAmount;  // Add to total tax
           }
         } else if (supplierExists.taxType === "VAT") {

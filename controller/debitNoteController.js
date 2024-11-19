@@ -688,9 +688,9 @@ function validateBillData(data, items, billExist, errors) {
       validateField(dNItem.itemSgst !== billItem.itemSgst, 
                     `Item SGST mismatch for ${billItem.itemId}: Expected ${billItem.itemSgst}, got ${dNItem.itemSgst}`, 
                     errors);
-      // validateField(dNItem.itemIgst !== billItem.itemIgst, 
-      //               `Item IGST mismatch for ${billItem.itemId}: Expected ${billItem.itemIgst}, got ${dNItem.itemIgst}`, 
-      //               errors);
+      validateField(dNItem.itemIgst !== billItem.itemIgst, 
+                    `Item IGST mismatch for ${billItem.itemId}: Expected ${billItem.itemIgst}, got ${dNItem.itemIgst}`, 
+                    errors);
       // validateField(dNItem.itemDiscount !== billItem.itemDiscount, 
       //               `Item Discount mismatch for ${billItem.itemId}: Expected ${billItem.itemDiscount}, got ${dNItem.itemDiscount}`, 
       //               errors);
