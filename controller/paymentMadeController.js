@@ -153,13 +153,13 @@ exports.getAllPayment = async (req, res) => {
   }
 };
 
-// Get One Payment Quote
+// Get One Payment 
 exports.getPurchasePayment = async (req, res) => {
   try {
     const organizationId = req.user.organizationId;
     const  PaymentId = req.params.PaymentId;
 
-    const { organizationExists } = await paymentDataExist(organizationId);
+    const { organizationExists , payments } = await paymentDataExist(organizationId , PaymentId);
 
     if (!organizationExists) {
       return res.status(404).json({
@@ -167,18 +167,14 @@ exports.getPurchasePayment = async (req, res) => {
       });
     }
 
-    const payment = await PurchasePayment.findOne({
-      _id:   PaymentId,
-      organizationId: organizationId
-  });
 
-    if (!payment) {
+    if (!payments) {
       return res.status(404).json({
         message: "No payment found",
       });
     }
 
-    res.status(200).json(payment);
+    res.status(200).json(payments);
   } catch (error) {
     console.error("Error fetching Payments:", error);
     res.status(500).json({ message: "Internal server error." });

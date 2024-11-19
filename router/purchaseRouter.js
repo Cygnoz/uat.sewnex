@@ -39,7 +39,7 @@ router.get('/getAllPayments', verifyToken , PaymentMadeController.getAllPayment 
 
 router.get('/get-last-payment-made-prefix',verifyToken,PaymentMadeController.getLastPaymentMadePrefix )
 
-router.get('/getPayment/:id', verifyToken, PaymentMadeController.getPurchasePayment);
+router.get('/getPayment/:PaymentId', verifyToken, PaymentMadeController.getPurchasePayment);
 // router.put('/updatePayment/:id', PaymentMadeController.updatePurchasePayment);
 // router.delete('/deletePayment/:id', PaymentMadeController.deletePurchasePayment);
 
