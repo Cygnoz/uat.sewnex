@@ -6,7 +6,8 @@ const purchaseOrderController = require('../controller/purchaseOrderController')
 const debitNoteController = require('../controller/debitNoteController'); 
 const PaymentMadeController = require('../controller/paymentMadeController');
 const purchaseSettingsController = require('../controller/purchaseSettingsController')
-const billsCont = require('../controller/billsCont')
+// const billsCont = require('../controller/billsCont')
+const billsCont = require('../controller/billsController')
 const SupplierController = require('../controller/supplierController')
  
 
@@ -26,9 +27,9 @@ router.get('/get-purchaseOrder/:id',verifyToken, purchaseOrderController.getPurc
 
 
 //Bills
-router.post('/add-Bills',verifyToken,billsCont.addBill);
-router.get('/get-all-Bills',verifyToken,billsCont.getAllPurchaseBills);
-router.get('/get-a-Bill/:billId',verifyToken,billsCont.getPurchaseBill)
+router.post('/add-Bills',verifyToken,billsCont.addBills);
+router.get('/get-all-Bills',verifyToken,billsCont.getAllBills);
+router.get('/get-a-Bill/:billId',verifyToken,billsCont.getOneBill)
 // router.put('/update-Bill/:id',billsController.updatePurchaseBill)
 // router.delete('/delete-Bill/:id',billsController.deletePurchaseBill) 
 
