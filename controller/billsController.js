@@ -70,7 +70,7 @@ const billsDataExist = async ( organizationId, billId ) => {
 
 // Add Bills
 exports.addBills = async (req, res) => {
-    console.log("Add bills:", req.body);
+    // console.log("Add bills:", req.body);
   
     try {
       const { organizationId, id: userId, userName } = req.user;
@@ -184,7 +184,7 @@ exports.addBills = async (req, res) => {
 
         // Update the bill's status only if it differs from the current status in the database
         if (newStatus !== currentStatus) {
-            await PurchaseBill.updateOne({ _id: bill._id }, { paidStatus: newStatus });
+            await Bills.updateOne({ _id: bill._id }, { paidStatus: newStatus });
         }
 
         // Push the bill object with the updated status to the result array
@@ -221,24 +221,24 @@ exports.addBills = async (req, res) => {
 
 
 
-     // Dynamically populate itemImage for each item in the itemTable
-     const updatedItemTable = await Promise.all(
-        Bills.items.map(async (item) => {
-          const itemDetails = await Item.findOne({ itemId: item.itemId });
-          return {
-            ...item._doc, // Include other item fields
-            itemImage: itemDetails?.itemImage || null, // Add itemImage or null if not found
-          };
-        })
-      );
+    //  // Dynamically populate itemImage for each item in the itemTable
+    //  const updatedItemTable = await Promise.all(
+    //     Bills.items.map(async (item) => {
+    //       const itemDetails = await Item.findOne({ itemId: item.itemId });
+    //       return {
+    //         ...item._doc, // Include other item fields
+    //         itemImage: itemDetails?.itemImage || null, // Add itemImage or null if not found
+    //       };
+    //     })
+    //   );
    
-      Bills.organizationId = undefined; // Remove organizationId from response
+    //   Bills.organizationId = undefined; // Remove organizationId from response
    
-      // Respond with updated purchase bill
-      res.status(200).json({
-        ...Bills._doc,
-        items: updatedItemTable, // Include updated itemTable with images
-      });
+    //   // Respond with updated purchase bill
+    //   res.status(200).json({
+    //     ...Bills._doc,
+    //     items: updatedItemTable, // Include updated itemTable with images
+    //   });
 
 
   
@@ -838,6 +838,7 @@ function validateSourceOfSupply(sourceOfSupply, organization, errors) {
       // Calculate the new stock level after the purchase
       const newStock = matchingItem.currentStock + item.itemQuantity;
   
+  
       // Create a new entry for item tracking
       const newTrialEntry = new ItemTrack({
         organizationId: savedBills.organizationId,
@@ -855,9 +856,9 @@ function validateSourceOfSupply(sourceOfSupply, organization, errors) {
       });
   
       // Save the tracking entry and update the item's stock in the item table
-      // await newTrialEntry.save();
+    //   await newTrialEntry.save();
   
-      console.log("1",newTrialEntry);
+    //   console.log("1",newTrialEntry);
     }
   }
   

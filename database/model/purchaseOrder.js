@@ -1,14 +1,18 @@
 const mongoose = require('mongoose')
 const { Schema } = mongoose;
 
-const itemTableSchema = new Schema({
+const itemsSchema = new Schema({
   itemId: { type: String },
   itemName: { type: String },
+
   itemQuantity: { type: Number },
   itemCostPrice: { type: Number },
+
   itemTax: { type: Number },
+
   itemDiscountType: { type: String }, //percentage/rupees
   itemDiscount: { type: String },
+  
   itemAmount: { type: Number },
 
   itemSgst: { type: Number },
@@ -51,7 +55,7 @@ const purchaseOrderSchema = new mongoose.Schema({
   // taxType: { type: String },  //GST/VAT
 
   // Item table
-  itemTable: [itemTableSchema],
+  items: [itemsSchema],
 
   // Other details:
   otherExpense: { type: Number },

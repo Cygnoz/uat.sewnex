@@ -7,686 +7,764 @@ const Settings = require("../database/model/settings")
 const Tax = require('../database/model/tax');
 const Prefix = require("../database/model/prefix");
 const moment = require("moment-timezone");
+const mongoose = require('mongoose');
+
 
 
 // Fetch existing data
-const dataExist = async (organizationId, supplierId, itemTable) => {
-  const [organizationExists, supplierExists, items, taxExists, existingPrefix] = await Promise.all([
-      Organization.findOne({ organizationId }),
-      Supplier.findOne({ _id: supplierId }),
-      // Promise.all(itemTable.map(item => Item.findOne({ _id: item.itemId }))),
-      // Amal
-      // Check if itemTable exists and is an array before mapping
-      Array.isArray(itemTable) && itemTable.length > 0
-        ? Promise.all(itemTable.map(item => Item.findOne({ _id: item.itemId })))
-        : [],
-        // Amal
-      Tax.find({ organizationId }),
+const dataExist = async ( organizationId, supplierId, items ) => {
+    const itemIds = items.map(item => item.itemId);
+
+    const [organizationExists, supplierExist, itemTable, taxExists, settings, existingPrefix] = await Promise.all([
+      Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
+      Supplier.findOne({ organizationId , _id:supplierId}, { _id: 1, supplierDisplayName: 1, taxType: 1 }),
+      Item.find({ organizationId, _id: { $in: itemIds } }, { _id: 1, itemName: 1, taxPreference: 1, costPrice:1,  taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }),
+      Tax.findOne({ organizationId }),
+      Settings.findOne({ organizationId }),
       Prefix.findOne({ organizationId })
-  ]);
-  // console.log("itemTable:", itemTable);
-  return { organizationExists, supplierExists, items, taxExists, existingPrefix };
+    ]);    
+  return { organizationExists, supplierExist, itemTable, taxExists, settings, existingPrefix };
 };
 
 
-// Add a new purchase order
+
+const purchaseOrderDataExist = async ( organizationId, orderId ) => {    
+    const [organizationExists, allPurchaseOrder, purchaseOrder ] = await Promise.all([
+      Organization.findOne({ organizationId }, { organizationId: 1}),
+      PurchaseOrder.find({ organizationId }),
+      PurchaseOrder.findOne({ organizationId , _id: orderId })
+    ]);
+    return { organizationExists, allPurchaseOrder, purchaseOrder };
+  };
+
+
+
+// Add Purchase Order
 exports.addPurchaseOrder = async (req, res) => {
-  const { supplierId, itemTable } = req.body;
-  const { organizationId, id: userId, userName  } = req.user
-console.log("Add Purchase Order:",req.body)
-  try {
-
-    // Fetch existing data
-    const { organizationExists, supplierExists, items, taxExists, existingPrefix } = await dataExist(organizationId, supplierId, itemTable);
-
-    // Normalize request body to handle null, empty strings, and 0 values
-    const normalizedBody = normalizeRequestData(req.body);
-
-    // Perform validation checks using the refactored functions
-    if (await hasValidationErrors(normalizedBody, supplierExists, res)) return;
+    // console.log("Add Purchase Order:", req.body);
+  
+    try {
+      const { organizationId, id: userId, userName } = req.user;
+  
+      //Clean Data
+      const cleanedData = cleanPurchaseOrderData(req.body);
+  
+      const { items } = cleanedData;
+      const { supplierId } = cleanedData;
+      
+      const itemIds = items.map(item => item.itemId);      
+      
+      // Check for duplicate itemIds
+      const uniqueItemIds = new Set(itemIds);
+      if (uniqueItemIds.size !== itemIds.length) {
+        return res.status(400).json({ message: "Duplicate Item found" });
+      }
+  
+      //Validate Supplier
+      if (!mongoose.Types.ObjectId.isValid(supplierId) || supplierId.length !== 24) {
+        return res.status(400).json({ message: `Invalid supplier ID: ${supplierId}` });
+      }
+  
+      // Validate ItemIds
+      const invalidItemIds = itemIds.filter(itemId => !mongoose.Types.ObjectId.isValid(itemId) || itemId.length !== 24);
+      if (invalidItemIds.length > 0) {
+        return res.status(400).json({ message: `Invalid item IDs: ${invalidItemIds.join(', ')}` });
+      }   
+  
+      const { organizationExists, supplierExist, itemTable, taxExists, settings, existingPrefix } = await dataExist( organizationId, supplierId, items );
     
-    // Validate Inputs
-    if (!validateInputs(organizationExists, supplierExists, items, taxExists, existingPrefix , res)) return;
+      //Data Exist Validation
+      if (!validateOrganizationSupplierPrefix( organizationExists, supplierExist, existingPrefix, res )) return;
+  
+      //Validate Inputs  
+      if (!validateInputs( cleanedData, supplierExist, items, itemTable, organizationExists, res)) return;
+  
+      //Date & Time
+      const openingDate = generateOpeningDate(organizationExists);
+  
+      //Tax Type
+      taxtype(cleanedData, supplierExist );
+      
+      // Calculate Sales 
+      if (!calculatePurchaseOrder( cleanedData, itemTable, res )) return;
 
-    //Date & Time
-    const openingDate = generateOpeningDate(organizationExists);
-
-    //Tax Type
-    taxtype(normalizedBody, supplierExists );
-
-    const cleanedData =  cleanPurchaseOrderData(normalizedBody, supplierExists, items);
-
-    // Check if transaction discount is valid
-    if (cleanedData.transactionDiscountAmount > parseFloat(cleanedData.grandTotal)) {
-      return res.status(400).json({ message: "Discount cannot exceed the grand total." });
+      //Prefix
+      await purchaseOrderPrefix(cleanedData, existingPrefix );
+  
+      const savedPurchaseOrder = await createNewPurchaseOrder(cleanedData, organizationId, openingDate, userId, userName );
+        
+      res.status(201).json({ message: "Purchase order created successfully", savedPurchaseOrder });
+      // console.log( "Purchase order created successfully:", savedPurchaseOrder );
+    } catch (error) {
+      console.error("Error Creating Purchase Order:", error);
+      res.status(500).json({ message: "Internal server error." });
     }
-
-    // Verify itemTable fields with Item schema and supply locations
-    if (!validateItemTable(items, itemTable, cleanedData, supplierExists, res)) return;
-
-
-    // Validate location inputs
-    if (!validateLocationInputs(cleanedData, organizationExists, res)) return;
-
-     //Prefix
-     await purchaseOrderPrefix(cleanedData, existingPrefix );
-
-    // Create new purchase order
-    const savedPurchaseOrder = await createNewPurchaseOrder(cleanedData, organizationId, userId, userName, openingDate);
-
-    // Send success response
-    res.status(201).json({ message: "Purchase order added successfully.", purchaseOrder: savedPurchaseOrder });
-  } catch (error) {
-    console.error("Error adding purchase order:", error);
-    res.status(500).json({ message: "Internal server error." });
   }
-};
-
-
-// Get All Purchase Orders
-exports.getAllPurchaseOrders = async (req, res) => {
-  // const { organizationId } = req.body;
-  const {organizationId} = req.user
-  try {
-
-    // Check if an Organization already exists
-    const { organizationExists } = await dataExist(organizationId);
-
-    if (!organizationExists) {
-      return res.status(404).json({
-        message: "Organization not found",
-      });
+  
+  
+  
+  // Get All Bills
+  exports.getAllPurchaseOrder = async (req, res) => {
+    try {
+      const organizationId = req.user.organizationId;
+  
+      const { organizationExists, allPurchaseOrder } = await purchaseOrderDataExist(organizationId);
+  
+      if (!organizationExists) {
+        return res.status(404).json({
+          message: "Organization not found",
+        });
+      }
+  
+      if (!allPurchaseOrder.length) {
+        return res.status(404).json({
+          message: "No purchase order found",
+        });
+      }
+  
+      res.status(200).json(allPurchaseOrder);
+    } catch (error) {
+      console.error("Error fetching purchase order:", error);
+      res.status(500).json({ message: "Internal server error." });
     }
+  };
+  
+  
+ // Get One Bill
+ exports.getOnePurchaseOrder = async (req, res) => {
+    try {
+      const organizationId = req.user.organizationId;
+      const orderId = req.params.orderId;
+    
+      const { organizationExists, purchaseOrder } = await purchaseOrderDataExist(organizationId, orderId);
+    
+      if (!organizationExists) {
+        return res.status(404).json({
+          message: "Organization not found",
+        });
+      }
+    
+      if (!purchaseOrder) {
+        return res.status(404).json({
+          message: "No purchase order found",
+        });
+      }
 
-    const purchaseOrders = await PurchaseOrder.find( {organizationId} );
-
-    if (!purchaseOrders || purchaseOrders.length === 0) {
-      return res.status(404).json({ message: "No purchase orders found." });
-    }
-    const PurchaseOrders = purchaseOrders.map((history) => {
-      const { organizationId, ...rest } = history.toObject(); // Convert to plain object and omit organizationId
-      return rest;
-    });
-    res.status(200).json({ PurchaseOrders });
-  } catch (error) {
-    console.error("Error fetching purchase orders:", error);
-    res.status(500).json({ message: "Internal server error." });
-  }
-};
-
-
-//getPurchaseOrder
-exports.getPurchaseOrder = async (req, res) => {
-  try {
-    const purchaseOrderId = req.params.id;
-    // const { organizationId } = req.body;
-    const {organizationId} = req.user
-
-    // Check if an Organization already exists
-    const { organizationExists } = await dataExist(organizationId);
-
-    if (!organizationExists) {
-      return res.status(404).json({
-        message: "Organization not found",
-      });
-    }
-
-    const purchaseOrder = await PurchaseOrder.findById({_id: purchaseOrderId});
-    purchaseOrder.organizationId = undefined;
-    if (purchaseOrder) {
       res.status(200).json(purchaseOrder);
-    } else {
-      res.status(404).json({ message: "Purchase order not found" });
+    } catch (error) {
+      console.error("Error fetching purchase order:", error);
+      res.status(500).json({ message: "Internal server error." });
     }
-  } catch (error) {
-    console.error("Error fetching a purchase order:", error);
-    res.status(500).json({ message: "Internal server error" });
-  }
-};
-
-
-
-
+    };
+  
+  
 // Get Last Journal Prefix
 exports. getLastPurchaseOrderPrefix = async (req, res) => {
-  try {
-      const organizationId = "INDORG0005";
-
-      // Find all accounts where organizationId matches
-      const prefix = await Prefix.findOne({ organizationId:organizationId,'series.status': true });
-
-      if (!prefix) {
-          return res.status(404).json({
-              message: "No Prefix found for the provided organization ID.",
-          });
-      }
-      
-      const series = prefix.series[0];     
-      const lastPrefix = series.purchaseOrder + series.purchaseOrderNum;
-
-      res.status(200).json(lastPrefix);
-  } catch (error) {
-      console.error("Error fetching accounts:", error);
-      res.status(500).json({ message: "Internal server error." });
-  }
-};
-
-// Purchase Prefix
-function purchaseOrderPrefix( cleanData, existingPrefix ) {
-  const activeSeries = existingPrefix.series.find(series => series.status === true);
-  if (!activeSeries) {
-      return res.status(404).json({ message: "No active series found for the organization." });
-  }
-  cleanData.purchaseOrder = `${activeSeries.purchaseOrder}${activeSeries.purchaseOrderNum}`;
-
-  activeSeries.purchaseOrderNum += 1;
-
-  existingPrefix.save()
-
-  return 
-}
-
-
-
-
-// Normalize request body: convert null, empty strings, and 0 to undefined
-const normalizeRequestData = (data) => {
-  const normalizedData = {};
-
-  Object.keys(data).forEach((key) => {
-    const value = data[key];
-
-    // If value is null, empty string, or 0, set to undefined
-    if (value === null || value === "" && key !== "taxMode") {
-      normalizedData[key] = undefined;
-    } else {
-      normalizedData[key] = value; // Otherwise, keep the value as is
-    }
-  });
-
-  return normalizedData;
-};
-
-
-
-
-
-// Tax Type
-function taxtype( cleanedData, supplierExists ) {
-  if(supplierExists.taxType === 'GST' ){
-    if(cleanedData.sourceOfSupply === cleanedData.destinationOfSupply){
-      cleanedData.taxMode ='Intra';
-    }
-    else{
-      cleanedData.taxMode ='Inter';
-    }
-  }
-  if(supplierExists.taxType === 'VAT' ){
-    cleanedData.taxMode ='VAT'; 
-  }
-  if(supplierExists.taxType === 'Non-Tax' ){
-    cleanedData.taxMode ='Non-Tax';
-  } 
-  return  
-}
-
-// Validate item table based on taxType
-const validateItemTable = (items, itemTable, cleanedData, supplierExists, res) => {
-  const { taxMode } = cleanedData;
-
-  // Update the tax fields based on the supply locations
-  itemTable.forEach(item => {
-    if (taxMode === 'Intra') {
-      item.itemIgst = undefined; // Same state, so no IGST
-      item.itemIgstAmount = undefined;
-    } else {
-      item.itemCgst = undefined;
-      item.itemSgst = undefined; // Different states, so no CGST and SGST
-      item.itemCgstAmount = undefined;
-      item.itemSgstAmount = undefined;
-    }
-    // console.log("table data.....",item);
-  });
-
-  const fieldsToCheck = supplierExists.taxType === 'GST' ? [
-    { tableField: 'itemSgst', itemField: 'sgst', error: 'SGST mismatch' },
-    { tableField: 'itemCgst', itemField: 'cgst', error: 'CGST mismatch' },
-    { tableField: 'itemIgst', itemField: 'igst', error: 'IGST mismatch' }
-  ] : [{ tableField: 'itemVat', itemField: 'vat', error: 'VAT mismatch' }];
-
-  // Validate each item
-  for (let i = 0; i < itemTable.length; i++) {
-    const tableItem = itemTable[i];
-    const dbItem = items[i];
-    // console.log("item",dbItem);
-
-    // Item name mismatch
-    if (tableItem.itemName.trim() !== dbItem.itemName.trim())
-      return res.status(400).json({ message: `Item name mismatch for itemId` });
+    try {
+        const organizationId = req.user.organizationId;
   
-    // Selling price mismatch
-    if (parseFloat(tableItem.itemCostPrice) !== parseFloat(dbItem.costPrice))
-      return res.status(400).json({ message: `Cost price mismatch for itemId` });
-    
-    // Tax mismatch based on the tax type and supply location
-    for (const { tableField, itemField, error } of fieldsToCheck) {
-      if (tableItem[tableField] !== undefined && dbItem[itemField] !== undefined && parseFloat(tableItem[tableField]) !== parseFloat(dbItem[itemField])) {
-        return res.status(400).json({ message: `${error} for itemId` });
-      }
-    }
-
-  }
-  return true;  // If validation passes
-};
-   
-
-// Clean data
-const cleanPurchaseOrderData = (data, supplierExists, items) => {    
-  const cleanData = value => (value == null || value === "" ? undefined : value);
-  const { taxMode } = data;
-
-  // Initialize overall totals
-  let subTotal = 0; 
-  let totalItem = 0;  
-  let totalTaxAmount = 0;  
-  let itemTotalDiscount = 0;
-
-  // Clean data and calculate item-level totals 
-  const cleanedData = { 
-    ...data,
-    itemTable: data.itemTable.map(item => {
-      const cleanedItem = Object.keys(item).reduce((acc, key) => (acc[key] = cleanData(item[key]), acc), {});
-      const isTaxable = items.some(i => i.taxPreference === 'Taxable');
-      // console.log("Is any item taxable:", isTaxable);
-
-
-      // Parse item quantities and prices
-      const itemQuantity = parseInt(cleanedItem.itemQuantity) || 0;
-      const itemCostPrice = parseFloat(cleanedItem.itemCostPrice) || 0;
-      const itemDiscount = parseFloat(cleanedItem.itemDiscount) || 0;
-
-      // Update subTotal and totalItem 
-      subTotal += (itemQuantity * itemCostPrice).toFixed(2);
-      totalItem += itemQuantity;
-
-          if (cleanedItem.itemDiscountType === "percentage") {
-            // Calculate the discount in percentage
-            const discountAmount = (itemQuantity * itemCostPrice * itemDiscount) / 100;
-            itemTotalDiscount += discountAmount; // Add to total discount
-            cleanedItem.itemAmount = (itemQuantity * itemCostPrice - discountAmount).toFixed(2);
-          } else if (cleanedItem.itemDiscountType === "currency") {
-            // Calculate the discount in currency (absolute amount)
-            itemTotalDiscount += itemDiscount; // Add to total discount
-            cleanedItem.itemAmount = (itemQuantity * itemCostPrice - itemDiscount).toFixed(2);
-          } else {
-            // No discount applied
-            cleanedItem.itemAmount = (itemQuantity * itemCostPrice).toFixed(2);
-          }
-
-
-      // Calculate tax amounts based on taxType
-      if(isTaxable){
-        if (supplierExists.taxType === "GST") {
-          const itemIgstPercentage = parseFloat(cleanedItem.itemIgst) || 0; // Get IGST percentage
-          // Convert IGST percentage to IGST amount
-          const itemIgstAmount = (parseFloat(cleanedItem.itemAmount) * itemIgstPercentage) / 100;
-          // console.log("itemIgstAmount",itemIgstAmount);
-          if (taxMode === "Intra") {
-            // For intra-state, split IGST amount into CGST and SGST
-            const halfIgst = itemIgstAmount / 2;
-            cleanedItem.itemCgstAmount = halfIgst.toFixed(2);
-            cleanedItem.itemSgstAmount = halfIgst.toFixed(2);
-            cleanedItem.itemTax = itemIgstAmount.toFixed(2); // Total tax is the IGST amount
-            cleanedItem.itemIgstAmount = cleanedItem.itemIgst = undefined; // IGST should be undefined for intra-state
-            totalTaxAmount += itemIgstAmount;  // Add to total tax
-          } else {
-            // For inter-state, assign the full IGST amount
-            cleanedItem.itemIgstAmount = itemIgstAmount.toFixed(2);
-            cleanedItem.itemTax = itemIgstAmount.toFixed(2); // Total tax is the IGST amount
-            cleanedItem.itemCgstAmount = cleanedItem.itemCgst = undefined; // No CGST for inter-state
-            cleanedItem.itemSgstAmount = cleanedItem.itemSgst = undefined; // No SGST for inter-state
-            totalTaxAmount += itemIgstAmount;  // Add to total tax
-          }
-        } else if (supplierExists.taxType === "VAT") {
-          const itemVatPercentage = parseFloat(cleanedItem.itemVat) || 0; // Get VAT percentage
-          const itemVatAmount = (itemCostPrice * itemQuantity * itemVatPercentage) / 100;
-          cleanedItem.itemTax = itemVatAmount.toFixed(2); // Calculate VAT amount
-          cleanedItem.itemIgst = cleanedItem.itemCgst = cleanedItem.itemSgst = undefined; // Set IGST, CGST, SGST to undefined for VAT
-          cleanedItem.itemIgstAmount = cleanedItem.itemCgstAmount = cleanedItem.itemSgstAmount = undefined; 
-          totalTaxAmount += itemVatAmount;  // Add to total tax
+        // Find all accounts where organizationId matches
+        const prefix = await Prefix.findOne({ organizationId:organizationId,'series.status': true });
+  
+        if (!prefix) {
+            return res.status(404).json({
+                message: "No Prefix found for the provided organization ID.",
+            });
         }
-      } else {
-        cleanedItem.itemIgst = cleanedItem.itemCgst = cleanedItem.itemSgst = cleanedItem.itemTax = undefined;
-        cleanedItem.itemIgstAmount = cleanedItem.itemCgstAmount = cleanedItem.itemSgstAmount = undefined; 
-      }
+        
+        const series = prefix.series[0];     
+        const lastPrefix = series.purchaseOrder + series.purchaseOrderNum;
+  
+        res.status(200).json(lastPrefix);
+    } catch (error) {
+        console.error("Error fetching accounts:", error);
+        res.status(500).json({ message: "Internal server error." });
+    }
+  };
+  
 
-      // console.log("cleanedItem",cleanedItem);
-      return cleanedItem;
-    })
+  // Purchase Prefix
+  function purchaseOrderPrefix( cleanData, existingPrefix ) {
+    const activeSeries = existingPrefix.series.find(series => series.status === true);
+    if (!activeSeries) {
+        return res.status(404).json({ message: "No active series found for the organization." });
+    }
+    cleanData.purchaseOrder = `${activeSeries.purchaseOrder}${activeSeries.purchaseOrderNum}`;
+  
+    activeSeries.purchaseOrderNum += 1;
+  
+    existingPrefix.save()
+  
+    return 
+  }
+
+
+
+
+
+
+   // Create New Purchase Order
+   function createNewPurchaseOrder( data, organizationId, openingDate, userId, userName ) {
+    const newPurchaseOrder = new PurchaseOrder({ ...data, organizationId, createdDate: openingDate, userId, userName });
+    return newPurchaseOrder.save();
+  }
+  
+  
+  //Clean Data 
+  function cleanPurchaseOrderData(data) {
+    const cleanData = (value) => (value === null || value === undefined || value === "" ? undefined : value);
+    return Object.keys(data).reduce((acc, key) => {
+      acc[key] = cleanData(data[key]);
+      return acc;
+    }, {});
+  }
+  
+  
+  // Validate Organization Tax Currency
+  function validateOrganizationSupplierPrefix( organizationExists, supplierExist, existingPrefix, res ) {
+    if (!organizationExists) {
+      res.status(404).json({ message: "Organization not found" });
+      return false;
+    }
+    if (!supplierExist) {
+      res.status(404).json({ message: "Supplier not found." });
+      return false;
+    }
+    if (!existingPrefix) {
+      res.status(404).json({ message: "Prefix not found" });
+      return false;
+    }
+    return true;
+  }
+  
+  
+  
+  // Tax Type
+  function taxtype( cleanedData, supplierExist ) {
+    if(supplierExist.taxType === 'GST' ){
+      if(cleanedData.sourceOfSupply === cleanedData.destinationOfSupply){
+        cleanedData.taxMode ='Intra';
+      }
+      else{
+        cleanedData.taxMode ='Inter';
+      }
+    }
+    if(supplierExist.taxType === 'VAT' ){
+      cleanedData.taxMode ='VAT'; 
+    }
+    return   
+  }
+
+
+
+  function calculatePurchaseOrder(cleanedData, itemTable, res) {
+    const errors = [];
+  
+    let otherExpense = (cleanedData.otherExpense || 0);
+    let freightAmount = (cleanedData.freight || 0);
+    let roundOffAmount = (cleanedData.roundOff || 0);
+    let subTotal = 0;
+    let totalTaxAmount = 0;
+    let itemTotalDiscount= 0;
+    let totalItem = 0;
+    let transactionDiscountAmount = 0;
+    let grandTotal = 0;
+  
+    // Utility function to round values to two decimal places
+    const roundToTwoDecimals = (value) => Number(value.toFixed(2));  
+  
+    cleanedData.items.forEach(item => {
+  
+      let calculatedItemCgstAmount = 0;
+      let calculatedItemSgstAmount = 0;
+      let calculatedItemIgstAmount = 0;
+      let calculatedItemVatAmount = 0;
+      let calculatedItemTaxAmount = 0;
+      let itemAmount = 0;
+      let taxMode = cleanedData.taxMode;
+  
+      // Calculate item line discount 
+      const itemDiscAmt = calculateItemDiscount(item);
+  
+      itemTotalDiscount +=  parseFloat(itemDiscAmt);
+      totalItem +=  parseInt(item.itemQuantity);
+      subTotal += parseFloat(item.itemQuantity * item.itemCostPrice);
+  
+      itemAmount = (item.itemCostPrice * item.itemQuantity - itemDiscAmt);
+  
+      // Handle tax calculation only for taxable items
+      itemTable.forEach(i => {
+      if (i.taxPreference === 'Taxable') {
+        switch (taxMode) {
+          
+          case 'Intra':
+            calculatedItemCgstAmount = roundToTwoDecimals((item.itemCgst / 100) * itemAmount);
+            calculatedItemSgstAmount = roundToTwoDecimals((item.itemSgst / 100) * itemAmount);
+          break;
+  
+          case 'Inter':
+            calculatedItemIgstAmount = roundToTwoDecimals((item.itemIgst / 100) * itemAmount);
+          break;
+          
+          case 'VAT':
+            calculatedItemVatAmount = roundToTwoDecimals((item.itemVat / 100) * itemAmount);
+          break;
+  
+        }
+  
+        calculatedItemTaxAmount =  calculatedItemCgstAmount + calculatedItemSgstAmount + calculatedItemIgstAmount + calculatedItemVatAmount;
+        
+        // Check tax amounts
+        checkAmount(calculatedItemCgstAmount, item.itemCgstAmount, item.itemName, 'CGST',errors);
+        checkAmount(calculatedItemSgstAmount, item.itemSgstAmount, item.itemName, 'SGST',errors);
+        checkAmount(calculatedItemIgstAmount, item.itemIgstAmount, item.itemName, 'IGST',errors);
+        checkAmount(calculatedItemVatAmount, item.itemVatAmount, item.itemName, 'VAT',errors);
+        checkAmount(calculatedItemTaxAmount, item.itemTax, item.itemName, 'Item tax',errors);
+  
+        totalTaxAmount += calculatedItemTaxAmount;     
+  
+      } else {
+        console.log(`Skipping Tax for Non-Taxable item: ${item.itemName}`);
+        console.log(`Item: ${item.itemName}, Calculated Discount: ${itemDiscAmt}`);
+      }
+      })
+  
+      checkAmount(itemAmount, item.itemAmount, item.itemName, 'Item Total',errors);
+  
+      console.log(`${item.itemName} Item Total: ${itemAmount} , Provided ${item.itemAmount}`);
+      console.log(`${item.itemName} Total Tax: ${calculatedItemTaxAmount} , Provided ${item.itemTax || 0 }`);
+      console.log("");
+    });
+  
+    const total = (
+        (subTotal + totalTaxAmount + otherExpense + freightAmount - roundOffAmount) - itemTotalDiscount
+    );
+  
+    console.log(`SubTotal: ${subTotal} , Provided ${cleanedData.subTotal}`);
+    console.log(`Total: ${total} , Provided ${total}`);
+  
+    // Transaction Discount
+    let transDisAmt = calculateTransactionDiscount(cleanedData, total, transactionDiscountAmount); 
+  
+    // grandTotal amount calculation with including transactionDiscount
+    grandTotal = total - transDisAmt; 
+    console.log(`Grand Total: ${grandTotal} , Provided ${cleanedData.grandTotal}`);
+  
+    // Round the totals for comparison
+    const roundedSubTotal = roundToTwoDecimals(subTotal); 
+    const roundedTotalTaxAmount = roundToTwoDecimals(totalTaxAmount);
+    const roundedGrandTotalAmount = roundToTwoDecimals(grandTotal);
+    const roundedTotalItemDiscount = roundToTwoDecimals(itemTotalDiscount);
+  
+    console.log(`Final Sub Total: ${roundedSubTotal} , Provided ${cleanedData.subTotal}` );
+    console.log(`Final Total Tax Amount: ${roundedTotalTaxAmount} , Provided ${cleanedData.totalTaxAmount}` );
+    console.log(`Final Total Amount: ${roundedGrandTotalAmount} , Provided ${cleanedData.grandTotal}` );
+    console.log(`Final Total Item Discount Amount: ${roundedTotalItemDiscount} , Provided ${cleanedData.itemTotalDiscount}` );
+  
+    validateAmount(roundedSubTotal, cleanedData.subTotal, 'SubTotal', errors);
+    validateAmount(roundedTotalTaxAmount, cleanedData.totalTaxAmount, 'Total Tax Amount', errors);
+    validateAmount(roundedGrandTotalAmount, cleanedData.grandTotal, 'Grand Total', errors);
+    validateAmount(roundedTotalItemDiscount, cleanedData.itemTotalDiscount, 'Total Item Discount Amount', errors);
+    validateAmount(totalItem, cleanedData.totalItem, 'Total Item count', errors);
+  
+    if (errors.length > 0) {
+      res.status(400).json({ message: errors.join(", ") });
+      return false;
+    }
+  
+    return true;
+  }
+  
+  
+  // Calculate item discount
+  function calculateItemDiscount(item) {
+    return item.itemDiscountType === 'currency'
+      ? item.itemDiscount || 0
+      : (item.itemCostPrice * item.itemQuantity * (item.itemDiscount || 0)) / 100;    //if percentage
+  }
+  
+  
+  //TransactionDiscount
+  function calculateTransactionDiscount(cleanedData, total, transactionDiscountAmount) {
+    transactionDiscountAmount = cleanedData.transactionDiscount || 0;
+  
+    return cleanedData.transactionDiscountType === 'currency'
+      ? transactionDiscountAmount
+      : (total * cleanedData.transactionDiscount) / 100;    //if percentage
+  }
+  
+  
+  //Mismatch Check
+  function checkAmount(calculatedAmount, providedAmount, itemName, taxMode, errors) {
+    const roundToTwoDecimals = (value) => Number(value.toFixed(2)); // Round to two decimal places
+    const roundedAmount = roundToTwoDecimals(calculatedAmount);
+    console.log(`Item: ${itemName}, Calculated ${taxMode}: ${roundedAmount}, Provided data: ${providedAmount}`);
+  
+    if (Math.abs(roundedAmount - providedAmount) > 0.01) {
+      const errorMessage = `Mismatch in ${taxMode} for item ${itemName}: Calculated ${calculatedAmount}, Provided ${providedAmount}`;
+      errors.push(errorMessage);
+      console.log(errorMessage);
+    }
+  }
+  
+  
+  //Final Item Amount check
+  const validateAmount = ( calculatedValue, cleanedValue, label, errors ) => {
+    const isCorrect = calculatedValue === parseFloat(cleanedValue);
+    if (!isCorrect) {
+      const errorMessage = `${label} is incorrect: ${cleanedValue}`;
+      errors.push(errorMessage);
+      console.log(errorMessage);
+    }
   };
 
 
-  // Calculate roundOff, otherExpense, and freight (defaulting to 0 if not provided)
-  const transactionDiscount = parseFloat(cleanedData.transactionDiscount) || 0;
-  const roundOff = parseFloat(data.roundOff) || 0;
-  const otherExpense = parseFloat(data.otherExpense) || 0;
-  const freight = parseFloat(data.freight) || 0;
 
-    // Divide totalTaxAmount based on taxMode
-    if (taxMode === "Intra") {
-      const halfTax = totalTaxAmount / 2;
-      cleanedData.cgst = halfTax.toFixed(2);
-      cleanedData.sgst = halfTax.toFixed(2);
-      cleanedData.igst = undefined; // No IGST for intra-state
-    } else if (taxMode === "Inter") {
-      cleanedData.igst = totalTaxAmount.toFixed(2);
-      cleanedData.cgst = undefined;
-      cleanedData.sgst = undefined; // No CGST and SGST for inter-state
-    } else if (taxMode === "VAT") {
-      cleanedData.vat = totalTaxAmount.toFixed(2);
-      cleanedData.igst = cleanedData.cgst = cleanedData.sgst = undefined; // Only VAT is applicable
+   //Return Date and Time 
+function generateOpeningDate(organizationExists) {
+    const date = generateTimeAndDateForDB(
+        organizationExists.timeZoneExp,
+        organizationExists.dateFormatExp,
+        organizationExists.dateSplit
+      )
+    return date.dateTime;
+  }
+  
+  
+  // Function to generate time and date for storing in the database
+  function generateTimeAndDateForDB(
+    timeZone,
+    dateFormat,
+    dateSplit,
+    baseTime = new Date(),
+    timeFormat = "HH:mm:ss",
+    timeSplit = ":"
+  ) {
+    // Convert the base time to the desired time zone
+    const localDate = moment.tz(baseTime, timeZone);
+  
+    // Format date and time according to the specified formats
+    let formattedDate = localDate.format(dateFormat);
+  
+    // Handle date split if specified
+    if (dateSplit) {
+      // Replace default split characters with specified split characters
+      formattedDate = formattedDate.replace(/[-/]/g, dateSplit); // Adjust regex based on your date format separators
     }
-
-    // Add subTotal, totalItem, totalTaxAmount, and totalDiscount to cleanedData
-    cleanedData.subTotal = subTotal;  // Overall subTotal
-    cleanedData.totalItem = totalItem;  // Overall totalItem quantity
-    cleanedData.totalTaxAmount = totalTaxAmount.toFixed(2);  // Total tax amount
-    cleanedData.itemTotalDiscount = itemTotalDiscount.toFixed(2);  // Total discount
-
-     // Calculate the grandTotal using the formula you provided
-  const total = (
-    (parseFloat(cleanedData.subTotal) +
-    parseFloat(cleanedData.totalTaxAmount) +
-    otherExpense +      
-    freight -           
-    roundOff) - itemTotalDiscount      
-  ).toFixed(2);
-
-    // Apply transaction discount based on its type (percentage or currency)
-    if (cleanedData.transactionDiscountType === "percentage") {
-      // If percentage, calculate percentage discount based on subTotal
-      const transactionDiscountAmnt = (total * transactionDiscount) / 100;
-      cleanedData.transactionDiscountAmount = transactionDiscountAmnt.toFixed(2);
-    } else if (cleanedData.transactionDiscountType === "currency") {
-      // If currency, apply the discount directly
-      cleanedData.transactionDiscountAmount = transactionDiscount.toFixed(2);
-    } 
-
-    // Calculate grandTotal
-    cleanedData.grandTotal = (total - parseFloat(cleanedData.transactionDiscountAmount)).toFixed(2);
-
-  return cleanedData;
-};
-
-
-
-
-
-//Validate inputs
-const validateInputs = (organizationExists, supplierExists, items, taxExists, existingPrefix, res) => {
-  if (!organizationExists) {
-    res.status(404).json({ message: "Organization not found" });
-    return false;
+  
+    const formattedTime = localDate.format(timeFormat);
+    const timeZoneName = localDate.format("z"); // Get time zone abbreviation
+  
+    // Combine the formatted date and time with the split characters and time zone
+    const dateTime = `${formattedDate} ${formattedTime
+      .split(":")
+      .join(timeSplit)} (${timeZoneName})`;
+  
+    return {
+      date: formattedDate,
+      time: `${formattedTime} (${timeZoneName})`,
+      dateTime: dateTime,
+    };
   }
-  if (!supplierExists) {
-    res.status(404).json({ message: "Supplier not found" });
-    return false;
-  }
-  if (items.some(item => !item)) {
-    res.status(404).json({ message: "Items not found" });
-    return false;
-  }
-  if (!taxExists) {
-    res.status(404).json({ message: "No taxes found for the organization" });
-    return false;
-  }
-  if (!existingPrefix) {
-    res.status(404).json({ message: "Prefix not found" });
-    return false;
-  }
-  return true; // All validations passed
-};
 
 
 
-// Validation Error Check
-const hasValidationErrors = async (body, supplierExists, res) => {
-  const { itemTable, transactionDiscountType } = body;
 
-  let shipmentPreference = body.shipmentPreference; // Declare shipmentPreference with let
-  let paymentTerms = body.paymentTerms;
-
-
-  // Normalize shipmentPreference: convert null, empty string, and 0 to undefined
-  shipmentPreference = (shipmentPreference == null || shipmentPreference === "" || shipmentPreference === 0) ? undefined : shipmentPreference;
-
-  // Check for duplicate items in itemTable
-  if (hasDuplicateItems(itemTable)) {
-    res.status(400).json({ message: "Duplicate items found in the itemTable. Please ensure each item is added only once." });
+  //Validate inputs
+function validateInputs( data, supplierExist, items, itemExists, organizationExists, res) {
+    const validationErrors = validateBillsData(data, supplierExist, items, itemExists, organizationExists);  
+  
+    if (validationErrors.length > 0) {
+      res.status(400).json({ message: validationErrors.join(", ") });
+      return false;
+    }
     return true;
   }
+  
+  //Validate Data
+  function validateBillsData( data, supplierExist, items, itemTable, organizationExists ) {
+    const errors = [];
+  
+    // console.log("Item Request :",items);
+    // console.log("Item Fetched :",itemTable);
+  
+    //Basic Info
+    validateReqFields( data, supplierExist, errors );
+    validateItemTable(items, itemTable, errors);
+    validateShipmentPreferences(data.shipmentPreference, errors)
+    validateTransactionDiscountType(data.transactionDiscountType, errors);
+    // console.log("billExist Data:", billExist.billNumber, billExist.billDate, billExist.orderNumber)
+  
+    //OtherDetails
+    validateIntegerFields(['totalItem'], data, errors);
+    validateFloatFields(['transactionDiscountAmount','subTotal','cgst','sgst','igst','vat','totalTaxAmount','grandTotal'], data, errors);
+    //validateAlphabetsFields(['department', 'designation'], data, errors);
+  
+    //Tax Details
+    //validateTaxType(data.taxType, validTaxTypes, errors);
+    validateSourceOfSupply(data.sourceOfSupply, organizationExists, errors);
+    validateDestinationOfSupply(data.destinationOfSupply, organizationExists, errors);
+    validatePaymentTerms(data.paymentTerms, errors);
+    //validateGSTorVAT(data, errors);
+  
+    //Currency
+    //validateCurrency(data.currency, validCurrencies, errors);
+  
+    //Address
+    //validateBillingAddress(data, errors);
+    //validateShippingAddress(data, errors);  
+    return errors;
+  }
+  
+  
+  
+  // Field validation utility
+  function validateField(condition, errorMsg, errors) {
+    if (condition) errors.push(errorMsg);
+  }
+  
+  
+  //Valid Req Fields
+  function validateReqFields( data, supplierExist, errors ) {
+  validateField( typeof data.supplierId === 'undefined' || typeof data.supplierDisplayName === 'undefined', "Please select a Supplier", errors  );
+  validateField( supplierExist.taxtype == 'GST' && typeof data.sourceOfSupply === 'undefined', "Source of supply required", errors  );
+  validateField( supplierExist.taxtype == 'GST' && typeof data.destinationOfSupply === 'undefined', "Destination of supply required", errors  );
+  validateField( typeof data.items === 'undefined', "Select an item", errors  );
+  }
+  
+  
+  // Function to Validate Item Table 
+  function validateItemTable(items, itemTable, errors) {
+  // Check for item count mismatch
+  validateField( items.length !== itemTable.length, "Mismatch in item count between request and database.", errors  );
+  
+  // Iterate through each item to validate individual fields
+  items.forEach((item) => {
+    const fetchedItem = itemTable.find(it => it._id.toString() === item.itemId);
+  
+    // Check if item exists in the item table
+    validateField( !fetchedItem, `Item with ID ${item.itemId} was not found.`, errors );
+    if (!fetchedItem) return; 
+  
+    // Validate item name
+    validateField( item.itemName !== fetchedItem.itemName, `Item Name Mismatch : ${item.itemName}`, errors );
+  
+    // Validate cost price
+    validateField( item.itemCostPrice !== fetchedItem.costPrice, `Cost price Mismatch for ${item.itemName}:  ${item.itemCostPrice}`, errors );
+  
+    // Validate CGST
+    validateField( item.itemCgst !== fetchedItem.cgst, `CGST Mismatch for ${item.itemName}: ${item.itemCgst}`, errors );
+  
+    // Validate SGST
+    validateField( item.itemSgst !== fetchedItem.sgst, `SGST Mismatch for ${item.itemName}: ${item.itemSgst}`, errors );
+  
+    // Validate IGST
+    validateField( item.itemIgst !== fetchedItem.igst, `IGST Mismatch for ${item.itemName}: ${item.itemIgst}`, errors );
+  
+    // Validate discount type
+    validateItemDiscountType(item.itemDiscountType, errors);
+  
+    // Validate integer fields
+    validateIntegerFields(['itemQuantity'], item, errors);
+  
+    // Validate Stock Count 
+    validateField( item.itemQuantity > fetchedItem.currentStock, `Insufficient Stock for ${item.itemName}: Requested quantity ${item.itemQuantity}, Available stock ${fetchedItem.currentStock}`, errors );
+  
+    // Validate float fields
+    validateFloatFields(['itemCostPrice', 'itemTotaltax', 'itemAmount'], item, errors);
+  });
+  }
+
+
+
+
+
+  // Validate source Of Supply
+function validateSourceOfSupply(sourceOfSupply, organization, errors) {
+    validateField(
+      sourceOfSupply && !validCountries[organization.organizationCountry]?.includes(sourceOfSupply),
+      "Invalid Source of Supply: " + sourceOfSupply, errors );
+  }
+  
+  // Validate destination Of Supply
+  function validateDestinationOfSupply(destinationOfSupply, organization, errors) {
+    validateField(
+      destinationOfSupply && !validCountries[organization.organizationCountry]?.includes(destinationOfSupply),
+      "Invalid Destination of Supply: " + destinationOfSupply, errors );
+  }
+
+   // Validate Payment Terms
+   function validateShipmentPreferences(shipmentPreference, errors) {
+    validateField(
+        shipmentPreference && !validShipmentPreferences.includes(shipmentPreference),
+      "Invalid Shipment Preference: " + shipmentPreference, errors );
+  }
+  
+  //Validate Discount Transaction Type
+  function validateTransactionDiscountType(transactionDiscountType, errors) {
+  validateField(transactionDiscountType && !validTransactionDiscountType.includes(transactionDiscountType),
+    "Invalid Transaction Discount: " + transactionDiscountType, errors);
+  } 
+  
+  //Validate Item Discount Transaction Type
+  function validateItemDiscountType(itemDiscountType, errors) {
+    validateField(itemDiscountType && !validItemDiscountType.includes(itemDiscountType),
+      "Invalid Item Discount: " + itemDiscountType, errors);
+  }
+  
+  // Validate Payment Terms
+  function validatePaymentTerms(paymentTerms, errors) {
+    validateField(
+       paymentTerms && !validPaymentTerms.includes(paymentTerms),
+      "Invalid Payment Terms: " + paymentTerms, errors );
+  }
+  
+  
+  
+  
+  //Valid Alphanumeric Fields
+  function validateAlphanumericFields(fields, data, errors) {
+    fields.forEach((field) => {
+      validateField(data[field] && !isAlphanumeric(data[field]), "Invalid " + field + ": " + data[field], errors);
+    });
+  }
+  // Validate Integer Fields
+  function validateIntegerFields(fields, data, errors) {
+  fields.forEach(field => {
+    validateField(data[field] && !isInteger(data[field]), `Invalid ${field}: ${data[field]}`, errors);
+  });
+  }
+  //Valid Float Fields  
+  function validateFloatFields(fields, data, errors) {
+    fields.forEach((balance) => {
+      validateField(data[balance] && !isFloat(data[balance]),
+        "Invalid " + balance.replace(/([A-Z])/g, " $1") + ": " + data[balance], errors);
+    });
+  }
+  //Valid Alphabets Fields 
+  function validateAlphabetsFields(fields, data, errors) {
+    fields.forEach((field) => {
+      if (data[field] !== undefined) {
+        validateField(!isAlphabets(data[field]),
+          field.charAt(0).toUpperCase() + field.slice(1) + " should contain only alphabets.", errors);
+      }
+    });
+  }
+  
+  
+  
+  
+  // Helper functions to handle formatting
+  function capitalize(word) {
+  return word.charAt(0).toUpperCase() + word.slice(1);
+  }
+  
+  function formatCamelCase(word) {
+  return word.replace(/([A-Z])/g, " $1");
+  }
+  
+  // Validation helpers
+  function isAlphabets(value) {
+  return /^[A-Za-z\s]+$/.test(value);
+  }
+  
+  function isFloat(value) {
+  return /^-?\d+(\.\d+)?$/.test(value);
+  }
+  
+  function isInteger(value) {
+  return /^\d+$/.test(value);
+  }
+  
+  function isAlphanumeric(value) {
+  return /^[A-Za-z0-9]+$/.test(value);
+  }
+  
+  function isValidEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  }
+
 
   
-  // Validate itemTable
-  if (!Array.isArray(itemTable) || itemTable.length === 0) {
-    res.status(400).json({ message: "Item table cannot be empty." });
-    return true;
-  }
 
-   // Validate shipmentPreference 
-   if (shipmentPreference && !validShipmentPreferences.includes(shipmentPreference)) {
-    res.status(400).json({ message: "Invalid shipment preference." });
-    return true;
-  }
-
-  // Check if paymentTerms is valid
-  if (!validPaymentTerms.includes(paymentTerms)) {
-    return { error: "Invalid payment terms." }; // Return error message for invalid payment terms
-  }
-
-  // Validate sourceOfSupply and destinationOfSupply if supplierExists.taxType === "GST"
-  if (supplierExists && supplierExists.taxType === "GST") {
-    if (!body.sourceOfSupply || body.sourceOfSupply.trim() === "") {
-      res.status(400).json({ message: "sourceOfSupply is required." });
-      return true;
-    }
-    if (!body.destinationOfSupply || body.destinationOfSupply.trim() === "") {
-      res.status(400).json({ message: "destinationOfSupply is required." });
-      return true;
-    }
-  } 
-
-  // Validate itemDiscountType
-  if (itemTable.some(item => !validItemDiscountTypes.includes(item.itemDiscountType))) {
-    res.status(400).json({ message: "Invalid item discount type." });
-    return true;
-  }
-
-  // Validate transactionDiscountType
-  if (transactionDiscountType && !validTransactionDiscountTypes.includes(transactionDiscountType)) {
-    res.status(400).json({ message: "Invalid transaction discount type." });
-    return true;
-  }
-
-  return false; // No validation errors
-};
-
-
-// Function to check for duplicate items by itemId in itemTable
-function hasDuplicateItems(itemTable) {
-  const itemIds = itemTable.map(item => item.itemId);
-  const uniqueItemIds = new Set(itemIds);
-  return itemIds.length !== uniqueItemIds.size;
-}
-
-
-
-//Validate location inputs
-function validateLocationInputs(data, organizationExists, res) {
-  const validationErrors = validateSupplyLocations(data, organizationExists);
-  if (validationErrors.length > 0) {
-    res.status(400).json({ message: validationErrors.join(", ") });
-    return false;
-  }
-  return true;
-}
-
-// Function to validate both sourceOfSupply and destinationOfSupply
-function validateSupplyLocations( data, organization) {
-  const errors=[];
-
-  // Validate sourceOfSupply
-  validateSourceOfSupply(data.sourceOfSupply, organization, errors);
-
-  // Validate destinationOfSupply
-  validateDestinationOfSupply(data.destinationOfSupply, organization, errors);
-
-  return errors; // Return the errors array
-}
-
-// Validate Source of Supply
-function validateSourceOfSupply(sourceOfSupply, organization, errors) {
-  // console.log("sourceofsupply",sourceOfSupply,organization)
-  if (sourceOfSupply && !validCountries[organization.organizationCountry]?.includes(sourceOfSupply)) {
-    errors.push("Invalid Source of Supply: " + sourceOfSupply);
-  }
-}
-
-// Validate Destination of Supply
-function validateDestinationOfSupply(destinationOfSupply, organization, errors) {
-  if (destinationOfSupply && !validCountries[organization.organizationCountry]?.includes(destinationOfSupply)) {
-    errors.push("Invalid Destination of Supply: " + destinationOfSupply);
-  }
-}
-
-
-
-// Create new purchase order
-async function createNewPurchaseOrder(data, organizationId, userId, userName, openingDate) {
-  const newPurchaseOrder = new PurchaseOrder({ ...data, organizationId,  createdDate:openingDate, userId, userName, status: "Open"});
-  return newPurchaseOrder.save();
-}
-
-
-//Return Date and Time 
-function generateOpeningDate(organizationExists) {
-  const date = generateTimeAndDateForDB(
-      organizationExists.timeZoneExp,
-      organizationExists.dateFormatExp,
-      organizationExists.dateSplit
-    )
-  return date.dateTime;
-}
-
-
-// Function to generate time and date for storing in the database
-function generateTimeAndDateForDB(
-  timeZone,
-  dateFormat,
-  dateSplit,
-  baseTime = new Date(),
-  timeFormat = "HH:mm:ss",
-  timeSplit = ":"
-) {
-  // Convert the base time to the desired time zone
-  const localDate = moment.tz(baseTime, timeZone);
-
-  // Format date and time according to the specified formats
-  let formattedDate = localDate.format(dateFormat);
-
-  // Handle date split if specified
-  if (dateSplit) {
-    // Replace default split characters with specified split characters
-    formattedDate = formattedDate.replace(/[-/]/g, dateSplit); // Adjust regex based on your date format separators
-  }
-
-  const formattedTime = localDate.format(timeFormat);
-  const timeZoneName = localDate.format("z"); // Get time zone abbreviation
-
-  // Combine the formatted date and time with the split characters and time zone
-  const dateTime = `${formattedDate} ${formattedTime
-    .split(":")
-    .join(timeSplit)} (${timeZoneName})`;
-
-  return {
-    date: formattedDate,
-    time: `${formattedTime} (${timeZoneName})`,
-    dateTime: dateTime,
+  // Utility functions
+  const validShipmentPreferences = ["Road", "Rail", "Air", "Sea", "Courier", "Hand Delivery", "Pickup"];
+  const validItemDiscountType = ["percentage", "currency"];
+  const validTransactionDiscountType = ["percentage", "currency"];
+  const validPaymentTerms = [
+    "Net 15", 
+    "Net 30", 
+    "Net 45", 
+    "Net 60", 
+    "Pay Now", 
+    "due on receipt", 
+    "End of This Month", 
+    "End of Next Month"
+  ];
+  const validCountries = {
+    "United Arab Emirates": [
+      "Abu Dhabi",
+      "Dubai",
+      "Sharjah",
+      "Ajman",
+      "Umm Al-Quwain",
+      "Fujairah",
+      "Ras Al Khaimah",
+    ],
+    "India": [
+      "Andaman and Nicobar Island",
+      "Andhra Pradesh",
+      "Arunachal Pradesh",
+      "Assam",
+      "Bihar",
+      "Chandigarh",
+      "Chhattisgarh",
+      "Dadra and Nagar Haveli and Daman and Diu",
+      "Delhi",
+      "Goa",
+      "Gujarat",
+      "Haryana",
+      "Himachal Pradesh",
+      "Jammu and Kashmir",
+      "Jharkhand",
+      "Karnataka",
+      "Kerala",
+      "Ladakh",
+      "Lakshadweep",
+      "Madhya Pradesh",
+      "Maharashtra",
+      "Manipur",
+      "Meghalaya",
+      "Mizoram",
+      "Nagaland",
+      "Odisha",
+      "Puducherry",
+      "Punjab",
+      "Rajasthan",
+      "Sikkim",
+      "Tamil Nadu",
+      "Telangana",
+      "Tripura",
+      "Uttar Pradesh",
+      "Uttarakhand",
+      "West Bengal",
+    ],
+    "Saudi Arabia": [
+      "Asir",
+      "Al Bahah",
+      "Al Jawf",
+      "Al Madinah",
+      "Al-Qassim",
+      "Eastern Province",
+      "Hail",
+      "Jazan",
+      "Makkah",
+      "Medina",
+      "Najran",
+      "Northern Borders",
+      "Riyadh",
+      "Tabuk",
+    ],
   };
-}
-
-
-// Define valid shipment preferences, payment and modes discount types
-const validShipmentPreferences = ["Road", "Rail", "Air", "Sea", "Courier", "Hand Delivery", "Pickup"];
-const validPaymentTerms = ["Net 15", "Net 30", "Net 45", "Net 60", "Pay Now", "due on receipt", "End of This Month", "End of Next Month"];
-const validItemDiscountTypes = ["percentage", "currency"];
-const validTransactionDiscountTypes = ["percentage", "currency"];
-const validCountries = {
-  "United Arab Emirates": [
-    "Abu Dhabi",
-    "Dubai",
-    "Sharjah",
-    "Ajman",
-    "Umm Al-Quwain",
-    "Fujairah",
-    "Ras Al Khaimah",
-  ],
-  "India": [
-    "Andaman and Nicobar Island",
-    "Andhra Pradesh",
-    "Arunachal Pradesh",
-    "Assam",
-    "Bihar",
-    "Chandigarh",
-    "Chhattisgarh",
-    "Dadra and Nagar Haveli and Daman and Diu",
-    "Delhi",
-    "Goa",
-    "Gujarat",
-    "Haryana",
-    "Himachal Pradesh",
-    "Jammu and Kashmir",
-    "Jharkhand",
-    "Karnataka",
-    "Kerala",
-    "Ladakh",
-    "Lakshadweep",
-    "Madhya Pradesh",
-    "Maharashtra",
-    "Manipur",
-    "Meghalaya",
-    "Mizoram",
-    "Nagaland",
-    "Odisha",
-    "Puducherry",
-    "Punjab",
-    "Rajasthan",
-    "Sikkim",
-    "Tamil Nadu",
-    "Telangana",
-    "Tripura",
-    "Uttar Pradesh",
-    "Uttarakhand",
-    "West Bengal",
-  ],
-  "Saudi Arabia": [
-    "Asir",
-    "Al Bahah",
-    "Al Jawf",
-    "Al Madinah",
-    "Al-Qassim",
-    "Eastern Province",
-    "Hail",
-    "Jazan",
-    "Makkah",
-    "Medina",
-    "Najran",
-    "Northern Borders",
-    "Riyadh",
-    "Tabuk",
-  ],
-};
-
-
-
-
+  
+  
