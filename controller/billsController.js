@@ -219,30 +219,32 @@ exports.addBills = async (req, res) => {
       });
     }
 
+    // Fetch item details associated with the bill
+    const itemIds = bill.items.map(item => item.itemId);
 
+    // Retrieve items including itemImage
+    const itemsWithImages = await Item.find(
+      { _id: { $in: itemIds }, organizationId },
+      { _id: 1, itemName: 1, itemImage: 1 } 
+    );
 
-    //  // Dynamically populate itemImage for each item in the itemTable
-    //  const updatedItemTable = await Promise.all(
-    //     Bills.items.map(async (item) => {
-    //       const itemDetails = await Item.findOne({ itemId: item.itemId });
-    //       return {
-    //         ...item._doc, // Include other item fields
-    //         itemImage: itemDetails?.itemImage || null, // Add itemImage or null if not found
-    //       };
-    //     })
-    //   );
-   
-    //   Bills.organizationId = undefined; // Remove organizationId from response
-   
-    //   // Respond with updated purchase bill
-    //   res.status(200).json({
-    //     ...Bills._doc,
-    //     items: updatedItemTable, // Include updated itemTable with images
-    //   });
+    // Map the items to include item details
+    const updatedItems = bill.items.map(billItem => {
+      const itemDetails = itemsWithImages.find(item => item._id.toString() === billItem.itemId.toString());
+      return {
+        ...billItem.toObject(),
+        itemName: itemDetails ? itemDetails.itemName : null,
+        itemImage: itemDetails ? itemDetails.itemImage : null,
+      };
+    });
 
+    // Attach updated items back to the bill
+    const updatedBill = {
+      ...bill.toObject(),
+      items: updatedItems,
+    };
 
-  
-    res.status(200).json(bill);
+    res.status(200).json(updatedBill);
   } catch (error) {
     console.error("Error fetching bill:", error);
     res.status(500).json({ message: "Internal server error." });
