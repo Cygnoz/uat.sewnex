@@ -185,7 +185,7 @@ exports.getPurchaseBill = async (req, res) => {
     const { organizationExists } = await dataExistForBill(organizationId);
     if (!organizationExists) {
       return res.status(404).json({
-        message: "Organization not found",
+        message: "Organization not found",San
       });
     }
 

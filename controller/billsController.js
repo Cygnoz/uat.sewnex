@@ -162,7 +162,36 @@ exports.addBills = async (req, res) => {
         });
       }
   
-      res.status(200).json(allBills);
+      // Get current date for comparison
+      const currentDate = new Date();
+
+      // Array to store purchase bills with updated status
+      const updatedBills = [];
+
+      // Map through purchase bills and update paidStatus if needed
+      for (const bill of allBills) {
+      const { organizationId, balanceAmount, dueDate, paidStatus: currentStatus, ...rest } = bill.toObject();
+      
+      // Determine the correct paidStatus based on balanceAmount and dueDate
+      let newStatus;
+      if (balanceAmount === 0) {
+          newStatus = 'Completed';
+      } else if (dueDate && new Date(dueDate) < currentDate) {
+          newStatus = 'Overdue';
+      } else {
+          newStatus = 'Pending';
+      }
+
+      // Update the bill's status only if it differs from the current status in the database
+      if (newStatus !== currentStatus) {
+          await PurchaseBill.updateOne({ _id: bill._id }, { paidStatus: newStatus });
+      }
+
+      // Push the bill object with the updated status to the result array
+      updatedBills.push({ ...rest, balanceAmount , dueDate , paidStatus: newStatus });
+      }
+
+    res.status(200).json({allBills: updatedBills});
     } catch (error) {
       console.error("Error fetching bills:", error);
       res.status(500).json({ message: "Internal server error." });
@@ -783,7 +812,7 @@ function validateSourceOfSupply(sourceOfSupply, organization, errors) {
         operationId: savedBills._id,
         transactionId: savedBills.bill,
         action: "Bills",
-        date: savedBills.supplierDebitDate,
+        date: savedBills.billDate,
         itemId: matchingItem._id,
         itemName: matchingItem.itemName,
         sellingPrice: matchingItem.itemSellingPrice,
