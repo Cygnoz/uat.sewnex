@@ -454,11 +454,11 @@ const hasValidationErrors = async (body, supplierExists, res) => {
   const { itemTable, transactionDiscountType } = body;
 
   let shipmentPreference = body.shipmentPreference; // Declare shipmentPreference with let
-  let paymentMode = body.paymentMode; // Declare paymentMode with let
+  let paymentTerms = body.paymentTerms;
 
-  // Normalize shipmentPreference and paymentMode: convert null, empty string, and 0 to undefined
+
+  // Normalize shipmentPreference: convert null, empty string, and 0 to undefined
   shipmentPreference = (shipmentPreference == null || shipmentPreference === "" || shipmentPreference === 0) ? undefined : shipmentPreference;
-  paymentMode = (paymentMode == null || paymentMode === "" || paymentMode === 0) ? undefined : paymentMode;
 
   // Check for duplicate items in itemTable
   if (hasDuplicateItems(itemTable)) {
@@ -479,10 +479,9 @@ const hasValidationErrors = async (body, supplierExists, res) => {
     return true;
   }
 
-  // Validate paymentMode
-  if (paymentMode && !validPaymentModes.includes(paymentMode)) {
-    res.status(400).json({ message: "Invalid payment mode." });
-    return true;
+  // Check if paymentTerms is valid
+  if (!validPaymentTerms.includes(paymentTerms)) {
+    return { error: "Invalid payment terms." }; // Return error message for invalid payment terms
   }
 
   // Validate sourceOfSupply and destinationOfSupply if supplierExists.taxType === "GST"
@@ -619,7 +618,7 @@ function generateTimeAndDateForDB(
 
 // Define valid shipment preferences, payment and modes discount types
 const validShipmentPreferences = ["Road", "Rail", "Air", "Sea", "Courier", "Hand Delivery", "Pickup"];
-const validPaymentModes = ["Cash", "Credit"];
+const validPaymentTerms = ["Net 15", "Net 30", "Net 45", "Net 60", "Pay Now", "due on receipt", "End of This Month", "End of Next Month"];
 const validItemDiscountTypes = ["percentage", "currency"];
 const validTransactionDiscountTypes = ["percentage", "currency"];
 const validCountries = {

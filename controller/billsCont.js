@@ -24,9 +24,9 @@ const dataExistForBill = async (organizationId, supplierId, itemTable, orderNumb
     Settings.findOne({ organizationId }),
     Tax.findOne({ organizationId }), // Fetch tax details for the organization
   ]);
-
   return { organizationExists, supplierExists, purchaseOrderExists, items, settings , taxExists , existingPrefix };
 };
+
 
 
 exports.addBill = async (req, res) => {
@@ -321,14 +321,14 @@ const cleanBillData = (data, supplierExists, items) => {
             cleanedItem.itemCgstAmount = halfIgst.toFixed(2);
             cleanedItem.itemSgstAmount = halfIgst.toFixed(2);
             cleanedItem.itemTax = itemIgstAmount.toFixed(2); // Total tax is the IGST amount
-            cleanedItem.itemIgstAmount = cleanedItem.itemIgst = undefined; // IGST should be undefined for intra-state
+            cleanedItem.itemIgstAmount = undefined; // IGST should be undefined for intra-state
             totalTaxAmount += itemIgstAmount;  // Add to total tax
           } else {
             // For inter-state, assign the full IGST amount
             cleanedItem.itemIgstAmount = itemIgstAmount.toFixed(2);
             cleanedItem.itemTax = itemIgstAmount.toFixed(2); // Total tax is the IGST amount
-            cleanedItem.itemCgstAmount = cleanedItem.itemCgst = undefined; // No CGST for inter-state
-            cleanedItem.itemSgstAmount = cleanedItem.itemSgst = undefined; // No SGST for inter-state
+            cleanedItem.itemCgstAmount = undefined; // No CGST for inter-state
+            cleanedItem.itemSgstAmount = undefined; // No SGST for inter-state
             totalTaxAmount += itemIgstAmount;  // Add to total tax
           }
         } else if (supplierExists.taxType === "VAT") {

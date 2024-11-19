@@ -31,7 +31,7 @@ const newDataExists = async (organizationId,items) => {
   const itemIds = items.map(item => item.itemId);
 
   const [newItems] = await Promise.all([
-    Item.find({ organizationId, _id: { $in: itemIds } }, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, costPrice:1,  taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }),
+    Item.find({ organizationId, _id: { $in: itemIds } }, { _id: 1, itemName: 1, taxPreference: 1, costPrice:1,  taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }),
   ]);
 
   // Aggregate ItemTrack to get the latest entry for each itemId
@@ -688,9 +688,9 @@ function validateBillData(data, items, billExist, errors) {
       validateField(dNItem.itemSgst !== billItem.itemSgst, 
                     `Item SGST mismatch for ${billItem.itemId}: Expected ${billItem.itemSgst}, got ${dNItem.itemSgst}`, 
                     errors);
-      // validateField(dNItem.itemIgst !== billItem.itemIgst, 
-      //               `Item IGST mismatch for ${billItem.itemId}: Expected ${billItem.itemIgst}, got ${dNItem.itemIgst}`, 
-      //               errors);
+      validateField(dNItem.itemIgst !== billItem.itemIgst, 
+                    `Item IGST mismatch for ${billItem.itemId}: Expected ${billItem.itemIgst}, got ${dNItem.itemIgst}`, 
+                    errors);
       // validateField(dNItem.itemDiscount !== billItem.itemDiscount, 
       //               `Item Discount mismatch for ${billItem.itemId}: Expected ${billItem.itemDiscount}, got ${dNItem.itemDiscount}`, 
       //               errors);
