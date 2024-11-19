@@ -16,10 +16,10 @@ const { verifyToken } = require('../controller/middleware');
 
 //Purchase Order
 router.post('/add-purchaseOrder', verifyToken, purchaseOrderController.addPurchaseOrder);
-router.get('/get-last-purchase-order-prefix', verifyToken, checkPermission, purchaseOrderController.getLastPurchaseOrderPrefix)
+router.get('/get-last-purchase-order-prefix', verifyToken, purchaseOrderController.getLastPurchaseOrderPrefix)
 
-router.get('/get-all-purchaseOrders',verifyToken, purchaseOrderController.getAllPurchaseOrders);
-router.get('/get-purchaseOrder/:id',verifyToken, checkPermission, purchaseOrderController.getPurchaseOrder);
+router.get('/get-all-purchaseOrders',verifyToken, purchaseOrderController.getAllPurchaseOrder);
+router.get('/get-purchaseOrder/:orderId',verifyToken, purchaseOrderController.getOnePurchaseOrder);
 // router.put('/update-purchaseOrder/:id', purchaseOrderController.updatePurchaseOrder);
 // router.delete('/delete-purchaseOrder/:id', purchaseOrderController.deletePurchaseOrder);
 
