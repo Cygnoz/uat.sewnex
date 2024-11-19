@@ -103,7 +103,7 @@ exports.addPurchaseOrder = async (req, res) => {
   
   
   
-  // Get All Bills
+  // Get All Purchase Order
   exports.getAllPurchaseOrder = async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
@@ -130,7 +130,7 @@ exports.addPurchaseOrder = async (req, res) => {
   };
   
   
- // Get One Bill
+ // Get One Purchase Order
  exports.getOnePurchaseOrder = async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
@@ -150,7 +150,32 @@ exports.addPurchaseOrder = async (req, res) => {
         });
       }
 
-      res.status(200).json(purchaseOrder);
+      // Fetch item details associated with the purchaseOrder
+    const itemIds = purchaseOrder.items.map(item => item.itemId);
+
+    // Retrieve items including itemImage
+    const itemsWithImages = await Item.find(
+      { _id: { $in: itemIds }, organizationId },
+      { _id: 1, itemName: 1, itemImage: 1 } 
+    );
+
+    // Map the items to include item details
+    const updatedItems = purchaseOrder.items.map(purchaseOrderItem => {
+      const itemDetails = itemsWithImages.find(item => item._id.toString() === purchaseOrderItem.itemId.toString());
+      return {
+        ...purchaseOrderItem.toObject(),
+        itemName: itemDetails ? itemDetails.itemName : null,
+        itemImage: itemDetails ? itemDetails.itemImage : null,
+      };
+    });
+
+    // Attach updated items back to the purchaseOrder
+    const updatedPurchaseOrder = {
+      ...purchaseOrder.toObject(),
+      items: updatedItems,
+    };
+
+      res.status(200).json(updatedPurchaseOrder);
     } catch (error) {
       console.error("Error fetching purchase order:", error);
       res.status(500).json({ message: "Internal server error." });

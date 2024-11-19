@@ -197,7 +197,32 @@ try {
     });
   }
 
-  res.status(200).json(debitNote);
+  // Fetch item details associated with the debitNote
+  const itemIds = debitNote.items.map(item => item.itemId);
+
+  // Retrieve items including itemImage
+  const itemsWithImages = await Item.find(
+    { _id: { $in: itemIds }, organizationId },
+    { _id: 1, itemName: 1, itemImage: 1 } 
+  );
+
+  // Map the items to include item details
+  const updatedItems = debitNote.items.map(debitNoteItem => {
+    const itemDetails = itemsWithImages.find(item => item._id.toString() === debitNoteItem.itemId.toString());
+    return {
+      ...debitNoteItem.toObject(),
+      itemName: itemDetails ? itemDetails.itemName : null,
+      itemImage: itemDetails ? itemDetails.itemImage : null,
+    };
+  });
+
+  // Attach updated items back to the debitNote
+  const updatedDebitNote = {
+    ...debitNote.toObject(),
+    items: updatedItems,
+  };
+
+  res.status(200).json(updatedDebitNote);
 } catch (error) {
   console.error("Error fetching Debit Note:", error);
   res.status(500).json({ message: "Internal server error." });
