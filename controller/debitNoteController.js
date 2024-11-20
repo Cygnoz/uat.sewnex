@@ -50,7 +50,7 @@ const newDataExists = async (organizationId,items) => {
   // Attach the last entry from ItemTrack to each item in newItems
   const itemTable = newItems.map(item => ({
     ...item._doc, // Copy item fields
-    // lastEntry: itemTrackMap[item._id] || null, // Attach lastEntry if found
+    lastEntry: itemTrackMap[item._id] || null, // Attach lastEntry if found
     currentStock: itemTrackMap[item._id.toString()] ? itemTrackMap[item._id.toString()].currentStock : null
   }));
 
@@ -73,7 +73,7 @@ const debitDataExist = async ( organizationId, debitId ) => {
 
 // Add debit note
 exports.addDebitNote = async (req, res) => {
-  //console.log("Add debit note:", req.body);
+  // console.log("Add debit note:", req.body);
 
   try {
     const { organizationId, id: userId, userName } = req.user;
@@ -374,8 +374,7 @@ function calculateDebitNote(cleanedData, itemTable, res) {
     itemAmount = (item.itemCostPrice * item.itemQuantity);
 
     // Handle tax calculation only for taxable items
-    itemTable.forEach(i => {
-    if (i.taxPreference === 'Taxable') {
+    if (item.taxPreference === 'Taxable') {
       switch (taxMode) {
         
         case 'Intra':
@@ -408,7 +407,6 @@ function calculateDebitNote(cleanedData, itemTable, res) {
       console.log(`Skipping Tax for Non-Taxable item: ${item.itemName}`);
       // console.log(`Item: ${item.itemName}, Calculated Discount: ${itemDiscAmt}`);
     }
-    })
 
     checkAmount(itemAmount, item.itemAmount, item.itemName, 'Item Total',errors);
 
@@ -654,6 +652,9 @@ items.forEach((item) => {
   // Validate IGST
   validateField( item.itemIgst !== fetchedItem.igst, `IGST Mismatch for ${item.itemName}: ${item.itemIgst}`, errors );
 
+  // Validate tax preference
+  validateField( item.taxPreference !== fetchedItem.taxPreference, `Tax Preference mismatch for ${item.itemName}: ${item.taxPreference}`, errors );
+
   // Validate discount type
   // validateItemDiscountType(item.itemDiscountType, errors);
 
@@ -871,7 +872,7 @@ async function itemTrack(savedDebitNote, itemTable) {
     });
 
     // Save the tracking entry and update the item's stock in the item table
-    // await newTrialEntry.save();
+    await newTrialEntry.save();
 
     console.log("1",newTrialEntry);
   }

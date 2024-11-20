@@ -15,6 +15,7 @@ const itemsSchema = new Schema({
 
   itemAmount: { type: Number },
 
+  taxPreference: {type:String}, //Taxable or Not
   itemSgst: { type: Number },
   itemCgst: { type: Number },
   itemIgst: { type: Number },

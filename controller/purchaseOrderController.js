@@ -41,7 +41,7 @@ const purchaseOrderDataExist = async ( organizationId, orderId ) => {
 
 // Add Purchase Order
 exports.addPurchaseOrder = async (req, res) => {
-    // console.log("Add Purchase Order:", req.body);
+    console.log("Add Purchase Order:", req.body);
   
     try {
       const { organizationId, id: userId, userName } = req.user;
@@ -318,8 +318,7 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
       itemAmount = (item.itemCostPrice * item.itemQuantity - itemDiscAmt);
   
       // Handle tax calculation only for taxable items
-      itemTable.forEach(i => {
-      if (i.taxPreference === 'Taxable') {
+      if (item.taxPreference === 'Taxable') {
         switch (taxMode) {
           
           case 'Intra':
@@ -346,13 +345,12 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
         checkAmount(calculatedItemVatAmount, item.itemVatAmount, item.itemName, 'VAT',errors);
         checkAmount(calculatedItemTaxAmount, item.itemTax, item.itemName, 'Item tax',errors);
   
-        totalTaxAmount += calculatedItemTaxAmount;     
+        totalTaxAmount +=  calculatedItemTaxAmount;
   
       } else {
         console.log(`Skipping Tax for Non-Taxable item: ${item.itemName}`);
         console.log(`Item: ${item.itemName}, Calculated Discount: ${itemDiscAmt}`);
       }
-      })
   
       checkAmount(itemAmount, item.itemAmount, item.itemName, 'Item Total',errors);
   
@@ -365,8 +363,13 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
         (subTotal + totalTaxAmount + otherExpense + freightAmount - roundOffAmount) - itemTotalDiscount
     );
   
-    console.log(`SubTotal: ${subTotal} , Provided ${cleanedData.subTotal}`);
     console.log(`Total: ${total} , Provided ${total}`);
+    console.log(`subTotal: ${subTotal} , Provided ${cleanedData.subTotal}`);
+    console.log(`totalTaxAmount: ${totalTaxAmount} , Provided ${cleanedData.totalTaxAmount}`);
+    console.log(`otherExpense: ${otherExpense} , Provided ${cleanedData.otherExpense}`);
+    console.log(`freightAmount: ${freightAmount} , Provided ${cleanedData.freightAmount}`);
+    console.log(`roundOffAmount: ${roundOffAmount} , Provided ${cleanedData.roundOffAmount}`);
+    console.log(`itemTotalDiscount: ${itemTotalDiscount} , Provided ${cleanedData.itemTotalDiscount}`);
   
     // Transaction Discount
     let transDisAmt = calculateTransactionDiscount(cleanedData, total, transactionDiscountAmount); 
@@ -585,6 +588,9 @@ function validateInputs( data, supplierExist, items, itemExists, organizationExi
   
     // Validate IGST
     validateField( item.itemIgst !== fetchedItem.igst, `IGST Mismatch for ${item.itemName}: ${item.itemIgst}`, errors );
+
+    // Validate tax preference
+    validateField( item.taxPreference !== fetchedItem.taxPreference, `Tax Preference mismatch for ${item.itemName}: ${item.taxPreference}`, errors );
   
     // Validate discount type
     validateItemDiscountType(item.itemDiscountType, errors);

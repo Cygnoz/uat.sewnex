@@ -36,7 +36,7 @@ const newDataExists = async (organizationId, items) => {
   // Aggregate ItemTrack to get the latest entry for each itemId
   const itemTracks = await ItemTrack.aggregate([
     { $match: { itemId: { $in: itemIds } } },
-    { $sort: { _id: +1 } },
+    { $sort: { _id: -1 } },
     { $group: { _id: "$itemId", lastEntry: { $first: "$$ROOT" } } }
   ]);
 
@@ -49,6 +49,7 @@ const newDataExists = async (organizationId, items) => {
   // Attach the last entry from ItemTrack to each item in newItems
   const itemTable = newItems.map(item => ({
     ...item._doc, // Copy item fields
+    lastEntry: itemTrackMap[item._id] || null, // Attach lastEntry if found
     currentStock: itemTrackMap[item._id.toString()] ? itemTrackMap[item._id.toString()].currentStock : null
   }));
 
@@ -362,8 +363,7 @@ exports.addBills = async (req, res) => {
       itemAmount = (item.itemCostPrice * item.itemQuantity - itemDiscAmt);
   
       // Handle tax calculation only for taxable items
-      itemTable.forEach(i => {
-      if (i.taxPreference === 'Taxable') {
+      if (item.taxPreference === 'Taxable') {
         switch (taxMode) {
           
           case 'Intra':
@@ -396,7 +396,6 @@ exports.addBills = async (req, res) => {
         console.log(`Skipping Tax for Non-Taxable item: ${item.itemName}`);
         console.log(`Item: ${item.itemName}, Calculated Discount: ${itemDiscAmt}`);
       }
-      })
   
       checkAmount(itemAmount, item.itemAmount, item.itemName, 'Item Total',errors);
   
@@ -647,6 +646,9 @@ function validateInputs( data, supplierExist, purchaseOrderExist, items, itemExi
   
     // Validate IGST
     validateField( item.itemIgst !== fetchedItem.igst, `IGST Mismatch for ${item.itemName}: ${item.itemIgst}`, errors );
+
+    // Validate tax preference
+    validateField( item.taxPreference !== fetchedItem.taxPreference, `Tax Preference mismatch for ${item.itemName}: ${item.taxPreference}`, errors );
   
     // Validate discount type
     validateItemDiscountType(item.itemDiscountType, errors);
@@ -858,9 +860,9 @@ function validateSourceOfSupply(sourceOfSupply, organization, errors) {
       });
   
       // Save the tracking entry and update the item's stock in the item table
-    //   await newTrialEntry.save();
+      await newTrialEntry.save();
   
-    //   console.log("1",newTrialEntry);
+      console.log("1",newTrialEntry);
     }
   }
   
