@@ -50,7 +50,7 @@ const newDataExists = async (organizationId,items) => {
   // Attach the last entry from ItemTrack to each item in newItems
   const itemTable = newItems.map(item => ({
     ...item._doc, // Copy item fields
-    // lastEntry: itemTrackMap[item._id] || null, // Attach lastEntry if found
+    lastEntry: itemTrackMap[item._id] || null, // Attach lastEntry if found
     currentStock: itemTrackMap[item._id.toString()] ? itemTrackMap[item._id.toString()].currentStock : null
   }));
 

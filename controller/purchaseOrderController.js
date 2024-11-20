@@ -365,8 +365,13 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
         (subTotal + totalTaxAmount + otherExpense + freightAmount - roundOffAmount) - itemTotalDiscount
     );
   
-    console.log(`SubTotal: ${subTotal} , Provided ${cleanedData.subTotal}`);
     console.log(`Total: ${total} , Provided ${total}`);
+    console.log(`subTotal: ${subTotal} , Provided ${cleanedData.subTotal}`);
+    console.log(`totalTaxAmount: ${totalTaxAmount} , Provided ${cleanedData.totalTaxAmount}`);
+    console.log(`otherExpense: ${otherExpense} , Provided ${cleanedData.otherExpense}`);
+    console.log(`freightAmount: ${freightAmount} , Provided ${cleanedData.freightAmount}`);
+    console.log(`roundOffAmount: ${roundOffAmount} , Provided ${cleanedData.roundOffAmount}`);
+    console.log(`itemTotalDiscount: ${itemTotalDiscount} , Provided ${cleanedData.itemTotalDiscount}`);
   
     // Transaction Discount
     let transDisAmt = calculateTransactionDiscount(cleanedData, total, transactionDiscountAmount); 

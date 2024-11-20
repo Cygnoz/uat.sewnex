@@ -92,6 +92,8 @@ const PurchaseBillSchema = new Schema({
   
   createdDate: { type: String },
 
+  purchaseOrderId:{ type: String }
+
 });
 
 const PurchaseBill = mongoose.model('PurchaseBill', PurchaseBillSchema);
