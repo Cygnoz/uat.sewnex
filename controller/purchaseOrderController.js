@@ -33,6 +33,7 @@ const dataExist = async (organizationId, supplierId, itemTable) => {
 exports.addPurchaseOrder = async (req, res) => {
   const { supplierId, itemTable } = req.body;
   const { organizationId, id: userId, userName  } = req.user
+  console.log("Add Purchase Order :",req.body);
 
   try {
 
@@ -73,6 +74,8 @@ exports.addPurchaseOrder = async (req, res) => {
 
     // Create new purchase order
     const savedPurchaseOrder = await createNewPurchaseOrder(cleanedData, organizationId, userId, userName, openingDate);
+    console.log("Purchase order added successfully.",savedPurchaseOrder);
+    
 
     // Send success response
     res.status(201).json({ message: "Purchase order added successfully.", purchaseOrder: savedPurchaseOrder });
@@ -322,6 +325,8 @@ const cleanPurchaseOrderData = (data, supplierExists, items) => {
             // No discount applied
             cleanedItem.itemAmount = (itemQuantity * itemCostPrice).toFixed(2);
           }
+          console.log("1",totalTaxAmount);
+          console.log("2",supplierExists.taxType);
 
 
       // Calculate tax amounts based on taxType
@@ -386,6 +391,8 @@ const cleanPurchaseOrderData = (data, supplierExists, items) => {
       cleanedData.vat = totalTaxAmount.toFixed(2);
       cleanedData.igst = cleanedData.cgst = cleanedData.sgst = undefined; // Only VAT is applicable
     }
+
+    
 
     // Add subTotal, totalItem, totalTaxAmount, and totalDiscount to cleanedData
     cleanedData.subTotal = subTotal;  // Overall subTotal
