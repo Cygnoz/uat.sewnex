@@ -220,6 +220,7 @@ exports.addBills = async (req, res) => {
       });
     }
 
+    
     // Fetch item details associated with the bill
     const itemIds = bill.items.map(item => item.itemId);
 
@@ -656,9 +657,6 @@ function validateInputs( data, supplierExist, purchaseOrderExist, items, itemExi
     // Validate integer fields
     validateIntegerFields(['itemQuantity'], item, errors);
   
-    // Validate Stock Count 
-    validateField( item.itemQuantity > fetchedItem.currentStock, `Insufficient Stock for ${item.itemName}: Requested quantity ${item.itemQuantity}, Available stock ${fetchedItem.currentStock}`, errors );
-  
     // Validate float fields
     validateFloatFields(['itemCostPrice', 'itemTotaltax', 'itemAmount'], item, errors);
   });
@@ -883,7 +881,8 @@ function validateSourceOfSupply(sourceOfSupply, organization, errors) {
     "Pay Now", 
     "due on receipt", 
     "End of This Month", 
-    "End of Next Month"
+    "End of Next Month",
+    "Custom"
   ];
   const validCountries = {
     "United Arab Emirates": [
