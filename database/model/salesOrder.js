@@ -9,6 +9,7 @@ const itemsSchema = new Schema({
     quantity: {type:Number},
     sellingPrice: {type:Number},
 
+    taxPreference: {type:String},
     taxGroup: {type:String},
     cgst: { type: Number },
     sgst: { type: Number },

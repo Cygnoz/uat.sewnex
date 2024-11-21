@@ -150,6 +150,7 @@ exports.getAllSalesQuote = async (req, res) => {
       }
   
       res.status(200).json(allQuotes);
+      
     } catch (error) {
       console.error("Error fetching Quotes:", error);
       res.status(500).json({ message: "Internal server error." });
@@ -618,6 +619,9 @@ function isValidEmail(value) {
 
 
 function calculateSalesOrder(cleanedData, res) {
+
+  console.log(cleanedData);
+  
   const errors = [];
   let totalAmount = 0;
   let subTotal = 0;

@@ -43,10 +43,10 @@ exports.updateCreditNoteSettings = async (req, res) => {
       console.log("Credit Note",req.body);
       
       const creditNoteSettings = {
-        overideCostPrice: req.body.overideCostPrice, 
+        overRideCostPrice: req.body.overRideCostPrice, 
         creditNoteQr: req.body.creditNoteQr, 
         creditNoteQrType: req.body.creditNoteQrType,
-        creditNoteQrDespriction: req.body.creditNoteQrDespriction,
+        creditNoteQrDescription: req.body.creditNoteQrDescription,
         recordLocking: req.body.recordLocking, 
         creditNoteTC: req.body.creditNoteTC,
         creditNoteCN: req.body.creditNoteCN,
