@@ -259,7 +259,36 @@ exports.getAllSalesInvoice = async (req, res) => {
       });
     }
 
-    res.status(200).json(allinvoice);
+   // Get current date for comparison
+   const currentDate = new Date();
+
+   // Array to store purchase bills with updated status
+   const updatedInvoices = [];
+
+   // Map through purchase bills and update paidStatus if needed
+   for (const invoice of allinvoice) {
+   const { organizationId, balanceAmount, dueDate, paidStatus: currentStatus, ...rest } = invoice.toObject();
+   
+   // Determine the correct paidStatus based on balanceAmount and dueDate
+   let newStatus;
+   if (balanceAmount === 0) {
+       newStatus = 'Completed';
+   } else if (dueDate && new Date(dueDate) < currentDate) {
+       newStatus = 'Overdue';
+   } else {
+       newStatus = 'Pending';
+   }
+
+   // Update the bill's status only if it differs from the current status in the database
+   if (newStatus !== currentStatus) {
+       await Invoice.updateOne({ _id: invoice._id }, { paidStatus: newStatus });
+   }
+
+   // Push the bill object with the updated status to the result array
+   updatedInvoices.push({ ...rest, balanceAmount , dueDate , paidStatus: newStatus });
+   }
+
+    res.status(200).json({allinvoice:updatedInvoices});
   } catch (error) {
     console.error("Error fetching Invoice:", error);
     res.status(500).json({ message: "Internal server error." });
@@ -1366,7 +1395,7 @@ async function itemTrack(savedInvoice, itemTable) {
       organizationId: savedInvoice.organizationId,
       operationId: savedInvoice._id,
       transactionId: savedInvoice.salesInvoice,
-      action: "Invoice",
+      action: "Sale",
       date: savedInvoice.salesInvoiceDate,
       itemId: matchingItem._id,
       itemName: matchingItem.itemName,

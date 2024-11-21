@@ -63,11 +63,15 @@ const settingSchema = new Schema({
   duplicateSupplierEmail: { type: Boolean }, //default:false
   duplicateSupplierMobile: { type: Boolean }, //default:false
 
-  // customer
-  duplicateCustomerDisplayName: { type: Boolean }, //default:false
-  duplicateCustomerEmail: { type: Boolean }, //default:false
-  duplicateCustomerMobile: { type: Boolean }, //default:false
+  // supplier
+  duplicateSupplierDisplayName: { type: Boolean },
+  duplicateSupplierEmail: { type: Boolean },
+  duplicateSupplierMobile: { type: Boolean },
 
+  // customer
+  duplicateCustomerDisplayName: { type: Boolean },
+  duplicateCustomerEmail: { type: Boolean },
+  duplicateCustomerMobile: { type: Boolean },
 
   //Sales Order
   salesOrderAddress: { type: Boolean },//deafult=false
