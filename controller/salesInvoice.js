@@ -288,7 +288,7 @@ exports.getAllSalesInvoice = async (req, res) => {
    updatedInvoices.push({ ...rest, balanceAmount , dueDate , paidStatus: newStatus });
    }
 
-    res.status(200).json({allinvoice:updatedInvoices});
+    res.status(200).json({updatedInvoices});
   } catch (error) {
     console.error("Error fetching Invoice:", error);
     res.status(500).json({ message: "Internal server error." });
