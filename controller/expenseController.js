@@ -7,7 +7,7 @@ const moment = require("moment-timezone");
 
 
 const dataExist = async (organizationId) => {
-    const [organizationExists, expenseExists,categoryExists,allAccounts] = await Promise.all([
+    const [organizationExists, expenseExists, categoryExists, allAccounts] = await Promise.all([
       Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }),
       Expense.find({ organizationId }),
       Category.find({ organizationId }),
@@ -15,8 +15,30 @@ const dataExist = async (organizationId) => {
     ]);
     return { organizationExists, expenseExists, categoryExists,allAccounts};
   };
-// Expense
 
+
+  // const expenseDataExist = async ( organizationId, expenseId ) => {    
+  //   const [organizationExists, allExpense, expense ] = await Promise.all([
+  //     Organization.findOne({ organizationId }, { organizationId: 1}),
+  //     Expense.find({ organizationId }),
+  //     Expense.findOne({ organizationId , _id: expenseId })
+  //   ]);
+  //   return { organizationExists, allExpense, expense };
+  // };
+
+
+  // const expenseCategoryDataExist = async ( organizationId, categoryId ) => {    
+  //   const [organizationExists, allCategory, category ] = await Promise.all([
+  //     Organization.findOne({ organizationId }, { organizationId: 1}),
+  //     Category.find({ organizationId }),
+  //     Category.findOne({ organizationId , _id: categoryId })
+  //   ]);
+  //   return { organizationExists, allCategory, category };
+  // };
+
+
+
+// Expense
 //add expense
 exports.addExpense = async (req, res) => {
   try {
@@ -121,147 +143,149 @@ exports.getOneExpense = async (req, res) => {
     }
   };
 
-//update expense
-exports.updateExpense = async (req, res) => {
-    console.log("Update expense:", req.body);
+// //update expense
+// exports.updateExpense = async (req, res) => {
+//     console.log("Update expense:", req.body);
     
-    try {
-        const expenseId = req.params.id;
-        const {
-            organizationId,
-            expenseDate,
-            expenseCategory,
-            expenseName,
-            amount,
-            paymentMethod,
-            expenseAccount, 
-            expenseType, 
-            hsnCode, 
-            sacCode, 
-            vendor, 
-            gstTreatment, 
-            vendorGSTIN, 
-            source, 
-            destination, 
-            reverseCharge, 
-            currency, 
-            tax, 
-            invoiceNo, 
-            notes, 
-            uploadFiles, 
-            defaultMileageCategory, 
-            defaultUnit, 
-            startDate, 
-            mileageRate, 
-            date, 
-            employee, 
-            calculateMileageUsing, 
-            distance
-        } = req.body;
+//     try {
+//         const expenseId = req.params.id;
+//         const {
+//             organizationId,
+//             expenseDate,
+//             expenseCategory,
+//             expenseName,
+//             amount,
+//             paymentMethod,
+//             expenseAccount, 
+//             expenseType, 
+//             hsnCode, 
+//             sacCode, 
+//             vendor, 
+//             gstTreatment, 
+//             vendorGSTIN, 
+//             source, 
+//             destination, 
+//             reverseCharge, 
+//             currency, 
+//             tax, 
+//             invoiceNo, 
+//             notes, 
+//             uploadFiles, 
+//             defaultMileageCategory, 
+//             defaultUnit, 
+//             startDate, 
+//             mileageRate, 
+//             date, 
+//             employee, 
+//             calculateMileageUsing, 
+//             distance
+//         } = req.body;
 
-        // Validate organizationId
-        const organizationExists = await Organization.findOne({
-            organizationId: organizationId,
-        });
-        if (!organizationExists) {
-            return res.status(404).json({
-            message: "Organization not found",
-            });
-        }
+//         // Validate organizationId
+//         const organizationExists = await Organization.findOne({
+//             organizationId: organizationId,
+//         });
+//         if (!organizationExists) {
+//             return res.status(404).json({
+//             message: "Organization not found",
+//             });
+//         }
 
-        // Check if expenseName already exists for another expense
-        const existingExpense = await Expense.findOne({ expenseName });
-        if (existingExpense && existingExpense._id.toString() !== expenseId) {
-            return res.status(400).json({ message: "expenseName already exists for another Expense" });
-        }
+//         // Check if expenseName already exists for another expense
+//         const existingExpense = await Expense.findOne({ expenseName });
+//         if (existingExpense && existingExpense._id.toString() !== expenseId) {
+//             return res.status(400).json({ message: "expenseName already exists for another Expense" });
+//         }
 
-        const currentDate = new Date();
-        const day = String(currentDate.getDate()).padStart(2, "0");
-        const month = String(currentDate.getMonth() + 1).padStart(2, "0");
-        const year = currentDate.getFullYear();
-        const formattedDate = `${day}-${month}-${year}`;
+//         const currentDate = new Date();
+//         const day = String(currentDate.getDate()).padStart(2, "0");
+//         const month = String(currentDate.getMonth() + 1).padStart(2, "0");
+//         const year = currentDate.getFullYear();
+//         const formattedDate = `${day}-${month}-${year}`;
 
-        const updatedExpense = await Expense.findByIdAndUpdate(
-            expenseId,
-            {
-                organizationId,
-                expenseDate: formattedDate,
-                expenseCategory,
-                expenseName,
-                amount,
-                paymentMethod,
-                expenseAccount, 
-                expenseType, 
-                hsnCode, 
-                sacCode, 
-                vendor, 
-                gstTreatment, 
-                vendorGSTIN, 
-                source, 
-                destination, 
-                reverseCharge, 
-                currency, 
-                tax, 
-                invoiceNo, 
-                notes, 
-                uploadFiles, 
-                defaultMileageCategory, 
-                defaultUnit, 
-                startDate, 
-                mileageRate, 
-                date, 
-                employee, 
-                calculateMileageUsing, 
-                distance
-            },
-            { new: true, runValidators: true }
-        );
+//         const updatedExpense = await Expense.findByIdAndUpdate(
+//             expenseId,
+//             {
+//                 organizationId,
+//                 expenseDate: formattedDate,
+//                 expenseCategory,
+//                 expenseName,
+//                 amount,
+//                 paymentMethod,
+//                 expenseAccount, 
+//                 expenseType, 
+//                 hsnCode, 
+//                 sacCode, 
+//                 vendor, 
+//                 gstTreatment, 
+//                 vendorGSTIN, 
+//                 source, 
+//                 destination, 
+//                 reverseCharge, 
+//                 currency, 
+//                 tax, 
+//                 invoiceNo, 
+//                 notes, 
+//                 uploadFiles, 
+//                 defaultMileageCategory, 
+//                 defaultUnit, 
+//                 startDate, 
+//                 mileageRate, 
+//                 date, 
+//                 employee, 
+//                 calculateMileageUsing, 
+//                 distance
+//             },
+//             { new: true, runValidators: true }
+//         );
 
-        if (!updatedExpense) {
-            console.log("Expense not found with ID:", expenseId);
-            return res.status(404).json({ message: "Expense not found" });
-        }
+//         if (!updatedExpense) {
+//             console.log("Expense not found with ID:", expenseId);
+//             return res.status(404).json({ message: "Expense not found" });
+//         }
 
-        res.status(200).json({ message: "Expense updated successfully", expense: updatedExpense });
-        console.log("Expense updated successfully:", updatedExpense);
-    } catch (error) {
-        console.error("Error updating expense:", error);
-        res.status(500).json({ message: "Internal server error" });
-    }
-};
+//         res.status(200).json({ message: "Expense updated successfully", expense: updatedExpense });
+//         console.log("Expense updated successfully:", updatedExpense);
+//     } catch (error) {
+//         console.error("Error updating expense:", error);
+//         res.status(500).json({ message: "Internal server error" });
+//     }
+// };
 
-//delete expense
-exports.deleteExpense = async (req, res) => {
-    console.log("Delete expense:", req.body);
-    try {
-        const { id } = req.params;
-        const { organizationId } = req.body;
+// //delete expense
+// exports.deleteExpense = async (req, res) => {
+//     console.log("Delete expense:", req.body);
+//     try {
+//         const { id } = req.params;
+//         const { organizationId } = req.body;
 
-        // Validate organizationId
-        const organizationExists = await Organization.findOne({
-            organizationId: organizationId,
-        });
-        if (!organizationExists) {
-            return res.status(404).json({
-            message: "Organization not found",
-            });
-        }
+//         // Validate organizationId
+//         const organizationExists = await Organization.findOne({
+//             organizationId: organizationId,
+//         });
+//         if (!organizationExists) {
+//             return res.status(404).json({
+//             message: "Organization not found",
+//             });
+//         }
 
-        const expense = await Expense.findById(id);
+//         const expense = await Expense.findById(id);
 
-        if (!expense) {
-            return res.status(404).json({ message: "Expense not found." });
-        }
+//         if (!expense) {
+//             return res.status(404).json({ message: "Expense not found." });
+//         }
 
-        await Expense.findByIdAndDelete(id);
+//         await Expense.findByIdAndDelete(id);
 
-        res.status(200).json({ message: "Expense deleted successfully." });
-        console.log("Expense deleted successfully:", id);
-    } catch (error) {
-        console.error("Error deleting expense:", error);
-        res.status(500).json({ message: "Internal server error." });
-    }
-};
+//         res.status(200).json({ message: "Expense deleted successfully." });
+//         console.log("Expense deleted successfully:", id);
+//     } catch (error) {
+//         console.error("Error deleting expense:", error);
+//         res.status(500).json({ message: "Internal server error." });
+//     }
+// };
+
+
 
 
 
@@ -270,8 +294,7 @@ exports.deleteExpense = async (req, res) => {
 exports.addCategory = async (req, res) => {
 
     try {
-        const { organizationId } = req.user;
-        console.log(organizationId);
+      const { organizationId, id: userId, userName } = req.user;
         
         const cleanBody = removeSpaces(req.body)
 
@@ -296,10 +319,12 @@ exports.addCategory = async (req, res) => {
         }
 
         // Create and save new category
-        const newCategory = new Category({ organizationId, expenseCategory, description });
+        const newCategory = new Category({ organizationId, expenseCategory, description, userId, userName });
         await newCategory.save();
 
-        res.status(201).json({ message: "Category created successfully"});
+        newCategory.organizationId = undefined;
+
+        res.status(201).json({ message: "Category created successfully", newCategory});
     } catch (error) {
         console.error("Error adding category:", error);
         res.status(500).json({ message: "Server error", error: error.message });
@@ -311,9 +336,7 @@ exports.getAllCategory = async (req, res) => {
     try {
         const  organizationId  = req.user.organizationId;
 
-
         const { organizationExists, categoryExists } = await dataExist(organizationId);
-
 
         if (!organizationExists) {
             return res.status(404).json({
@@ -343,8 +366,8 @@ exports.getAllCategory = async (req, res) => {
 //get a category
 exports.getACategory = async (req, res) => {
     try {
-      const {   id } = req.params;
-      const { organizationId } = req.user;
+      const organizationId = req.user.organizationId;
+      const categoryId = req.params.categoryId;
 
       const {organizationExists} = await dataExist(organizationId);
   
@@ -356,7 +379,7 @@ exports.getACategory = async (req, res) => {
   
       // Find the Customer by   supplierId and organizationId
       const category = await Category.findOne({
-        _id:   id,
+        _id: categoryId,
         organizationId: organizationId,
       });
   
@@ -377,12 +400,12 @@ exports.getACategory = async (req, res) => {
 exports.updateCategory = async (req, res) => {
     
     try {
-        const categoryId = req.params.id;
+        const organizationId = req.user.organizationId;
+        const categoryId = req.params.categoryId;
+
         const cleanBody = removeSpaces(req.body)
-        const { organizationId } = req.user;
 
         const {
-            
             expenseCategory,
             discription,
         } = cleanBody;
@@ -417,7 +440,8 @@ exports.updateCategory = async (req, res) => {
             return res.status(404).json({ message: "Category not found" });
         }
 
-        res.status(200).json({ message: "Category updated successfully"});
+        updatedCategory.organizationId = undefined;
+        res.status(200).json({ message: "Category updated successfully", updatedCategory});
         console.log("Category updated successfully:", updatedCategory);
     } catch (error) {
         console.error("Error updating category:", error);
@@ -429,8 +453,8 @@ exports.updateCategory = async (req, res) => {
 exports.deleteCategory = async (req, res) => {
     console.log("Delete category:", req.body);
     try {
-        const { id } = req.params;
-        const { organizationId } = req.body;
+      const organizationId = req.user.organizationId;
+      const categoryId = req.params.categoryId;
 
         // Validate organizationId
         const organizationExists = await Organization.findOne({
@@ -442,21 +466,23 @@ exports.deleteCategory = async (req, res) => {
             });
         }
 
-        const category = await Category.findById(id);
+        const category = await Category.findById(categoryId);
 
         if (!category) {
             return res.status(404).json({ message: "Category not found." });
         }
 
-        await Category.findByIdAndDelete(id);
-
+        await Category.findByIdAndDelete(categoryId);
+        
         res.status(200).json({ message: "Category deleted successfully." });
-        console.log("Category deleted successfully:", id);
+        console.log("Category deleted successfully:", categoryId);
     } catch (error) {
         console.error("Error deleting category:", error);
         res.status(500).json({ message: "Internal server error." });
     }
 };
+
+
 
 function removeSpaces(body) {
     const cleanedBody = {};
@@ -473,6 +499,8 @@ function removeSpaces(body) {
 
     return cleanedBody;
 }
+
+
 
 //Clean Data 
 function cleanExpenseData(data) {
