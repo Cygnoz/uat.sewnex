@@ -3,17 +3,21 @@ const Expense = require("../database/model/expense");
 const Category = require("../database/model/expenseCategory");
 const Account = require("../database/model/account")
 const TrialBalance = require("../database/model/trialBalance");
+const Supplier = require('../database/model/supplier');
 const moment = require("moment-timezone");
+const mongoose = require('mongoose');
 
 
-const dataExist = async (organizationId) => {
-    const [organizationExists, expenseExists, categoryExists, allAccounts] = await Promise.all([
-      Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }),
+
+const dataExist = async (organizationId, supplierId) => {
+    const [organizationExists, expenseExists, categoryExists, accountExist, supplierExist] = await Promise.all([
+      Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1, state: 1 }),
       Expense.find({ organizationId }),
       Category.find({ organizationId }),
-      Account.find({ organizationId })
+      Account.find({ organizationId }),
+      Supplier.findOne({ organizationId , _id:supplierId}, { _id: 1, supplierDisplayName: 1, taxType: 1, sourceOfSupply: 1, gstin_uin: 1, gstTreatment: 1 }),
     ]);
-    return { organizationExists, expenseExists, categoryExists,allAccounts};
+    return { organizationExists, expenseExists, categoryExists, accountExist, supplierExist };
   };
 
 
@@ -41,21 +45,26 @@ const dataExist = async (organizationId) => {
 // Expense
 //add expense
 exports.addExpense = async (req, res) => {
+  console.log("Add Expense:", req.body);
+
   try {
-      const { organizationId} = req.user;
+    const { organizationId, id: userId, userName } = req.user;
+
+      //Clean Data
       const cleanedData = cleanExpenseData(req.body);
 
-      // Validate organizationId
-      const { organizationExists, allAccounts } = await dataExist(organizationId);
+      const { supplierId } = cleanedData;
 
-      if (!organizationExists) {
-          return res.status(404).json({ message: "Organization not found" });
+      //Validate Supplier
+      if (!mongoose.Types.ObjectId.isValid(supplierId) || supplierId.length !== 24) {
+        return res.status(400).json({ message: `Invalid supplier ID: ${supplierId}` });
       }
 
-      if (!validateInputs(cleanedData, res)) return;
+      // Validate organizationId
+      const { organizationExists, accountExist, supplierExist } = await dataExist(organizationId, supplierId);
 
-      // Extract all account IDs from allAccounts
-      const accountIds = allAccounts.map(account => account._id.toString());
+      // Extract all account IDs from accountExist
+      const accountIds = accountExist.map(account => account._id.toString());
       // console.log(accountIds)
       // Check if each expense's expenseAccountId exists in allAccounts
       if(!accountIds.includes(cleanedData))
@@ -65,14 +74,21 @@ exports.addExpense = async (req, res) => {
           }
       }
 
-      // Create a new expense
-      const savedExpense = await createNewExpense(cleanedData, organizationId);
-      console.log(savedExpense)
-      const savedTrialBalance= await createTrialBalance(savedExpense);
+      //Data Exist Validation
+      if (!validateOrganizationSupplierAccount( organizationExists, accountExist, supplierExist, res )) return;
 
+      if (!validateInputs(cleanedData, organizationExists, res)) return;
+
+      //Date & Time
+      const openingDate = generateOpeningDate(organizationExists);
+
+      // Create a new expense
+      const savedExpense = await createNewExpense(cleanedData, organizationId, openingDate, userId, userName);
+      console.log("savedExpense:",savedExpense)
+      const savedTrialBalance= await createTrialBalance(savedExpense);
+      console.log("savedTrialBalance:",savedTrialBalance)
 
       res.status(201).json({ message: "Expense created successfully." });
-
   } catch (error) {
       console.error("Error adding expense:", error);
       res.status(400).json({ error: error.message });
@@ -502,8 +518,8 @@ function removeSpaces(body) {
 
 
 
-//Clean Data 
-function cleanExpenseData(data) {
+  //Clean Data 
+  function cleanExpenseData(data) {
     const cleanData = (value) => (value === null || value === undefined || value === "" ? undefined : value);
     return Object.keys(data).reduce((acc, key) => {
       acc[key] = cleanData(data[key]);
@@ -511,10 +527,35 @@ function cleanExpenseData(data) {
     }, {});
   }
   
-  function createNewExpense(data,organizationId) {
-    const newExpense = new Expense({ ...data, organizationId,});
+
+  // Create New Expense
+  function createNewExpense(data, organizationId, openingDate, userId, userName) {
+    const newExpense = new Expense({ ...data, organizationId, createdDate: openingDate, userId, userName });
     return newExpense.save();
   }
+
+
+
+  // Validate Organization Supplier Account
+  function validateOrganizationSupplierAccount( organizationExists, accountExist, supplierExist, res ) {
+    if (!organizationExists) {
+      res.status(404).json({ message: "Organization not found" });
+      return false;
+    }
+    if (!accountExist) {
+      res.status(404).json({ message: "Accounts not found" });
+      return false;
+    }
+    if (!supplierExist) {
+      res.status(404).json({ message: "Supplier not found." });
+      return false;
+    }
+    return true;
+  }
+
+
+
+
 
   async function createTrialBalance (savedExpense) {
 
@@ -561,13 +602,13 @@ function cleanExpenseData(data) {
     }
 }
 
+
+
    
 
-
-  function validateInputs(data,  res) {
-    // const validCurrencies = currencyExists.map((currency) => currency.currencyCode);
-    // const validTaxTypes = ["None", taxExists.taxType];
-    const validationErrors = validateExpenseData(data);
+  //Validate inputs
+  function validateInputs(data, organizationExists, res) {
+    const validationErrors = validateExpenseData(data, organizationExists);
   
     if (validationErrors.length > 0) {
       res.status(400).json({ message: validationErrors.join(", ") });
@@ -576,27 +617,124 @@ function cleanExpenseData(data) {
     return true;
   }
 
-  function validateExpenseData(data) {
+  //Validate Data
+  function validateExpenseData(data, organizationExists) {
     const errors = [];
 
     //Basic Info
-    
-    // validateReqFields( data,  errors);
-    // validateIntegerFields(['distance', 'ratePerKm'], data, errors);
+    validateReqFields( data, errors);
     validateFloatFields(['distance', 'ratePerKm'], data, errors);
-    // validateAlphabetsFields(['department', 'designation','billingAttention','shippingAttention'], data, errors); 
+    // validateIntegerFields(['distance', 'ratePerKm'], data, errors);
+    //validateAlphabetsFields(['department', 'designation'], data, errors);
+
+    validateExpenseType(data.expenseType, errors);
+    validateSourceOfSupply(data.sourceOfSupply, organizationExists, errors);
+    validateDestinationOfSupply(data.destinationOfSupply, organizationExists, errors);
+    validateGSTorVAT(data, errors);
+   
     return errors;
   }
 
+
+  // Field validation utility
+  function validateField(condition, errorMsg, errors) {
+    if (condition) errors.push(errorMsg);
+  }
+
+  //Valid Req Fields
   function validateReqFields( data, errors ) {
-    if (typeof data.supplierDisplayName === 'undefined' ) {
-      errors.push("Supplier Display Name required");
-    }
+    validateField( typeof data.expenseDate === 'undefined', "Please select Date", errors  );
+    validateField( typeof data.paidThrough === 'undefined', "Please select paid through", errors  );
+    validateField( typeof data.expenseAccount === 'undefined', "Please select expense account", errors  );
+    validateField( typeof data.amount === 'undefined', "Please enter amount", errors  );
+
     const interestPercentage = parseFloat(data.interestPercentage);
     if ( interestPercentage > 100 ) {
       errors.push("Interest Percentage cannot exceed 100%");
     }
   }
+
+
+  // Validate Expense Type
+  function validateExpenseType(expenseType, errors) {
+    validateField(
+      expenseType && !validExpenseType.includes(expenseType),
+      "Invalid Expense Type: " + expenseType, errors );
+  }
+
+  // Validate source Of Supply
+function validateSourceOfSupply(sourceOfSupply, organization, errors) {
+  validateField(
+    sourceOfSupply && !validCountries[organization.organizationCountry]?.includes(sourceOfSupply),
+    "Invalid Source of Supply: " + sourceOfSupply, errors );
+}
+
+// Validate destination Of Supply
+function validateDestinationOfSupply(destinationOfSupply, organization, errors) {
+  validateField(
+    destinationOfSupply && !validCountries[organization.organizationCountry]?.includes(destinationOfSupply),
+    "Invalid Destination of Supply: " + destinationOfSupply, errors );
+}
+
+ // Validate GST or VAT details
+ function validateGSTorVAT(data, errors) {
+  data.expense.forEach((data) => {
+    const taxRate = data.taxRate; 
+
+    switch (taxRate) {
+      case "GST":
+        validateGSTDetails(data, errors);
+        break;
+
+      case "VAT":
+        validateVATDetails(data, errors);
+        break;
+
+      case "None":
+        clearTaxFields(data);
+        break;
+
+      default:
+        // Handle unexpected taxType values
+        errors.push(`Invalid taxRate: ${taxRate}`);
+        break;
+    }
+  });
+}
+
+// Validate GST details
+function validateGSTDetails(data, errors) {
+  validateField(
+    data.gstTreatment && !validGSTTreatments.includes(data.gstTreatment),
+    `Invalid GST treatment: ${data.gstTreatment}`, 
+    errors
+  );
+  validateField(
+    data.gstin_uin && !isAlphanumeric(data.gstin_uin),
+    `Invalid GSTIN/UIN: ${data.gstin_uin}`, 
+    errors
+  );
+}
+
+// Validate VAT details
+function validateVATDetails(data, errors) {
+  validateField(
+    data.vatNumber && !isAlphanumeric(data.vatNumber),
+    `Invalid VAT number: ${data.vatNumber}`, 
+    errors
+  );
+}
+
+
+// Clear tax fields when no tax is applied
+function clearTaxFields(data) {
+  ['gstTreatment', 'gstin_uin', 'vatNumber', 'sourceOfSupply'].forEach(field => {
+    data[field] = undefined;
+  });
+}
+
+
+
 
  //Valid Float Fields  
  function validateFloatFields(fields, data, errors) {
@@ -605,11 +743,6 @@ function cleanExpenseData(data) {
       "Invalid " + balance.replace(/([A-Z])/g, " $1") + ": " + data[balance], errors);
   });
 }
-
-  // Field validation utility
-  function validateField(condition, errorMsg, errors) {
-    if (condition) errors.push(errorMsg);
-  }
 
 
   // Helper functions to handle formatting
@@ -638,3 +771,136 @@ function cleanExpenseData(data) {
   function isValidURL(value) {
     return /^(https?:\/\/)?([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(\/[^\s]*)?$/.test(value);
   }
+
+
+
+  //Return Date and Time 
+function generateOpeningDate(organizationExists) {
+  const date = generateTimeAndDateForDB(
+      organizationExists.timeZoneExp,
+      organizationExists.dateFormatExp,
+      organizationExists.dateSplit
+    )
+  return date.dateTime;
+}
+
+
+// Function to generate time and date for storing in the database
+function generateTimeAndDateForDB(
+  timeZone,
+  dateFormat,
+  dateSplit,
+  baseTime = new Date(),
+  timeFormat = "HH:mm:ss",
+  timeSplit = ":"
+) {
+  // Convert the base time to the desired time zone
+  const localDate = moment.tz(baseTime, timeZone);
+
+  // Format date and time according to the specified formats
+  let formattedDate = localDate.format(dateFormat);
+
+  // Handle date split if specified
+  if (dateSplit) {
+    // Replace default split characters with specified split characters
+    formattedDate = formattedDate.replace(/[-/]/g, dateSplit); // Adjust regex based on your date format separators
+  }
+
+  const formattedTime = localDate.format(timeFormat);
+  const timeZoneName = localDate.format("z"); // Get time zone abbreviation
+
+  // Combine the formatted date and time with the split characters and time zone
+  const dateTime = `${formattedDate} ${formattedTime
+    .split(":")
+    .join(timeSplit)} (${timeZoneName})`;
+
+  return {
+    date: formattedDate,
+    time: `${formattedTime} (${timeZoneName})`,
+    dateTime: dateTime,
+  };
+}
+
+
+
+
+
+
+// Utility Functions
+const validExpenseType = [ "Goods", "Service" ];
+const validCountries = {
+  "United Arab Emirates": [
+    "Abu Dhabi",
+    "Dubai",
+    "Sharjah",
+    "Ajman",
+    "Umm Al-Quwain",
+    "Fujairah",
+    "Ras Al Khaimah",
+  ],
+  "India": [
+    "Andaman and Nicobar Island",
+    "Andhra Pradesh",
+    "Arunachal Pradesh",
+    "Assam",
+    "Bihar",
+    "Chandigarh",
+    "Chhattisgarh",
+    "Dadra and Nagar Haveli and Daman and Diu",
+    "Delhi",
+    "Goa",
+    "Gujarat",
+    "Haryana",
+    "Himachal Pradesh",
+    "Jammu and Kashmir",
+    "Jharkhand",
+    "Karnataka",
+    "Kerala",
+    "Ladakh",
+    "Lakshadweep",
+    "Madhya Pradesh",
+    "Maharashtra",
+    "Manipur",
+    "Meghalaya",
+    "Mizoram",
+    "Nagaland",
+    "Odisha",
+    "Puducherry",
+    "Punjab",
+    "Rajasthan",
+    "Sikkim",
+    "Tamil Nadu",
+    "Telangana",
+    "Tripura",
+    "Uttar Pradesh",
+    "Uttarakhand",
+    "West Bengal",
+  ],
+  "Saudi Arabia": [
+    "Asir",
+    "Al Bahah",
+    "Al Jawf",
+    "Al Madinah",
+    "Al-Qassim",
+    "Eastern Province",
+    "Hail",
+    "Jazan",
+    "Makkah",
+    "Medina",
+    "Najran",
+    "Northern Borders",
+    "Riyadh",
+    "Tabuk",
+  ],
+};
+const validGSTTreatments = [
+  "Registered Business - Regular",
+  "Registered Business - Composition",
+  "Unregistered Business",
+  "Consumer",
+  "Overseas",
+  "Special Economic Zone",
+  "Deemed Export",
+  "Tax Deductor",
+  "SEZ Developer",
+];
