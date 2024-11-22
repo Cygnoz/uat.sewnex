@@ -308,7 +308,7 @@ exports.getOneExpense = async (req, res) => {
 // Expense Category
 //add category
 exports.addCategory = async (req, res) => {
-
+  console.log("req:",req.body);
     try {
       const { organizationId, id: userId, userName } = req.user;
         
