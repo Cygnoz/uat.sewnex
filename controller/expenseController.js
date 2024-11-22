@@ -423,7 +423,7 @@ exports.updateCategory = async (req, res) => {
 
         const {
             expenseCategory,
-            discription,
+            description,
         } = cleanBody;
 
         // Validate organizationId
@@ -446,7 +446,7 @@ exports.updateCategory = async (req, res) => {
             {
                 organizationId,
                 expenseCategory,
-                discription,
+                description,
             },
             { new: true, runValidators: true }
         );
@@ -457,6 +457,7 @@ exports.updateCategory = async (req, res) => {
         }
 
         updatedCategory.organizationId = undefined;
+
         res.status(200).json({ message: "Category updated successfully", updatedCategory});
         console.log("Category updated successfully:", updatedCategory);
     } catch (error) {
@@ -604,11 +605,22 @@ function removeSpaces(body) {
 
 
 
+
+
+
+  
    
 
   //Validate inputs
   function validateInputs(data, organizationExists, res) {
     const validationErrors = validateExpenseData(data, organizationExists);
+
+    // Additional tab-specific validation
+    if (isExpenseMileage(data)) {
+      validateExpenseMileageFields(data, validationErrors);
+    } else {
+      validateRecordExpenseFields(data, validationErrors);
+    }
   
     if (validationErrors.length > 0) {
       res.status(400).json({ message: validationErrors.join(", ") });
@@ -616,6 +628,15 @@ function removeSpaces(body) {
     }
     return true;
   }
+
+
+
+  // Helper to identify Expense Mileage
+  function isExpenseMileage(data) {
+    return data.distance !== undefined && data.ratePerKm !== undefined;
+  }
+
+
 
   //Validate Data
   function validateExpenseData(data, organizationExists) {
@@ -646,12 +667,33 @@ function removeSpaces(body) {
     validateField( typeof data.expenseDate === 'undefined', "Please select Date", errors  );
     validateField( typeof data.paidThrough === 'undefined', "Please select paid through", errors  );
     validateField( typeof data.expenseAccount === 'undefined', "Please select expense account", errors  );
-    validateField( typeof data.amount === 'undefined', "Please enter amount", errors  );
 
-    const interestPercentage = parseFloat(data.interestPercentage);
-    if ( interestPercentage > 100 ) {
-      errors.push("Interest Percentage cannot exceed 100%");
+    // Determine if it is Expense Mileage or Record Expense
+    const isMileage = data.distance !== undefined && data.ratePerKm !== undefined;
+
+    if (isMileage) {
+      // Fields specific to Expense Mileage
+      validateField(typeof data.distance === "undefined", "Please enter distance", errors);
+      validateField(typeof data.ratePerKm === "undefined", "Please enter rate per kilometer", errors);
+
+      // Ensure distance and rate are valid numbers
+      validateField(data.distance && !isFloat(data.distance), "Invalid distance value", errors);
+      validateField(data.ratePerKm && !isFloat(data.ratePerKm), "Invalid rate per kilometer value", errors);
+    } else {
+      // Fields specific to Record Expense
+      validateField(typeof data.expenseAccount === "undefined", "Please select expense account", errors);
+      validateField(
+        data.expenseCategory === undefined || data.expenseCategory === "",
+        "Please select an expense category",
+        errors
+      );
+      validateField(typeof data.amount === "undefined", "Please enter amount", errors);
     }
+
+    // const interestPercentage = parseFloat(data.interestPercentage);
+    // if ( interestPercentage > 100 ) {
+    //   errors.push("Interest Percentage cannot exceed 100%");
+    // }
   }
 
 
