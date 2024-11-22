@@ -230,7 +230,7 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
 
    // Create New Purchase Order
    function createNewPurchaseOrder( data, organizationId, openingDate, userId, userName ) {
-    const newPurchaseOrder = new PurchaseOrder({ ...data, organizationId, createdDate: openingDate, userId, userName });
+    const newPurchaseOrder = new PurchaseOrder({ ...data, organizationId, createdDate: openingDate, userId, userName, status: "Open" });
     return newPurchaseOrder.save();
   }
   
