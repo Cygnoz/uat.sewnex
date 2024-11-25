@@ -6,6 +6,7 @@ const salesSettings = require('../controller/salesSettings')
 const salesQuotes = require('../controller/salesQuotes')
 const salesOrder = require('../controller/salesOrder')
 const salesInvoice = require('../controller/salesInvoice')
+const customerController = require('../controller/customerController')
 
 const checkPermission = require('../controller/permission');
 const { verifyToken } = require('../controller/middleware');
@@ -66,6 +67,10 @@ router.get('/sales-order/:invoiceId',verifyToken,salesInvoice.getOneSalesInvoice
 
 
 
+
+
+// customer sales Hisory
+router.get('/get-customer-sales-history/:id',verifyToken,customerController.customerSaleHistory)
 
 
 

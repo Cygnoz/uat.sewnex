@@ -142,6 +142,7 @@ exports.getAllSalesQuote = async (req, res) => {
         });
       }
   
+
       if (!allQuotes.length) {
         return res.status(404).json({
           message: "No Quotes found",
@@ -149,6 +150,7 @@ exports.getAllSalesQuote = async (req, res) => {
       }
   
       res.status(200).json(allQuotes);
+      
     } catch (error) {
       console.error("Error fetching Quotes:", error);
       res.status(500).json({ message: "Internal server error." });

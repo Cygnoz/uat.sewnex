@@ -54,7 +54,7 @@ const SalesOrderSchema = new Schema ({
 
   //subject: { type: String },
   
-  items: [itemsSchema],  
+  items: [itemsSchema],   
   
   note: { type: String },
   tc: { type: String },

@@ -5,7 +5,8 @@ const invoiceSchema = new Schema({
 
     invoiceId: {type:String},
     salesInvoice: {type:String},//prefix
-
+    salesInvoiceDate: { type: String },  
+    dueDate: { type: String },
     totalAmount: { type: Number },
     balanceAmount: { type: Number },
     paymentAmount: { type: Number },    
