@@ -74,4 +74,11 @@ router.get('/get-customer-sales-history/:id',verifyToken,customerController.cust
 
 
 
+//Sales receipt
+router.post('/sales-receipt',verifyToken,salesReceipt.addReceipt)
+
+router.get('/get-all-receipt',verifyToken,salesReceipt.getAllSalesReceipt)
+
+router.get('/get-receipt/:PaymentId',verifyToken,salesReceipt.getSalesReceipt)
+
 module.exports = router
