@@ -31,16 +31,6 @@ const dataExist = async (organizationId, supplierId) => {
   // };
 
 
-  // const expenseCategoryDataExist = async ( organizationId, categoryId ) => {    
-  //   const [organizationExists, allCategory, category ] = await Promise.all([
-  //     Organization.findOne({ organizationId }, { organizationId: 1}),
-  //     Category.find({ organizationId }),
-  //     Category.findOne({ organizationId , _id: categoryId })
-  //   ]);
-  //   return { organizationExists, allCategory, category };
-  // };
-
-
 
 // Expense
 //add expense
@@ -888,8 +878,8 @@ function validateGSTDetails(data, errors) {
     errors
   );
   validateField(
-    data.gstin_uin && !isAlphanumeric(data.gstin_uin),
-    `Invalid GSTIN/UIN: ${data.gstin_uin}`, 
+    data.gstin && !isAlphanumeric(data.gstin),
+    `Invalid GSTIN/UIN: ${data.gstin}`, 
     errors
   );
 }
@@ -897,8 +887,8 @@ function validateGSTDetails(data, errors) {
 // Validate VAT details
 function validateVATDetails(data, errors) {
   validateField(
-    data.vatNumber && !isAlphanumeric(data.vatNumber),
-    `Invalid VAT number: ${data.vatNumber}`, 
+    data.vat && !isAlphanumeric(data.vat),
+    `Invalid VAT number: ${data.vat}`, 
     errors
   );
 }
@@ -918,7 +908,7 @@ function clearTaxFields(data) {
  function validateFloatFields(fields, data, errors) {
   fields.forEach((balance) => {
     validateField(data[balance] && !isFloat(data[balance]),
-      "Invalid " + balance.replace(/([A-Z])/g, " $1") + ": " + data[balance], errors);
+      "Invalid " + balance.replace(/([A-Z])/, " $1") + ": " + data[balance], errors);
   });
 }
 
@@ -928,7 +918,7 @@ function clearTaxFields(data) {
     return word.charAt(0).toUpperCase() + word.slice(1);
   }
   function formatCamelCase(word) {
-    return word.replace(/([A-Z])/g, " $1");
+    return word.replace(/([A-Z])/, " $1");
   }
   // Validation helpers
   function isAlphabets(value) {
@@ -981,7 +971,7 @@ function generateTimeAndDateForDB(
   // Handle date split if specified
   if (dateSplit) {
     // Replace default split characters with specified split characters
-    formattedDate = formattedDate.replace(/[-/]/g, dateSplit); // Adjust regex based on your date format separators
+    formattedDate = formattedDate.replace(/[-/]/, dateSplit); // Adjust regex based on your date format separators
   }
 
   const formattedTime = localDate.format(timeFormat);
