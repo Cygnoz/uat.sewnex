@@ -64,7 +64,7 @@ exports.addExpense = async (req, res) => {
       const { organizationExists, accountExist, supplierExist } = await dataExist(organizationId, supplierId);
 
       // Extract all account IDs from accountExist
-      const accountIds = accountExist.map(account => account._id.toString());
+      // const accountIds = accountExist.map(account => account._id.toString());
       // console.log(accountIds)
       // Check if each expense's expenseAccountId exists in allAccounts
       if(!accountIds.includes(cleanedData))
