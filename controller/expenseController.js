@@ -56,7 +56,7 @@ exports.addExpense = async (req, res) => {
       const { supplierId } = cleanedData;
 
       //Validate Supplier
-      if (!mongoose.Types.ObjectId.isValid(supplierId) || supplierId.length !== 24) {
+      if (supplierId && (!mongoose.Types.ObjectId.isValid(supplierId) || supplierId.length !== 24)) {
         return res.status(400).json({ message: `Invalid supplier ID: ${supplierId}` });
       }
 
@@ -75,18 +75,24 @@ exports.addExpense = async (req, res) => {
       }
 
       //Data Exist Validation
-      if (!validateOrganizationSupplierAccount( organizationExists, accountExist, supplierExist, res )) return;
+      if (!validateOrganizationSupplierAccount( organizationExists, accountExist, supplierExist, supplierId, res )) return;
 
       if (!validateInputs(cleanedData, organizationExists, res)) return;
 
+      //Tax Mode
+      taxmode(cleanedData);    
+  
       //Date & Time
       const openingDate = generateOpeningDate(organizationExists);
 
+      // Calculate Expense 
+      if (!calculateExpense( cleanedData, res )) return;
+
       // Create a new expense
       const savedExpense = await createNewExpense(cleanedData, organizationId, openingDate, userId, userName);
-      console.log("savedExpense:",savedExpense)
+      // console.log("savedExpense:",savedExpense)
       const savedTrialBalance= await createTrialBalance(savedExpense);
-      console.log("savedTrialBalance:",savedTrialBalance)
+      // console.log("savedTrialBalance:",savedTrialBalance)
 
       res.status(201).json({ message: "Expense created successfully." });
   } catch (error) {
@@ -538,7 +544,7 @@ function removeSpaces(body) {
 
 
   // Validate Organization Supplier Account
-  function validateOrganizationSupplierAccount( organizationExists, accountExist, supplierExist, res ) {
+  function validateOrganizationSupplierAccount( organizationExists, accountExist, supplierExist, supplierId, res ) {
     if (!organizationExists) {
       res.status(404).json({ message: "Organization not found" });
       return false;
@@ -547,12 +553,158 @@ function removeSpaces(body) {
       res.status(404).json({ message: "Accounts not found" });
       return false;
     }
-    if (!supplierExist) {
+    // Check supplierExist only if supplierId is not empty
+    if (supplierId && supplierId.trim() !== "" && !supplierExist) {
       res.status(404).json({ message: "Supplier not found." });
       return false;
     }
     return true;
   }
+
+
+  // Tax Mode
+  function taxmode( cleanedData ) {
+    if (cleanedData.sourceOfSupply === cleanedData.destinationOfSupply) {
+      cleanedData.taxMode = 'Intra'; 
+    } else if (cleanedData.sourceOfSupply !== cleanedData.destinationOfSupply) {
+      cleanedData.taxMode = 'Inter'; 
+    } else {
+      cleanedData.taxMode = 'None'; 
+    }
+    return;
+  }
+
+
+
+
+
+  
+  function calculateExpense(cleanedData, res) {
+    const errors = [];
+
+    let subTotal = 0;
+    let cgst = 0;
+    let sgst = 0;
+    let igst = 0;
+    let vat = 0;
+    let grandTotal = 0;
+    let distance = 0;
+    let ratePerKm = 0;
+
+    // Utility function to round values to two decimal places
+    const roundToTwoDecimals = (value) => Number(value.toFixed(2));
+
+    cleanedData.expense.forEach(data => {      
+
+      let calculatedCgstAmount = 0;
+      let calculatedSgstAmount = 0;
+      let calculatedIgstAmount = 0;
+      let calculatedVatAmount = 0;
+      let amount = parseFloat(data.amount) || 0;
+      let taxMode = cleanedData.taxMode;
+
+      subTotal += amount;
+
+      const gstTreatment = cleanedData.gstTreatment !== "Unregistered Business" || cleanedData.gstTreatment !== "Overseas";
+      const taxGroup = data.taxGroup !== "None";
+      const isnotMileage = cleanedData.distance !== "undefined" && cleanedData.ratePerKm !== "undefined";
+
+
+      // Handle tax calculation only for taxable expense
+      if (gstTreatment && taxGroup && isnotMileage) {
+        if (taxMode === 'Intra') {
+          calculatedCgstAmount = roundToTwoDecimals((data.cgst / 100) * amount);
+          calculatedSgstAmount = roundToTwoDecimals((data.sgst / 100) * amount);
+       } else if (data.taxMode === 'Inter') {
+          calculatedIgstAmount = roundToTwoDecimals((data.igst / 100) * amount);
+       } else {
+          calculatedVatAmount = roundToTwoDecimals((data.vat / 100) * amount);
+       }
+
+       console.log("calculatedCgstAmount",calculatedCgstAmount);
+       console.log("calculatedSgstAmount",calculatedSgstAmount);
+       console.log("calculatedIgstAmount",calculatedIgstAmount);
+       console.log("calculatedVatAmount",calculatedVatAmount);
+
+       checkAmount(calculatedCgstAmount, data.cgstAmount, data.expenseAccount, 'CGST',errors);
+       checkAmount(calculatedSgstAmount, data.sgstAmount, data.expenseAccount, 'SGST',errors);
+       checkAmount(calculatedIgstAmount, data.igstAmount, data.expenseAccount, 'IGST',errors);
+       checkAmount(calculatedVatAmount, data.vatAmount, data.expenseAccount, 'VAT',errors);
+     
+       cgst += calculatedCgstAmount;
+       sgst += calculatedSgstAmount;
+       igst += calculatedIgstAmount;
+       vat += calculatedVatAmount;
+
+       console.log("cgst",cgst);
+       console.log("sgst",sgst);
+       console.log("igst",igst);
+       console.log("vat",vat);
+
+      } else {
+        console.log('Skipping Tax for Non-Taxable expense');
+
+        amount = distance * ratePerKm;
+        checkAmount(distance, cleanedData.distance, 'Distance',errors);
+        checkAmount(ratePerKm, cleanedData.ratePerKm, 'Rate Per Km',errors);
+
+        console.log("distance",distance);
+        console.log("ratePerKm",ratePerKm);
+
+      }
+    });
+
+    console.log(`subTotal: ${subTotal} , Provided ${cleanedData.subTotal}`);
+
+    grandTotal = (subTotal + cgst + sgst + igst + vat);
+    console.log(`Grand Total: ${grandTotal} , Provided ${cleanedData.grandTotal}`);
+  
+    // Round the totals for comparison
+    const roundedSubTotal = roundToTwoDecimals(subTotal); 
+    const roundedGrandTotalAmount = roundToTwoDecimals(grandTotal);
+  
+    console.log(`Final Sub Total: ${roundedSubTotal} , Provided ${cleanedData.subTotal}` );
+    console.log(`Final Total Amount: ${roundedGrandTotalAmount} , Provided ${cleanedData.grandTotal}` );
+  
+    validateAmount(roundedSubTotal, cleanedData.subTotal, 'SubTotal', errors);
+    validateAmount(roundedGrandTotalAmount, cleanedData.grandTotal, 'Grand Total', errors);
+  
+    if (errors.length > 0) {
+      res.status(400).json({ message: errors.join(", ") });
+      return false;
+    }
+  
+    return true;
+
+  }
+
+
+
+  //Mismatch Check
+  function checkAmount(calculatedAmount, providedAmount, taxMode, errors) {
+    const roundToTwoDecimals = (value) => Number(value.toFixed(2)); // Round to two decimal places
+    const roundedAmount = roundToTwoDecimals(calculatedAmount);
+    console.log(`Calculated ${taxMode}: ${roundedAmount}, Provided data: ${providedAmount}`);
+  
+    if (Math.abs(roundedAmount - providedAmount) > 0.01) {
+      const errorMessage = `Mismatch in ${taxMode}: Calculated ${calculatedAmount}, Provided ${providedAmount}`;
+      errors.push(errorMessage);
+      console.log(errorMessage);
+    }
+  }
+  
+  
+  //Final Item Amount check
+  const validateAmount = ( calculatedValue, cleanedValue, label, errors ) => {
+    const isCorrect = calculatedValue === parseFloat(cleanedValue);
+    if (!isCorrect) {
+      const errorMessage = `${label} is incorrect: ${cleanedValue}`;
+      errors.push(errorMessage);
+      console.log(errorMessage);
+    }
+  };
+
+
 
 
 
@@ -614,26 +766,12 @@ function removeSpaces(body) {
   //Validate inputs
   function validateInputs(data, organizationExists, res) {
     const validationErrors = validateExpenseData(data, organizationExists);
-
-    // Additional tab-specific validation
-    if (isExpenseMileage(data)) {
-      validateExpenseMileageFields(data, validationErrors);
-    } else {
-      validateRecordExpenseFields(data, validationErrors);
-    }
   
     if (validationErrors.length > 0) {
       res.status(400).json({ message: validationErrors.join(", ") });
       return false;
     }
     return true;
-  }
-
-
-
-  // Helper to identify Expense Mileage
-  function isExpenseMileage(data) {
-    return data.distance !== undefined && data.ratePerKm !== undefined;
   }
 
 
@@ -649,6 +787,7 @@ function removeSpaces(body) {
     //validateAlphabetsFields(['department', 'designation'], data, errors);
 
     validateExpenseType(data.expenseType, errors);
+    validateAmountIs(data.amountIs, errors)
     validateSourceOfSupply(data.sourceOfSupply, organizationExists, errors);
     validateDestinationOfSupply(data.destinationOfSupply, organizationExists, errors);
     validateGSTorVAT(data, errors);
@@ -666,34 +805,18 @@ function removeSpaces(body) {
   function validateReqFields( data, errors ) {
     validateField( typeof data.expenseDate === 'undefined', "Please select Date", errors  );
     validateField( typeof data.paidThrough === 'undefined', "Please select paid through", errors  );
-    validateField( typeof data.expenseAccount === 'undefined', "Please select expense account", errors  );
+    validateField( data.expenseAccount === 'undefined', "Please select expense account", errors  );
 
     // Determine if it is Expense Mileage or Record Expense
-    const isMileage = data.distance !== undefined && data.ratePerKm !== undefined;
+    const isnotMileage = data.distance !== "undefined" && data.ratePerKm !== "undefined";
 
-    if (isMileage) {
-      // Fields specific to Expense Mileage
-      validateField(typeof data.distance === "undefined", "Please enter distance", errors);
-      validateField(typeof data.ratePerKm === "undefined", "Please enter rate per kilometer", errors);
-
-      // Ensure distance and rate are valid numbers
-      validateField(data.distance && !isFloat(data.distance), "Invalid distance value", errors);
-      validateField(data.ratePerKm && !isFloat(data.ratePerKm), "Invalid rate per kilometer value", errors);
+    if (isnotMileage) {
+      validateField(typeof data.gstTreatment === undefined, "Please select an gst treatment", errors);
+      validateField( data.amount === "undefined", "Please enter the amount", errors);  
     } else {
-      // Fields specific to Record Expense
-      validateField(typeof data.expenseAccount === "undefined", "Please select expense account", errors);
-      validateField(
-        data.expenseCategory === undefined || data.expenseCategory === "",
-        "Please select an expense category",
-        errors
-      );
-      validateField(typeof data.amount === "undefined", "Please enter amount", errors);
+      validateField( data.distance === "undefined", "Please enter distance", errors);
+      validateField( data.ratePerKm === "undefined", "Please enter rate per kilometer", errors);
     }
-
-    // const interestPercentage = parseFloat(data.interestPercentage);
-    // if ( interestPercentage > 100 ) {
-    //   errors.push("Interest Percentage cannot exceed 100%");
-    // }
   }
 
 
@@ -702,6 +825,13 @@ function removeSpaces(body) {
     validateField(
       expenseType && !validExpenseType.includes(expenseType),
       "Invalid Expense Type: " + expenseType, errors );
+  } 
+
+   // Validate Amount is
+   function validateAmountIs(amountIs, errors) {
+    validateField(
+      amountIs && !validAmountIs.includes(amountIs),
+      "Invalid Amount Is: " + amountIs, errors );
   }
 
   // Validate source Of Supply
@@ -718,31 +848,37 @@ function validateDestinationOfSupply(destinationOfSupply, organization, errors) 
     "Invalid Destination of Supply: " + destinationOfSupply, errors );
 }
 
- // Validate GST or VAT details
- function validateGSTorVAT(data, errors) {
-  data.expense.forEach((data) => {
-    const taxRate = data.taxRate; 
 
-    switch (taxRate) {
-      case "GST":
-        validateGSTDetails(data, errors);
-        break;
+// Validate GST or VAT details
+function validateGSTorVAT(data, errors) {
+  data.expense.forEach((expenseItem) => {
+    const taxGroup = expenseItem.taxGroup;
 
-      case "VAT":
-        validateVATDetails(data, errors);
-        break;
+    // Validate that taxGroup is a string
+    if (typeof taxGroup !== "string" || !taxGroup) {
+      errors.push(`Invalid or missing taxGroup: ${taxGroup}`);
+      return; // Skip processing for this expense item
+    }
 
-      case "None":
-        clearTaxFields(data);
-        break;
+    // Extract the first three letters
+    const prefix = taxGroup.substring(0, 3);
 
-      default:
-        // Handle unexpected taxType values
-        errors.push(`Invalid taxRate: ${taxRate}`);
-        break;
+    if (prefix === "GST") {
+      validateGSTDetails(data, errors);
+    } else if (prefix === "VAT") {
+      validateVATDetails(data, errors);
+    } else if (taxGroup === "None") {
+      clearTaxFields(data);
+    } else {
+      // Handle unexpected taxGroup values
+      errors.push(`Invalid taxGroup: ${taxGroup}`);
     }
   });
 }
+
+
+
+
 
 // Validate GST details
 function validateGSTDetails(data, errors) {
@@ -770,7 +906,7 @@ function validateVATDetails(data, errors) {
 
 // Clear tax fields when no tax is applied
 function clearTaxFields(data) {
-  ['gstTreatment', 'gstin_uin', 'vatNumber', 'sourceOfSupply'].forEach(field => {
+  ['gstTreatment', 'gstin_uin', 'amountIs'].forEach(field => {
     data[field] = undefined;
   });
 }
@@ -869,7 +1005,8 @@ function generateTimeAndDateForDB(
 
 
 // Utility Functions
-const validExpenseType = [ "Goods", "Service" ];
+const validExpenseType = ["Goods", "Service"];
+const validAmountIs = ["Tax Inclusive", "Tax Exclusive"];     
 const validCountries = {
   "United Arab Emirates": [
     "Abu Dhabi",
