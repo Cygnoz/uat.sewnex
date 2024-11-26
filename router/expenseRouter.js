@@ -11,7 +11,7 @@ const { verifyToken } = require('../controller/middleware');
 // expense
 router.post('/add-expense', verifyToken, expenseController.addExpense);
 router.get('/get-all-expense', verifyToken, expenseController.getAllExpense);
-router.get('/get-one-expense/:id', verifyToken, expenseController.getOneExpense);
+router.get('/get-one-expense/:expenseId', verifyToken, expenseController.getOneExpense);
 // router.put('/update-expense/:id', verifyToken, expenseController.updateExpense);
 // router.delete('/delete-expense/:id', verifyToken, expenseController.deleteExpense);
 
