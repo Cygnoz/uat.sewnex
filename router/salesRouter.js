@@ -7,7 +7,7 @@ const salesQuotes = require('../controller/salesQuotes')
 const salesOrder = require('../controller/salesOrder')
 const salesInvoice = require('../controller/salesInvoice')
 const customerController = require('../controller/customerController')
-const salesReceipt = require('../controller/SalesReceipt')
+const salesReceipt = require('../controller/salesReceipt')
 
 const checkPermission = require('../controller/permission');
 const { verifyToken } = require('../controller/middleware');
