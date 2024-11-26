@@ -8,7 +8,8 @@ const expenseTableSchema = new Schema({
 
     note: { type: String },
 
-    taxRate: { type: Number },
+    taxGroup: { type: String }, // GST5,GST12...
+    taxExemption: { type: String },
 
     sgst: { type: Number },
     cgst: { type: Number },
@@ -37,6 +38,8 @@ const expenseSchema = new Schema({
     hsnCode: {type:String},
     sac: {type:String},
 
+    taxMode: { type: String },  // Inter / Intra / None 
+
     distance: {type:Number},
     ratePerKm: {type:Number},
 
@@ -51,7 +54,7 @@ const expenseSchema = new Schema({
     invoice: {type:String},
     uploadFiles: {type:String},
 
-    subTotal: {type:String},
+    subTotal: {type:Number},
     sgst: { type: Number },
     cgst: { type: Number },
     igst: { type: Number },
