@@ -124,7 +124,7 @@ exports.getAllExpense = async (req, res) => {
 //get a expense
 exports.getOneExpense = async (req, res) => {
     try {
-      const {   id } = req.params;
+      const expenseId = req.params.expenseId;
       const organizationId = req.user.organizationId;
   
       const {organizationExists} = await dataExist(organizationId);
@@ -137,7 +137,7 @@ exports.getOneExpense = async (req, res) => {
   
       // Find the Customer by   supplierId and organizationId
       const expense = await Expense.findOne({
-        _id:   id,
+        _id: expenseId,
         organizationId: organizationId,
       });
   
@@ -146,8 +146,8 @@ exports.getOneExpense = async (req, res) => {
           message: "expense not found",
         });
       }
-    //   expense.organizationId = undefined;
-    delete expense.organizationId;
+      expense.organizationId = undefined;
+    // delete expense.organizationId;
       res.status(200).json(expense);
     } catch (error) {
       console.error("Error fetching expense:", error);
@@ -578,8 +578,8 @@ function removeSpaces(body) {
     let igst = 0;
     let vat = 0;
     let grandTotal = 0;
-    let distance = 0;
-    let ratePerKm = 0;
+    let distance = parseFloat(cleanedData.distance) || 0;
+    let ratePerKm = parseFloat(cleanedData.ratePerKm) || 0;
 
     // Utility function to round values to two decimal places
     const roundToTwoDecimals = (value) => Number(value.toFixed(2));
@@ -801,7 +801,7 @@ function removeSpaces(body) {
     const isnotMileage = data.distance !== "undefined" && data.ratePerKm !== "undefined";
 
     if (isnotMileage) {
-      validateField(typeof data.gstTreatment === undefined, "Please select an gst treatment", errors);
+      validateField( data.gstTreatment === "undefined", "Please select an gst treatment", errors);
       validateField( data.amount === "undefined", "Please enter the amount", errors);  
     } else {
       validateField( data.distance === "undefined", "Please enter distance", errors);
@@ -845,7 +845,7 @@ function validateGSTorVAT(data, errors) {
     const taxGroup = expenseItem.taxGroup;
 
     // Validate that taxGroup is a string
-    if (typeof taxGroup !== "string" || !taxGroup) {
+    if (typeof taxGroup !== "string") {
       errors.push(`Invalid or missing taxGroup: ${taxGroup}`);
       return; // Skip processing for this expense item
     }
