@@ -13,14 +13,13 @@ const mongoose = require('mongoose');
 
 // Fetch existing data
 const dataExist = async ( organizationId, supplierId ) => {
-    const [organizationExists, supplierExist, purchaseOrderExist, taxExists, settings] = await Promise.all([
+    const [organizationExists, supplierExist,  taxExists, settings] = await Promise.all([
       Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
       Supplier.findOne({ organizationId , _id:supplierId}, { _id: 1, supplierDisplayName: 1, taxType: 1 }),
-      PurchaseOrder.findOne({organizationId}),
       Tax.findOne({ organizationId }),
       Settings.findOne({ organizationId })
     ]);    
-  return { organizationExists, supplierExist, purchaseOrderExist, taxExists, settings };
+  return { organizationExists, supplierExist, taxExists, settings };
 };
 
 
@@ -107,15 +106,15 @@ exports.addBills = async (req, res) => {
         return res.status(400).json({ message: `Invalid item IDs: ${invalidItemIds.join(', ')}` });
       }   
   
-      const { organizationExists, supplierExist, purchaseOrderExist, taxExists, settings } = await dataExist( organizationId, supplierId );
+      const { organizationExists, supplierExist, taxExists, settings } = await dataExist( organizationId, supplierId );
   
       const { itemTable } = await newDataExists( organizationId, items );
   
       //Data Exist Validation
-      if (!validateOrganizationSupplierOrder( organizationExists, supplierExist, purchaseOrderExist, res )) return;
+      if (!validateOrganizationSupplierOrder( organizationExists, supplierExist,  res )) return;
   
       //Validate Inputs  
-      if (!validateInputs( cleanedData, supplierExist, purchaseOrderExist, items, itemTable, organizationExists, res)) return;
+      if (!validateInputs( cleanedData, supplierExist, items, itemTable, organizationExists, res)) return;
 
       //Check Bill Exist
       if (await checkExistingBill(cleanedData.billNumber, organizationId, res)) return;
@@ -288,7 +287,7 @@ exports.addBills = async (req, res) => {
   
   
   // Validate Organization Tax Currency
-  function validateOrganizationSupplierOrder( organizationExists, supplierExist, purchaseOrderExist, res ) {
+  function validateOrganizationSupplierOrder( organizationExists, supplierExist, res ) {
     if (!organizationExists) {
       res.status(404).json({ message: "Organization not found" });
       return false;
@@ -297,10 +296,7 @@ exports.addBills = async (req, res) => {
       res.status(404).json({ message: "Supplier not found." });
       return false;
     }
-    if (!purchaseOrderExist) {
-      res.status(404).json({ message: "Purchase order not found" });
-      return false;
-    }
+   
     return true;
   }
   
@@ -555,8 +551,8 @@ function generateOpeningDate(organizationExists) {
 
 
   //Validate inputs
-function validateInputs( data, supplierExist, purchaseOrderExist, items, itemExists, organizationExists, res) {
-    const validationErrors = validateBillsData(data, supplierExist, purchaseOrderExist, items, itemExists, organizationExists);  
+function validateInputs( data, supplierExist, items, itemExists, organizationExists, res) {
+    const validationErrors = validateBillsData(data, supplierExist, items, itemExists, organizationExists);  
   
     if (validationErrors.length > 0) {
       res.status(400).json({ message: validationErrors.join(", ") });
@@ -566,7 +562,7 @@ function validateInputs( data, supplierExist, purchaseOrderExist, items, itemExi
   }
   
   //Validate Data
-  function validateBillsData( data, supplierExist, purchaseOrderExist, items, itemTable, organizationExists ) {
+  function validateBillsData( data, supplierExist, items, itemTable, organizationExists ) {
     const errors = [];
   
     // console.log("Item Request :",items);
