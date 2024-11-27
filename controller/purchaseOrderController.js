@@ -85,13 +85,15 @@ exports.addPurchaseOrder = async (req, res) => {
       //Tax Type
       taxtype(cleanedData, supplierExist );
       
-      // Calculate Sales 
-      if (!calculatePurchaseOrder( cleanedData, itemTable, res )) return;
+      // Calculate Purchase order 
+      if (!calculatePurchaseOrder( cleanedData, res )) return;
 
       //Prefix
       await purchaseOrderPrefix(cleanedData, existingPrefix );
   
       const savedPurchaseOrder = await createNewPurchaseOrder(cleanedData, organizationId, openingDate, userId, userName );
+
+      savedPurchaseOrder.organizationId = undefined;
         
       res.status(201).json({ message: "Purchase order created successfully", savedPurchaseOrder });
       // console.log( "Purchase order created successfully:", savedPurchaseOrder );
@@ -121,9 +123,15 @@ exports.addPurchaseOrder = async (req, res) => {
           message: "No purchase order found",
         });
       }
-  
-      res.status(200).json(allPurchaseOrder);
-    } catch (error) {
+
+      // Map over all purchaseOrder to remove the organizationId from each object
+      const sanitizedPurchaseOrders = allPurchaseOrder.map(order => {
+        const { organizationId, ...rest } = order.toObject(); // Convert to plain object and omit organizationId
+        return rest;
+      });
+      
+      res.status(200).json(sanitizedPurchaseOrders);
+      } catch (error) {
       console.error("Error fetching purchase order:", error);
       res.status(500).json({ message: "Internal server error." });
     }
@@ -151,29 +159,31 @@ exports.addPurchaseOrder = async (req, res) => {
       }
 
       // Fetch item details associated with the purchaseOrder
-    const itemIds = purchaseOrder.items.map(item => item.itemId);
+      const itemIds = purchaseOrder.items.map(item => item.itemId);
 
-    // Retrieve items including itemImage
-    const itemsWithImages = await Item.find(
-      { _id: { $in: itemIds }, organizationId },
-      { _id: 1, itemName: 1, itemImage: 1 } 
-    );
+      // Retrieve items including itemImage
+      const itemsWithImages = await Item.find(
+        { _id: { $in: itemIds }, organizationId },
+        { _id: 1, itemName: 1, itemImage: 1 } 
+      );
 
-    // Map the items to include item details
-    const updatedItems = purchaseOrder.items.map(purchaseOrderItem => {
-      const itemDetails = itemsWithImages.find(item => item._id.toString() === purchaseOrderItem.itemId.toString());
-      return {
-        ...purchaseOrderItem.toObject(),
-        itemName: itemDetails ? itemDetails.itemName : null,
-        itemImage: itemDetails ? itemDetails.itemImage : null,
+      // Map the items to include item details
+      const updatedItems = purchaseOrder.items.map(purchaseOrderItem => {
+        const itemDetails = itemsWithImages.find(item => item._id.toString() === purchaseOrderItem.itemId.toString());
+        return {
+          ...purchaseOrderItem.toObject(),
+          itemName: itemDetails ? itemDetails.itemName : null,
+          itemImage: itemDetails ? itemDetails.itemImage : null,
+        };
+      });
+
+      // Attach updated items back to the purchaseOrder
+      const updatedPurchaseOrder = {
+        ...purchaseOrder.toObject(),
+        items: updatedItems,
       };
-    });
 
-    // Attach updated items back to the purchaseOrder
-    const updatedPurchaseOrder = {
-      ...purchaseOrder.toObject(),
-      items: updatedItems,
-    };
+      updatedPurchaseOrder.organizationId = undefined;
 
       res.status(200).json(updatedPurchaseOrder);
     } catch (error) {
@@ -230,7 +240,7 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
 
    // Create New Purchase Order
    function createNewPurchaseOrder( data, organizationId, openingDate, userId, userName ) {
-    const newPurchaseOrder = new PurchaseOrder({ ...data, organizationId, createdDate: openingDate, userId, userName });
+    const newPurchaseOrder = new PurchaseOrder({ ...data, organizationId, createdDate: openingDate, userId, userName, status: "Open" });
     return newPurchaseOrder.save();
   }
   
@@ -245,7 +255,7 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
   }
   
   
-  // Validate Organization Tax Currency
+  // Validate Organization Supplier Prefix
   function validateOrganizationSupplierPrefix( organizationExists, supplierExist, existingPrefix, res ) {
     if (!organizationExists) {
       res.status(404).json({ message: "Organization not found" });
@@ -282,7 +292,7 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
 
 
 
-  function calculatePurchaseOrder(cleanedData, itemTable, res) {
+  function calculatePurchaseOrder(cleanedData, res) {
     const errors = [];
   
     let otherExpense = (cleanedData.otherExpense || 0);
@@ -500,7 +510,7 @@ function generateOpeningDate(organizationExists) {
 
   //Validate inputs
 function validateInputs( data, supplierExist, items, itemExists, organizationExists, res) {
-    const validationErrors = validateBillsData(data, supplierExist, items, itemExists, organizationExists);  
+    const validationErrors = validatePurchaseOrderData(data, supplierExist, items, itemExists, organizationExists);  
   
     if (validationErrors.length > 0) {
       res.status(400).json({ message: validationErrors.join(", ") });
@@ -510,7 +520,7 @@ function validateInputs( data, supplierExist, items, itemExists, organizationExi
   }
   
   //Validate Data
-  function validateBillsData( data, supplierExist, items, itemTable, organizationExists ) {
+  function validatePurchaseOrderData( data, supplierExist, items, itemTable, organizationExists ) {
     const errors = [];
   
     // console.log("Item Request :",items);
