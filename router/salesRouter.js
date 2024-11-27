@@ -7,6 +7,7 @@ const salesQuotes = require('../controller/salesQuotes')
 const salesOrder = require('../controller/salesOrder')
 const salesInvoice = require('../controller/salesInvoice')
 const customerController = require('../controller/customerController')
+const salesReceipt = require('../controller/salesReceipt')
 
 const checkPermission = require('../controller/permission');
 const { verifyToken } = require('../controller/middleware');
@@ -73,5 +74,12 @@ router.get('/sales-order/:invoiceId',verifyToken,salesInvoice.getOneSalesInvoice
 router.get('/get-customer-sales-history/:id',verifyToken,customerController.customerSaleHistory)
 
 
+
+//Sales receipt
+router.post('/sales-receipt',verifyToken,salesReceipt.addReceipt)
+
+router.get('/get-all-receipt',verifyToken,salesReceipt.getAllSalesReceipt)
+
+router.get('/get-receipt/:PaymentId',verifyToken,salesReceipt.getSalesReceipt)
 
 module.exports = router
