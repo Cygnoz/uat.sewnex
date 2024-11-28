@@ -13,7 +13,6 @@ const checkPermission = require('../controller/permission');
 const { verifyToken } = require('../controller/middleware');
 
 
-
 //Sales settings
 router.put('/add-sales-settings',verifyToken,salesSettings.addSalesOrderSettings)
 

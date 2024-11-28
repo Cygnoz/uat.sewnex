@@ -41,6 +41,8 @@ const SalesInvoiceSchema = new Schema ({
   salesInvoice: { type: String }, //prefix
   //salesPersonId: { type: String }, //next phase
   //salesPersonName: { type: String }, //next phase
+
+  salesOrderNumber: { type: String },
   
   //new
   paymentTerms: { type: String },
@@ -65,7 +67,6 @@ const SalesInvoiceSchema = new Schema ({
   freightAmount: { type: Number },
   freightAccountId: { type: String },
   roundOffAmount: { type: Number },
-
 
   discountTransactionType: { type: String }, // Currency,Percentage
   discountTransactionAmount: { type: Number },
