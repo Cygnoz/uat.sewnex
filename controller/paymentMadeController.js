@@ -99,6 +99,9 @@ exports.addPayment = async (req, res) => {
     // Create and save new payment
     const payment = await createNewPayment(updatedData , openingDate, organizationId, userId, userName);
 
+    updatedBills.organizationId = undefined;
+    payment.organizationId = undefined;
+
     //Response with the updated bills and the success message
     return res.status(200).json({
       message: 'Payment added successfully',  payment , updatedBills,
@@ -129,15 +132,20 @@ exports.getAllPayment = async (req, res) => {
         message: "Organization not found",
       });
     }
-
     
     if (!allPayments.length) {
       return res.status(404).json({
         message: "No Payments found",
       });
     }
-    res.status(200).json(allPayments);
 
+    // Map over all categories to remove the organizationId from each object
+    const AllPayments = allPayments.map((history) => {
+      const { organizationId, ...rest } = history.toObject(); // Convert to plain object and omit organizationId
+      return rest;
+    });
+
+    res.status(200).json({allPayments: AllPayments});
   } catch (error) {
     console.error("Error fetching purchase paymentMade:", error);
     res.status(500).json({ message: "Internal server error." });
@@ -158,12 +166,13 @@ exports.getPurchasePayment = async (req, res) => {
       });
     }
 
-
     if (!payments) {
       return res.status(404).json({
         message: "No payment found",
       });
     }
+
+    payments.organizationId = undefined;
 
     res.status(200).json(payments);
   } catch (error) {
@@ -190,7 +199,8 @@ exports.getLastPaymentMadePrefix = async (req, res) => {
       
       const series = prefix.series[0];     
       const lastPrefix = series.vendorPayment + series.vendorPaymentNum;
-      console.log(lastPrefix);
+
+      lastPrefix.organizationId = undefined;
 
       res.status(200).json(lastPrefix);
   } catch (error) {

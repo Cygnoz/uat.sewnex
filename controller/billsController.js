@@ -133,6 +133,8 @@ exports.addBills = async (req, res) => {
   
       //Item Track
       await itemTrack( savedBills, itemTable );
+
+      savedBills.organizationId = undefined;
         
       res.status(201).json({ message: "Bills created successfully", savedBills });
       // console.log( "Bills created successfully:", savedBills );
@@ -191,8 +193,14 @@ exports.addBills = async (req, res) => {
         // Push the bill object with the updated status to the result array
         updatedBills.push({ ...rest, balanceAmount , dueDate , paidStatus: newStatus });
         }
+
+        // Map over all categories to remove the organizationId from each object
+        const AllBills = updatedBills.map((history) => {
+          const { organizationId, ...rest } = history.toObject(); // Convert to plain object and omit organizationId
+          return rest;
+      });
   
-      res.status(200).json({allBills: updatedBills});
+      res.status(200).json({allBills: AllBills});
     } catch (error) {
       console.error("Error fetching bills:", error);
       res.status(500).json({ message: "Internal server error." });
@@ -245,6 +253,8 @@ exports.addBills = async (req, res) => {
       ...bill.toObject(),
       items: updatedItems,
     };
+
+    updatedBill.organizationId = undefined;
 
     res.status(200).json(updatedBill);
   } catch (error) {
