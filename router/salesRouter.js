@@ -8,6 +8,7 @@ const salesOrder = require('../controller/salesOrder')
 const salesInvoice = require('../controller/salesInvoice')
 const customerController = require('../controller/customerController')
 const salesReceipt = require('../controller/salesReceipt')
+const creditNote = require('../controller/creditNoteController')
 
 const checkPermission = require('../controller/permission');
 const { verifyToken } = require('../controller/middleware');
@@ -81,5 +82,20 @@ router.post('/sales-receipt',verifyToken,salesReceipt.addReceipt)
 router.get('/get-all-receipt',verifyToken,salesReceipt.getAllSalesReceipt)
 
 router.get('/get-receipt/:PaymentId',verifyToken,salesReceipt.getSalesReceipt)
+
+
+
+//Credit Note
+router.post('/add-creditNote', verifyToken, creditNote.addCreditNote);
+
+router.get('/get-all-creditNote', verifyToken, creditNote.getAllCreditNote);
+
+router.get('/get-one-creditNote/:creditId', verifyToken, creditNote.getOneCreditNote);
+
+router.get('/get-last-creditNote-prefix', verifyToken, creditNote.getLastCreditNotePrefix);
+
+
+
+
 
 module.exports = router

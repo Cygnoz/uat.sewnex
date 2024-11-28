@@ -27,14 +27,14 @@ const itemsSchema = new Schema({
 
 },{ _id: false });
 
-const debitNoteSchema = new mongoose.Schema({
+const creditNoteSchema = new mongoose.Schema({
   organizationId: {type:String},
   customerId: { type: String},
   customerDisplayName: { type: String },
 
   placeOfSupply: { type: String },
 
-  taxMode: { type: String }, // intra/inter/Vat
+  taxtype: { type: String },//Intra, Inter, Non-tax, VAT 
 
   invoiceId: { type: String },
   invoiceNumber: { type: String },
@@ -42,7 +42,7 @@ const debitNoteSchema = new mongoose.Schema({
   invoiceType: { type: String },
   creditNote: { type: String },  //prefix
   orderNumber: { type: String },
-  customerDebitDate: { type: String },
+  customerCreditDate: { type: String },
   paymentMode: { type: String },  // cash/credit
   depositTo: { type: String },
   subject: { type: String }, 
@@ -76,6 +76,6 @@ const debitNoteSchema = new mongoose.Schema({
 
 });
 
-const DebitNote = mongoose.model('DebitNote', debitNoteSchema);
-module.exports = DebitNote;
+const CreditNote = mongoose.model('CreditNote', creditNoteSchema);
+module.exports = CreditNote;
 
