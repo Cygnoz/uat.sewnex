@@ -70,7 +70,7 @@ exports.addExpense = async (req, res) => {
       if (!validateInputs(cleanedData, organizationExists, res)) return;
 
       //Tax Mode
-      taxmode(cleanedData);    
+      taxmode(cleanedData);          
   
       //Date & Time
       const openingDate = generateOpeningDate(organizationExists);
@@ -561,6 +561,7 @@ function removeSpaces(body) {
     } else {
       cleanedData.taxMode = 'None'; 
     }
+    
     return;
   }
 
@@ -584,7 +585,7 @@ function removeSpaces(body) {
     // Utility function to round values to two decimal places
     const roundToTwoDecimals = (value) => Number(value.toFixed(2));
 
-    cleanedData.expense.forEach(data => {      
+    cleanedData.expense.forEach((data, index) => {      
 
       let calculatedCgstAmount = 0;
       let calculatedSgstAmount = 0;
@@ -597,20 +598,24 @@ function removeSpaces(body) {
 
       const gstTreatment = cleanedData.gstTreatment !== "Unregistered Business" || cleanedData.gstTreatment !== "Overseas";
       const taxGroup = data.taxGroup !== "None";
-      const isnotMileage = cleanedData.distance !== "undefined" && cleanedData.ratePerKm !== "undefined";
+      const isnotMileage = (cleanedData.distance > 0 || cleanedData.distance === "undefined") && (cleanedData.ratePerKm > 0 || cleanedData.ratePerKm === "undefined");
+      // const isnotMileage = (cleanedData.distance !== "undefined") && (cleanedData.ratePerKm !== "undefined");
 
 
+      console.log("test:",data);
       // Handle tax calculation only for taxable expense
-      if (gstTreatment && taxGroup && isnotMileage) {
+      if (gstTreatment && taxGroup && !isnotMileage) {
         if (taxMode === 'Intra') {
           calculatedCgstAmount = roundToTwoDecimals((data.cgst / 100) * amount);
           calculatedSgstAmount = roundToTwoDecimals((data.sgst / 100) * amount);
-       } else if (data.taxMode === 'Inter') {
+       } else if (taxMode === 'Inter') {
+        
           calculatedIgstAmount = roundToTwoDecimals((data.igst / 100) * amount);
        } else {
           calculatedVatAmount = roundToTwoDecimals((data.vat / 100) * amount);
        }
 
+       console.log(`Row ${index + 1}:`);
        console.log("calculatedCgstAmount",calculatedCgstAmount);
        console.log("calculatedSgstAmount",calculatedSgstAmount);
        console.log("calculatedIgstAmount",calculatedIgstAmount);
@@ -634,14 +639,14 @@ function removeSpaces(body) {
       } else {
         console.log('Skipping Tax for Non-Taxable expense');
 
-        amount = distance * ratePerKm;
+        amount = roundToTwoDecimals(distance * ratePerKm);
         checkAmount(distance, cleanedData.distance, 'Distance',errors);
         checkAmount(ratePerKm, cleanedData.ratePerKm, 'Rate Per Km',errors);
 
         console.log("distance",distance);
         console.log("ratePerKm",ratePerKm);
 
-      }
+      } 
     });
 
     console.log(`subTotal: ${subTotal} , Provided ${cleanedData.subTotal}`);
