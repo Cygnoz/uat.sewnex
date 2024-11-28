@@ -21,16 +21,6 @@ const dataExist = async (organizationId, supplierId) => {
   };
 
 
-  // const expenseDataExist = async ( organizationId, expenseId ) => {    
-  //   const [organizationExists, allExpense, expense ] = await Promise.all([
-  //     Organization.findOne({ organizationId }, { organizationId: 1}),
-  //     Expense.find({ organizationId }),
-  //     Expense.findOne({ organizationId , _id: expenseId })
-  //   ]);
-  //   return { organizationExists, allExpense, expense };
-  // };
-
-
 
 // Expense
 //add expense
@@ -54,7 +44,7 @@ exports.addExpense = async (req, res) => {
       const { organizationExists, accountExist, supplierExist } = await dataExist(organizationId, supplierId);
 
       // Extract all account IDs from accountExist
-      // const accountIds = accountExist.map(account => account._id.toString());
+      const accountIds = accountExist.map(account => account._id.toString());
       // console.log(accountIds)
       // Check if each expense's expenseAccountId exists in allAccounts
       if(!accountIds.includes(cleanedData))
@@ -70,7 +60,7 @@ exports.addExpense = async (req, res) => {
       if (!validateInputs(cleanedData, organizationExists, res)) return;
 
       //Tax Mode
-      taxmode(cleanedData);    
+      taxmode(cleanedData);
   
       //Date & Time
       const openingDate = generateOpeningDate(organizationExists);
@@ -83,6 +73,8 @@ exports.addExpense = async (req, res) => {
       // console.log("savedExpense:",savedExpense)
       const savedTrialBalance= await createTrialBalance(savedExpense);
       // console.log("savedTrialBalance:",savedTrialBalance)
+
+      savedExpense.organizationId = undefined;
 
       res.status(201).json({ message: "Expense created successfully." });
   } catch (error) {
@@ -109,6 +101,7 @@ exports.getAllExpense = async (req, res) => {
           message: "No expense found",
         });
       }
+
       const AllExpense = expenseExists.map((history) => {
         const { organizationId, ...rest } = history.toObject(); // Convert to plain object and omit organizationId
         return rest;
@@ -597,15 +590,15 @@ function removeSpaces(body) {
 
       const gstTreatment = cleanedData.gstTreatment !== "Unregistered Business" || cleanedData.gstTreatment !== "Overseas";
       const taxGroup = data.taxGroup !== "None";
-      const isnotMileage = cleanedData.distance !== "undefined" && cleanedData.ratePerKm !== "undefined";
+      const isnotMileage = (cleanedData.distance > 0 || cleanedData.distance === "undefined") && (cleanedData.ratePerKm > 0 || cleanedData.ratePerKm === "undefined");
 
 
       // Handle tax calculation only for taxable expense
-      if (gstTreatment && taxGroup && isnotMileage) {
+      if (gstTreatment && taxGroup && !isnotMileage) {
         if (taxMode === 'Intra') {
           calculatedCgstAmount = roundToTwoDecimals((data.cgst / 100) * amount);
           calculatedSgstAmount = roundToTwoDecimals((data.sgst / 100) * amount);
-       } else if (data.taxMode === 'Inter') {
+       } else if (taxMode === 'Inter') {
           calculatedIgstAmount = roundToTwoDecimals((data.igst / 100) * amount);
        } else {
           calculatedVatAmount = roundToTwoDecimals((data.vat / 100) * amount);
@@ -637,16 +630,21 @@ function removeSpaces(body) {
         amount = distance * ratePerKm;
         checkAmount(distance, cleanedData.distance, 'Distance',errors);
         checkAmount(ratePerKm, cleanedData.ratePerKm, 'Rate Per Km',errors);
+        checkAmount(amount, data.amount, 'Amount',errors);
 
         console.log("distance",distance);
         console.log("ratePerKm",ratePerKm);
-
+        console.log("amount",amount);
       }
     });
 
-    console.log(`subTotal: ${subTotal} , Provided ${cleanedData.subTotal}`);
+    if (cleanedData.amountIs === "Tax Exclusive") {
+      grandTotal = (subTotal + cgst + sgst + igst + vat);
+    } else {
+      grandTotal = subTotal;
+    }
 
-    grandTotal = (subTotal + cgst + sgst + igst + vat);
+    console.log(`subTotal: ${subTotal} , Provided ${cleanedData.subTotal}`);
     console.log(`Grand Total: ${grandTotal} , Provided ${cleanedData.grandTotal}`);
   
     // Round the totals for comparison
@@ -785,6 +783,7 @@ function removeSpaces(body) {
     return errors;
   }
 
+  
 
   // Field validation utility
   function validateField(condition, errorMsg, errors) {
