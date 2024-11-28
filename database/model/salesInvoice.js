@@ -41,6 +41,8 @@ const SalesInvoiceSchema = new Schema ({
   salesInvoice: { type: String }, //prefix
   //salesPersonId: { type: String }, //next phase
   //salesPersonName: { type: String }, //next phase
+
+  salesOrderNumber: { type: String },
   
   //new
   paymentTerms: { type: String },
