@@ -17,7 +17,7 @@ const dataExist = async ( organizationId, supplierId, billId ) => {
     const [organizationExists, supplierExist, billExist, settings, existingPrefix  ] = await Promise.all([
       Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
       Supplier.findOne({ organizationId , _id:supplierId}, { _id: 1, supplierDisplayName: 1, taxType: 1 }),
-      Bills.findOne({ organizationId, _id:billId }, { _id: 1, billNumber: 1, billDate: 1, orderNumber: 1, supplierId: 1, sourceOfSupply: 1, destinationOfSupply: 1, itemTable: 1 }),
+      Bills.findOne({ organizationId, _id:billId }, { _id: 1, billNumber: 1, billDate: 1, orderNumber: 1, supplierId: 1, sourceOfSupply: 1, destinationOfSupply: 1, items: 1 }),
       Settings.findOne({ organizationId }),
       Prefix.findOne({ organizationId })
     ]);    
@@ -139,6 +139,8 @@ exports.addDebitNote = async (req, res) => {
 
     //Item Track
     await itemTrack( savedDebitNote, itemTable );
+
+    savedDebitNote.organizationId = undefined;
       
     res.status(201).json({ message: "Debit Note created successfully",savedDebitNote });
     // console.log( "Debit Note created successfully:", savedDebitNote );
@@ -169,7 +171,13 @@ exports.getAllDebitNote = async (req, res) => {
       });
     }
 
-    res.status(200).json(allDebitNote);
+    // Map over all categories to remove the organizationId from each object
+    const AllDebitNote = allDebitNote.map((history) => {
+      const { organizationId, ...rest } = history.toObject(); // Convert to plain object and omit organizationId
+      return rest;
+  });
+
+    res.status(200).json({allDebitNote: AllDebitNote});
   } catch (error) {
     console.error("Error fetching Debit Note:", error);
     res.status(500).json({ message: "Internal server error." });
@@ -222,6 +230,8 @@ try {
     items: updatedItems,
   };
 
+  updatedDebitNote.organizationId = undefined;
+
   res.status(200).json(updatedDebitNote);
 } catch (error) {
   console.error("Error fetching Debit Note:", error);
@@ -246,6 +256,8 @@ exports.getLastDebitNotePrefix = async (req, res) => {
       
       const series = prefix.series[0];     
       const lastPrefix = series.debitNote + series.debitNoteNum;
+
+      lastPrefix.organizationId = undefined;
 
       res.status(200).json(lastPrefix);
   } catch (error) {
@@ -677,7 +689,7 @@ function validateBillData(data, items, billExist, errors) {
   // console.log("items:", items);
 
    // Initialize `billExist.items` to an empty array if undefined
-   billExist.items = Array.isArray(billExist.itemTable) ? billExist.itemTable : [];
+   billExist.items = Array.isArray(billExist.items) ? billExist.items : [];
 
   // Validate basic fields
   validateField( billExist.billDate !== data.billDate, `Bill Date mismatch for ${billExist.billDate}`, errors  );

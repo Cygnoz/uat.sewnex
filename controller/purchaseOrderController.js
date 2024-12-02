@@ -130,7 +130,7 @@ exports.addPurchaseOrder = async (req, res) => {
         return rest;
       });
       
-      res.status(200).json(sanitizedPurchaseOrders);
+      res.status(200).json({allPurchaseOrder: sanitizedPurchaseOrders});
       } catch (error) {
       console.error("Error fetching purchase order:", error);
       res.status(500).json({ message: "Internal server error." });
@@ -209,6 +209,8 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
         
         const series = prefix.series[0];     
         const lastPrefix = series.purchaseOrder + series.purchaseOrderNum;
+
+        lastPrefix.organizationId = undefined;
   
         res.status(200).json(lastPrefix);
     } catch (error) {

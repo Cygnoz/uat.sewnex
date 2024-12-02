@@ -70,7 +70,7 @@ const billsDataExist = async ( organizationId, billId ) => {
 
 // Add Bills
 exports.addBills = async (req, res) => {
-    // console.log("Add bills:", req.body);
+    console.log("Add bills:", req.body);
   
     try {
       const { organizationId, id: userId, userName } = req.user;
@@ -132,6 +132,8 @@ exports.addBills = async (req, res) => {
   
       //Item Track
       await itemTrack( savedBills, itemTable );
+
+      savedBills.organizationId = undefined;
         
       res.status(201).json({ message: "Bills created successfully", savedBills });
       // console.log( "Bills created successfully:", savedBills );
@@ -190,8 +192,14 @@ exports.addBills = async (req, res) => {
         // Push the bill object with the updated status to the result array
         updatedBills.push({ ...rest, balanceAmount , dueDate , paidStatus: newStatus });
         }
+
+        // Map over all purchaseOrder to remove the organizationId from each object
+        const sanitizedBills = updatedBills.map(order => {
+          const { organizationId, ...rest } = order; 
+          return rest;
+        });
   
-      res.status(200).json({allBills: updatedBills});
+      res.status(200).json({allBills: sanitizedBills});
     } catch (error) {
       console.error("Error fetching bills:", error);
       res.status(500).json({ message: "Internal server error." });
@@ -244,6 +252,8 @@ exports.addBills = async (req, res) => {
       ...bill.toObject(),
       items: updatedItems,
     };
+
+    updatedBill.organizationId = undefined;
 
     res.status(200).json(updatedBill);
   } catch (error) {
@@ -364,7 +374,7 @@ exports.addBills = async (req, res) => {
         switch (taxMode) {
           
           case 'Intra':
-            calculatedItemCgstAmount = roundToTwoDecimals((item.itemCgst / 100) * itemAmount);
+            calculatedItemCgstAmount = F((item.itemCgst / 100) * itemAmount);
             calculatedItemSgstAmount = roundToTwoDecimals((item.itemSgst / 100) * itemAmount);
           break;
   
@@ -387,7 +397,7 @@ exports.addBills = async (req, res) => {
         checkAmount(calculatedItemVatAmount, item.itemVatAmount, item.itemName, 'VAT',errors);
         checkAmount(calculatedItemTaxAmount, item.itemTax, item.itemName, 'Item tax',errors);
   
-        totalTaxAmount += calculatedItemTaxAmount;     
+        totalTaxAmount += calculatedItemTaxAmount;
   
       } else {
         console.log(`Skipping Tax for Non-Taxable item: ${item.itemName}`);
@@ -783,7 +793,7 @@ function validateSourceOfSupply(sourceOfSupply, organization, errors) {
       }
     });
   }
-  
+
   
   
   
