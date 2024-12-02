@@ -884,9 +884,9 @@ async function itemTrack(savedDebitNote, itemTable) {
     });
 
     // Save the tracking entry and update the item's stock in the item table
-    // await newTrialEntry.save();
+    await newTrialEntry.save();
 
-    console.log("1",newTrialEntry);
+    // console.log("1",newTrialEntry);
   }
 }
 

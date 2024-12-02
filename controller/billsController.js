@@ -12,14 +12,15 @@ const mongoose = require('mongoose');
 
 
 // Fetch existing data
-const dataExist = async ( organizationId, supplierId ) => {
-    const [organizationExists, supplierExist,  taxExists, settings] = await Promise.all([
+const dataExist = async ( organizationId, supplierId, purchaseOrderId ) => {
+    const [organizationExists, supplierExist, purchaseOrderExist, taxExists, settings] = await Promise.all([
       Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
       Supplier.findOne({ organizationId , _id:supplierId}, { _id: 1, supplierDisplayName: 1, taxType: 1 }),
+      PurchaseOrder.findOne({organizationId , _id:purchaseOrderId}),
       Tax.findOne({ organizationId }),
       Settings.findOne({ organizationId })
     ]);    
-  return { organizationExists, supplierExist, taxExists, settings };
+  return { organizationExists, supplierExist, purchaseOrderExist, taxExists, settings };
 };
 
 
@@ -78,7 +79,7 @@ exports.addBills = async (req, res) => {
       //Clean Data
       const cleanedData = cleanBillsData(req.body);
   
-      const { items } = cleanedData;
+      const { items, purchaseOrderId } = cleanedData;
       const { supplierId } = cleanedData;
     //   const { orderNumber } = cleanedData;
       
@@ -95,10 +96,12 @@ exports.addBills = async (req, res) => {
         return res.status(400).json({ message: `Invalid supplier ID: ${supplierId}` });
       }
   
-    //   //Validate purchase oredr
-    //   if (!mongoose.Types.ObjectId.isValid(orderId) || orderId.length !== 24) {
-    //     return res.status(400).json({ message: `Invalid bill ID: ${orderId}` });
-    //   }
+      // Validate purchase order only if `purchaseOrderId` exists
+      if (purchaseOrderId) {
+        if (!mongoose.Types.ObjectId.isValid(purchaseOrderId) || purchaseOrderId.length !== 24) {
+            return res.status(400).json({ message: `Invalid Purchase Order ID: ${purchaseOrderId}` });
+        }
+      }
   
       // Validate ItemIds
       const invalidItemIds = itemIds.filter(itemId => !mongoose.Types.ObjectId.isValid(itemId) || itemId.length !== 24);
@@ -106,7 +109,7 @@ exports.addBills = async (req, res) => {
         return res.status(400).json({ message: `Invalid item IDs: ${invalidItemIds.join(', ')}` });
       }   
   
-      const { organizationExists, supplierExist, taxExists, settings } = await dataExist( organizationId, supplierId );
+      const { organizationExists, supplierExist, purchaseOrderExist, taxExists, settings } = await dataExist( organizationId, supplierId, purchaseOrderId );
   
       const { itemTable } = await newDataExists( organizationId, items );
   
@@ -114,7 +117,7 @@ exports.addBills = async (req, res) => {
       if (!validateOrganizationSupplierOrder( organizationExists, supplierExist,  res )) return;
   
       //Validate Inputs  
-      if (!validateInputs( cleanedData, supplierExist, items, itemTable, organizationExists, res)) return;
+      if (!validateInputs( cleanedData, supplierExist, purchaseOrderExist, items, itemTable, organizationExists, res)) return;
 
       //Check Bill Exist
       if (await checkExistingBill(cleanedData.billNumber, organizationId, res)) return;
@@ -133,7 +136,13 @@ exports.addBills = async (req, res) => {
       //Item Track
       await itemTrack( savedBills, itemTable );
 
-      savedBills.organizationId = undefined;
+      // Delete the associated purchase order if purchaseOrderId is provided
+      if (purchaseOrderId) {
+        await deletePurchaseOrder(purchaseOrderId, organizationId, res);
+      }
+
+      // savedBills.organizationId = undefined;
+      Object.assign(savedBills, { organizationId: undefined, purchaseOrderId: undefined });
         
       res.status(201).json({ message: "Bills created successfully", savedBills });
       // console.log( "Bills created successfully:", savedBills );
@@ -263,6 +272,23 @@ exports.addBills = async (req, res) => {
   };
 
 
+  // Delete Purchase Order
+  async function deletePurchaseOrder(purchaseOrderId, organizationId, res) {
+    try {
+      const deletedOrder = await PurchaseOrder.findOneAndDelete({ _id: purchaseOrderId, organizationId });
+      if (!deletedOrder) {
+        console.warn(`Purchase Order with ID: ${purchaseOrderId} not found for Organization: ${organizationId}`);
+      }
+      return deletedOrder;      
+    } catch (error) {
+      console.error(`Error deleting Purchase Order: ${error}`);
+      res.status(500).json({ message: "Error deleting the Purchase Order." });
+      return null;
+    }
+  }
+
+
+
 
 
 
@@ -306,7 +332,6 @@ exports.addBills = async (req, res) => {
       res.status(404).json({ message: "Supplier not found." });
       return false;
     }
-   
     return true;
   }
   
@@ -374,7 +399,7 @@ exports.addBills = async (req, res) => {
         switch (taxMode) {
           
           case 'Intra':
-            calculatedItemCgstAmount = F((item.itemCgst / 100) * itemAmount);
+            calculatedItemCgstAmount = ((item.itemCgst / 100) * itemAmount);
             calculatedItemSgstAmount = roundToTwoDecimals((item.itemSgst / 100) * itemAmount);
           break;
   
@@ -561,18 +586,19 @@ function generateOpeningDate(organizationExists) {
 
 
   //Validate inputs
-function validateInputs( data, supplierExist, items, itemExists, organizationExists, res) {
-    const validationErrors = validateBillsData(data, supplierExist, items, itemExists, organizationExists);  
+function validateInputs( data, supplierExist, purchaseOrderExist, items, itemExists, organizationExists, res) {
+    const validationErrors = validateBillsData(data, supplierExist, purchaseOrderExist, items, itemExists, organizationExists);  
   
     if (validationErrors.length > 0) {
-      res.status(400).json({ message: validationErrors.join(", ") });
+      res.status(400).json({ message: validationErrors.join(", ") })
+      ;
       return false;
     }
     return true;
   }
   
   //Validate Data
-  function validateBillsData( data, supplierExist, items, itemTable, organizationExists ) {
+  function validateBillsData( data, supplierExist, purchaseOrderExist, items, itemTable, organizationExists ) {
     const errors = [];
   
     // console.log("Item Request :",items);
@@ -581,7 +607,10 @@ function validateInputs( data, supplierExist, items, itemExists, organizationExi
     //Basic Info
     validateReqFields( data, supplierExist, errors );
     validateItemTable(items, itemTable, errors);
-    // validatePurchaseOrderData(data, items, purchaseOrderExist, errors);
+    // Activate `validatePurchaseOrderData` only when `purchaseOrderId` is present
+    if (data.purchaseOrderId) {
+      validatePurchaseOrderData(data, purchaseOrderExist, items, errors);
+    }
     validateShipmentPreferences(data.shipmentPreference, errors)
     validateTransactionDiscountType(data.transactionDiscountType, errors);
     // console.log("billExist Data:", billExist.billNumber, billExist.billDate, billExist.orderNumber)
@@ -669,48 +698,44 @@ function validateInputs( data, supplierExist, items, itemExists, organizationExi
   }
   
   
-//   // valiadate purchase order data
-//   function validatePurchaseOrderData(data, items, purchaseOrderExist, errors) {  
-//     // console.log("data:", data);
-//     // console.log("purchaseOrderExist:", purchaseOrderExist);
-//     // console.log("items:", items);
+  // valiadate purchase order data
+  function validatePurchaseOrderData(data, purchaseOrderExist, items, errors) {  
+    // console.log("data:", data);
+    // console.log("purchaseOrderExist:", purchaseOrderExist);
+    // console.log("items:", items);
   
-//      // Initialize `billExist.items` to an empty array if undefined
-//      purchaseOrderExist.items = Array.isArray(purchaseOrderExist.itemTable) ? purchaseOrderExist.itemTable : [];
+     // Initialize `billExist.items` to an empty array if undefined
+     purchaseOrderExist.items = Array.isArray(purchaseOrderExist.items) ? purchaseOrderExist.items : [];
   
-//     // Validate basic fields
-//     validateField( purchaseOrderExist.billDate !== data.billDate, `Bill Date mismatch for ${purchaseOrderExist.billDate}`, errors  );
-//     validateField( purchaseOrderExist.orderNumber !== data.orderNumber, `Order Number mismatch for ${purchaseOrderExist.orderNumber}`, errors  );
+    // Validate basic fields
+    validateField( purchaseOrderExist.purchaseOrder !== data.orderNumber, `Order Number mismatch for ${purchaseOrderExist.purchaseOrder}`, errors  );
   
-//     // Loop through each item in billExist.items
-//     purchaseOrderExist.items.forEach(orderItem => {
-//       const dNItem = items.find(dataItem => dataItem.itemId === orderItem.itemId);
+    // Loop through each item in billExist.items
+    purchaseOrderExist.items.forEach(orderItem => {
+      const bItem = items.find(dataItem => dataItem.itemId === orderItem.itemId);
   
-//       if (!dNItem) {
-//         errors.push(`Item ID ${orderItem.itemId} not found in provided items`);
-//       } else {
+      if (!bItem) {
+        errors.push(`Item ID ${orderItem.itemId} not found in provided items`);
+      } else {
         
-//         validateField(dNItem.itemName !== orderItem.itemName, 
-//                       `Item Name mismatch for ${orderItem.itemId}: Expected ${orderItem.itemName}, got ${dNItem.itemName}`, 
-//                       errors);
-//         validateField(dNItem.itemCostPrice !== orderItem.itemCostPrice, 
-//                       `Item Cost Price mismatch for ${orderItem.itemId}: Expected ${orderItem.itemCostPrice}, got ${dNItem.itemCostPrice}`, 
-//                       errors);
-//         validateField(dNItem.itemCgst !== orderItem.itemCgst, 
-//                       `Item CGST mismatch for ${orderItem.itemId}: Expected ${orderItem.itemCgst}, got ${dNItem.itemCgst}`, 
-//                       errors);
-//         validateField(dNItem.itemSgst !== orderItem.itemSgst, 
-//                       `Item SGST mismatch for ${orderItem.itemId}: Expected ${orderItem.itemSgst}, got ${dNItem.itemSgst}`, 
-//                       errors);
-//         validateField(dNItem.itemIgst !== orderItem.itemIgst, 
-//                       `Item IGST mismatch for ${orderItem.itemId}: Expected ${orderItem.itemIgst}, got ${dNItem.itemIgst}`, 
-//                       errors);
-//         // validateField(dNItem.itemDiscount !== orderItem.itemDiscount, 
-//         //               `Item Discount mismatch for ${orderItem.itemId}: Expected ${orderItem.itemDiscount}, got ${dNItem.itemDiscount}`, 
-//         //               errors);
-//       }
-//     });
-//   }
+        validateField(bItem.itemName !== orderItem.itemName, 
+                      `Item Name mismatch for ${orderItem.itemId}: Expected ${orderItem.itemName}, got ${bItem.itemName}`, 
+                      errors);
+        validateField(bItem.itemCostPrice !== orderItem.itemCostPrice, 
+                      `Item Cost Price mismatch for ${orderItem.itemId}: Expected ${orderItem.itemCostPrice}, got ${bItem.itemCostPrice}`, 
+                      errors);
+        validateField(bItem.itemCgst !== orderItem.itemCgst, 
+                      `Item CGST mismatch for ${orderItem.itemId}: Expected ${orderItem.itemCgst}, got ${bItem.itemCgst}`, 
+                      errors);
+        validateField(bItem.itemSgst !== orderItem.itemSgst, 
+                      `Item SGST mismatch for ${orderItem.itemId}: Expected ${orderItem.itemSgst}, got ${bItem.itemSgst}`, 
+                      errors);
+        validateField(bItem.itemIgst !== orderItem.itemIgst, 
+                      `Item IGST mismatch for ${orderItem.itemId}: Expected ${orderItem.itemIgst}, got ${bItem.itemIgst}`, 
+                      errors);
+      }
+    });
+  }
 
 
 
@@ -864,9 +889,9 @@ function validateSourceOfSupply(sourceOfSupply, organization, errors) {
       });
   
       // Save the tracking entry and update the item's stock in the item table
-      // await newTrialEntry.save();
+      await newTrialEntry.save();
   
-      console.log("1",newTrialEntry);
+      // console.log("1",newTrialEntry);
     }
   }
   
