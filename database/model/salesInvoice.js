@@ -92,6 +92,8 @@ const SalesInvoiceSchema = new Schema ({
 
   paidStatus: { type: String },
 
+  salesOrderId: { type: String },
+
   createdDate: { type: String },
   userId: { type: String },
   userName: { type: String },
