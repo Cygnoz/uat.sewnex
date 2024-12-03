@@ -101,7 +101,7 @@ exports.addCustomer = async (req, res) => {
       if (errors.length) {
       return res.status(409).json({ message: errors }); }
 
-      const savedCustomer = await createNewCustomer(cleanedData, openingDate, organizationId);
+      const savedCustomer = await createNewCustomer(cleanedData, organizationId);
       
       const savedAccount = await createNewAccount(customerDisplayName, openingDate, organizationId, allCustomer , savedCustomer );
   
@@ -230,6 +230,17 @@ exports.getAllCustomer = async (req, res) => {
         message: "No Customer found",
       });
     }
+
+  
+    allCustomer.forEach(customer => {
+      if (customer.createdDateTime ) {   
+        let dateTime = moment(customer.createdDateTime).tz(organizationExists.timeZoneExp);
+        customer.createdDate = dateTime.format(organizationExists.dateFormatExp); 
+        customer.createdDate = customer.createdDate.replace(/\//g, organizationExists.dateSplit); 
+        customer.createdTime = dateTime.format('hh:mm:ss A');  
+      }
+    });
+    
 
     res.status(200).json(allCustomer);
   } catch (error) {
@@ -622,8 +633,8 @@ async function checkDuplicateCustomerFieldsEdit(duplicateCheck,customerDisplayNa
   }
 
 // Create New Customer
-  function createNewCustomer(data, openingDate,organizationId) {
-    const newCustomer = new Customer({ ...data, organizationId, status: "Active", createdDate: openingDate, lastModifiedDate: openingDate });
+  function createNewCustomer(data,organizationId) {
+    const newCustomer = new Customer({ ...data, organizationId, status: "Active" });
     return newCustomer.save();
   }
   

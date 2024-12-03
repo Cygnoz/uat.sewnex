@@ -94,7 +94,9 @@ const customerSchema = new Schema({
     status : {type:String},
 
     //Create info
-    createdDate: {type:String},
+    createdDateTime: { type: Date, default: () => new Date() },
+    createdDate: { type: String, default: undefined }, 
+    createdTime: { type: String, default: undefined }, 
 
     //lastModifiedDate
     lastModifiedDate:{type:String},
