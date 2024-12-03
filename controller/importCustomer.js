@@ -86,6 +86,9 @@ exports.importCustomer = async (req, res) => {
 
     const upload = multer({ 
       storage: storage,
+      limits: { fileSize: 10 * 1024 * 1024 },  // 10MB limit
+      files: 1,                          // Limit to a single file per request
+      fieldSize: 10 * 1024 * 1024,       // Limit each field to 10 MB, if needed
       fileFilter: fileFilter 
     });
 
@@ -222,17 +225,9 @@ exports.importCustomer = async (req, res) => {
               return /^[A-Za-z0-9]+$/.test(value);
               }
         
-            // function isValidUrl(value) {
-            //   try {
-            //       new URL(value);
-            //       return true;
-            //   } catch {
-            //       return false;
-            //   }
-            //   }
             function isValidEmail(value) {
-              return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-              }
+              return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/i.test(value);
+            }
             
             let userData = [];
             let insertedCustomers = [];

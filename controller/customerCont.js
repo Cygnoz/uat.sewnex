@@ -655,7 +655,7 @@ async function checkDuplicateCustomerFieldsEdit(duplicateCheck,customerDisplayNa
   function validateInputs(data, currencyExists, taxExists, organizationExists, res) {
     const validCurrencies = currencyExists.map((currency) => currency.currencyCode);
     const validTaxTypes = ["Non-Tax", taxExists.taxType];
-    const validationErrors = validateCustomerData(data, validCurrencies, validTaxTypes, organizationExists);
+    const validationErrors = validateCustomerData(data, validCurrencies, validTaxTypes, organizationExists,taxExists.taxType);
   
     if (validationErrors.length > 0) {
       res.status(400).json({ message: validationErrors.join(", ") });
@@ -924,11 +924,11 @@ async function updateOpeningBalance(existingTrialBalance, cleanData) {
 
 
 //Validate Data
-  function validateCustomerData(data, validCurrencies, validTaxTypes, organization) {
+  function validateCustomerData(data, validCurrencies, validTaxTypes, organization,taxType) {
     const errors = [];
 
     //Basic Info
-    validateReqFields( data,  errors);
+    validateReqFields( data, taxType, errors);
     validInterestPercentage ( data.interestPercentage,  errors);
     validateCustomerType(data.customerType, errors);
     validateSalutation(data.salutation, errors);
@@ -964,8 +964,10 @@ function validateField(condition, errorMsg, errors) {
     if (condition) errors.push(errorMsg);
 }
 //Valid Req Fields
-function validateReqFields( data, errors ) {
+function validateReqFields( data, taxType, errors ) {
   validateField( typeof data.customerDisplayName === 'undefined', `Customer Display Name required`, errors );  
+  validateField( typeof taxType === 'undefined' || taxType === '' , `Please setup tax`, errors );  
+  
 }
 //Valid Opening Balance
 function validateOpeningBalance( data, errors ) {
@@ -1186,7 +1188,7 @@ function isAlphanumeric(value) {
 }
 
 function isValidEmail(value) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/i.test(value);
 }
 function isValidURL(value) {
   return /^(https?:\/\/)?([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(\/[^\s]*)?$/.test(value);
