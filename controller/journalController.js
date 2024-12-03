@@ -100,6 +100,8 @@ exports.addJournalEntry = async (req, res) => {
         // Save the updated prefix collection
         await existingPrefix.save();
 
+        cleanedData.journalId =journalId;
+
         // Create a new journal entry
         const newJournalEntry = new Journal({
             organizationId: organizationId,

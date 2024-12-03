@@ -163,7 +163,7 @@ exports.getAllAccount = async (req, res) => {
 
         // Find all accounts where organizationId matches
         const accounts = await Account.find(
-          { organizationId: organizationId },{ bankAccNum: 0 } 
+          { organizationId: organizationId },{ bankAccNum: 0 , organizationId : 0 } 
       );
 
     if (!accounts.length) {
@@ -187,11 +187,17 @@ exports.getOneAccount = async (req, res) => {
     const organizationId = req.user.organizationId;
 
 
-    // Find the account by accountId and organizationId
+    // // Find the account by accountId and organizationId
+    // const account = await Account.findOne({
+    //   _id: accountId,
+    //   organizationId: organizationId,
+    // });
+
+      // Find the account by accountId and organizationId
     const account = await Account.findOne({
       _id: accountId,
-      organizationId: organizationId,
-    });
+      organizationId: organizationId},{organizationId : 0}
+    );
 
     if (!account) {
       return res.status(404).json({
