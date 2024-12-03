@@ -10,8 +10,8 @@ const itemsSchema = new Schema({
 
   itemTax: { type: Number },
 
-  itemDiscountType: { type: String }, //percentage/currency
-  itemDiscount: { type: Number },
+  // itemDiscountType: { type: String }, //percentage/currency
+  // itemDiscount: { type: Number },
 
   itemAmount: { type: Number },
 
@@ -43,6 +43,8 @@ const debitNoteSchema = new mongoose.Schema({
   debitNote: { type: String },  //prefix
   orderNumber: { type: String },
   supplierDebitDate: { type: String },
+  paymentMode: { type: String },  // cash/credit
+  depositTo: { type: String },
   subject: { type: String }, 
 
   // Item table
@@ -51,6 +53,7 @@ const debitNoteSchema = new mongoose.Schema({
   // Other details:
   addNotes: { type: String },
   attachFiles: { type: String }, 
+  termsAndConditions: { type: String }, 
 
   //transaction details
   subTotal: { type: Number },
@@ -62,14 +65,14 @@ const debitNoteSchema = new mongoose.Schema({
   vat: { type: Number },
 
   totalTaxAmount: { type: Number },   // sgst + cgst
-  itemTotalDiscount: { type: Number },
+  // itemTotalDiscount: { type: Number },
 
-  transactionDiscountType: { type: String }, //percentage/currency
-  transactionDiscount: { type: Number },
-  transactionDiscountAmount: { type: Number },  // if percentage
+  // transactionDiscountType: { type: String }, //percentage/currency
+  // transactionDiscount: { type: Number },
+  // transactionDiscountAmount: { type: Number },  // if percentage
   grandTotal: { type: Number },
-  status: { type: String }, // Open/Closed
   createdDate: { type: String },
+  // status: { type: String }, // Open/Closed
 
 });
 

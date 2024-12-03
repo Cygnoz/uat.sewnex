@@ -1,14 +1,18 @@
 const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
-const itemTableSchema = new Schema({
+const itemsSchema = new Schema({
   itemId: { type: String },
   itemName: { type: String },
+
   itemQuantity: { type: Number },
   itemCostPrice: { type: Number },
+
   itemTax:{ type:Number },
+
   itemDiscount: { type: Number },
   itemDiscountType: { type: String }, //percentage/currency
+
   itemAmount: { type: Number },
 
   itemSgst: { type: Number },
@@ -35,14 +39,14 @@ const PurchaseBillSchema = new Schema({
   //deliveryAddress: { type: String},  // customer/organization
   // customerId: { type: String},
 
-  billNumber: { type: String },//prefix
+  billNumber: { type: String }, //type
 
   sourceOfSupply: { type: String },
   destinationOfSupply: { type: String },
 
   taxMode: { type: String },  // 'intra' or 'inter'
 
-  orderNumber: { type: String },//prefix
+  orderNumber: { type: String },  //purchaseOrder(prefix)
   reference: { type: String },
   puchaseOrderDate: { type: String },
   expectedShipmentDate: { type: String },
@@ -55,7 +59,7 @@ const PurchaseBillSchema = new Schema({
   dueDate: { type: String },  
   
   
-  itemTable: [itemTableSchema],
+  items: [itemsSchema],
 
   otherExpense: { type: Number },
   otherExpenseReason: { type: String },
