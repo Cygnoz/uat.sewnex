@@ -49,7 +49,7 @@ const SalesInvoiceSchema = new Schema ({
   deliveryMethod: { type: String },
   expectedShipmentDate: { type: String },
 
-  salesInvoiceDate: { type: String },  
+  salesInvoiceDate: { type: String },
   dueDate: { type: String },
 
   // subject: { type: String },
@@ -90,6 +90,8 @@ const SalesInvoiceSchema = new Schema ({
   depositAccountId: { type: String },
 
   paidStatus: { type: String },
+
+  salesOrderId: { type: String },
 
   createdDate: { type: String },
   userId: { type: String },

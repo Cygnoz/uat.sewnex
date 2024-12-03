@@ -9,7 +9,7 @@ const Invoice = require("../database/model/salesInvoice")
 const ItemTrack = require("../database/model/itemTrack")
 const Prefix = require("../database/model/prefix");
 const mongoose = require('mongoose');
-
+const SalesOrder = require("../database/model/salesOrder");
 const DefAcc  = require("../database/model/defaultAccount");
 const TrialBalance = require("../database/model/trialBalance");
 const Account = require("../database/model/account");
@@ -107,7 +107,7 @@ exports.addInvoice = async (req, res) => {
       //Clean Data
       const cleanedData = cleanCustomerData(req.body);
 
-      const { items } = cleanedData;
+      const { items, salesOrderId } = cleanedData;
       const { customerId, customerName, otherExpenseAccountId, freightAccountId, depositAccountId } = cleanedData;
       const itemIds = items.map(item => item.itemId);
 
@@ -123,9 +123,9 @@ exports.addInvoice = async (req, res) => {
         return res.status(400).json({ message: `Select a customer` });
       }      
 
-      if ((!mongoose.Types.ObjectId.isValid(otherExpenseAccountId) || otherExpenseAccountId.length !== 24) && cleanedData.otherExpenseAmount !== undefined ) {
-        return res.status(400).json({ message: `Select other expense account` });
-      }
+      // if ((!mongoose.Types.ObjectId.isValid(otherExpenseAccountId) || otherExpenseAccountId.length !== 24) && cleanedData.otherExpenseAmount !== undefined ) {
+      //   return res.status(400).json({ message: `Select other expense account` });
+      // }
 
       if ((!mongoose.Types.ObjectId.isValid(freightAccountId) || freightAccountId.length !== 24) && cleanedData.freightAmount !== undefined ) {
         return res.status(400).json({ message: `Select freight account` });
@@ -170,6 +170,9 @@ exports.addInvoice = async (req, res) => {
       //Prefix
       await salesPrefix(cleanedData, existingPrefix );
       
+      if(cleanedData._id){
+        cleanedData._id = undefined;
+      }
       const savedInvoice = await createNewInvoice(cleanedData, openingDate, organizationId, userId, userName );
 
       //Jornal
@@ -177,6 +180,11 @@ exports.addInvoice = async (req, res) => {
 
       //Item Track
       await itemTrack( savedInvoice, itemTable );
+
+      // Delete the associated sale order if salesOrderId is provided
+      if (salesOrderId) {
+        await deleteSaleOrder(salesOrderId, organizationId, res);
+      }
 
         
       res.status(201).json({ message: "Sale Invoice created successfully" });
@@ -323,6 +331,23 @@ try {
   res.status(500).json({ message: "Internal server error." });
 }
 };
+
+
+
+// Delete Sales Order
+async function deleteSaleOrder(salesOrderId, organizationId, res) {
+  try {
+    const deletedOrder = await SalesOrder.findOneAndDelete({ _id: salesOrderId, organizationId });
+    if (!deletedOrder) {
+      console.warn(`Sale Order with ID: ${salesOrderId} not found for Organization: ${organizationId}`);
+    }
+    return deletedOrder;      
+  } catch (error) {
+    console.error(`Error deleting Sale Order: ${error}`);
+    res.status(500).json({ message: "Error deleting the Sale Order." });
+    return null;
+  }
+}
 
 
 
