@@ -48,6 +48,7 @@ exports.getCustomerTransactions = async (req, res) => {
 
 
 
+
 // Fetch existing data
 const dataExist = async (organizationId) => {
     const [organizationExists, taxExists, currencyExists, settings, allCustomer ] = await Promise.all([
@@ -240,6 +241,45 @@ exports.getAllCustomer = async (req, res) => {
     res.status(500).json({ message: "Internal server error." });
   }
 };
+
+
+// exports.getAllCustomer = async (req, res) => {
+//   try {
+//     const organizationId = req.user.organizationId;
+//     const { page = 1, limit = 10 } = req.query;
+
+//     const { organizationExists, allCustomer } = await dataExist(organizationId);
+
+//     if (!organizationExists) {
+//       return res.status(404).json({
+//         message: "Organization not found",
+//       });
+//     }
+
+//     if (!allCustomer.length) {
+//       return res.status(404).json({
+//         message: "No customers found",
+//       });
+//     }
+
+//     // Pagination calculation
+//     const startIndex = (parseInt(page, 10) - 1) * parseInt(limit, 10);
+//     const paginatedCustomers = allCustomer.slice(startIndex, startIndex + parseInt(limit, 10));
+
+//     res.status(200).json({
+//       success: true,
+//       data: paginatedCustomers,
+//       totalCustomers: allCustomer.length,
+//       currentPage: parseInt(page, 10),
+//       totalPages: Math.ceil(allCustomer.length / limit)
+//     });
+//   } catch (error) {
+//     console.error("Error fetching customers:", error);
+//     res.status(500).json({ message: "Internal server error." });
+//   }
+// };  
+
+
 
 //Get one Customer for a given organizationId
 exports.getOneCustomer = async (req, res) => {
@@ -705,8 +745,7 @@ function createCustomerHistory(savedCustomer, savedAccount,userId, userName) {
   }
   
 
-
-  
+// Tax Description  
 function getTaxDescription(data, userName) {
   const descriptionBase = `${data.customerDisplayName || 'Unknown Customer'} Contact created with `;
   
@@ -722,21 +761,30 @@ function getTaxDescription(data, userName) {
   if (taxDescription) {
     return descriptionBase + taxDescription + `Created by ${userName || 'Unknown User'}`;
   } else {
-    return `${descriptionBase}no tax applicable. Created by ${userName || 'Unknown User'}`;
+    return `${descriptionBase}No Tax applicable. Created by ${userName || 'Unknown User'}`;
   }
 }
 
 // GST Description
 function createGSTDescription({ gstTreatment, gstin_uin, placeOfSupply }) {
-  return gstTreatment && gstin_uin && placeOfSupply
-    ? `GST Treatment : ${gstTreatment} , GSTIN : ${gstin_uin}  &  State : ${placeOfSupply}. `
-    : "Incomplete GST information. "; // Handle incomplete data case
+  const details = {
+    'GST Treatment': gstTreatment,
+    'GSTIN': gstin_uin,
+    'State': placeOfSupply
+  };
+
+  const description = Object.entries(details)
+    .filter(([, value]) => value)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join(' , ');
+
+  return description ? `${description}.` : "Incomplete GST information.";
 }
 
 // VAT Description
-function createVATDescription({ vatNumber, placeOfSupply }) {
-  return vatNumber && placeOfSupply
-    ? `VAT Number '${vatNumber}'. State updated to ${placeOfSupply}. `
+function createVATDescription({ vatNumber }) {
+  return vatNumber 
+    ? `VAT Number '${vatNumber}'. `
     : "Incomplete VAT information. "; // Handle incomplete data case
 }
 
@@ -747,19 +795,6 @@ function createTaxExemptionDescription() {
 
 
 // Opening Balance Description
-// function getOpeningBalanceDescription(data,userName) {
-//   let balanceType = "";
-
-//   if (data.debitOpeningBalance) {
-//     balanceType = `Opening Balance (Debit): '${data.debitOpeningBalance}'. `;
-//   } else if (data.creditOpeningBalance) {
-//     balanceType = `Opening Balance (Credit): '${data.creditOpeningBalance}'. `;
-//   }
-
-//   return balanceType
-//     ? `${data.customerDisplayName} Account created with ${balanceType}Created by ${userName}`
-//     : "";
-// }
 function getOpeningBalanceDescription(data, userName) {
   let balanceType = "";
   console.log(data)
@@ -773,7 +808,7 @@ function getOpeningBalanceDescription(data, userName) {
   } 
   // If neither balance exists
   else {
-    return `${data.customerDisplayName || 'Unknown Customer'} Account created with  opening balance 0 , Created by ${userName || 'Unknown User'}`;
+    balanceType = `Opening Balance : 0`;
   }
 
   // Return description if there's a balance
