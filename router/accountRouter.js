@@ -4,6 +4,7 @@ const router = new express.Router()
 const accountController = require("../controller/accountController")
 const journalController = require("../controller/journalController")
 
+
 const checkPermission = require('../controller/permission');
 const { verifyToken } = require('../controller/middleware');
 
@@ -48,6 +49,9 @@ router.get('/get-last-journal-prefix',verifyToken,checkPermission('Added a Journ
 //Trial Balance
 
 router.get('/get-one-trial-balance/:accountId',verifyToken,checkPermission('Viewed Account Information'),accountController.getOneTrailBalance)
+
+
+
 
 
 module.exports = router
