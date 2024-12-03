@@ -11,6 +11,10 @@ const CustomerHistory = require("../database/model/customerHistory");
 const Settings = require("../database/model/settings")
   
 
+
+
+
+
 exports.getCustomerTransactions = async (req, res) => {
   try {
       const { customerId } = req.params;
@@ -248,6 +252,45 @@ exports.getAllCustomer = async (req, res) => {
     res.status(500).json({ message: "Internal server error." });
   }
 };
+
+
+// exports.getAllCustomer = async (req, res) => {
+//   try {
+//     const organizationId = req.user.organizationId;
+//     const { page = 1, limit = 10 } = req.query;
+
+//     const { organizationExists, allCustomer } = await dataExist(organizationId);
+
+//     if (!organizationExists) {
+//       return res.status(404).json({
+//         message: "Organization not found",
+//       });
+//     }
+
+//     if (!allCustomer.length) {
+//       return res.status(404).json({
+//         message: "No customers found",
+//       });
+//     }
+
+//     // Pagination calculation
+//     const startIndex = (parseInt(page, 10) - 1) * parseInt(limit, 10);
+//     const paginatedCustomers = allCustomer.slice(startIndex, startIndex + parseInt(limit, 10));
+
+//     res.status(200).json({
+//       success: true,
+//       data: paginatedCustomers,
+//       totalCustomers: allCustomer.length,
+//       currentPage: parseInt(page, 10),
+//       totalPages: Math.ceil(allCustomer.length / limit)
+//     });
+//   } catch (error) {
+//     console.error("Error fetching customers:", error);
+//     res.status(500).json({ message: "Internal server error." });
+//   }
+// };  
+
+
 
 //Get one Customer for a given organizationId
 exports.getOneCustomer = async (req, res) => {
@@ -768,11 +811,11 @@ function getOpeningBalanceDescription(data, userName) {
   console.log(data)
   // Check for debit opening balance
   if (data && data.debitOpeningBalance) {
-    balanceType = `Opening Balance (Debit): '${data.debitOpeningBalance}'. `;
+    balanceType = `Opening Balance (Debit): ${data.debitOpeningBalance}. `;
   } 
   // Check for credit opening balance
   else if (data && data.creditOpeningBalance) {
-    balanceType = `Opening Balance (Credit): '${data.creditOpeningBalance}'. `;
+    balanceType = `Opening Balance (Credit): ${data.creditOpeningBalance}. `;
   } 
   // If neither balance exists
   else {
