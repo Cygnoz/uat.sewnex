@@ -7,6 +7,7 @@ const cors = require('cors')
 const server = express()
 
 
+
 // Increase the limit for JSON payloads
 server.use(express.json({ limit: '10mb' })); // Set limit to 10MB
 
@@ -26,7 +27,7 @@ server.use(purchaseRouter)
 PORT = 5005
 
 server.get('/',(req,res)=>{
-    res.status(200).json("Bill BIZZ server started - Purchase")
+    res.status(200).json("Bill BIZZ server started - Purchase(v 0.1)")
 })
 
 server.listen(PORT,()=>{

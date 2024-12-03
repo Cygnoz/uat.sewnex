@@ -13,7 +13,7 @@ const dataExist = async (organizationId, unpaidBills ,supplierId, supplierDispla
   const [organizationExists, supplierExists , paymentTable , existingPrefix ] = await Promise.all([
     Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
     Supplier.findOne({ organizationId, _id: supplierId, supplierDisplayName  }, { _id: 1, supplierDisplayName: 1 }),
-    PurchaseBill.find({ organizationId , _id : { $in: billIds}},{ _id: 1, billNumber: 1 , billDate: 1 , dueDate:1 , grandTotal: 1 , balanceAmount : 1}),
+    PurchaseBill.find({ organizationId , _id : { $in: billIds}},{ _id: 1, billNumber: 1 , billDate: 1 , dueDate:1 , grandTotal: 1 , balanceAmount : 1 }),
     Prefix.findOne({ organizationId })
 
   ]);
@@ -41,7 +41,7 @@ exports.addPayment = async (req, res) => {
     const { organizationId, id: userId, userName } = req.user; // Assuming user contains organization info
     const cleanedData = cleanSupplierData(req.body); // Cleaning data based on your custom method
 
-    const { unpaidBills, paymentMade } = cleanedData; // Extract paymentMade from cleanedData
+    const { unpaidBills, amountPaid } = cleanedData; // Extract paymentMade from cleanedData
     const { supplierId, supplierDisplayName } = cleanedData;
     const billIds = unpaidBills.map(unpaidBill => unpaidBill.billId);
 
@@ -76,29 +76,20 @@ exports.addPayment = async (req, res) => {
     }
 
     // Calculate the total payment made
-    const updatedData = await calculateTotalPaymentMade(cleanedData, paymentMade );
+    const updatedData = await calculateTotalPaymentMade(cleanedData, amountPaid );
 
     // Generate prefix for vendor payment
     await vendorPaymentPrefix(cleanedData, existingPrefix);
-
-    // Log the payment made for tracking
   
+    // Validate and ensure all unpaid bills are properly formatted
+    const validatedBills = validateUnpaidBills(updatedData.unpaidBills);
 
-    // Ensure 'payment' field is set for each bill, default to 0 if not defined
-    updatedData.unpaidBills.forEach(bill => {
-      if (typeof bill.payment === 'undefined') {
-        console.warn(`Payment field missing for bill ID: ${bill.billId}`);
-        bill.payment = 0; // Default payment to 0 if it's missing
-      }
-    });
+    // Process unpaid bills and calculate `amountDue`
+    const paymentResults = await processUnpaidBills(validatedBills);
 
-    // Update `amountDue` for each unpaid bill and store the results
-    const paymentResults = [];
-    for (const unpaidBill of updatedData.unpaidBills) {
-      const result = await calculateAmountDue(unpaidBill.billId, { amount: unpaidBill.payment });
-      paymentResults.push(result);
-    }
+    console.log('Payment processing complete:', paymentResults);
 
+  
     // Re-fetch the updated bills to get the latest `amountDue` and `balanceAmount`
     const updatedBills = await PurchaseBill.find({ _id: { $in: updatedData.unpaidBills.map(bill => bill.billId) } });
 
@@ -107,6 +98,9 @@ exports.addPayment = async (req, res) => {
 
     // Create and save new payment
     const payment = await createNewPayment(updatedData , openingDate, organizationId, userId, userName);
+
+    updatedBills.organizationId = undefined;
+    payment.organizationId = undefined;
 
     //Response with the updated bills and the success message
     return res.status(200).json({
@@ -138,22 +132,27 @@ exports.getAllPayment = async (req, res) => {
         message: "Organization not found",
       });
     }
-
     
     if (!allPayments.length) {
       return res.status(404).json({
         message: "No Payments found",
       });
     }
-    res.status(200).json(allPayments);
 
+    // Map over all categories to remove the organizationId from each object
+    const AllPayments = allPayments.map((history) => {
+      const { organizationId, ...rest } = history.toObject(); // Convert to plain object and omit organizationId
+      return rest;
+    });
+
+    res.status(200).json({allPayments: AllPayments});
   } catch (error) {
     console.error("Error fetching purchase paymentMade:", error);
     res.status(500).json({ message: "Internal server error." });
   }
 };
 
-// Get One Payment 
+// Get One Payment Quote
 exports.getPurchasePayment = async (req, res) => {
   try {
     const organizationId = req.user.organizationId;
@@ -167,12 +166,13 @@ exports.getPurchasePayment = async (req, res) => {
       });
     }
 
-
     if (!payments) {
       return res.status(404).json({
         message: "No payment found",
       });
     }
+
+    payments.organizationId = undefined;
 
     res.status(200).json(payments);
   } catch (error) {
@@ -199,7 +199,8 @@ exports.getLastPaymentMadePrefix = async (req, res) => {
       
       const series = prefix.series[0];     
       const lastPrefix = series.vendorPayment + series.vendorPaymentNum;
-      console.log(lastPrefix);
+
+      lastPrefix.organizationId = undefined;
 
       res.status(200).json(lastPrefix);
   } catch (error) {
@@ -355,11 +356,10 @@ function validatePaymentData( data, supplierExists, unpaidBills, paymentTable ) 
   validatePaymentTable(unpaidBills, paymentTable, errors);
 
 
-  validateFloatFields([ 'paymentMade','amountPaid','amountUsedForPayments','amountRefunded','amountInExcess'], data, errors);
-
+  validateFloatFields(['amountPaid','amountUsedForPayments','amountInExcess'], data, errors);
 
   //Currency
-    //validateCurrency(data.currency, validCurrencies, errors);
+  // validateCurrency(data.currency, validCurrencies, errors);
 
   return errors;
 }
@@ -403,10 +403,10 @@ function validatePaymentTable(unpaidBills, paymentTable, errors) {
     // Validate billamount
     validateField( unpaidBill.billAmount !== fetchedBills.grandTotal, `Grand Total for Bill Number${unpaidBill.billNumber}: ${unpaidBill.billAmount}`, errors );
 
-    // // 
+    // Validate amountDue
     validateField( unpaidBill.amountDue !== fetchedBills.balanceAmount, `Amount Due for bill number ${unpaidBill.billNumber}: ${unpaidBill.amountDue}`, errors );
 
-    
+
   // Validate float fields
   validateFloatFields(['amountDue', 'billAmount', 'payment'], unpaidBill, errors);
 
@@ -472,19 +472,10 @@ const calculateAmountDue = async (billId, { amount }) => {
       throw new Error(`Bill not found with ID: ${billId}`);
     }
 
-    // Check if the payment amount is a valid number
-    if (typeof amount !== 'number' || isNaN(amount)) {
-      throw new Error(`Invalid payment amount: ${amount}`);
-    }
 
     // Initialize fields if undefined
     bill.paidAmount = typeof bill.paidAmount === 'number' ? bill.paidAmount : 0;
     bill.balanceAmount = typeof bill.balanceAmount === 'number' ? bill.balanceAmount : bill.grandTotal;
-
-    // Ensure grandTotal is valid
-    if (typeof bill.grandTotal !== 'number' || isNaN(bill.grandTotal)) {
-      throw new Error(`Invalid grandTotal for Bill ID: ${billId}`);
-    }
 
     // Calculate new paidAmount and balanceAmount
     bill.paidAmount += amount;
@@ -535,9 +526,37 @@ const calculateTotalPaymentMade = async (cleanedData) => {
   cleanedData.amountPaid = totalPayment;
 
   // Calculate amountUsedForPayments and amountInExcess
-  const paymentMade = cleanedData.paymentMade || 0;
-  cleanedData.amountUsedForPayments = paymentMade - totalPayment;
-  cleanedData.amountInExcess = paymentMade - totalPayment;
+  const amountPaid = cleanedData.amountPaid || 0;
+  cleanedData.amountUsedForPayments = amountPaid - totalPayment;
 
   return cleanedData;
 };
+
+
+
+
+// Validate unpaid bills and set default payment values
+function validateUnpaidBills(unpaidBills) {
+  return unpaidBills.map(bill => {
+    if (typeof bill.payment === 'undefined') {
+      console.warn(`Payment field missing for bill ID: ${bill.billId}`);
+      bill.payment = 0; // Default payment to 0
+    }
+    return bill;
+  });
+}
+
+// Process and calculate amountDue for unpaid bills
+async function processUnpaidBills(unpaidBills) {
+  const results = [];
+  for (const bill of unpaidBills) {
+    try {
+      const result = await calculateAmountDue(bill.billId, { amount: bill.payment });
+      results.push(result);
+    } catch (error) {
+      console.error(`Error processing bill ID: ${bill.billId}`, error);
+      throw error; // Re-throw for higher-level error handling
+    }
+  }
+  return results;
+}

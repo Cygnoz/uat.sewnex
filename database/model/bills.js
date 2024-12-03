@@ -15,6 +15,7 @@ const itemsSchema = new Schema({
 
   itemAmount: { type: Number },
 
+  taxPreference: {type:String}, //Taxable or Not
   itemSgst: { type: Number },
   itemCgst: { type: Number },
   itemIgst: { type: Number },
@@ -91,6 +92,8 @@ const PurchaseBillSchema = new Schema({
   paidStatus: { type: String },
   
   createdDate: { type: String },
+
+  purchaseOrderId:{ type: String }
 
 });
 

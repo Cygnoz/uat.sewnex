@@ -18,7 +18,7 @@ const dataExist = async ( organizationId, supplierId, supplierDisplayName ) => {
     const [organizationExists, supplierExist, purchaseOrderExist, taxExists, settings, defaultAccount , supplierAccount] = await Promise.all([
       Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
       Supplier.findOne({ organizationId , _id:supplierId}, { _id: 1, supplierDisplayName: 1, taxType: 1 }),
-      PurchaseOrder.findOne({organizationId}),
+      PurchaseOrder.findOne({organizationId , _id:purchaseOrderId}),
       Tax.findOne({ organizationId }),
       Settings.findOne({ organizationId }),
       DefAcc.findOne({ organizationId },{ purchaseAccount: 1, purchaseDiscountAccount: 1, inputCgst: 1, inputSgst: 1, inputIgst: 1 ,inputVat: 1 }),
@@ -40,7 +40,7 @@ const newDataExists = async (organizationId, items) => {
   // Aggregate ItemTrack to get the latest entry for each itemId
   const itemTracks = await ItemTrack.aggregate([
     { $match: { itemId: { $in: itemIds } } },
-    { $sort: { _id: +1 } },
+    { $sort: { _id: -1 } },
     { $group: { _id: "$itemId", lastEntry: { $first: "$$ROOT" } } }
   ]);
 
@@ -53,6 +53,7 @@ const newDataExists = async (organizationId, items) => {
   // Attach the last entry from ItemTrack to each item in newItems
   const itemTable = newItems.map(item => ({
     ...item._doc, // Copy item fields
+    lastEntry: itemTrackMap[item._id] || null, // Attach lastEntry if found
     currentStock: itemTrackMap[item._id.toString()] ? itemTrackMap[item._id.toString()].currentStock : null
   }));
 
@@ -106,7 +107,7 @@ exports.addBills = async (req, res) => {
       cleanedData.items = cleanedData.items?.map(person => cleanBillsData(person)) || [];
 
   
-      const { items, supplierId } = cleanedData;
+      const { items, supplierId, purchaseOrderId } = cleanedData;
       const { supplierDisplayName, otherExpenseAccountId, freightAccountId, paidAccountId } = cleanedData;
 
     //   const { orderNumber } = cleanedData;
@@ -140,10 +141,12 @@ exports.addBills = async (req, res) => {
         return res.status(400).json({ message: `Select paid through account` });
       }
   
-    //   //Validate purchase oredr
-    //   if (!mongoose.Types.ObjectId.isValid(orderId) || orderId.length !== 24) {
-    //     return res.status(400).json({ message: `Invalid bill ID: ${orderId}` });
-    //   }
+      // Validate purchase order only if `purchaseOrderId` exists
+      if (purchaseOrderId) {
+        if (!mongoose.Types.ObjectId.isValid(purchaseOrderId) || purchaseOrderId.length !== 24) {
+            return res.status(400).json({ message: `Invalid Purchase Order ID: ${purchaseOrderId}` });
+        }
+      }
   
       // Validate ItemIds
       const invalidItemIds = itemIds.filter(itemId => !mongoose.Types.ObjectId.isValid(itemId) || itemId.length !== 24);
@@ -187,6 +190,14 @@ exports.addBills = async (req, res) => {
 
       //Item Track
       await itemTrack( savedBills, itemTable );
+
+      // Delete the associated purchase order if purchaseOrderId is provided
+      if (purchaseOrderId) {
+        await deletePurchaseOrder(purchaseOrderId, organizationId, res);
+      }
+
+      // savedBills.organizationId = undefined;
+      Object.assign(savedBills, { organizationId: undefined, purchaseOrderId: undefined });
         
       res.status(201).json({ message: "Bills created successfully", savedBills });
       // console.log( "Bills created successfully:", savedBills );
@@ -245,8 +256,14 @@ exports.addBills = async (req, res) => {
         // Push the bill object with the updated status to the result array
         updatedBills.push({ ...rest, balanceAmount , dueDate , paidStatus: newStatus });
         }
+
+        // Map over all purchaseOrder to remove the organizationId from each object
+        const sanitizedBills = updatedBills.map(order => {
+          const { organizationId, ...rest } = order; 
+          return rest;
+        });
   
-      res.status(200).json({allBills: updatedBills});
+      res.status(200).json({allBills: sanitizedBills});
     } catch (error) {
       console.error("Error fetching bills:", error);
       res.status(500).json({ message: "Internal server error." });
@@ -274,6 +291,7 @@ exports.addBills = async (req, res) => {
       });
     }
 
+    
     // Fetch item details associated with the bill
     const itemIds = bill.items.map(item => item.itemId);
 
@@ -299,12 +317,31 @@ exports.addBills = async (req, res) => {
       items: updatedItems,
     };
 
+    updatedBill.organizationId = undefined;
+
     res.status(200).json(updatedBill);
   } catch (error) {
     console.error("Error fetching bill:", error);
     res.status(500).json({ message: "Internal server error." });
   }
   };
+
+
+  // Delete Purchase Order
+  async function deletePurchaseOrder(purchaseOrderId, organizationId, res) {
+    try {
+      const deletedOrder = await PurchaseOrder.findOneAndDelete({ _id: purchaseOrderId, organizationId });
+      if (!deletedOrder) {
+        console.warn(`Purchase Order with ID: ${purchaseOrderId} not found for Organization: ${organizationId}`);
+      }
+      return deletedOrder;      
+    } catch (error) {
+      console.error(`Error deleting Purchase Order: ${error}`);
+      res.status(500).json({ message: "Error deleting the Purchase Order." });
+      return null;
+    }
+  }
+
 
 
 
@@ -523,12 +560,11 @@ async function defaultAccounting( data, defaultAccount, organizationExists ) {
       itemAmount = (item.itemCostPrice * item.itemQuantity - itemDiscAmt);
   
       // Handle tax calculation only for taxable items
-      itemTable.forEach(i => {
-      if (i.taxPreference === 'Taxable') {
+      if (item.taxPreference === 'Taxable') {
         switch (taxMode) {
           
           case 'Intra':
-            calculatedItemCgstAmount = roundToTwoDecimals((item.itemCgst / 100) * itemAmount);
+            calculatedItemCgstAmount = ((item.itemCgst / 100) * itemAmount);
             calculatedItemSgstAmount = roundToTwoDecimals((item.itemSgst / 100) * itemAmount);
           break;
   
@@ -551,13 +587,12 @@ async function defaultAccounting( data, defaultAccount, organizationExists ) {
         checkAmount(calculatedItemVatAmount, item.itemVatAmount, item.itemName, 'VAT',errors);
         checkAmount(calculatedItemTaxAmount, item.itemTax, item.itemName, 'Item tax',errors);
   
-        totalTaxAmount += calculatedItemTaxAmount;     
+        totalTaxAmount += calculatedItemTaxAmount;
   
       } else {
         console.log(`Skipping Tax for Non-Taxable item: ${item.itemName}`);
         console.log(`Item: ${item.itemName}, Calculated Discount: ${itemDiscAmt}`);
       }
-      })
   
       checkAmount(itemAmount, item.itemAmount, item.itemName, 'Item Total',errors);
   
@@ -720,7 +755,8 @@ function validateInputs( data, supplierExist, purchaseOrderExist, items, itemExi
     const validationErrors = validateBillsData(data, supplierExist, purchaseOrderExist, items, itemExists, organizationExists, defaultAccount );  
   
     if (validationErrors.length > 0) {
-      res.status(400).json({ message: validationErrors.join(", ") });
+      res.status(400).json({ message: validationErrors.join(", ") })
+      ;
       return false;
     }
     return true;
@@ -736,7 +772,10 @@ function validateInputs( data, supplierExist, purchaseOrderExist, items, itemExi
     //Basic Info
     validateReqFields( data, supplierExist, defaultAccount, errors );
     validateItemTable(items, itemTable, errors);
-    // validatePurchaseOrderData(data, items, purchaseOrderExist, errors);
+    // Activate `validatePurchaseOrderData` only when `purchaseOrderId` is present
+    if (data.purchaseOrderId) {
+      validatePurchaseOrderData(data, purchaseOrderExist, items, errors);
+    }
     validateShipmentPreferences(data.shipmentPreference, errors)
     validateTransactionDiscountType(data.transactionDiscountType, errors);
     // console.log("billExist Data:", billExist.billNumber, billExist.billDate, billExist.orderNumber)
@@ -827,6 +866,9 @@ function validateInputs( data, supplierExist, purchaseOrderExist, items, itemExi
   
     // Validate IGST
     validateField( item.itemIgst !== fetchedItem.igst, `IGST Mismatch for ${item.itemName}: ${item.itemIgst}`, errors );
+
+    // Validate tax preference
+    validateField( item.taxPreference !== fetchedItem.taxPreference, `Tax Preference mismatch for ${item.itemName}: ${item.taxPreference}`, errors );
   
     // Validate discount type
     validateItemDiscountType(item.itemDiscountType, errors);
@@ -834,57 +876,50 @@ function validateInputs( data, supplierExist, purchaseOrderExist, items, itemExi
     // Validate integer fields
     validateIntegerFields(['itemQuantity'], item, errors);
   
-    // Validate Stock Count 
-    validateField( item.itemQuantity > fetchedItem.currentStock, `Insufficient Stock for ${item.itemName}: Requested quantity ${item.itemQuantity}, Available stock ${fetchedItem.currentStock}`, errors );
-  
     // Validate float fields
     validateFloatFields(['itemCostPrice', 'itemTotaltax', 'itemAmount'], item, errors);
   });
   }
   
   
-//   // valiadate purchase order data
-//   function validatePurchaseOrderData(data, items, purchaseOrderExist, errors) {  
-//     // console.log("data:", data);
-//     // console.log("purchaseOrderExist:", purchaseOrderExist);
-//     // console.log("items:", items);
+  // valiadate purchase order data
+  function validatePurchaseOrderData(data, purchaseOrderExist, items, errors) {  
+    // console.log("data:", data);
+    // console.log("purchaseOrderExist:", purchaseOrderExist);
+    // console.log("items:", items);
   
-//      // Initialize `billExist.items` to an empty array if undefined
-//      purchaseOrderExist.items = Array.isArray(purchaseOrderExist.itemTable) ? purchaseOrderExist.itemTable : [];
+     // Initialize `billExist.items` to an empty array if undefined
+     purchaseOrderExist.items = Array.isArray(purchaseOrderExist.items) ? purchaseOrderExist.items : [];
   
-//     // Validate basic fields
-//     validateField( purchaseOrderExist.billDate !== data.billDate, `Bill Date mismatch for ${purchaseOrderExist.billDate}`, errors  );
-//     validateField( purchaseOrderExist.orderNumber !== data.orderNumber, `Order Number mismatch for ${purchaseOrderExist.orderNumber}`, errors  );
+    // Validate basic fields
+    validateField( purchaseOrderExist.purchaseOrder !== data.orderNumber, `Order Number mismatch for ${purchaseOrderExist.purchaseOrder}`, errors  );
   
-//     // Loop through each item in billExist.items
-//     purchaseOrderExist.items.forEach(orderItem => {
-//       const dNItem = items.find(dataItem => dataItem.itemId === orderItem.itemId);
+    // Loop through each item in billExist.items
+    purchaseOrderExist.items.forEach(orderItem => {
+      const bItem = items.find(dataItem => dataItem.itemId === orderItem.itemId);
   
-//       if (!dNItem) {
-//         errors.push(`Item ID ${orderItem.itemId} not found in provided items`);
-//       } else {
+      if (!bItem) {
+        errors.push(`Item ID ${orderItem.itemId} not found in provided items`);
+      } else {
         
-//         validateField(dNItem.itemName !== orderItem.itemName, 
-//                       `Item Name mismatch for ${orderItem.itemId}: Expected ${orderItem.itemName}, got ${dNItem.itemName}`, 
-//                       errors);
-//         validateField(dNItem.itemCostPrice !== orderItem.itemCostPrice, 
-//                       `Item Cost Price mismatch for ${orderItem.itemId}: Expected ${orderItem.itemCostPrice}, got ${dNItem.itemCostPrice}`, 
-//                       errors);
-//         validateField(dNItem.itemCgst !== orderItem.itemCgst, 
-//                       `Item CGST mismatch for ${orderItem.itemId}: Expected ${orderItem.itemCgst}, got ${dNItem.itemCgst}`, 
-//                       errors);
-//         validateField(dNItem.itemSgst !== orderItem.itemSgst, 
-//                       `Item SGST mismatch for ${orderItem.itemId}: Expected ${orderItem.itemSgst}, got ${dNItem.itemSgst}`, 
-//                       errors);
-//         validateField(dNItem.itemIgst !== orderItem.itemIgst, 
-//                       `Item IGST mismatch for ${orderItem.itemId}: Expected ${orderItem.itemIgst}, got ${dNItem.itemIgst}`, 
-//                       errors);
-//         // validateField(dNItem.itemDiscount !== orderItem.itemDiscount, 
-//         //               `Item Discount mismatch for ${orderItem.itemId}: Expected ${orderItem.itemDiscount}, got ${dNItem.itemDiscount}`, 
-//         //               errors);
-//       }
-//     });
-//   }
+        validateField(bItem.itemName !== orderItem.itemName, 
+                      `Item Name mismatch for ${orderItem.itemId}: Expected ${orderItem.itemName}, got ${bItem.itemName}`, 
+                      errors);
+        validateField(bItem.itemCostPrice !== orderItem.itemCostPrice, 
+                      `Item Cost Price mismatch for ${orderItem.itemId}: Expected ${orderItem.itemCostPrice}, got ${bItem.itemCostPrice}`, 
+                      errors);
+        validateField(bItem.itemCgst !== orderItem.itemCgst, 
+                      `Item CGST mismatch for ${orderItem.itemId}: Expected ${orderItem.itemCgst}, got ${bItem.itemCgst}`, 
+                      errors);
+        validateField(bItem.itemSgst !== orderItem.itemSgst, 
+                      `Item SGST mismatch for ${orderItem.itemId}: Expected ${orderItem.itemSgst}, got ${bItem.itemSgst}`, 
+                      errors);
+        validateField(bItem.itemIgst !== orderItem.itemIgst, 
+                      `Item IGST mismatch for ${orderItem.itemId}: Expected ${orderItem.itemIgst}, got ${bItem.itemIgst}`, 
+                      errors);
+      }
+    });
+  }
 
 
 
@@ -967,7 +1002,7 @@ function validateSourceOfSupply(sourceOfSupply, organization, errors) {
       }
     });
   }
-  
+
   
   
   
@@ -1038,9 +1073,9 @@ function validateSourceOfSupply(sourceOfSupply, organization, errors) {
       });
   
       // Save the tracking entry and update the item's stock in the item table
-    //   await newTrialEntry.save();
+      await newTrialEntry.save();
   
-    //   console.log("1",newTrialEntry);
+      // console.log("1",newTrialEntry);
     }
   }
   
@@ -1061,7 +1096,8 @@ function validateSourceOfSupply(sourceOfSupply, organization, errors) {
     "Pay Now", 
     "due on receipt", 
     "End of This Month", 
-    "End of Next Month"
+    "End of Next Month",
+    "Custom"
   ];
   const validCountries = {
     "United Arab Emirates": [
