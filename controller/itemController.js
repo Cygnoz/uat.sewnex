@@ -34,8 +34,10 @@ const dataExists = async (organizationId) => {
 const xsItemDataExists = async (organizationId) => {
                 // Retrieve items with specified fields
                 const [newItems] = await Promise.all([
-                  Item.find( { organizationId }, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1, organizationId: 0 } ),
+                  Item.find( { organizationId }, { _id: 1, itemName: 1, itemImage: 1, taxPreference: 1, sellingPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 } ),
                 ]);
+
+                
 
                 // Extract itemIds from newItems
                 const itemIds = newItems.map(item => item._id.toString());
@@ -250,6 +252,7 @@ exports.getAllItemXS = async (req, res) => {
     const organizationId = req.user.organizationId;
 
 
+
     // Check if an Organization already exists
     const existingOrganization = await Organization.findOne({ organizationId });
     
@@ -258,7 +261,6 @@ exports.getAllItemXS = async (req, res) => {
         message: "No Organization Found.",
       });
     }
-
     const { enrichedItems  } = await xsItemDataExists(organizationId);
 
     if (enrichedItems .length > 0) {
@@ -417,7 +419,7 @@ exports.updateItem = async (req, res) => {
 exports.deleteItem = async (req, res) => {
   try {
       const itemId = req.params;
-          const organizationId = req.user.organizationId;
+      const organizationId = req.user.organizationId;
 
 
     // Check if an Organization already exists

@@ -164,7 +164,11 @@ const topSellingProductsUtil = async (organizationId) => {
       }
     }
     
-    const frequentlyOrderedItems = topSellingProduct.sort((a, b) => b.unitBought - a.unitBought).slice(0, 4);
+    const frequentlyOrderedItems = topSellingProduct
+  .sort((a, b) => b.unitBought - a.unitBought)
+  .slice(0, 4)
+  .map(({ itemImage, ...rest }) => rest); // Exclude itemImage
+
 
     // Sort the topSellingProducts by unitBought in descending order
     const topSellingProducts = topSellingProduct.sort((a, b) => b.saleVolume - a.saleVolume).slice(0, 5);
