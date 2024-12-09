@@ -441,11 +441,11 @@ exports.createOrganizationAndClient = async (req, res) => {
 
     // Count existing organizations to generate the next organizationId
     let nextId = 1;
-    const lastOrganizationId = await Organization.findOne().sort({ createdAt: -1 }); // Sort by creation date to find the last one
+    const lastOrganizationId = await Organization.findOne().sort({ _id: -1 }); // Sort by creation date to find the last one
     if (lastOrganizationId) {
       const lastId = parseInt(lastOrganizationId.organizationId.slice(6)); // Extract the numeric part from the customerID
       nextId = lastId + 1; // Increment the last numeric part
-    }
+    }    
     const organizationId = `INDORG${nextId.toString().padStart(4, '0')}`;
 
     // Create a new organization
