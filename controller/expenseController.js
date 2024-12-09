@@ -21,16 +21,6 @@ const dataExist = async (organizationId, supplierId) => {
   };
 
 
-  // const expenseDataExist = async ( organizationId, expenseId ) => {    
-  //   const [organizationExists, allExpense, expense ] = await Promise.all([
-  //     Organization.findOne({ organizationId }, { organizationId: 1}),
-  //     Expense.find({ organizationId }),
-  //     Expense.findOne({ organizationId , _id: expenseId })
-  //   ]);
-  //   return { organizationExists, allExpense, expense };
-  // };
-
-
 
 // Expense
 //add expense
@@ -70,7 +60,7 @@ exports.addExpense = async (req, res) => {
       if (!validateInputs(cleanedData, organizationExists, res)) return;
 
       //Tax Mode
-      taxmode(cleanedData);          
+      taxmode(cleanedData);
   
       //Date & Time
       const openingDate = generateOpeningDate(organizationExists);
@@ -83,6 +73,8 @@ exports.addExpense = async (req, res) => {
       // console.log("savedExpense:",savedExpense)
       const savedTrialBalance= await createTrialBalance(savedExpense);
       // console.log("savedTrialBalance:",savedTrialBalance)
+
+      savedExpense.organizationId = undefined;
 
       res.status(201).json({ message: "Expense created successfully." });
   } catch (error) {
@@ -109,6 +101,7 @@ exports.getAllExpense = async (req, res) => {
           message: "No expense found",
         });
       }
+
       const AllExpense = expenseExists.map((history) => {
         const { organizationId, ...rest } = history.toObject(); // Convert to plain object and omit organizationId
         return rest;
@@ -304,7 +297,7 @@ exports.getOneExpense = async (req, res) => {
 // Expense Category
 //add category
 exports.addCategory = async (req, res) => {
-
+  console.log("req:",req.body);
     try {
       const { organizationId, id: userId, userName } = req.user;
         
@@ -400,7 +393,9 @@ exports.getACategory = async (req, res) => {
           message: "category not found",
         });
       }
+      
       category.organizationId = undefined;
+      
       res.status(200).json(category);
     } catch (error) {
       console.error("Error fetching category:", error);
@@ -599,7 +594,6 @@ function removeSpaces(body) {
       const gstTreatment = cleanedData.gstTreatment !== "Unregistered Business" || cleanedData.gstTreatment !== "Overseas";
       const taxGroup = data.taxGroup !== "None";
       const isnotMileage = (cleanedData.distance > 0 || cleanedData.distance === "undefined") && (cleanedData.ratePerKm > 0 || cleanedData.ratePerKm === "undefined");
-      // const isnotMileage = (cleanedData.distance !== "undefined") && (cleanedData.ratePerKm !== "undefined");
 
 
       console.log("test:",data);
@@ -609,7 +603,6 @@ function removeSpaces(body) {
           calculatedCgstAmount = roundToTwoDecimals((data.cgst / 100) * amount);
           calculatedSgstAmount = roundToTwoDecimals((data.sgst / 100) * amount);
        } else if (taxMode === 'Inter') {
-        
           calculatedIgstAmount = roundToTwoDecimals((data.igst / 100) * amount);
        } else {
           calculatedVatAmount = roundToTwoDecimals((data.vat / 100) * amount);
@@ -642,16 +635,21 @@ function removeSpaces(body) {
         amount = roundToTwoDecimals(distance * ratePerKm);
         checkAmount(distance, cleanedData.distance, 'Distance',errors);
         checkAmount(ratePerKm, cleanedData.ratePerKm, 'Rate Per Km',errors);
+        checkAmount(amount, data.amount, 'Amount',errors);
 
         console.log("distance",distance);
         console.log("ratePerKm",ratePerKm);
-
-      } 
+        console.log("amount",amount);
+      }
     });
 
-    console.log(`subTotal: ${subTotal} , Provided ${cleanedData.subTotal}`);
+    if (cleanedData.amountIs === "Tax Exclusive") {
+      grandTotal = (subTotal + cgst + sgst + igst + vat);
+    } else {
+      grandTotal = subTotal;
+    }
 
-    grandTotal = (subTotal + cgst + sgst + igst + vat);
+    console.log(`subTotal: ${subTotal} , Provided ${cleanedData.subTotal}`);
     console.log(`Grand Total: ${grandTotal} , Provided ${cleanedData.grandTotal}`);
   
     // Round the totals for comparison
@@ -790,6 +788,7 @@ function removeSpaces(body) {
     return errors;
   }
 
+  
 
   // Field validation utility
   function validateField(condition, errorMsg, errors) {
@@ -913,7 +912,7 @@ function clearTaxFields(data) {
  function validateFloatFields(fields, data, errors) {
   fields.forEach((balance) => {
     validateField(data[balance] && !isFloat(data[balance]),
-      "Invalid " + balance.replace(/([A-Z])/g, " $1") + ": " + data[balance], errors);
+      "Invalid " + balance.replace(/([A-Z])/, " $1") + ": " + data[balance], errors);
   });
 }
 
@@ -923,7 +922,7 @@ function clearTaxFields(data) {
     return word.charAt(0).toUpperCase() + word.slice(1);
   }
   function formatCamelCase(word) {
-    return word.replace(/([A-Z])/g, " $1");
+    return word.replace(/([A-Z])/, " $1");
   }
   // Validation helpers
   function isAlphabets(value) {
@@ -976,7 +975,7 @@ function generateTimeAndDateForDB(
   // Handle date split if specified
   if (dateSplit) {
     // Replace default split characters with specified split characters
-    formattedDate = formattedDate.replace(/[-/]/g, dateSplit); // Adjust regex based on your date format separators
+    formattedDate = formattedDate.replace(/[-/]/, dateSplit); // Adjust regex based on your date format separators
   }
 
   const formattedTime = localDate.format(timeFormat);
