@@ -49,7 +49,7 @@ const SalesInvoiceSchema = new Schema ({
   deliveryMethod: { type: String },
   expectedShipmentDate: { type: String },
 
-  salesInvoiceDate: { type: String },  
+  salesInvoiceDate: { type: String },
   dueDate: { type: String },
 
   // subject: { type: String },
@@ -67,7 +67,6 @@ const SalesInvoiceSchema = new Schema ({
   freightAmount: { type: Number },
   freightAccountId: { type: String },
   roundOffAmount: { type: Number },
-
 
   discountTransactionType: { type: String }, // Currency,Percentage
   discountTransactionAmount: { type: Number },

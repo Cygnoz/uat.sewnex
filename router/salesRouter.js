@@ -14,7 +14,6 @@ const checkPermission = require('../controller/permission');
 const { verifyToken } = require('../controller/middleware');
 
 
-
 //Sales settings
 router.put('/add-sales-settings',verifyToken,salesSettings.addSalesOrderSettings)
 
@@ -82,6 +81,9 @@ router.post('/sales-receipt',verifyToken,salesReceipt.addReceipt)
 router.get('/get-all-receipt',verifyToken,salesReceipt.getAllSalesReceipt)
 
 router.get('/get-receipt/:PaymentId',verifyToken,salesReceipt.getSalesReceipt)
+
+router.get('/get-last-salesReceipt-prefix', verifyToken, salesReceipt.getLastSalesReceiptPrefix);
+
 
 
 
