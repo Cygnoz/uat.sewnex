@@ -673,10 +673,15 @@ async function defaultAccounts(organizationId) {
       salesDiscountAccount, purchaseDiscountAccount,
     } = await dataExist(organizationId);
 
+    console.log(salesAccount);
+    
+
     const defaultAccountData = {
       organizationId,
-      salesAccount, purchaseAccount,
-      salesDiscountAccount, purchaseDiscountAccount,
+      salesAccount  :salesAccount._id,
+      purchaseAccount :purchaseAccount._id,
+      salesDiscountAccount :salesDiscountAccount._id, 
+      purchaseDiscountAccount :purchaseDiscountAccount._id,
     };
 
     const newDefaultAccount = new DefAcc(defaultAccountData);

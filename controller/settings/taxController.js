@@ -529,8 +529,12 @@ async function defaultAccounts(organizationId,taxType) {
 
       defaultAccountData = {
         organizationId,
-        outputCgst, outputSgst, outputIgst,
-        inputCgst, inputSgst, inputIgst
+        outputCgst:outputCgst._id, 
+        outputSgst:outputSgst._id, 
+        outputIgst:outputIgst._id,
+        inputCgst:inputCgst._id, 
+        inputSgst:inputSgst._id,
+        inputIgst:inputIgst._id,
       };
 
     } else if (taxType === "VAT") {
@@ -538,8 +542,8 @@ async function defaultAccounts(organizationId,taxType) {
 
       defaultAccountData = {
         organizationId,
-        outputVat,
-        inputVat
+        outputVat:outputVat._id,
+        inputVat:inputVat._id,
       };
     }
     
