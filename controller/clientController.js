@@ -12,6 +12,7 @@ const Setting = require("../database/model/settings");
 const PaymentTerms = require("../database/model/paymentTerm");
 const Role = require('../database/model/role');
 const Tax = require('../database/model/tax');
+const DefAcc = require("../database/model/defaultAccount")
 const bcrypt = require('bcrypt');
 
 
@@ -317,10 +318,9 @@ const createTaxForOrganization = async (organizationId) => {
 
 // Auto create Accounts
 const createAccountsForOrganization = async (organizationId) => {
-  try {
-    
-    insertAccounts(accounts, organizationId);
-    
+  try {    
+    await insertAccounts(accounts, organizationId);
+    await defaultAccounts(organizationId);
   
     console.log("Accounts created successfully for organization:", organizationId);
     return { success: true, message: "Accounts created successfully." };
@@ -440,9 +440,13 @@ exports.createOrganizationAndClient = async (req, res) => {
     
 
     // Count existing organizations to generate the next organizationId
-    const organizationCount = await Organization.countDocuments({});
-    const nextIdNumber = organizationCount + 1;
-    const organizationId = `INDORG${nextIdNumber.toString().padStart(4, '0')}`;
+    let nextId = 1;
+    const lastOrganizationId = await Organization.findOne().sort({ createdAt: -1 }); // Sort by creation date to find the last one
+    if (lastOrganizationId) {
+      const lastId = parseInt(lastOrganizationId.organizationId.slice(6)); // Extract the numeric part from the customerID
+      nextId = lastId + 1; // Increment the last numeric part
+    }
+    const organizationId = `INDORG${nextId.toString().padStart(4, '0')}`;
 
     // Create a new organization
     const newOrganization = new Organization({
@@ -642,6 +646,16 @@ exports.deleteAll = async (req, res) => {
 
 
 
+// Fetch existing data
+const dataExist = async (organizationId) => {
+  const [ salesAccount, purchaseAccount,salesDiscountAccount, purchaseDiscountAccount,] = await Promise.all([
+    Account.findOne({ organizationId, accountName:'Sales' }, { _id: 1 }),
+    Account.findOne({ organizationId, accountName:'Cost of Goods Sold' }, { _id: 1 }),
+    Account.findOne({ organizationId, accountName:'Discount' }, { _id: 1 }),
+    Account.findOne({ organizationId, accountName:'Purchase Discounts' }, { _id: 1 }),
+  ]);
+  return {  salesAccount, purchaseAccount,salesDiscountAccount, purchaseDiscountAccount, };
+};
 
 
 
@@ -652,8 +666,25 @@ exports.deleteAll = async (req, res) => {
 
 
 
+async function defaultAccounts(organizationId) {
+  try {
+    const {
+      salesAccount, purchaseAccount,
+      salesDiscountAccount, purchaseDiscountAccount,
+    } = await dataExist(organizationId);
 
+    const defaultAccountData = {
+      organizationId,
+      salesAccount, purchaseAccount,
+      salesDiscountAccount, purchaseDiscountAccount,
+    };
 
+    const newDefaultAccount = new DefAcc(defaultAccountData);
+    await newDefaultAccount.save();
+  } catch (error) {
+    console.error("Error adding Default Account:", error);
+  }
+}
 
 
 

@@ -35,21 +35,15 @@ exports.addDefaultAccount = async (req, res) => {
       const {
         salesAccount, purchaseAccount, 
         salesDiscountAccount, purchaseDiscountAccount,
-        accountReceivableAccount, accountPayableAccount, 
         outputCgst, outputSgst, outputIgst, outputVat, 
         inputCgst, inputSgst, inputIgst, inputVat,
-        freightOutward,freightInward,
-        otherExpenseSales,otherExpensePurchase
       } = cleanedData;
   
       const accountIds = [
         salesAccount, purchaseAccount, 
         salesDiscountAccount, purchaseDiscountAccount,
-        accountReceivableAccount, accountPayableAccount, 
         outputCgst, outputSgst, outputIgst, outputVat, 
         inputCgst, inputSgst, inputIgst, inputVat,
-        freightOutward,freightInward,
-        otherExpenseSales,otherExpensePurchase
       ].filter(id => id !== undefined);
   
       // Validate account IDs only if there are any valid account IDs
@@ -76,11 +70,8 @@ exports.addDefaultAccount = async (req, res) => {
       organizationId, 
       salesAccount, purchaseAccount, 
       salesDiscountAccount, purchaseDiscountAccount,
-      accountReceivableAccount, accountPayableAccount, 
       outputCgst, outputSgst, outputIgst, outputVat, 
       inputCgst, inputSgst, inputIgst, inputVat,
-      freightOutward,freightInward,
-      otherExpenseSales,otherExpensePurchase
     };
 
     if (defAccExist) {
@@ -154,9 +145,6 @@ function validateAccountID(cleanedData, accountIds, res) {
     { id: cleanedData.salesDiscountAccount, name: 'Sales Discount Account ID' },
     { id: cleanedData.purchaseDiscountAccount, name: 'Purchase Discount Account ID' },
 
-    { id: cleanedData.accountReceivableAccount, name: 'Account Receivable Account ID' },
-    { id: cleanedData.accountPayableAccount, name: 'Account Payable Account ID' },
-
     { id: cleanedData.outputCgst, name: 'Output CGST Account ID' },
     { id: cleanedData.outputSgst, name: 'Output SGST Account ID' },
     { id: cleanedData.outputIgst, name: 'Output IGST Account ID' },
@@ -167,11 +155,7 @@ function validateAccountID(cleanedData, accountIds, res) {
     { id: cleanedData.inputIgst, name: 'Input IGST Account ID' },
     { id: cleanedData.inputVat, name: 'Input VAT Account ID' },
     
-    { id: cleanedData.freightOutward, name: 'Freight Outward' },
-    { id: cleanedData.freightInward, name: 'Freight Inward' },
 
-    { id: cleanedData.otherExpenseSales, name: 'other Expense Sales' },
-    { id: cleanedData.otherExpensePurchase, name: 'Other Expense Purchase' }
     
   ].filter(({ id }) => id !== undefined);
 

@@ -1,4 +1,4 @@
-// v1.0
+// v1.1
 
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
@@ -13,10 +13,6 @@ const defaultAccountSchema = new Schema({
     salesDiscountAccount: {type:String},
     purchaseDiscountAccount: {type:String},
 
-    
-    accountReceivableAccount: {type:String},    
-    accountPayableAccount: {type:String},
-
     outputCgst: {type:String},
     outputSgst: {type:String},
     outputIgst: {type:String},
@@ -25,12 +21,7 @@ const defaultAccountSchema = new Schema({
     inputCgst: {type:String},
     inputSgst: {type:String},
     inputIgst: {type:String},
-    inputVat: {type:String},
-
-    freightOutward: {type:String}, //Sales
-    freightInward: {type:String},
-    otherExpenseSales: {type:String},
-    otherExpensePurchase: {type:String},
+    inputVat: {type:String}
 
 });
 

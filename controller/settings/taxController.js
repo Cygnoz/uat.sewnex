@@ -201,9 +201,11 @@ exports.addTax = async (req, res) => {
 
     if (!acctype) {
       if (taxType === 'GST') {
-        insertAccounts(gstAccounts, organizationId, createdDateAndTime);
+        await insertAccounts(gstAccounts, organizationId, createdDateAndTime);
+        await defaultAccounts(organizationId,taxType);
       }else if (taxType === 'VAT') {
-        insertAccounts(vatAccounts, organizationId, createdDateAndTime);
+        await insertAccounts(vatAccounts, organizationId, createdDateAndTime);
+        await defaultAccounts(organizationId,taxType);
       }
       
     }
@@ -462,6 +464,107 @@ console.log('Trial balance entries created successfully');
         console.error('Error inserting accounts:', error);
     }
   }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  // Fetch existing data
+const dataExist = async (organizationId) => {
+  const [ outputCgst, outputSgst, outputIgst, inputCgst, inputSgst, inputIgst, outputVat, inputVat] = await Promise.all([
+    
+    Account.findOne({ organizationId, accountName:'Output CGST' }, { _id: 1 }),
+    Account.findOne({ organizationId, accountName:'Output SGST' }, { _id: 1 }),
+    Account.findOne({ organizationId, accountName:'Output IGST' }, { _id: 1 }),
+    
+    Account.findOne({ organizationId, accountName:'Input CGST' }, { _id: 1 }),
+    Account.findOne({ organizationId, accountName:'Input SGST' }, { _id: 1 }),
+    Account.findOne({ organizationId, accountName:'Input IGST' }, { _id: 1 }),
+    
+    Account.findOne({ organizationId, accountName:'Output VAT' }, { _id: 1 }),
+    Account.findOne({ organizationId, accountName:'Input VAT' }, { _id: 1 }),
+
+  ]);
+  return { outputCgst, outputSgst, outputIgst, inputCgst, inputSgst, inputIgst, outputVat, inputVat };
+};
+
+
+
+
+
+
+
+
+
+
+
+async function defaultAccounts(organizationId,taxType) {
+  try {
+    
+    let defaultAccountData;
+    
+    const accountData = await dataExist(organizationId);
+
+    if (taxType === "GST") {
+      const {
+        outputCgst, outputSgst, outputIgst,
+        inputCgst, inputSgst, inputIgst
+      } = accountData;
+
+      defaultAccountData = {
+        organizationId,
+        outputCgst, outputSgst, outputIgst,
+        inputCgst, inputSgst, inputIgst
+      };
+
+    } else if (taxType === "VAT") {
+      const { outputVat, inputVat } = accountData;
+
+      defaultAccountData = {
+        organizationId,
+        outputVat,
+        inputVat
+      };
+    }
+    
+    await DefAcc.updateOne({ organizationId }, defaultAccountData);
+  } catch (error) {
+    console.error("Error adding Default Account:", error);
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
