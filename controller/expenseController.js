@@ -549,14 +549,13 @@ function removeSpaces(body) {
 
   // Tax Mode
   function taxmode( cleanedData ) {
-    if (cleanedData.sourceOfSupply === cleanedData.destinationOfSupply) {
-      cleanedData.taxMode = 'Intra'; 
-    } else if (cleanedData.sourceOfSupply !== cleanedData.destinationOfSupply) {
-      cleanedData.taxMode = 'Inter'; 
-    }  else {
-      cleanedData.taxMode = 'None'; 
+    if (!cleanedData.sourceOfSupply || !cleanedData.destinationOfSupply) {
+      cleanedData.taxMode = 'None'; // Handle invalid or missing data
+    } else if (cleanedData.sourceOfSupply === cleanedData.destinationOfSupply) {
+      cleanedData.taxMode = 'Intra';
+    } else {
+      cleanedData.taxMode = 'Inter';
     }
-    
     return;
   }
 
