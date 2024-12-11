@@ -553,7 +553,7 @@ function removeSpaces(body) {
       cleanedData.taxMode = 'Intra'; 
     } else if (cleanedData.sourceOfSupply !== cleanedData.destinationOfSupply) {
       cleanedData.taxMode = 'Inter'; 
-    } else {
+    }  else {
       cleanedData.taxMode = 'None'; 
     }
     
@@ -808,8 +808,8 @@ function removeSpaces(body) {
       validateField( data.gstTreatment === "undefined", "Please select an gst treatment", errors);
       validateField( data.amount === "undefined", "Please enter the amount", errors);  
     } else {
-      validateField( data.distance === "undefined", "Please enter distance", errors);
-      validateField( data.ratePerKm === "undefined", "Please enter rate per kilometer", errors);
+      validateField( typeof data.distance === "undefined", "Please enter distance", errors);
+      validateField( typeof data.ratePerKm === "undefined", "Please enter rate per kilometer", errors);
     }
   }
 
