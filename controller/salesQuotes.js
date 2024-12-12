@@ -633,7 +633,7 @@ function calculateSalesOrder(cleanedData, res) {
   const roundToTwoDecimals = (value) => Number(value.toFixed(2));
 
 
-  cleanedData.items.forEach(item => {
+  cleanedData.items.forEach(item => { 
 
     let calculatedCgstAmount = 0;
     let calculatedSgstAmount = 0;

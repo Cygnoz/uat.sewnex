@@ -24,6 +24,19 @@ const dataExist = async (organizationId, invoice ,customerId, customerDisplayNam
 
 
 
+  const paymentDataExist = async ( organizationId, PaymentId ) => {    
+    
+    const [organizationExists, allPayments, payments ] = await Promise.all([
+      Organization.findOne({ organizationId }, { organizationId: 1}),
+      SalesReceipt.find({ organizationId }),
+      SalesReceipt.findOne({ organizationId , _id: PaymentId },)
+    ]);
+    return { organizationExists, allPayments, payments };
+  };
+
+
+
+
   exports.addReceipt = async (req, res) => {
     try {
       const { organizationId, id: userId, userName } = req.user; // Assuming user contains organization info
@@ -54,35 +67,27 @@ const dataExist = async (organizationId, invoice ,customerId, customerDisplayNam
     // Check if organization and customer exist
     const { organizationExists, customerExists, paymentTable, existingPrefix } = await dataExist(organizationId, invoice, customerId, customerDisplayName);
 
-    // // Validate customer and organization
-    // if (!validateCustomerAndOrganization(organizationExists, customerExists, existingPrefix, res)) {
-    //   return; // Stops execution if validation fails
-    // }
+    // Validate customer and organization
+    if (!validateCustomerAndOrganization(organizationExists, customerExists, existingPrefix, res)) {
+      return; // Stops execution if validation fails
+    }
 
 
-    // // Validate input values, unpaidBills, and paymentTable
-    // if (!validateInputs(cleanedData, customerExists, invoice, paymentTable, organizationExists, res)) {
-    //   return; // Stops execution if validation fails
-    // }
+    // Validate input values, unpaidBills, and paymentTable
+    if (!validateInputs(cleanedData, customerExists, invoice, paymentTable, organizationExists, res)) {
+      return; // Stops execution if validation fails
+    }
 
 
     const updatedData = await calculateTotalPaymentMade(cleanedData, amountReceived );
 
+  // Validate invoices
+  const validatedInvoices = validateInvoices(updatedData.invoice);
 
-    // Ensure 'payment' field is set for each bill, default to 0 if not defined
-    updatedData.invoice.forEach(receipt => {
-      if (typeof receipt.paymentAmount === 'undefined') {
-    console.warn(`Payment field missing for Invoice ID: ${receipt.invoiceId}`);
-    receipt.paymentAmount = 0; // Default payment to 0 if it's missing
-    }
-    });
+  // Process invoices
+  const paymentResults = await processInvoices(validatedInvoices);
 
-    // Update `amountDue` for each unpaid bill and store the results
-    const paymentResults = [];
-      for (const invoices of updatedData.invoice) {
-    const result = await calculateAmountDue(invoices.invoiceId, { amount: invoices.paymentAmount });
-    paymentResults.push(result);
-    }
+  console.log('Invoice processing complete:', paymentResults);
 
     // Re-fetch the updated bills to get the latest `amountDue` and `balanceAmount`
     const updatedInvoice = await SalesReceipt.find({ _id: { $in: updatedData.invoice.map(receipt => receipt.invoiceId) } });
@@ -105,6 +110,71 @@ const dataExist = async (organizationId, invoice ,customerId, customerDisplayNam
   return res.status(500).json({ message: 'Internal server error' });
 }
 };
+
+
+
+
+
+
+exports.getAllSalesReceipt = async (req, res) => {
+  // const { organizationId } = req.body;
+  try {
+
+    const organizationId  = req.user.organizationId;
+
+    // Check if an Organization already exists
+    const { organizationExists , allPayments} = await paymentDataExist(organizationId);
+
+    if (!organizationExists) {
+      return res.status(404).json({
+        message: "Organization not found",
+      });
+    }
+
+    
+    if (!allPayments.length) {
+      return res.status(404).json({
+        message: "No Payments found",
+      });
+    }
+    res.status(200).json(allPayments);
+
+  } catch (error) {
+    console.error("Error fetching purchase paymentMade:", error);
+    res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+
+
+// Get One Payment Quote
+exports.getSalesReceipt = async (req, res) => {
+  try {
+    const organizationId = req.user.organizationId;
+    const  PaymentId = req.params.PaymentId;
+
+    const { organizationExists , payments } = await paymentDataExist(organizationId , PaymentId);
+
+    if (!organizationExists) {
+      return res.status(404).json({
+        message: "Organization not found",
+      });
+    }
+
+
+    if (!payments) {
+      return res.status(404).json({
+        message: "No payment found",
+      });
+    }
+
+    res.status(200).json(payments);
+  } catch (error) {
+    console.error("Error fetching Payments:", error);
+    res.status(500).json({ message: "Internal server error." });
+  }
+};
+
 
 
 
@@ -175,38 +245,38 @@ function generateTimeAndDateForDB(
 
 
 
-//  // Validate Supplier and Organization
-//  function validateCustomerAndOrganization(organizationExists, customerExists, existingPrefix ,res) {
-//   if (!organizationExists) {
-//       res.status(404).json({ message: "Organization not found" });
-//       return false;
-//   }
-//   if (!customerExists) {
-//       res.status(404).json({ message: "Customer not found" });
-//       return false;
-//   }
-//   if (!existingPrefix) {
-//     res.status(404).json({ message: "Prefix not found" });
-//     return false;
-// }
-//   return true;
+ // Validate Supplier and Organization
+ function validateCustomerAndOrganization(organizationExists, customerExists, existingPrefix ,res) {
+  if (!organizationExists) {
+      res.status(404).json({ message: "Organization not found" });
+      return false;
+  }
+  if (!customerExists) {
+      res.status(404).json({ message: "Customer not found" });
+      return false;
+  }
+  if (!existingPrefix) {
+    res.status(404).json({ message: "Prefix not found" });
+    return false;
+}
+  return true;
 
-// }
-
-
+}
 
 
 
-// //Validate inputs
-// function validateInputs( data, customerExists, invoice , organizationExists, paymentTableExist ,  res) {
-//   const validationErrors = validatePaymentData(data, customerExists, invoice, organizationExists , paymentTableExist);
 
-//   if (validationErrors.length > 0) {
-//     res.status(400).json({ message: validationErrors.join(", ") });
-//     return false;
-//   }
-//   return true;
-// }
+
+//Validate inputs
+function validateInputs( data, customerExists, invoice , organizationExists, paymentTableExist ,  res) {
+  const validationErrors = validatePaymentData(data, customerExists, invoice, organizationExists , paymentTableExist);
+
+  if (validationErrors.length > 0) {
+    res.status(400).json({ message: validationErrors.join(", ") });
+    return false;
+  }
+  return true;
+}
 
 
 
@@ -226,86 +296,86 @@ function createNewPayment(data, openingDate, organizationId, userId, userName) {
 
 
 
-// //Validate Data
-// function validatePaymentData( data, customerExists, invoice, paymentTable ) {
-//   const errors = [];
+//Validate Data
+function validatePaymentData( data, customerExists, invoice, paymentTable ) {
+  const errors = [];
 
-//   console.log("invoice Request :",invoice);
-//   console.log("invoice Fetched :",paymentTable);
+  console.log("invoice Request :",invoice);
+  console.log("invoice Fetched :",paymentTable);
   
 
-//   //Basic Info
-//   validateReqFields( data, customerExists , errors );
-//   validatePaymentTable(invoice, paymentTable, errors);
-//   validateFloatFields([ 'amountReceived','amountRecieved','amountUsedForPayments','amountInExcess'], data, errors);
+  //Basic Info
+  validateReqFields( data, customerExists, errors );
+  validatePaymentTable(invoice, paymentTable, errors);
+  validateFloatFields([ 'amountReceived','amountUsedForPayments','total'], data, errors);
 
 
-//   //Currency
-//   // validateCurrency(data.currency, validCurrencies, errors);
+  //Currency
+  // validateCurrency(data.currency, validCurrencies, errors);
 
-//   return errors;
-// }
-
-
-// // Field validation utility
-// function validateField(condition, errorMsg, errors) {
-//     if (condition) errors.push(errorMsg);
-// }
-
-// //Valid Req Fields
-// function validateReqFields( data, errors ) {
-//   validateField( typeof data.CustomerId === 'undefined' || typeof data.customerDisplayName === 'undefined', "Please select a customer", errors  );
-//   validateField( typeof data.invoice === 'undefined', "Select an invoice", errors  );
-// }
+  return errors;
+}
 
 
-// // Function to Validate Item Table 
-// function validatePaymentTable(invoice, paymentTable, errors) {
-//   console.log("validate:",invoice , paymentTable)
-//   // Check for bill count mismatch
-//   validateField( invoice.length !== paymentTable.length, "Mismatch in invoice count between request and database.", errors  );
+// Field validation utility
+function validateField(condition, errorMsg, errors) {
+  if (condition) errors.push(errorMsg);
+}
 
-//   // Iterate through each bills to validate individual fields
-//   invoice.forEach((invoices) => {
-//     const fetchedInvoices = paymentTable.find(it => it._id.toString() === invoices.invoiceId);
-
-//     // Check if item exists in the item table
-//     validateField( !fetchedInvoices, `Invoice with ID ${invoices.invoiceId} was not found.`, errors );
-//     if (!fetchedInvoices) return; 
-
-//      // Validate bill number
-//      validateField( invoices.salesInvoice !== fetchedInvoices.salesInvoice, `Bill Number Mismatch Bill Number: ${invoices.salesInvoice}`, errors );
-
-//     // Validate bill date
-//     validateField( invoices.salesInvoiceDate !== fetchedInvoices.salesInvoiceDate, `Bill Date Mismatch Bill Number: ${invoices.salesInvoice} : ${invoices.salesInvoiceDate}` , errors );
-
-//     // Validate duedate
-//     validateField( invoices.dueDate !== fetchedInvoices.dueDate, `Due Date Mismatch for Bill Number${invoices.salesInvoice}:  ${invoices.dueDate}`, errors );
-
-//     // Validate billamount
-//     validateField( invoices.totalAmount !== fetchedInvoices.totalAmount, `Grand Total for Bill Number${invoices.salesInvoice}: ${invoices.totalAmount}`, errors );
-
-//     // Validate amountDue
-//     validateField( invoices.balanceAmount !== fetchedInvoices.balanceAmount, `Amount Due for bill number ${invoices.salesInvoice}: ${invoices.balanceAmount}`, errors );
+//Valid Req Fields
+function validateReqFields( data, errors ) {
+  validateField( typeof data.customerId === 'undefined' || typeof data.customerDisplayName === 'undefined', "Please select a customer", errors  );
+  validateField( typeof data.invoice === 'undefined', "Select an invoice", errors  );
+}
 
 
-//   // Validate float fields
-//   validateFloatFields(['balanceAmount', 'totalAmount', 'paymentAmount'], invoices, errors);
+// Function to Validate Item Table 
+function validatePaymentTable(invoice, paymentTable, errors) {
+  console.log("validate:",invoice , paymentTable)
+  // Check for bill count mismatch
+  validateField( invoice.length !== paymentTable.length, "Mismatch in invoice count between request and database.", errors  );
+
+  // Iterate through each bills to validate individual fields
+  invoice.forEach((invoices) => {
+    const fetchedInvoices = paymentTable.find(it => it._id.toString() === invoices.invoiceId);
+
+    // Check if item exists in the item table
+    validateField( !fetchedInvoices, `Invoice with ID ${invoices.invoiceId} was not found.`, errors );
+    if (!fetchedInvoices) return; 
+
+     // Validate bill number
+     validateField( invoices.salesInvoice !== fetchedInvoices.salesInvoice, `Bill Number Mismatch Bill Number: ${invoices.salesInvoice}`, errors );
+
+    // Validate bill date
+    validateField( invoices.salesInvoiceDate !== fetchedInvoices.salesInvoiceDate, `Bill Date Mismatch Bill Number: ${invoices.salesInvoice} : ${invoices.salesInvoiceDate}` , errors );
+
+    // Validate duedate
+    validateField( invoices.dueDate !== fetchedInvoices.dueDate, `Due Date Mismatch for Bill Number${invoices.salesInvoice}:  ${invoices.dueDate}`, errors );
+
+    // Validate billamount
+    validateField( invoices.totalAmount !== fetchedInvoices.totalAmount, `Grand Total for Bill Number${invoices.salesInvoice}: ${invoices.totalAmount}`, errors );
+
+    // Validate amountDue
+    validateField( invoices.balanceAmount !== fetchedInvoices.balanceAmount, `Amount Due for bill number ${invoices.salesInvoice}: ${invoices.balanceAmount}`, errors );
 
 
-//   });
-// }
+  // Validate float fields
+  validateFloatFields(['balanceAmount', 'totalAmount', 'paymentAmount'], invoices, errors);
+
+
+  });
+}
 
 
 
 
-// //Valid Float Fields  
-// function validateFloatFields(fields, data, errors) {
-//   fields.forEach((balance) => {
-//     validateField(data[balance] && !isFloat(data[balance]),
-//       "Invalid " + balance.replace(/([A-Z])/g, " $1") + ": " + data[balance], errors);
-//   });
-// }
+//Valid Float Fields  
+function validateFloatFields(fields, data, errors) {
+  fields.forEach((balance) => {
+    validateField(data[balance] && !isFloat(data[balance]),
+      "Invalid " + balance.replace(/([A-Z])/g, " $1") + ": " + data[balance], errors);
+  });
+}
 
 
 
@@ -415,5 +485,30 @@ const calculateTotalPaymentMade = async (cleanedData) => {
 };
 
 
+// Utility function to validate invoices
+function validateInvoices(invoices) {
+  return invoices.map(receipt => {
+    if (typeof receipt.paymentAmount === 'undefined') {
+      console.warn(`Payment field missing for Invoice ID: ${receipt.invoiceId}`);
+      receipt.paymentAmount = 0; // Default paymentAmount to 0
+    }
+    return receipt;
+  });
+}
+
+// Utility function to process invoices
+async function processInvoices(invoices) {
+  const results = [];
+  for (const invoice of invoices) {
+    try {
+      const result = await calculateAmountDue(invoice.invoiceId, { amount: invoice.paymentAmount });
+      results.push(result);
+    } catch (error) {
+      console.error(`Error processing Invoice ID: ${invoice.invoiceId}`, error);
+      throw error; // Re-throw for higher-level error handling
+    }
+  }
+  return results;
+}
 
 
