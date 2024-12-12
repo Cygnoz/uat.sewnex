@@ -14,12 +14,12 @@ server.use(customerRouter);
 
 const PORT = 5002;
 
-server.get('/', (req, res) => {
+server.get('/', (_, res) => {
     res.status(200).json("Bill BIZZ server started - Customer");
 });
 
 // Global error handling middleware
-server.use((err: any, req: Request, res: Response, next: NextFunction) => {
+server.use((err: any, _: Request, res: Response, __: NextFunction) => {
     console.error(err.stack);
     res.status(err.status || 500).json({
         error: {

@@ -176,19 +176,7 @@ exports.editCustomer = async (req, res) => {
         return res.status(500).json({ message: "Failed to Update Customer." });
       }
   
-      // Update customerDisplayName in associated Account documents
-      if (customerDisplayName && customerDisplayName !== oldCustomerDisplayName) {
-        const updatedAccount = await Account.updateMany(
-          {
-            accountName: oldCustomerDisplayName,
-            organizationId: organizationId,
-          },
-          { $set: { accountName: customerDisplayName } }
-        );
-        console.log(
-          `${updatedAccount.modifiedCount} account(s) associated with the accountName have been updated with the new customerDisplayName.`
-        );
-      }
+      c
   
       // Add entry to Customer History
       const accountCustomerHistoryEntry = new CustomerHistory({
