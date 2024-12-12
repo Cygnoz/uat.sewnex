@@ -14,7 +14,7 @@ const TrialBalance = require("../database/model/trialBalance");
 const Account = require("../database/model/account");
 
 // Fetch existing data
-const dataExist = async ( organizationId, supplierId, supplierDisplayName ) => {
+const dataExist = async ( organizationId, supplierId, supplierDisplayName, purchaseOrderId ) => {
     const [organizationExists, supplierExist, purchaseOrderExist, taxExists, settings, defaultAccount , supplierAccount] = await Promise.all([
       Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
       Supplier.findOne({ organizationId , _id:supplierId}, { _id: 1, supplierDisplayName: 1, taxType: 1 }),
@@ -147,26 +147,28 @@ exports.addBills = async (req, res) => {
             return res.status(400).json({ message: `Invalid Purchase Order ID: ${purchaseOrderId}` });
         }
       }
-  
+      
+      
       // Validate ItemIds
       const invalidItemIds = itemIds.filter(itemId => !mongoose.Types.ObjectId.isValid(itemId) || itemId.length !== 24);
       if (invalidItemIds.length > 0) {
         return res.status(400).json({ message: `Invalid item IDs: ${invalidItemIds.join(', ')}` });
       }   
-  
-      const { organizationExists, supplierExist, purchaseOrderExist, taxExists, settings, defaultAccount, supplierAccount } = await dataExist( organizationId, supplierId, supplierDisplayName );
-  
+      
+      const { organizationExists, supplierExist, purchaseOrderExist, taxExists, settings, defaultAccount, supplierAccount } = await dataExist( organizationId, supplierId, supplierDisplayName, purchaseOrderId );
+      
       const { itemTable } = await newDataExists( organizationId, items );
-  
+      
       //Data Exist Validation
-      if (!validateOrganizationSupplierOrder( organizationExists, supplierExist, purchaseOrderExist, defaultAccount, res )) return;
-  
+      if (!validateOrganizationSupplierOrder( purchaseOrderId, organizationExists, supplierExist, purchaseOrderExist, defaultAccount, res )) return;
+      
       //Validate Inputs  
       if (!validateInputs( cleanedData, supplierExist, purchaseOrderExist, items, itemTable, organizationExists, defaultAccount, res)) return;
-
+      
       //Check Bill Exist
       if (await checkExistingBill(cleanedData.billNumber, organizationId, res)) return;
-  
+      console.log("hello");
+      
       //Date & Time
       const openingDate = generateOpeningDate(organizationExists);
   
@@ -480,7 +482,7 @@ async function defaultAccounting( data, defaultAccount, organizationExists ) {
   
   
   // Validate Organization Tax Currency
-  function validateOrganizationSupplierOrder( organizationExists, supplierExist, purchaseOrderExist, defaultAccount, res ) {
+  function validateOrganizationSupplierOrder( purchaseOrderId, organizationExists, supplierExist, purchaseOrderExist, defaultAccount, res ) {
     if (!organizationExists) {
       res.status(404).json({ message: "Organization not found" });
       return false;
@@ -489,10 +491,11 @@ async function defaultAccounting( data, defaultAccount, organizationExists ) {
       res.status(404).json({ message: "Supplier not found." });
       return false;
     }
+    if (purchaseOrderId) {
     if (!purchaseOrderExist) {
       res.status(404).json({ message: "Purchase order not found" });
       return false;
-    }
+    }}
     if (!defaultAccount) {
     res.status(404).json({ message: "Setup Accounts in settings" });
     return false;
@@ -831,10 +834,10 @@ function validateInputs( data, supplierExist, purchaseOrderExist, items, itemExi
   validateField( typeof defaultAccount.purchaseAccount === 'undefined', "No Purchase Account found", errors  );
   validateField( typeof defaultAccount.purchaseDiscountAccount === 'undefined', "No Purchase Discount Account found", errors  );
 
-  validateField( customerExist.taxType === 'GST' && typeof defaultAccount.inputCgst === 'undefined', "No Input Cgst Account found", errors  );
-  validateField( customerExist.taxType === 'GST' && typeof defaultAccount.inputSgst === 'undefined', "No Input Sgst Account found", errors  );
-  validateField( customerExist.taxType === 'GST' && typeof defaultAccount.inputIgst === 'undefined', "No Input Igst Account found", errors  );
-  validateField( customerExist.taxType === 'VAT' && typeof defaultAccount.inputVat === 'undefined', "No Input Vat Account found", errors  );
+  validateField( supplierExist.taxType === 'GST' && typeof defaultAccount.inputCgst === 'undefined', "No Input Cgst Account found", errors  );
+  validateField( supplierExist.taxType === 'GST' && typeof defaultAccount.inputSgst === 'undefined', "No Input Sgst Account found", errors  );
+  validateField( supplierExist.taxType === 'GST' && typeof defaultAccount.inputIgst === 'undefined', "No Input Igst Account found", errors  );
+  validateField( supplierExist.taxType === 'VAT' && typeof defaultAccount.inputVat === 'undefined', "No Input Vat Account found", errors  );
 
 }
   
