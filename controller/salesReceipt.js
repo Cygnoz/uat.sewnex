@@ -89,6 +89,9 @@ const dataExist = async (organizationId, invoice ,customerId, customerDisplayNam
 
   console.log('Invoice processing complete:', paymentResults);
 
+    //Prefix
+    await salesReceiptPrefix(cleanedData, existingPrefix );
+
     // Re-fetch the updated bills to get the latest `amountDue` and `balanceAmount`
     const updatedInvoice = await SalesReceipt.find({ _id: { $in: updatedData.invoice.map(receipt => receipt.invoiceId) } });
 
@@ -161,7 +164,6 @@ exports.getSalesReceipt = async (req, res) => {
       });
     }
 
-
     if (!payments) {
       return res.status(404).json({
         message: "No payment found",
@@ -174,6 +176,49 @@ exports.getSalesReceipt = async (req, res) => {
     res.status(500).json({ message: "Internal server error." });
   }
 };
+
+
+// Get last debit note prefix
+exports.getLastSalesReceiptPrefix = async (req, res) => {
+  try {
+    const organizationId = req.user.organizationId;
+
+      // Find all accounts where organizationId matches
+      const prefix = await Prefix.findOne({ organizationId:organizationId,'series.status': true });
+
+      if (!prefix) {
+          return res.status(404).json({
+              message: "No Prefix found for the provided organization ID.",
+          });
+      }
+      
+      const series = prefix.series[0];     
+      const lastPrefix = series.customerPayment + series.customerPaymentNum;
+
+      lastPrefix.organizationId = undefined;
+
+      res.status(200).json(lastPrefix);
+  } catch (error) {
+      console.error("Error fetching accounts:", error);
+      res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+// Debit Note Prefix
+function salesReceiptPrefix( cleanData, existingPrefix ) {
+  const activeSeries = existingPrefix.series.find(series => series.status === true);
+  if (!activeSeries) {
+      return res.status(404).json({ message: "No active series found for the organization." });
+  }
+  cleanData.customerPayment = `${activeSeries.customerPayment}${activeSeries.customerPaymentNum}`;
+
+  activeSeries.customerPaymentNum += 1;
+
+  existingPrefix.save()
+
+  return 
+}
+
 
 
 
