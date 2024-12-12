@@ -6,33 +6,33 @@ const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const NodeCache = require('node-cache');
 const otpCache = new NodeCache({ stdTTL: 180 }); // 180 seconds
-const rateLimit = require('express-rate-limit');
+// const rateLimit = require('express-rate-limit');
 
 // Rate limiter for OTP verification to prevent brute force attacks
-const otpRateLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 minutes
-  max: 5, // limit each IP to 5 OTP attempts per windowMs
-  handler: (req, res) => {
-    return res.status(429).json({
-      success: false,
-      message: 'Too many OTP attempts, please try again after 5 minutes',
-    });
-  },
-});
+// const otpRateLimiter = rateLimit({
+//   windowMs: 5 * 60 * 1000, // 5 minutes
+//   max: 5, // limit each IP to 5 OTP attempts per windowMs
+//   handler: (req, res) => {
+//     return res.status(429).json({
+//       success: false,
+//       message: 'Too many OTP attempts, please try again after 5 minutes',
+//     });
+//   },
+// });
 
-const loginRateLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute window
-  max: 5, // limit each IP to 5 login requests per windowMs
-  handler: (req, res) => {
-    return res.status(429).json({
-      success: false,
-      message: 'Too many login attempts, please try again after 1 minute',
-    });
-  },
-});
+// const loginRateLimiter = rateLimit({
+//   windowMs: 1 * 60 * 1000, // 1 minute window
+//   max: 5, // limit each IP to 5 login requests per windowMs
+//   handler: (req, res) => {
+//     return res.status(429).json({
+//       success: false,
+//       message: 'Too many login attempts, please try again after 1 minute',
+//     });
+//   },
+// });
 
 // Login 
-exports.login = [loginRateLimiter, async (req, res) => {
+exports.login = async (req, res) => {
   try {
     // Get all data
     const { email, password } = req.body;    
@@ -77,10 +77,13 @@ exports.login = [loginRateLimiter, async (req, res) => {
     console.error(error);
     res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
-}];
+};
+
+
+
 
 // Verify OTP
-exports.verifyOtp = [otpRateLimiter, async (req, res) => {
+exports.verifyOtp = async (req, res) => {
   try {
     const { email, otp } = req.body;
     console.log(email, otp);
@@ -153,7 +156,7 @@ exports.verifyOtp = [otpRateLimiter, async (req, res) => {
     console.error('Error in verifyOtp:', error);
     res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
-}];
+};
 
 
 
