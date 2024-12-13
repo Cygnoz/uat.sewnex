@@ -393,7 +393,9 @@ exports.getACategory = async (req, res) => {
           message: "category not found",
         });
       }
+      
       category.organizationId = undefined;
+      
       res.status(200).json(category);
     } catch (error) {
       console.error("Error fetching category:", error);
@@ -547,12 +549,12 @@ function removeSpaces(body) {
 
   // Tax Mode
   function taxmode( cleanedData ) {
-    if (cleanedData.sourceOfSupply === cleanedData.destinationOfSupply) {
-      cleanedData.taxMode = 'Intra'; 
-    } else if (cleanedData.sourceOfSupply !== cleanedData.destinationOfSupply) {
-      cleanedData.taxMode = 'Inter'; 
+    if (!cleanedData.sourceOfSupply || !cleanedData.destinationOfSupply) {
+      cleanedData.taxMode = 'None'; // Handle invalid or missing data
+    } else if (cleanedData.sourceOfSupply === cleanedData.destinationOfSupply) {
+      cleanedData.taxMode = 'Intra';
     } else {
-      cleanedData.taxMode = 'None'; 
+      cleanedData.taxMode = 'Inter';
     }
     return;
   }
@@ -577,7 +579,7 @@ function removeSpaces(body) {
     // Utility function to round values to two decimal places
     const roundToTwoDecimals = (value) => Number(value.toFixed(2));
 
-    cleanedData.expense.forEach(data => {      
+    cleanedData.expense.forEach((data, index) => {      
 
       let calculatedCgstAmount = 0;
       let calculatedSgstAmount = 0;
@@ -593,6 +595,7 @@ function removeSpaces(body) {
       const isnotMileage = (cleanedData.distance > 0 || cleanedData.distance === "undefined") && (cleanedData.ratePerKm > 0 || cleanedData.ratePerKm === "undefined");
 
 
+      console.log("test:",data);
       // Handle tax calculation only for taxable expense
       if (gstTreatment && taxGroup && !isnotMileage) {
         if (taxMode === 'Intra') {
@@ -604,6 +607,7 @@ function removeSpaces(body) {
           calculatedVatAmount = roundToTwoDecimals((data.vat / 100) * amount);
        }
 
+       console.log(`Row ${index + 1}:`);
        console.log("calculatedCgstAmount",calculatedCgstAmount);
        console.log("calculatedSgstAmount",calculatedSgstAmount);
        console.log("calculatedIgstAmount",calculatedIgstAmount);
@@ -627,7 +631,7 @@ function removeSpaces(body) {
       } else {
         console.log('Skipping Tax for Non-Taxable expense');
 
-        amount = distance * ratePerKm;
+        amount = roundToTwoDecimals(distance * ratePerKm);
         checkAmount(distance, cleanedData.distance, 'Distance',errors);
         checkAmount(ratePerKm, cleanedData.ratePerKm, 'Rate Per Km',errors);
         checkAmount(amount, data.amount, 'Amount',errors);
@@ -803,8 +807,8 @@ function removeSpaces(body) {
       validateField( data.gstTreatment === "undefined", "Please select an gst treatment", errors);
       validateField( data.amount === "undefined", "Please enter the amount", errors);  
     } else {
-      validateField( data.distance === "undefined", "Please enter distance", errors);
-      validateField( data.ratePerKm === "undefined", "Please enter rate per kilometer", errors);
+      validateField( typeof data.distance === "undefined", "Please enter distance", errors);
+      validateField( typeof data.ratePerKm === "undefined", "Please enter rate per kilometer", errors);
     }
   }
 
