@@ -176,7 +176,7 @@ exports.editCustomer = async (req, res) => {
         return res.status(500).json({ message: "Failed to Update Customer." });
       }
   
-      c
+      
   
       // Add entry to Customer History
       const accountCustomerHistoryEntry = new CustomerHistory({
