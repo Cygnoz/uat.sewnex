@@ -6,7 +6,7 @@ const purchaseOrderController = require('../controller/purchaseOrderController')
 const debitNoteController = require('../controller/debitNoteController'); 
 const PaymentMadeController = require('../controller/paymentMadeController');
 const purchaseSettingsController = require('../controller/purchaseSettingsController')
-const billsController = require('../controller/billsController')
+const billsController = require('../controller/test')
 const SupplierController = require('../controller/supplierController')
  
 

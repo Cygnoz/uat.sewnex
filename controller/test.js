@@ -1,55 +1,93 @@
+const Bills = require('../database/model/bills');
 const PurchaseOrder = require('../database/model/purchaseOrder');
 const Organization = require('../database/model/organization');
-const Item = require('../database/model/item');
 const Supplier = require('../database/model/supplier');
-const Customer = require('../database/model/customer');
-const Settings = require("../database/model/settings")
-const Tax = require('../database/model/tax');
-const Prefix = require("../database/model/prefix");
+const Item = require('../database/model/item');
+const Settings = require("../database/model/settings");
+const ItemTrack = require("../database/model/itemTrack");
+const Tax = require('../database/model/tax');  
+const Account = require("../database/model/account");
 const moment = require("moment-timezone");
 const mongoose = require('mongoose');
 
 
-
 // Fetch existing data
-const dataExist = async ( organizationId, supplierId, items ) => {
-    const itemIds = items.map(item => item.itemId);
-
-    const [organizationExists, supplierExist, itemTable, taxExists, settings, existingPrefix] = await Promise.all([
+const dataExist = async ( organizationId, supplierId, supplierDisplayName, purchaseOrderId ) => {
+    const [organizationExists, supplierExist, purchaseOrderExist, taxExists, settings, supplierAccount] = await Promise.all([
       Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
       Supplier.findOne({ organizationId , _id:supplierId}, { _id: 1, supplierDisplayName: 1, taxType: 1 }),
-      Item.find({ organizationId, _id: { $in: itemIds } }, { _id: 1, itemName: 1, taxPreference: 1, costPrice:1,  taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }),
+      PurchaseOrder.findOne({organizationId , _id:purchaseOrderId}),
       Tax.findOne({ organizationId }),
       Settings.findOne({ organizationId }),
-      Prefix.findOne({ organizationId })
+      Account.findOne({ organizationId , accountName:supplierDisplayName },{ _id:1, accountName:1 })
     ]);    
-  return { organizationExists, supplierExist, itemTable, taxExists, settings, existingPrefix };
+  return { organizationExists, supplierExist, purchaseOrderExist, taxExists, settings, supplierAccount };
+};
+
+
+//Fetch Item Data
+const newDataExists = async (organizationId, items) => {
+  // Retrieve items with specified fields
+  const itemIds = items.map(item => item.itemId);
+
+  const [newItems] = await Promise.all([
+    Item.find({ organizationId, _id: { $in: itemIds } }, { _id: 1, itemName: 1, taxPreference: 1, costPrice:1,  taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }),
+  ]);
+
+  // Aggregate ItemTrack to get the latest entry for each itemId
+  const itemTracks = await ItemTrack.aggregate([
+    { $match: { itemId: { $in: itemIds } } },
+    { $sort: { _id: -1 } },
+    { $group: { _id: "$itemId", lastEntry: { $first: "$$ROOT" } } }
+  ]);
+
+  // Map itemTracks by itemId for easier lookup
+  const itemTrackMap = itemTracks.reduce((acc, itemTrack) => {
+    acc[itemTrack._id] = itemTrack.lastEntry;
+    return acc;
+  }, {});
+
+  // Attach the last entry from ItemTrack to each item in newItems
+  const itemTable = newItems.map(item => ({
+    ...item._doc, // Copy item fields
+    lastEntry: itemTrackMap[item._id] || null, // Attach lastEntry if found
+    currentStock: itemTrackMap[item._id.toString()] ? itemTrackMap[item._id.toString()].currentStock : null
+  }));
+
+  return { itemTable };
 };
 
 
 
-const purchaseOrderDataExist = async ( organizationId, orderId ) => {    
-    const [organizationExists, allPurchaseOrder, purchaseOrder ] = await Promise.all([
+
+
+const billsDataExist = async ( organizationId, billId ) => {    
+    const [organizationExists, allBills, bill ] = await Promise.all([
       Organization.findOne({ organizationId }, { organizationId: 1}),
-      PurchaseOrder.find({ organizationId }),
-      PurchaseOrder.findOne({ organizationId , _id: orderId })
+      Bills.find({ organizationId }),
+      Bills.findOne({ organizationId , _id: billId })
     ]);
-    return { organizationExists, allPurchaseOrder, purchaseOrder };
+    return { organizationExists, allBills, bill };
   };
 
 
 
-// Add Purchase Order
-exports.addPurchaseOrder = async (req, res) => {
-    console.log("Add Purchase Order:", req.body);
+// Add Bills
+exports.addBills = async (req, res) => {
+    console.log("Add bills:", req.body);
   
     try {
       const { organizationId, id: userId, userName } = req.user;
   
       //Clean Data
-      const cleanedData = cleanPurchaseOrderData(req.body);
+      const cleanedData = cleanBillsData(req.body);
+      cleanedData.items = cleanedData.items?.map(person => cleanBillsData(person)) || [];
+
   
-      const { items, supplierId } = cleanedData;
+      const { items, supplierId, purchaseOrderId } = cleanedData;
+      const { supplierDisplayName, otherExpenseAccountId, freightAccountId, paidAccountId } = cleanedData;
+
+    //   const { orderNumber } = cleanedData;
       
       const itemIds = items.map(item => item.itemId);      
       
@@ -58,10 +96,34 @@ exports.addPurchaseOrder = async (req, res) => {
       if (uniqueItemIds.size !== itemIds.length) {
         return res.status(400).json({ message: "Duplicate Item found" });
       }
+      
+      if ( typeof itemIds[0] === 'undefined' ) {
+        return res.status(400).json({ message: "Select an Item" });
+      }
   
       //Validate Supplier
       if (!mongoose.Types.ObjectId.isValid(supplierId) || supplierId.length !== 24) {
-        return res.status(400).json({ message: `Invalid Supplier ID: ${supplierId}` });
+        return res.status(400).json({ message: `Invalid supplier ID: ${supplierId}` });
+      }
+
+      if ((!mongoose.Types.ObjectId.isValid(otherExpenseAccountId) || otherExpenseAccountId.length !== 24) && cleanedData.otherExpenseAmount !== undefined ) {
+        return res.status(400).json({ message: `Select other expense account` });
+      }
+
+      if ((!mongoose.Types.ObjectId.isValid(freightAccountId) || freightAccountId.length !== 24) && cleanedData.freightAmount !== undefined ) {
+        return res.status(400).json({ message: `Select freight account` });
+      }
+
+      if (paidAccountId) {
+      if ((!mongoose.Types.ObjectId.isValid(paidAccountId) || paidAccountId.length !== 24) && cleanedData.paidAmount !== undefined ) {
+        return res.status(400).json({ message: `Select paid through account` });
+      }}
+  
+      // Validate purchase order only if `purchaseOrderId` exists
+      if (purchaseOrderId) {
+        if (!mongoose.Types.ObjectId.isValid(purchaseOrderId) || purchaseOrderId.length !== 24) {
+            return res.status(400).json({ message: `Invalid Purchase Order ID: ${purchaseOrderId}` });
+        }
       }
   
       // Validate ItemIds
@@ -70,13 +132,18 @@ exports.addPurchaseOrder = async (req, res) => {
         return res.status(400).json({ message: `Invalid item IDs: ${invalidItemIds.join(', ')}` });
       }   
   
-      const { organizationExists, supplierExist, itemTable, taxExists, settings, existingPrefix } = await dataExist( organizationId, supplierId, items );
-    
+      const { organizationExists, supplierExist, purchaseOrderExist, taxExists, settings, supplierAccount } = await dataExist( organizationId, supplierId, supplierDisplayName, purchaseOrderId );
+  
+      const { itemTable } = await newDataExists( organizationId, items );
+  
       //Data Exist Validation
-      if (!validateOrganizationSupplierPrefix( organizationExists, supplierExist, existingPrefix, res )) return;
+      if (!validateOrganizationSupplierOrder( organizationExists, supplierExist, purchaseOrderId, purchaseOrderExist, res )) return;
   
       //Validate Inputs  
-      if (!validateInputs( cleanedData, supplierExist, items, itemTable, organizationExists, res)) return;
+      if (!validateInputs( cleanedData, supplierExist, purchaseOrderExist, items, itemTable, organizationExists, res)) return;
+
+      //Check Bill Exist
+      if (await checkExistingBill(cleanedData.billNumber, organizationId, res)) return;
   
       //Date & Time
       const openingDate = generateOpeningDate(organizationExists);
@@ -84,32 +151,38 @@ exports.addPurchaseOrder = async (req, res) => {
       //Tax Type
       taxtype(cleanedData, supplierExist );
       
-      // Calculate Purchase order 
-      if (!calculatePurchaseOrder( cleanedData, res )) return;
-
-      //Prefix
-      await purchaseOrderPrefix(cleanedData, existingPrefix );
+      // Calculate Sales 
+      if (!calculateBills( cleanedData, itemTable, res )) return;
   
-      const savedPurchaseOrder = await createNewPurchaseOrder(cleanedData, organizationId, openingDate, userId, userName );
+      const savedBills = await createNewBills(cleanedData, organizationId, openingDate, userId, userName );
 
-      savedPurchaseOrder.organizationId = undefined;
+      //Item Track
+      await itemTrack( savedBills, itemTable );
+
+      // Delete the associated purchase order if purchaseOrderId is provided
+      if (purchaseOrderId) {
+        await deletePurchaseOrder(purchaseOrderId, organizationId, res);
+      }
+
+      // savedBills.organizationId = undefined;
+      Object.assign(savedBills, { organizationId: undefined, purchaseOrderId: undefined });
         
-      res.status(201).json({ message: "Purchase order created successfully", savedPurchaseOrder });
-      console.log( "Purchase order created successfully:", savedPurchaseOrder );
+      res.status(201).json({ message: "Bills created successfully", savedBills });
+      // console.log( "Bills created successfully:", savedBills );
     } catch (error) {
-      console.error("Error Creating Purchase Order:", error);
+      console.error("Error Creating Bills:", error);
       res.status(500).json({ message: "Internal server error." });
     }
   }
   
   
   
-  // Get All Purchase Order
-  exports.getAllPurchaseOrder = async (req, res) => {
+  // Get All Bills
+  exports.getAllBills = async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
   
-      const { organizationExists, allPurchaseOrder } = await purchaseOrderDataExist( organizationId , null );
+      const { organizationExists, allBills } = await billsDataExist(organizationId);
   
       if (!organizationExists) {
         return res.status(404).json({
@@ -117,121 +190,124 @@ exports.addPurchaseOrder = async (req, res) => {
         });
       }
   
-      if (!allPurchaseOrder.length) {
+      if (!allBills.length) {
         return res.status(404).json({
-          message: "No purchase order found",
+          message: "No Bills Note found",
         });
       }
 
-      // Map over all purchaseOrder to remove the organizationId from each object
-      const sanitizedPurchaseOrders = allPurchaseOrder.map(order => {
-        const { organizationId, ...rest } = order.toObject(); // Convert to plain object and omit organizationId
-        return rest;
-      });
-      
-      res.status(200).json({allPurchaseOrder: sanitizedPurchaseOrders});
-      } catch (error) {
-      console.error("Error fetching purchase order:", error);
-      res.status(500).json({ message: "Internal server error." });
-    }
-  };
-  
-  
- // Get One Purchase Order
- exports.getOnePurchaseOrder = async (req, res) => {
-    try {
-      const organizationId = req.user.organizationId;
-      const orderId = req.params.orderId;
-    
-      const { organizationExists, purchaseOrder } = await purchaseOrderDataExist(organizationId, orderId);
-    
-      if (!organizationExists) {
-        return res.status(404).json({
-          message: "Organization not found",
-        });
-      }
-    
-      if (!purchaseOrder) {
-        return res.status(404).json({
-          message: "No purchase order found",
-        });
-      }
+        // Get current date for comparison
+        const currentDate = new Date();
 
-      // Fetch item details associated with the purchaseOrder
-      const itemIds = purchaseOrder.items.map(item => item.itemId);
+        // Array to store purchase bills with updated status
+        const updatedBills = [];
 
-      // Retrieve items including itemImage
-      const itemsWithImages = await Item.find(
-        { _id: { $in: itemIds }, organizationId },
-        { _id: 1, itemName: 1, itemImage: 1 } 
-      );
-
-      // Map the items to include item details
-      const updatedItems = purchaseOrder.items.map(purchaseOrderItem => {
-        const itemDetails = itemsWithImages.find(item => item._id.toString() === purchaseOrderItem.itemId.toString());
-        return {
-          ...purchaseOrderItem.toObject(),
-          itemName: itemDetails ? itemDetails.itemName : null,
-          itemImage: itemDetails ? itemDetails.itemImage : null,
-        };
-      });
-
-      // Attach updated items back to the purchaseOrder
-      const updatedPurchaseOrder = {
-        ...purchaseOrder.toObject(),
-        items: updatedItems,
-      };
-
-      updatedPurchaseOrder.organizationId = undefined;
-
-      res.status(200).json(updatedPurchaseOrder);
-    } catch (error) {
-      console.error("Error fetching purchase order:", error);
-      res.status(500).json({ message: "Internal server error." });
-    }
-    };
-  
-  
-// Get Last Journal Prefix
-exports. getLastPurchaseOrderPrefix = async (req, res) => {
-    try {
-        const organizationId = req.user.organizationId;
-  
-        // Find all accounts where organizationId matches
-        const prefix = await Prefix.findOne({ organizationId:organizationId,'series.status': true });
-  
-        if (!prefix) {
-            return res.status(404).json({
-                message: "No Prefix found for the provided organization ID.",
-            });
+        // Map through purchase bills and update paidStatus if needed
+        for (const bill of allBills) {
+        const { organizationId, balanceAmount, dueDate, paidStatus: currentStatus, ...rest } = bill.toObject();
+        
+        // Determine the correct paidStatus based on balanceAmount and dueDate
+        let newStatus;
+        if (balanceAmount === 0) {
+            newStatus = 'Completed';
+        } else if (dueDate && new Date(dueDate) < currentDate) {
+            newStatus = 'Overdue';
+        } else {
+            newStatus = 'Pending';
         }
-        
-        const series = prefix.series[0];     
-        const lastPrefix = series.purchaseOrder + series.purchaseOrderNum;
 
-        lastPrefix.organizationId = undefined;
+        // Update the bill's status only if it differs from the current status in the database
+        if (newStatus !== currentStatus) {
+            await Bills.updateOne({ _id: bill._id }, { paidStatus: newStatus });
+        }
+
+        // Push the bill object with the updated status to the result array
+        updatedBills.push({ ...rest, balanceAmount , dueDate , paidStatus: newStatus });
+        }
+
+        // Map over all purchaseOrder to remove the organizationId from each object
+        const sanitizedBills = updatedBills.map(order => {
+          const { organizationId, ...rest } = order; 
+          return rest;
+        });
   
-        res.status(200).json(lastPrefix);
+      res.status(200).json({allBills: sanitizedBills});
     } catch (error) {
-        console.error("Error fetching accounts:", error);
-        res.status(500).json({ message: "Internal server error." });
+      console.error("Error fetching bills:", error);
+      res.status(500).json({ message: "Internal server error." });
     }
   };
   
-
-  // Purchase Prefix
-  function purchaseOrderPrefix( cleanData, existingPrefix ) {
-    const activeSeries = existingPrefix.series.find(series => series.status === true);
-    if (!activeSeries) {
-        return res.status(404).json({ message: "No active series found for the organization." });
+  
+  // Get One Bill
+  exports.getOneBill = async (req, res) => {
+  try {
+    const organizationId = req.user.organizationId;
+    const billId = req.params.billId;
+  
+    const { organizationExists, bill } = await billsDataExist(organizationId, billId);
+  
+    if (!organizationExists) {
+      return res.status(404).json({
+        message: "Organization not found",
+      });
     }
-    cleanData.purchaseOrder = `${activeSeries.purchaseOrder}${activeSeries.purchaseOrderNum}`;
   
-    activeSeries.purchaseOrderNum += 1;
-  
-    existingPrefix.save()
-  
-    return 
+    if (!bill) {
+      return res.status(404).json({
+        message: "No bill found",
+      });
+    }
+
+    
+    // Fetch item details associated with the bill
+    const itemIds = bill.items.map(item => item.itemId);
+
+    // Retrieve items including itemImage
+    const itemsWithImages = await Item.find(
+      { _id: { $in: itemIds }, organizationId },
+      { _id: 1, itemName: 1, itemImage: 1 } 
+    );
+
+    // Map the items to include item details
+    const updatedItems = bill.items.map(billItem => {
+      const itemDetails = itemsWithImages.find(item => item._id.toString() === billItem.itemId.toString());
+      return {
+        ...billItem.toObject(),
+        itemName: itemDetails ? itemDetails.itemName : null,
+        itemImage: itemDetails ? itemDetails.itemImage : null,
+      };
+    });
+
+    // Attach updated items back to the bill
+    const updatedBill = {
+      ...bill.toObject(),
+      items: updatedItems,
+    };
+
+    updatedBill.organizationId = undefined;
+
+    res.status(200).json(updatedBill);
+  } catch (error) {
+    console.error("Error fetching bill:", error);
+    res.status(500).json({ message: "Internal server error." });
+  }
+  };
+
+
+  // Delete Purchase Order
+  async function deletePurchaseOrder(purchaseOrderId, organizationId, res) {
+    try {
+      const deletedOrder = await PurchaseOrder.findOneAndDelete({ _id: purchaseOrderId, organizationId });
+      if (!deletedOrder) {
+        console.warn(`Purchase Order with ID: ${purchaseOrderId} not found for Organization: ${organizationId}`);
+      }
+      return deletedOrder;      
+    } catch (error) {
+      console.error(`Error deleting Purchase Order: ${error}`);
+      res.status(500).json({ message: "Error deleting the Purchase Order." });
+      return null;
+    }
   }
 
 
@@ -239,15 +315,64 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
 
 
 
-   // Create New Purchase Order
-   function createNewPurchaseOrder( data, organizationId, openingDate, userId, userName ) {
-    const newPurchaseOrder = new PurchaseOrder({ ...data, organizationId, createdDate: openingDate, userId, userName, status: "Open" });
-    return newPurchaseOrder.save();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  // Create New Debit Note
+  function createNewBills( data, organizationId, openingDate, userId, userName ) {
+    const newBill = new Bills({ ...data, organizationId, createdDate: openingDate, userId, userName });
+    return newBill.save();
+  }
+
+
+  // Check for existing bill
+  async function checkExistingBill(billNumber, organizationId, res) {
+    const existingBill = await Bills.findOne({ billNumber, organizationId });
+    if (existingBill) {
+      res.status(409).json({ message: "Bill already exists." });
+      return true;
+    }
+    return false;
   }
   
   
   //Clean Data 
-  function cleanPurchaseOrderData(data) {
+  function cleanBillsData(data) {
     const cleanData = (value) => (value === null || value === undefined || value === "" ? undefined : value);
     return Object.keys(data).reduce((acc, key) => {
       acc[key] = cleanData(data[key]);
@@ -256,8 +381,8 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
   }
   
   
-  // Validate Organization Supplier Prefix
-  function validateOrganizationSupplierPrefix( organizationExists, supplierExist, existingPrefix, res ) {
+  // Validate Organization Tax Currency
+  function validateOrganizationSupplierOrder( organizationExists, supplierExist, purchaseOrderId, purchaseOrderExist, res ) {
     if (!organizationExists) {
       res.status(404).json({ message: "Organization not found" });
       return false;
@@ -265,11 +390,14 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
     if (!supplierExist) {
       res.status(404).json({ message: "Supplier not found." });
       return false;
-    }
-    if (!existingPrefix) {
-      res.status(404).json({ message: "Prefix not found" });
-      return false;
-    }
+    }    
+    if (purchaseOrderId) {
+      if (!purchaseOrderExist) {
+        res.status(404).json({ message: "Purchase order not found" });
+        return false;
+      }
+  }
+    
     return true;
   }
   
@@ -293,7 +421,9 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
 
 
 
-  function calculatePurchaseOrder(cleanedData, res) {
+
+
+  function calculateBills(cleanedData, itemTable, res) {
     const errors = [];
   
     let otherExpense = (cleanedData.otherExpense || 0);
@@ -305,6 +435,8 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
     let totalItem = 0;
     let transactionDiscountAmount = 0;
     let grandTotal = 0;
+    let balanceAmount = 0;
+    let paidAmount = (cleanedData.paidAmount || 0);
   
     // Utility function to round values to two decimal places
     const roundToTwoDecimals = (value) => Number(value.toFixed(2));  
@@ -333,7 +465,7 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
         switch (taxMode) {
           
           case 'Intra':
-            calculatedItemCgstAmount = roundToTwoDecimals((item.itemCgst / 100) * itemAmount);
+            calculatedItemCgstAmount = ((item.itemCgst / 100) * itemAmount);
             calculatedItemSgstAmount = roundToTwoDecimals((item.itemSgst / 100) * itemAmount);
           break;
   
@@ -356,7 +488,7 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
         checkAmount(calculatedItemVatAmount, item.itemVatAmount, item.itemName, 'VAT',errors);
         checkAmount(calculatedItemTaxAmount, item.itemTax, item.itemName, 'Item tax',errors);
   
-        totalTaxAmount +=  calculatedItemTaxAmount;
+        totalTaxAmount += calculatedItemTaxAmount;
   
       } else {
         console.log(`Skipping Tax for Non-Taxable item: ${item.itemName}`);
@@ -374,6 +506,7 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
         (subTotal + totalTaxAmount + otherExpense + freightAmount - roundOffAmount) - itemTotalDiscount
     );
   
+    console.log(`SubTotal: ${subTotal} , Provided ${cleanedData.subTotal}`);
     console.log(`Total: ${total} , Provided ${total}`);
     console.log(`subTotal: ${subTotal} , Provided ${cleanedData.subTotal}`);
     console.log(`totalTaxAmount: ${totalTaxAmount} , Provided ${cleanedData.totalTaxAmount}`);
@@ -388,23 +521,30 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
     // grandTotal amount calculation with including transactionDiscount
     grandTotal = total - transDisAmt; 
     console.log(`Grand Total: ${grandTotal} , Provided ${cleanedData.grandTotal}`);
+
+    // Calculate balanceAmount
+    balanceAmount = grandTotal - parseFloat(paidAmount)
   
     // Round the totals for comparison
     const roundedSubTotal = roundToTwoDecimals(subTotal); 
     const roundedTotalTaxAmount = roundToTwoDecimals(totalTaxAmount);
     const roundedGrandTotalAmount = roundToTwoDecimals(grandTotal);
     const roundedTotalItemDiscount = roundToTwoDecimals(itemTotalDiscount);
+    const roundedBalanceAmount = roundToTwoDecimals(balanceAmount); 
   
     console.log(`Final Sub Total: ${roundedSubTotal} , Provided ${cleanedData.subTotal}` );
     console.log(`Final Total Tax Amount: ${roundedTotalTaxAmount} , Provided ${cleanedData.totalTaxAmount}` );
     console.log(`Final Total Amount: ${roundedGrandTotalAmount} , Provided ${cleanedData.grandTotal}` );
     console.log(`Final Total Item Discount Amount: ${roundedTotalItemDiscount} , Provided ${cleanedData.itemTotalDiscount}` );
+    console.log(`Final Balance Amount: ${roundedBalanceAmount} , Provided ${cleanedData.balanceAmount}` );
   
-    validateAmount(roundedSubTotal, cleanedData.subTotal, 'SubTotal', errors);
-    validateAmount(roundedTotalTaxAmount, cleanedData.totalTaxAmount, 'Total Tax Amount', errors);
-    validateAmount(roundedGrandTotalAmount, cleanedData.grandTotal, 'Grand Total', errors);
-    validateAmount(roundedTotalItemDiscount, cleanedData.itemTotalDiscount, 'Total Item Discount Amount', errors);
-    validateAmount(totalItem, cleanedData.totalItem, 'Total Item count', errors);
+    // validateAmount(roundedSubTotal, cleanedData.subTotal, 'SubTotal', errors);
+    // validateAmount(roundedTotalTaxAmount, cleanedData.totalTaxAmount, 'Total Tax Amount', errors);
+    // validateAmount(roundedGrandTotalAmount, cleanedData.grandTotal, 'Grand Total', errors);
+    // validateAmount(roundedTotalItemDiscount, cleanedData.itemTotalDiscount, 'Total Item Discount Amount', errors);
+    // validateAmount(roundedBalanceAmount, cleanedData.balanceAmount, 'Balance Amount', errors);
+    // validateAmount(totalItem, cleanedData.totalItem, 'Total Item count', errors);
+    
   
     if (errors.length > 0) {
       res.status(400).json({ message: errors.join(", ") });
@@ -459,7 +599,9 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
 
 
 
-   //Return Date and Time 
+
+
+  //Return Date and Time 
 function generateOpeningDate(organizationExists) {
     const date = generateTimeAndDateForDB(
         organizationExists.timeZoneExp,
@@ -509,19 +651,21 @@ function generateOpeningDate(organizationExists) {
 
 
 
+
   //Validate inputs
-function validateInputs( data, supplierExist, items, itemExists, organizationExists, res) {
-    const validationErrors = validatePurchaseOrderData(data, supplierExist, items, itemExists, organizationExists);  
+function validateInputs( data, supplierExist, purchaseOrderExist, items, itemExists, organizationExists, res) {
+    const validationErrors = validateBillsData(data, supplierExist, purchaseOrderExist, items, itemExists, organizationExists );  
   
     if (validationErrors.length > 0) {
-      res.status(400).json({ message: validationErrors.join(", ") });
+      res.status(400).json({ message: validationErrors.join(", ") })
+      ;
       return false;
     }
     return true;
   }
   
   //Validate Data
-  function validatePurchaseOrderData( data, supplierExist, items, itemTable, organizationExists ) {
+  function validateBillsData( data, supplierExist, purchaseOrderExist, items, itemTable, organizationExists ) {
     const errors = [];
   
     // console.log("Item Request :",items);
@@ -530,6 +674,10 @@ function validateInputs( data, supplierExist, items, itemExists, organizationExi
     //Basic Info
     validateReqFields( data, supplierExist, errors );
     validateItemTable(items, itemTable, errors);
+    // Activate `validatePurchaseOrderData` only when `purchaseOrderId` is present
+    if (data.purchaseOrderId) {
+      validatePurchaseOrderData(data, purchaseOrderExist, items, errors);
+    }
     validateShipmentPreferences(data.shipmentPreference, errors)
     validateTransactionDiscountType(data.transactionDiscountType, errors);
     // console.log("billExist Data:", billExist.billNumber, billExist.billDate, billExist.orderNumber)
@@ -544,6 +692,7 @@ function validateInputs( data, supplierExist, items, itemExists, organizationExi
     validateSourceOfSupply(data.sourceOfSupply, organizationExists, errors);
     validateDestinationOfSupply(data.destinationOfSupply, organizationExists, errors);
     validatePaymentTerms(data.paymentTerms, errors);
+    validatePaymentMode(data.paymentMode, errors);
     //validateGSTorVAT(data, errors);
   
     //Currency
@@ -564,12 +713,23 @@ function validateInputs( data, supplierExist, items, itemExists, organizationExi
   
   
   //Valid Req Fields
-  function validateReqFields( data, supplierExist, errors ) {
+  function validateReqFields( data, supplierExist,  errors ) {
   validateField( typeof data.supplierId === 'undefined' || typeof data.supplierDisplayName === 'undefined', "Please select a Supplier", errors  );
   validateField( supplierExist.taxtype == 'GST' && typeof data.sourceOfSupply === 'undefined', "Source of supply required", errors  );
   validateField( supplierExist.taxtype == 'GST' && typeof data.destinationOfSupply === 'undefined', "Destination of supply required", errors  );
+  
   validateField( typeof data.items === 'undefined', "Select an item", errors  );
-  }
+  validateField( typeof data.billNumber === 'undefined', "Select an bill number", errors  );
+
+  validateField( typeof data.otherExpenseAmount !== 'undefined' && typeof data.otherExpenseReason === 'undefined', "Please enter other expense reason", errors  );
+  validateField( typeof data.otherExpenseAmount !== 'undefined' && typeof data.otherExpenseAccountId === 'undefined', "Please select expense account", errors  );
+  validateField( typeof data.freightAmount !== 'undefined' && typeof data.freightAccountId === 'undefined', "Please select freight account", errors  );
+
+  validateField( typeof data.roundOffAmount !== 'undefined' && !(data.roundOffAmount >= 0 && data.roundOffAmount <= 1), "Round Off Amount must be between 0 and 1", errors );
+  
+  validateField( typeof data.paidAmount !== 'undefined' && !(data.paidAmount <= data.grandTotal), "Excess payment amount", errors );
+  validateField( typeof data.paidAmount !== 'undefined' && !(data.paidAmount >= 0 ), "Negative payment amount", errors );
+}
   
   
   // Function to Validate Item Table 
@@ -609,19 +769,55 @@ function validateInputs( data, supplierExist, items, itemExists, organizationExi
     // Validate integer fields
     validateIntegerFields(['itemQuantity'], item, errors);
   
-    // Validate Stock Count 
-    validateField( item.itemQuantity > fetchedItem.currentStock, `Insufficient Stock for ${item.itemName}: Requested quantity ${item.itemQuantity}, Available stock ${fetchedItem.currentStock}`, errors );
-  
     // Validate float fields
     validateFloatFields(['itemCostPrice', 'itemTotaltax', 'itemAmount'], item, errors);
   });
+  }
+  
+  
+  // valiadate purchase order data
+  function validatePurchaseOrderData(data, purchaseOrderExist, items, errors) {  
+    // console.log("data:", data);
+    // console.log("purchaseOrderExist:", purchaseOrderExist);
+    // console.log("items:", items);
+  
+     // Initialize `billExist.items` to an empty array if undefined
+     purchaseOrderExist.items = Array.isArray(purchaseOrderExist.items) ? purchaseOrderExist.items : [];
+  
+    // Validate basic fields
+    validateField( purchaseOrderExist.purchaseOrder !== data.orderNumber, `Order Number mismatch for ${purchaseOrderExist.purchaseOrder}`, errors  );
+  
+    // Loop through each item in billExist.items
+    purchaseOrderExist.items.forEach(orderItem => {
+      const bItem = items.find(dataItem => dataItem.itemId === orderItem.itemId);
+  
+      if (!bItem) {
+        errors.push(`Item ID ${orderItem.itemId} not found in provided items`);
+      } else {
+        
+        validateField(bItem.itemName !== orderItem.itemName, 
+                      `Item Name mismatch for ${orderItem.itemId}: Expected ${orderItem.itemName}, got ${bItem.itemName}`, 
+                      errors);
+        validateField(bItem.itemCostPrice !== orderItem.itemCostPrice, 
+                      `Item Cost Price mismatch for ${orderItem.itemId}: Expected ${orderItem.itemCostPrice}, got ${bItem.itemCostPrice}`, 
+                      errors);
+        validateField(bItem.itemCgst !== orderItem.itemCgst, 
+                      `Item CGST mismatch for ${orderItem.itemId}: Expected ${orderItem.itemCgst}, got ${bItem.itemCgst}`, 
+                      errors);
+        validateField(bItem.itemSgst !== orderItem.itemSgst, 
+                      `Item SGST mismatch for ${orderItem.itemId}: Expected ${orderItem.itemSgst}, got ${bItem.itemSgst}`, 
+                      errors);
+        validateField(bItem.itemIgst !== orderItem.itemIgst, 
+                      `Item IGST mismatch for ${orderItem.itemId}: Expected ${orderItem.itemIgst}, got ${bItem.itemIgst}`, 
+                      errors);
+      }
+    });
   }
 
 
 
 
-
-  // Validate source Of Supply
+// Validate source Of Supply
 function validateSourceOfSupply(sourceOfSupply, organization, errors) {
     validateField(
       sourceOfSupply && !validCountries[organization.organizationCountry]?.includes(sourceOfSupply),
@@ -661,6 +857,13 @@ function validateSourceOfSupply(sourceOfSupply, organization, errors) {
       "Invalid Payment Terms: " + paymentTerms, errors );
   }
   
+  // Validate Payment Mode
+  function validatePaymentMode(paymentMode, errors) {
+    validateField(
+      paymentMode && !validPaymentMode.includes(paymentMode),
+      "Invalid Payment Mode: " + paymentMode, errors );
+  }
+  
   
   
   
@@ -692,7 +895,7 @@ function validateSourceOfSupply(sourceOfSupply, organization, errors) {
       }
     });
   }
-  
+
   
   
   
@@ -725,14 +928,59 @@ function validateSourceOfSupply(sourceOfSupply, organization, errors) {
   function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
   }
-
-
   
-
+  
+  
+  
+  // Item Track Function
+  async function itemTrack(savedBills, itemTable) {
+    const { items } = savedBills;
+  
+    for (const item of items) {
+      // Find the matching item in itemTable by itemId
+      const matchingItem = itemTable.find((entry) => entry._id.toString() === item.itemId);
+  
+      if (!matchingItem) {
+        console.error(`Item with ID ${item.itemId} not found in itemTable`);
+        continue; // Skip this entry if not found
+      }
+  
+      // Calculate the new stock level after the purchase
+      const newStock = matchingItem.currentStock + item.itemQuantity;
+  
+  
+      // Create a new entry for item tracking
+      const newTrialEntry = new ItemTrack({
+        organizationId: savedBills.organizationId,
+        operationId: savedBills._id,
+        transactionId: savedBills.bill,
+        action: "Bills",
+        date: savedBills.billDate,
+        itemId: matchingItem._id,
+        itemName: matchingItem.itemName,
+        sellingPrice: matchingItem.itemSellingPrice,
+        costPrice: matchingItem.itemCostPrice || 0, // Assuming cost price is in itemTable
+        creditQuantity: item.itemQuantity, // Quantity sold
+        currentStock: newStock,
+        remark: `Sold to ${savedBills.supplierDisplayName}`,
+      });
+  
+      // Save the tracking entry and update the item's stock in the item table
+      await newTrialEntry.save();
+  
+      // console.log("1",newTrialEntry);
+    }
+  }
+  
+  
+  
+  
+  
   // Utility functions
   const validShipmentPreferences = ["Road", "Rail", "Air", "Sea", "Courier", "Hand Delivery", "Pickup"];
   const validItemDiscountType = ["percentage", "currency"];
   const validTransactionDiscountType = ["percentage", "currency"];
+  const validPaymentMode = [ "Cash", "Credit" ]
   const validPaymentTerms = [
     "Net 15", 
     "Net 30", 
@@ -741,7 +989,8 @@ function validateSourceOfSupply(sourceOfSupply, organization, errors) {
     "Pay Now", 
     "due on receipt", 
     "End of This Month", 
-    "End of Next Month"
+    "End of Next Month",
+    "Custom"
   ];
   const validCountries = {
     "United Arab Emirates": [
@@ -809,4 +1058,38 @@ function validateSourceOfSupply(sourceOfSupply, organization, errors) {
     ],
   };
   
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
   
