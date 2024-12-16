@@ -14,7 +14,7 @@ server.use(supplierRouter)
 const PORT = 5009
 
 server.get('/',(req,res)=>{
-    res.status(200).json("Bill BIZZ server started - Supplier")
+    res.status(200).json("Dev Bill BIZZ server started - Supplier")
 })
 
 server.listen(PORT,()=>{
