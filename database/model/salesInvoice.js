@@ -89,6 +89,8 @@ const SalesInvoiceSchema = new Schema ({
   balanceAmount: { type: Number },
   depositAccountId: { type: String },
 
+  paymentMethod: { type: String },
+
   paidStatus: { type: String },
 
   salesOrderId: { type: String },
