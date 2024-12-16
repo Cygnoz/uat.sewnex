@@ -21,7 +21,7 @@ server.use(staffRouter,expenseRouter)
 PORT = 5008
 
 server.get('/',(req,res)=>{
-    res.status(200).json("Bill BIZZ server started - Staff(v1)")
+    res.status(200).json("Dev Bill BIZZ server started - Staff(v1)")
 })
 
 server.listen(PORT,()=>{
