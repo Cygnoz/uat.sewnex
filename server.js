@@ -31,7 +31,7 @@ const corsOptions = {
 
 // Middleware setup
 server.use(helmet());  // Security headers
-server.use(cors(corsOptions));  // CORS with options
+server.use(cors());  // CORS with options
 server.use(express.json({ limit: '10mb' })); // Set limit for JSON payloads
 server.use(express.urlencoded({ limit: '10mb', extended: true })); // Set limit for URL-encoded payloads
 server.use(inventoryRouter); // Route definitions
@@ -39,7 +39,7 @@ server.use(inventoryRouter); // Route definitions
 const PORT = 5003
 
 server.get('/',(req,res)=>{
-    res.status(200).json("Bill BIZZ server started - Inventory ")
+    res.status(200).json("Dev Bill BIZZ server started - Inventory ")
 });
 
 server.listen(PORT,()=>{
