@@ -295,9 +295,9 @@ exports.getAllSalesInvoice = async (req, res) => {
    // Push the bill object with the updated status to the result array
    updatedInvoices.push({ ...rest, balanceAmount , dueDate , paidStatus: newStatus });
    }
-   allinvoice=updatedInvoices
+  //  allinvoice=updatedInvoices
 
-    res.status(200).json({allinvoice});
+    res.status(200).json({updatedInvoices});
   } catch (error) {
     console.error("Error fetching Invoice:", error);
     res.status(500).json({ message: "Internal server error." });
