@@ -20,7 +20,7 @@ server.use(reportRouter)
 PORT = 5006
 
 server.get('/',(req,res)=>{
-    res.status(200).json("Bill BIZZ server started - Report ")
+    res.status(200).json("Dev Bill BIZZ server started - Report ")
 })
 
 server.listen(PORT,()=>{
