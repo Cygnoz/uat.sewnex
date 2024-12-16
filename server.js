@@ -18,7 +18,7 @@ server.use(customerRouter)
 const PORT = 5002
 
 server.get('/',(req,res)=>{
-    res.status(200).json("Bill BIZZ server started - Customer")
+    res.status(200).json("Dev Bill BIZZ server started - Customer")
 })
 
 // Global error handling middleware
