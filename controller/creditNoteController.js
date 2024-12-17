@@ -654,6 +654,9 @@ function validateInvoiceData(data, items, invoiceExist, errors) {
       validateField(CNItem.igst !== invoiceItem.igst, 
                     `Item IGST mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.igst}, got ${CNItem.igst}`, 
                     errors);
+      // validateField(CNItem.quantity < invoiceItem.quantity, 
+      //               `Provided quantity (${CNItem.quantity}) exceeds invoice quantity (${invoiceItem.quantity})`, 
+      //               errors);
     }
   });
 }
