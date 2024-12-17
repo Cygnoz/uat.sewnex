@@ -73,8 +73,6 @@ exports.calculateTotalInventoryValue = async (req, res) => {
     // const {date} = req.body
     const { date } = req.params;
 
-
-
     const totalStockCount = await getTotalInventoryValues(items, organizationId, date);
     const { inventoryValueChange , salesValueChange} = totalStockCount
     const { topSellingProducts  ,frequentlyOrderedItems, totalSoldValue} = topSelling
