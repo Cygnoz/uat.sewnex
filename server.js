@@ -9,6 +9,14 @@ require('./database/connection/connection');
 
 // Initialize the Express app
 const server = express();
+
+// Increase the limit for JSON payloads
+server.use(express.json({ limit: '10mb' })); // Set limit to 10MB
+
+// Increase the limit for URL-encoded payloads
+server.use(express.urlencoded({ limit: '10mb', extended: true }));
+
+
 server.use(cors())
 server.use(helmet());
 server.use(express.json())
@@ -18,7 +26,7 @@ server.use(customerRouter)
 const PORT = 5002
 
 server.get('/',(req,res)=>{
-    res.status(200).json("Bill BIZZ server started - Customer")
+    res.status(200).json("Dev Bill BIZZ server started - Customer")
 })
 
 // Global error handling middleware

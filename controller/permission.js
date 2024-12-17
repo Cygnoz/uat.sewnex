@@ -1,23 +1,15 @@
-// v1.1
+// v1.2
 
 const User = require('../database/model/user');
 const Role = require('../database/model/role');
 const ActivityLog = require('../database/model/activityLog');
 const moment = require("moment-timezone");
-const rateLimit = require('express-rate-limit');
 
 
-// Define a rate limiter with custom configurations
-const limiter = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 minutes
-  max: 20, // Limit each IP to 20 requests per window
-  message: { message: 'Too many requests, please try again after 15 minutes' },
-  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-});
+
 
 const checkPermission = (permissionAction) => {
-  return [limiter, async (req, res, next) => { 
+  return async (req, res, next) => { 
     try {
       // Fetch user using userId from req.user
       const user = await User.findById(req.user.id);
@@ -69,7 +61,7 @@ const checkPermission = (permissionAction) => {
       console.error('Error in checkPermission:', err);
       return res.status(500).json({ message: 'Internal server error' });
     }
-  }];
+  };
 };
 
 

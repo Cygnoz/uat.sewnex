@@ -52,6 +52,7 @@ const customerSchema = new Schema({
 
 
     //Taxes
+    taxPreference: {type:String},
     taxReason: {type:String},
     taxType: {type:String},
     gstTreatment: {type:String},

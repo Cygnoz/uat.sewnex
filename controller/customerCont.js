@@ -176,19 +176,7 @@ exports.editCustomer = async (req, res) => {
         return res.status(500).json({ message: "Failed to Update Customer." });
       }
   
-      // Update customerDisplayName in associated Account documents
-      if (customerDisplayName && customerDisplayName !== oldCustomerDisplayName) {
-        const updatedAccount = await Account.updateMany(
-          {
-            accountName: oldCustomerDisplayName,
-            organizationId: organizationId,
-          },
-          { $set: { accountName: customerDisplayName } }
-        );
-        console.log(
-          `${updatedAccount.modifiedCount} account(s) associated with the accountName have been updated with the new customerDisplayName.`
-        );
-      }
+      
   
       // Add entry to Customer History
       const accountCustomerHistoryEntry = new CustomerHistory({
@@ -808,7 +796,6 @@ function createTaxExemptionDescription() {
 // Opening Balance Description
 function getOpeningBalanceDescription(data, userName) {
   let balanceType = "";
-  console.log(data)
   // Check for debit opening balance
   if (data && data.debitOpeningBalance) {
     balanceType = `Opening Balance (Debit): ${data.debitOpeningBalance}. `;
@@ -978,6 +965,7 @@ function validateField(condition, errorMsg, errors) {
 function validateReqFields( data, taxType, errors ) {
   validateField( typeof data.customerDisplayName === 'undefined', `Customer Display Name required`, errors );  
   validateField( typeof taxType === 'undefined' || taxType === '' , `Please setup tax`, errors );  
+  validateField( typeof data.taxPreference === 'undefined' , `Please select tax prefernece`, errors );  
   
 }
 //Valid Opening Balance
@@ -1054,8 +1042,7 @@ function validateIntegerFields(fields, data, errors) {
 
 //Validate Tax Type
   function validateTaxType(taxType, validTaxTypes, errors) {
-    validateField(taxType && !validTaxTypes.includes(taxType),
-      "Invalid Tax Type: " + taxType, errors);
+    validateField(taxType && !validTaxTypes.includes(taxType),"Invalid Tax Type: " + taxType, errors);
   }
 // Validate Place Of Supply
   function validatePlaceOfSupply(placeOfSupply, organization, errors) {

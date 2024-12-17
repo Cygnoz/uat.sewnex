@@ -13,7 +13,7 @@ interface CustomRequest extends Request {
 }
 
 export const getCustomerTransactions = async (
-    req: CustomRequest,
+    _: CustomRequest,
     res: Response,
     next: NextFunction
 ): Promise<void> => {
