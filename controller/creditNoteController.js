@@ -30,7 +30,7 @@ const newDataExists = async (organizationId, items) => {
   const itemIds = items.map(item => item.itemId);
 
   const [newItems] = await Promise.all([
-    Item.find({ organizationId, _id: { $in: itemIds } }, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, costPrice:1,  taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }),
+    Item.find({ organizationId, _id: { $in: itemIds } }, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, costPrice: 1, returnableItem: 1,  taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }),
   ]);
 
   // Aggregate ItemTrack to get the latest entry for each itemId
@@ -133,8 +133,6 @@ exports.addCreditNote = async (req, res) => {
 
     //Item Track
     await itemTrack( savedCreditNote, itemTable );
-
-    savedCreditNote.organizationId = undefined;
       
     res.status(201).json({ message: "Credit Note created successfully",savedCreditNote });
     // console.log( "Debit Note created successfully:", savedCreditNote );
@@ -586,6 +584,9 @@ function validateItemTable(items, itemTable, errors) {
   // Iterate through each item to validate individual fields
   items.forEach((item) => {
     const fetchedItem = itemTable.find(it => it._id.toString() === item.itemId);
+
+
+    validateField( fetchedItem.returnableItem !== true, "Non-returnable items found. Credit note can only be added for returnable items.", errors );
   
     // Check if item exists in the item table
     validateField( !fetchedItem, `Item with ID ${item.itemId} was not found.`, errors );
@@ -636,6 +637,10 @@ function validateInvoiceData(data, items, invoiceExist, errors) {
   invoiceExist.items.forEach(invoiceItem => {
     const CNItem = items.find(dataItem => dataItem.itemId === invoiceItem.itemId);
 
+    console.log("invoiceItem:",invoiceItem);
+    console.log("CNItem:",CNItem);
+    
+
     if (!CNItem) {
       errors.push(`Item ID ${invoiceItem.itemId} not found in provided items`);
     } else {
@@ -654,9 +659,9 @@ function validateInvoiceData(data, items, invoiceExist, errors) {
       validateField(CNItem.igst !== invoiceItem.igst, 
                     `Item IGST mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.igst}, got ${CNItem.igst}`, 
                     errors);
-      // validateField(CNItem.quantity < invoiceItem.quantity, 
-      //               `Provided quantity (${CNItem.quantity}) exceeds invoice quantity (${invoiceItem.quantity})`, 
-      //               errors);
+      validateField(CNItem.quantity === 0 || CNItem.quantity > invoiceItem.quantity, 
+                    `Provided quantity (${CNItem.quantity}), Quantity cannot be zero or exceed the invoice quantity (${invoiceItem.quantity})`, 
+                    errors);
     }
   });
 }
@@ -787,7 +792,7 @@ function capitalize(word) {
       // Save the tracking entry and update the item's stock in the item table
       // await newTrialEntry.save();
   
-      console.log("1",newTrialEntry);
+      // console.log("1",newTrialEntry);
     }
   }
 
