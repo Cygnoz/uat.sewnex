@@ -22,12 +22,15 @@ pipeline {
                     // Set up SonarQube Scanner
                     scannerHome = tool 'sonarqube' // Replace with your SonarQube Scanner tool name
                 }
-                withCredentials([string(credentialsId: "${SONARQUBE_SCANNER_CREDENTIALS_ID}", variable: 'SONAR_TOKEN')]) {
+                withSonarQubeEnv('APIND_Sonarqube') { // Replace with your SonarQube server name
+    // Use the SonarQube Scanner with exclusions for specified files
+    withCredentials([string(credentialsId: "${SONARQUBE_SCANNER_CREDENTIALS_ID}", variable: 'SONAR_TOKEN')]) {
         sh "${scannerHome}/bin/sonar-scanner \
             -Dsonar.projectKey=${SONARQUBE_PROJECT_KEY} \
             -Dsonar.sources=. \
             -Dsonar.exclusions=**/dependency-check-report.html,**/trivyfs.txt,**/trivyimage.txt \
             -Dsonar.login=${SONAR_TOKEN}"
+                   }
                 }
             }
         }
