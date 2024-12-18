@@ -404,7 +404,7 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
     validateAmount(roundedSubTotal, cleanedData.subTotal, 'SubTotal', errors);
     validateAmount(roundedTotalTaxAmount, cleanedData.totalTaxAmount, 'Total Tax Amount', errors);
     validateAmount(roundedGrandTotalAmount, cleanedData.grandTotal, 'Grand Total', errors);
-    validateAmount(roundedTotalItemDiscount, cleanedData.itemTotalDiscount, 'Total Item Discount Amount', errors);
+    validateAmount(roundedTotalItemDiscount, (cleanedData.itemTotalDiscount || 0), 'Total Item Discount Amount', errors);
     validateAmount(totalItem, cleanedData.totalItem, 'Total Item count', errors);
   
     if (errors.length > 0) {
