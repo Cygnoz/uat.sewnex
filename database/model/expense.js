@@ -63,7 +63,7 @@ const expenseSchema = new Schema({
 
     createdDate: { type: String },
 
-    expense : [expenseTableSchema]
+    expense: [expenseTableSchema]
 
 });
  

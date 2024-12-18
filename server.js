@@ -6,10 +6,8 @@ const cors = require('cors')
 
 const server = express()
 
-// Increase the limit for JSON payloads
 server.use(express.json({ limit: '10mb' })); // Set limit to 10MB
 
-// Increase the limit for URL-encoded payloads
 server.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 const staffRouter = require("./router/staffRouter")

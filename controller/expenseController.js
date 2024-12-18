@@ -76,8 +76,6 @@ exports.addExpense = async (req, res) => {
       const savedTrialBalance= await createTrialBalance(savedExpense);
       // console.log("savedTrialBalance:",savedTrialBalance)
 
-      savedExpense.organizationId = undefined;
-
       res.status(201).json({ message: "Expense created successfully." });
   } catch (error) {
       console.error("Error adding expense:", error);
@@ -329,8 +327,6 @@ exports.addCategory = async (req, res) => {
         // Create and save new category
         const newCategory = new Category({ organizationId, expenseCategory, description, userId, userName });
         await newCategory.save();
-
-        newCategory.organizationId = undefined;
 
         res.status(201).json({ message: "Category created successfully", newCategory});
     } catch (error) {
