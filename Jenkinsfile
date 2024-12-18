@@ -31,7 +31,7 @@ pipeline {
                 }
             }
         }
-        }
+    }
          stage('Dependency-Check Analysis') {
     steps {
         script {
