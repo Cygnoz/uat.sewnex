@@ -4,6 +4,7 @@ const Category = require("../database/model/expenseCategory");
 const Account = require("../database/model/account")
 const TrialBalance = require("../database/model/trialBalance");
 const Supplier = require('../database/model/supplier');
+const Tax = require('../database/model/tax');  
 const moment = require("moment-timezone");
 const mongoose = require('mongoose');
 
@@ -17,6 +18,7 @@ const dataExist = async (organizationId, supplierId) => {
       Account.find({ organizationId }),
       Supplier.findOne({ organizationId , _id:supplierId}, { _id: 1, supplierDisplayName: 1, taxType: 1, sourceOfSupply: 1, gstin_uin: 1, gstTreatment: 1 }),
     ]);
+    
     return { organizationExists, expenseExists, categoryExists, accountExist, supplierExist };
   };
 
@@ -147,6 +149,7 @@ exports.getOneExpense = async (req, res) => {
       res.status(500).json({ message: "Internal server error." });
     }
   };
+
 
 // //update expense
 // exports.updateExpense = async (req, res) => {
@@ -590,12 +593,10 @@ function removeSpaces(body) {
 
       subTotal += amount;
 
-      const gstTreatment = cleanedData.gstTreatment !== "Unregistered Business" || cleanedData.gstTreatment !== "Overseas";
-      const taxGroup = data.taxGroup !== "None";
+      const gstTreatment = cleanedData.gstTreatment !== "Registered Business - Composition" || cleanedData.gstTreatment !== "Unregistered Business" || cleanedData.gstTreatment !== "Overseas" || cleanedData.gstTreatment !== "Consumer";
+      const taxGroup = data.taxGroup !== "Non-Taxable";
       const isnotMileage = (cleanedData.distance > 0 || cleanedData.distance === "undefined") && (cleanedData.ratePerKm > 0 || cleanedData.ratePerKm === "undefined");
 
-
-      console.log("test:",data);
       // Handle tax calculation only for taxable expense
       if (gstTreatment && taxGroup && !isnotMileage) {
         if (taxMode === 'Intra') {
@@ -631,14 +632,18 @@ function removeSpaces(body) {
       } else {
         console.log('Skipping Tax for Non-Taxable expense');
 
-        amount = roundToTwoDecimals(distance * ratePerKm);
-        checkAmount(distance, cleanedData.distance, 'Distance',errors);
-        checkAmount(ratePerKm, cleanedData.ratePerKm, 'Rate Per Km',errors);
-        checkAmount(amount, data.amount, 'Amount',errors);
+        if (distance && ratePerKm) {
+          amount = roundToTwoDecimals(distance * ratePerKm);
+          checkAmount(distance, cleanedData.distance, 'Distance',errors);
+          checkAmount(ratePerKm, cleanedData.ratePerKm, 'Rate Per Km',errors);
+          checkAmount(amount, data.amount, 'Amount',errors);
 
-        console.log("distance",distance);
-        console.log("ratePerKm",ratePerKm);
-        console.log("amount",amount);
+          console.log("distance",distance);
+          console.log("ratePerKm",ratePerKm);
+          console.log("amount",amount);
+        } else {
+          amount = subTotal;
+        }
       }
     });
 
@@ -860,7 +865,7 @@ function validateGSTorVAT(data, errors) {
       validateGSTDetails(data, errors);
     } else if (prefix === "VAT") {
       validateVATDetails(data, errors);
-    } else if (taxGroup === "None") {
+    } else if (taxGroup === "Non-Taxable") {
       clearTaxFields(data);
     } else {
       // Handle unexpected taxGroup values
