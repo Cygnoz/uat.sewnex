@@ -107,7 +107,7 @@ exports.addPurchaseOrder = async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
   
-      const { organizationExists, allPurchaseOrder } = await purchaseOrderDataExist( organizationId , null );
+      const { organizationExists, allPurchaseOrder } = await purchaseOrderDataExist( organizationId , undefined );
   
       if (!organizationExists) {
         return res.status(404).json({
@@ -139,7 +139,9 @@ exports.addPurchaseOrder = async (req, res) => {
  exports.getOnePurchaseOrder = async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
-      const orderId = req.params.orderId;
+      const {orderId} = cleanPurchaseOrderData(req.params.orderId);      
+      
+      if(orderId){
     
       const { organizationExists, purchaseOrder } = await purchaseOrderDataExist(organizationId, orderId);
     
@@ -183,6 +185,7 @@ exports.addPurchaseOrder = async (req, res) => {
       updatedPurchaseOrder.organizationId = undefined;
 
       res.status(200).json(updatedPurchaseOrder);
+    }
     } catch (error) {
       console.error("Error fetching purchase order:", error);
       res.status(500).json({ message: "Internal server error." });

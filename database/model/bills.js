@@ -62,9 +62,11 @@ const PurchaseBillSchema = new Schema({
   
   items: [itemsSchema],
 
-  otherExpense: { type: Number },
+  otherExpenseAccountId: { type: String },
+  otherExpenseAmount: { type: Number },
   otherExpenseReason: { type: String },
-  freight: { type: Number },
+  freightAccountId: { type: String },
+  freightAmount: { type: Number },
   vehicleNo: { type: String },
   addNotes: { type: String },
   termsAndConditions: { type: String },
@@ -83,11 +85,13 @@ const PurchaseBillSchema = new Schema({
   transactionDiscountAmount: { type: Number }, 
   totalTaxAmount: { type: Number },
   itemTotalDiscount: { type: Number },
-  roundOff: { type: Number },
+  roundOffAmount: { type: Number },
+  totalDiscount: { type: Number },
   grandTotal: { type: Number },
 
   paidAmount:{ type : Number },
   balanceAmount: { type:Number },
+  purchaseAmount: { type:Number },
 
   paidStatus: { type: String },
   
