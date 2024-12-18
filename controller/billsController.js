@@ -105,12 +105,14 @@ exports.addBills = async (req, res) => {
       //Clean Data
       const cleanedData = cleanBillsData(req.body);
       cleanedData.items = cleanedData.items?.map(person => cleanBillsData(person)) || [];
+      // console.log("cleanedData",cleanedData);
 
   
       const { items, supplierId, purchaseOrderId } = cleanedData;
       const { supplierDisplayName, otherExpenseAccountId, freightAccountId, paidAccountId } = cleanedData;
 
     //   const { orderNumber } = cleanedData;
+    
       
       const itemIds = items.map(item => item.itemId);      
       
@@ -167,7 +169,6 @@ exports.addBills = async (req, res) => {
       
       //Check Bill Exist
       if (await checkExistingBill(cleanedData.billNumber, organizationId, res)) return;
-      console.log("hello");
       
       //Date & Time
       const openingDate = generateOpeningDate(organizationExists);
@@ -181,14 +182,14 @@ exports.addBills = async (req, res) => {
         res.status(400).json({ message: error }); 
         return false; 
       }
-      
+
       // Calculate Sales 
-      if (!calculateBills( cleanedData, itemTable, res )) return;
+      if (!calculateBills( cleanedData, itemTable, res )) return;      
   
       const savedBills = await createNewBills(cleanedData, organizationId, openingDate, userId, userName );
   
-      //Jornal
-      await journal( savedInvoice, defAcc, supplierAccount );
+      //Jornal      
+      await journal( savedBills, defAcc, supplierAccount );
 
       //Item Track
       await itemTrack( savedBills, itemTable );
@@ -199,10 +200,10 @@ exports.addBills = async (req, res) => {
       }
 
       // savedBills.organizationId = undefined;
-      Object.assign(savedBills, { organizationId: undefined, purchaseOrderId: undefined });
+      // Object.assign(savedBills, { organizationId: undefined, purchaseOrderId: undefined });
         
       res.status(201).json({ message: "Bills created successfully", savedBills });
-      // console.log( "Bills created successfully:", savedBills );
+      console.log( "Bills created successfully:", savedBills );
     } catch (error) {
       console.error("Error Creating Bills:", error);
       res.status(500).json({ message: "Internal server error." });
@@ -216,7 +217,7 @@ exports.addBills = async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
   
-      const { organizationExists, allBills } = await billsDataExist(organizationId);
+      const { organizationExists, allBills } = await billsDataExist( organizationId, null );
   
       if (!organizationExists) {
         return res.status(404).json({
@@ -327,6 +328,42 @@ exports.addBills = async (req, res) => {
     res.status(500).json({ message: "Internal server error." });
   }
   };
+
+
+
+
+  // Get Invoice Journal
+exports.billJournal = async (req, res) => {
+  try {
+      const organizationId = req.user.organizationId;
+      const { billId } = req.params;
+
+
+      // Find all accounts where organizationId matches
+      const billJournal = await TrialBalance.find({ organizationId : organizationId, operationId : billId });
+
+      if (!billJournal) {
+          return res.status(404).json({
+              message: "No Journal found for the Bill.",
+          });
+      }
+      
+      res.status(200).json(billJournal);
+  } catch (error) {
+      console.error("Error fetching journal:", error);
+      res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+
+
+
+
+
+
+
+
+
 
 
   // Delete Purchase Order
@@ -526,11 +563,21 @@ async function defaultAccounting( data, defaultAccount, organizationExists ) {
 
 
   function calculateBills(cleanedData, itemTable, res) {
+
+    
+
+    // cleanedData.otherExpenseAmount = cleanedData.otherExpense;
+    // cleanedData.freightAmount = cleanedData.freight;
+    // cleanedData.roundOffAmount = cleanedData.roundOff;
+    
     const errors = [];
   
-    let otherExpense = (cleanedData.otherExpense || 0);
-    let freightAmount = (cleanedData.freight || 0);
-    let roundOffAmount = (cleanedData.roundOff || 0);
+    let otherExpense = (parseFloat(cleanedData.otherExpenseAmount) || 0);
+    let freightAmount = (parseFloat(cleanedData.freightAmount) || 0);
+    let roundOffAmount = (parseFloat(cleanedData.roundOffAmount) || 0);
+    
+    let totalDiscount= 0;
+    
     let subTotal = 0;
     let totalTaxAmount = 0;
     let itemTotalDiscount= 0;
@@ -539,6 +586,9 @@ async function defaultAccounting( data, defaultAccount, organizationExists ) {
     let grandTotal = 0;
     let balanceAmount = 0;
     let paidAmount = (cleanedData.paidAmount || 0);
+
+    let purchaseAmount =0;
+
   
     // Utility function to round values to two decimal places
     const roundToTwoDecimals = (value) => Number(value.toFixed(2));  
@@ -559,6 +609,8 @@ async function defaultAccounting( data, defaultAccount, organizationExists ) {
       itemTotalDiscount +=  parseFloat(itemDiscAmt);
       totalItem +=  parseInt(item.itemQuantity);
       subTotal += parseFloat(item.itemQuantity * item.itemCostPrice);
+      purchaseAmount +=(item.itemCostPrice * item.itemQuantity);
+      totalDiscount +=  parseFloat(itemDiscAmt);
   
       itemAmount = (item.itemCostPrice * item.itemQuantity - itemDiscAmt);
   
@@ -603,25 +655,30 @@ async function defaultAccounting( data, defaultAccount, organizationExists ) {
       console.log(`${item.itemName} Total Tax: ${calculatedItemTaxAmount} , Provided ${item.itemTax || 0 }`);
       console.log("");
     });
+
+      //Purchase amount
+    cleanedData.purchaseAmount=purchaseAmount;    
+
   
-    const total = (
-        (subTotal + totalTaxAmount + otherExpense + freightAmount - roundOffAmount) - itemTotalDiscount
-    );
-  
-    console.log(`SubTotal: ${subTotal} , Provided ${cleanedData.subTotal}`);
+    const total = roundToTwoDecimals((subTotal + totalTaxAmount + otherExpense + freightAmount - roundOffAmount) - itemTotalDiscount );
+          
+    console.log(`Sub Total: ${subTotal} , Provided ${cleanedData.subTotal}`);
     console.log(`Total: ${total} , Provided ${total}`);
-    console.log(`subTotal: ${subTotal} , Provided ${cleanedData.subTotal}`);
-    console.log(`totalTaxAmount: ${totalTaxAmount} , Provided ${cleanedData.totalTaxAmount}`);
-    console.log(`otherExpense: ${otherExpense} , Provided ${cleanedData.otherExpense}`);
-    console.log(`freightAmount: ${freightAmount} , Provided ${cleanedData.freightAmount}`);
-    console.log(`roundOffAmount: ${roundOffAmount} , Provided ${cleanedData.roundOffAmount}`);
-    console.log(`itemTotalDiscount: ${itemTotalDiscount} , Provided ${cleanedData.itemTotalDiscount}`);
+    console.log(`Sub Total: ${subTotal} , Provided ${cleanedData.subTotal}`);
+    console.log(`Total Tax Amount: ${totalTaxAmount} , Provided ${cleanedData.totalTaxAmount}`);
+    console.log(`Other Expense: ${otherExpense} , Provided ${cleanedData.otherExpenseAmount}`);
+    console.log(`Freight Amount: ${freightAmount} , Provided ${cleanedData.freightAmount}`);
+    console.log(`Round Off Amount: ${roundOffAmount} , Provided ${cleanedData.roundOffAmount}`);
+    console.log(`Item Total Discount: ${itemTotalDiscount} , Provided ${cleanedData.itemTotalDiscount}`);
   
     // Transaction Discount
     let transDisAmt = calculateTransactionDiscount(cleanedData, total, transactionDiscountAmount); 
   
+    cleanedData.totalDiscount =  roundToTwoDecimals(totalDiscount + parseFloat(transDisAmt));
+
     // grandTotal amount calculation with including transactionDiscount
-    grandTotal = total - transDisAmt; 
+    
+    grandTotal = roundToTwoDecimals(total - transDisAmt); 
     console.log(`Grand Total: ${grandTotal} , Provided ${cleanedData.grandTotal}`);
 
     // Calculate balanceAmount
@@ -640,12 +697,12 @@ async function defaultAccounting( data, defaultAccount, organizationExists ) {
     console.log(`Final Total Item Discount Amount: ${roundedTotalItemDiscount} , Provided ${cleanedData.itemTotalDiscount}` );
     console.log(`Final Balance Amount: ${roundedBalanceAmount} , Provided ${cleanedData.balanceAmount}` );
   
-    validateAmount(roundedSubTotal, cleanedData.subTotal, 'SubTotal', errors);
-    validateAmount(roundedTotalTaxAmount, cleanedData.totalTaxAmount, 'Total Tax Amount', errors);
-    validateAmount(roundedGrandTotalAmount, cleanedData.grandTotal, 'Grand Total', errors);
-    validateAmount(roundedTotalItemDiscount, cleanedData.itemTotalDiscount, 'Total Item Discount Amount', errors);
-    validateAmount(roundedBalanceAmount, cleanedData.balanceAmount, 'Balance Amount', errors);
-    validateAmount(totalItem, cleanedData.totalItem, 'Total Item count', errors);
+    validateAmount(roundedSubTotal, ( cleanedData.subTotal || 0 ), 'SubTotal', errors);
+    validateAmount(roundedTotalTaxAmount, ( cleanedData.totalTaxAmount || 0 ), 'Total Tax Amount', errors);
+    validateAmount(roundedGrandTotalAmount, ( cleanedData.grandTotal || 0 ), 'Grand Total', errors);
+    validateAmount(roundedTotalItemDiscount, ( cleanedData.itemTotalDiscount || 0 ), 'Total Item Discount Amount', errors);
+    validateAmount(roundedBalanceAmount, ( cleanedData.balanceAmount || 0 ), 'Balance Amount', errors);
+    validateAmount(totalItem, ( cleanedData.totalItem || 0 ), 'Total Item count', errors);
   
     if (errors.length > 0) {
       res.status(400).json({ message: errors.join(", ") });
@@ -666,11 +723,11 @@ async function defaultAccounting( data, defaultAccount, organizationExists ) {
   
   //TransactionDiscount
   function calculateTransactionDiscount(cleanedData, total, transactionDiscountAmount) {
-    transactionDiscountAmount = cleanedData.transactionDiscount || 0;
+    transactionDiscountAmount = cleanedData.transactionDiscount || 0;    
   
     return cleanedData.transactionDiscountType === 'currency'
       ? transactionDiscountAmount
-      : (total * cleanedData.transactionDiscount) / 100;    //if percentage
+      : (total * (cleanedData.transactionDiscount || 0)) / 100;    
   }
   
   
@@ -828,7 +885,7 @@ function validateInputs( data, supplierExist, purchaseOrderExist, items, itemExi
 
   validateField( typeof data.roundOffAmount !== 'undefined' && !(data.roundOffAmount >= 0 && data.roundOffAmount <= 1), "Round Off Amount must be between 0 and 1", errors );
 
-  validateField( typeof data.paidAmount !== 'undefined' && !(data.paidAmount <= data.totalAmount), "Excess payment amount", errors );
+  validateField( typeof data.paidAmount !== 'undefined' && !(data.paidAmount <= data.grandTotal), "Excess payment amount", errors );
   validateField( typeof data.paidAmount !== 'undefined' && !(data.paidAmount >= 0 ), "Negative payment amount", errors );
 
   validateField( typeof defaultAccount.purchaseAccount === 'undefined', "No Purchase Account found", errors  );
@@ -1078,7 +1135,6 @@ function validateSourceOfSupply(sourceOfSupply, organization, errors) {
       // Save the tracking entry and update the item's stock in the item table
       await newTrialEntry.save();
   
-      // console.log("1",newTrialEntry);
     }
   }
   
@@ -1200,149 +1256,150 @@ function validateSourceOfSupply(sourceOfSupply, organization, errors) {
 
 
   
-async function journal(savedInvoice, defAcc, supplierAccount ) {  
+async function journal( savedBills, defAcc, supplierAccount ) {
+    
   const discount = {
-    organizationId: savedInvoice.organizationId,
-    operationId: savedInvoice._id,
-    transactionId: savedInvoice.salesInvoice,
-    date: savedInvoice.createdDate,
+    organizationId: savedBills.organizationId,
+    operationId: savedBills._id,
+    transactionId: savedBills.salesInvoice,
+    date: savedBills.createdDate,
     accountId: defAcc.purchaseDiscountAccount || undefined,
     accountName: defAcc.purchaseDiscountAccountName || undefined,
-    action: "Sales Invoice",
-    debitAmount: savedInvoice.totalDiscount,
-    creditAmount: 0,
-    remark: savedInvoice.note,
+    action: "Purchase Bill",
+    debitAmount: 0,
+    creditAmount: savedBills.totalDiscount,
+    remark: savedBills.note,
   };
   const purchase = {
-    organizationId: savedInvoice.organizationId,
-    operationId: savedInvoice._id,
-    transactionId: savedInvoice.salesInvoice,
-    date: savedInvoice.createdDate,
+    organizationId: savedBills.organizationId,
+    operationId: savedBills._id,
+    transactionId: savedBills.salesInvoice,
+    date: savedBills.createdDate,
     accountId: defAcc.purchaseAccount || undefined,
     accountName: defAcc.purchaseAccountName || undefined,
-    action: "Sales Invoice",
-    debitAmount: 0,
-    creditAmount: savedInvoice.saleAmount,
-    remark: savedInvoice.note,
+    action: "Purchase Bill",
+    debitAmount: savedBills.purchaseAmount,
+    creditAmount: 0,
+    remark: savedBills.note,
   };
   const cgst = {
-    organizationId: savedInvoice.organizationId,
-    operationId: savedInvoice._id,
-    transactionId: savedInvoice.salesInvoice,
-    date: savedInvoice.createdDate,
+    organizationId: savedBills.organizationId,
+    operationId: savedBills._id,
+    transactionId: savedBills.salesInvoice,
+    date: savedBills.createdDate,
     accountId: defAcc.inputCgst || undefined,
     accountName: defAcc.inputCgstName || undefined,
-    action: "Sales Invoice",
-    debitAmount: 0,
-    creditAmount: savedInvoice.cgst,
-    remark: savedInvoice.note,
+    action: "Purchase Bill",
+    debitAmount: savedBills.cgst,
+    creditAmount: 0,
+    remark: savedBills.note,
   };
   const sgst = {
-    organizationId: savedInvoice.organizationId,
-    operationId: savedInvoice._id,
-    transactionId: savedInvoice.salesInvoice,
-    date: savedInvoice.createdDate,
+    organizationId: savedBills.organizationId,
+    operationId: savedBills._id,
+    transactionId: savedBills.salesInvoice,
+    date: savedBills.createdDate,
     accountId: defAcc.inputSgst || undefined,
     accountName: defAcc.inputSgstName || undefined,
-    action: "Sales Invoice",
-    debitAmount: 0,
-    creditAmount: savedInvoice.sgst,
-    remark: savedInvoice.note,
+    action: "Purchase Bill",
+    debitAmount: savedBills.sgst,
+    creditAmount: 0,
+    remark: savedBills.note,
   };
   const igst = {
-    organizationId: savedInvoice.organizationId,
-    operationId: savedInvoice._id,
-    transactionId: savedInvoice.salesInvoice,
-    date: savedInvoice.createdDate,
+    organizationId: savedBills.organizationId,
+    operationId: savedBills._id,
+    transactionId: savedBills.salesInvoice,
+    date: savedBills.createdDate,
     accountId: defAcc.inputIgst || undefined,
     accountName: defAcc.inputIgstName || undefined,
-    action: "Sales Invoice",
-    debitAmount: 0,
-    creditAmount: savedInvoice.igst,
-    remark: savedInvoice.note,
+    action: "Purchase Bill",
+    debitAmount: savedBills.igst,
+    creditAmount: 0,
+    remark: savedBills.note,
   };
   const vat = {
-    organizationId: savedInvoice.organizationId,
-    operationId: savedInvoice._id,
-    transactionId: savedInvoice.salesInvoice,
-    date: savedInvoice.createdDate,
+    organizationId: savedBills.organizationId,
+    operationId: savedBills._id,
+    transactionId: savedBills.salesInvoice,
+    date: savedBills.createdDate,
     accountId: defAcc.inputVat || undefined,
     accountName: defAcc.inputVatName || undefined,
-    action: "Sales Invoice",
-    debitAmount: 0,
-    creditAmount: savedInvoice.vat,
-    remark: savedInvoice.note,
+    action: "Purchase Bill",
+    debitAmount: savedBills.vat,
+    creditAmount: 0,
+    remark: savedBills.note,
   };
   const supplier = {
-    organizationId: savedInvoice.organizationId,
-    operationId: savedInvoice._id,
-    transactionId: savedInvoice.salesInvoice,
-    date: savedInvoice.createdDate,
+    organizationId: savedBills.organizationId,
+    operationId: savedBills._id,
+    transactionId: savedBills.salesInvoice,
+    date: savedBills.createdDate,
     accountId: supplierAccount._id || undefined,
     accountName: supplierAccount.accountName || undefined,
-    action: "Sales Invoice",
-    debitAmount: savedInvoice.totalAmount,
-    creditAmount: 0,
-    remark: savedInvoice.note,
+    action: "Purchase Bill",
+    debitAmount: 0,
+    creditAmount: savedBills.grandTotal,
+    remark: savedBills.note,
   };
   const supplierPaid = {
-    organizationId: savedInvoice.organizationId,
-    operationId: savedInvoice._id,
-    transactionId: savedInvoice.salesInvoice,
-    date: savedInvoice.createdDate,
+    organizationId: savedBills.organizationId,
+    operationId: savedBills._id,
+    transactionId: savedBills.salesInvoice,
+    date: savedBills.createdDate,
     accountId: supplierAccount._id || undefined,
     accountName: supplierAccount.accountName || undefined,
-    action: "Receipt",
-    debitAmount: 0,
-    creditAmount: savedInvoice.paidAmount,
-    remark: savedInvoice.note,
+    action: "Payment",
+    debitAmount: savedBills.paidAmount,
+    creditAmount: 0,
+    remark: savedBills.note,
   };
   const paidAccount = {
-    organizationId: savedInvoice.organizationId,
-    operationId: savedInvoice._id,
-    transactionId: savedInvoice.salesInvoice,
-    date: savedInvoice.createdDate,
+    organizationId: savedBills.organizationId,
+    operationId: savedBills._id,
+    transactionId: savedBills.salesInvoice,
+    date: savedBills.createdDate,
     accountId: defAcc.paidAccountId || undefined,
     accountName: defAcc.paidAccountName || undefined,
-    action: "Receipt",
-    debitAmount: savedInvoice.paidAmount,
-    creditAmount: 0,
-    remark: savedInvoice.note,
+    action: "Payment",
+    debitAmount: 0,
+    creditAmount: savedBills.paidAmount,
+    remark: savedBills.note,
   };
   const otherExpense = {
-    organizationId: savedInvoice.organizationId,
-    operationId: savedInvoice._id,
-    transactionId: savedInvoice.salesInvoice,
-    date: savedInvoice.createdDate,
+    organizationId: savedBills.organizationId,
+    operationId: savedBills._id,
+    transactionId: savedBills.salesInvoice,
+    date: savedBills.createdDate,
     accountId: defAcc.otherExpenseAccountId || undefined,
     accountName: defAcc.otherExpenseAccountName || undefined,
-    action: "Sales Invoice",
-    debitAmount: 0,
-    creditAmount: savedInvoice.otherExpenseAmount,
-    remark: savedInvoice.note,
+    action: "Purchase Bill",
+    debitAmount: savedBills.otherExpenseAmount,
+    creditAmount: 0,
+    remark: savedBills.note,
   };
   const freight = {
-    organizationId: savedInvoice.organizationId,
-    operationId: savedInvoice._id,
-    transactionId: savedInvoice.salesInvoice,
-    date: savedInvoice.createdDate,
+    organizationId: savedBills.organizationId,
+    operationId: savedBills._id,
+    transactionId: savedBills.salesInvoice,
+    date: savedBills.createdDate,
     accountId: defAcc.freightAccountId || undefined,
     accountName: defAcc.freightAccountName || undefined,
-    action: "Sales Invoice",
-    debitAmount: 0,
-    creditAmount: savedInvoice.freightAmount,
-    remark: savedInvoice.note,
+    action: "Purchase Bill",
+    debitAmount: savedBills.freightAmount,
+    creditAmount: 0,
+    remark: savedBills.note,
   };
   const roundOff = {
-    organizationId: savedInvoice.organizationId,
-    operationId: savedInvoice._id,
-    transactionId: savedInvoice.salesInvoice,
-    date: savedInvoice.createdDate,
+    organizationId: savedBills.organizationId,
+    operationId: savedBills._id,
+    transactionId: savedBills.salesInvoice,
+    date: savedBills.createdDate,
     accountName: "Round Off",
-    action: "Sales Invoice",
-    debitAmount: savedInvoice.roundOffAmount,
-    creditAmount: 0,
-    remark: savedInvoice.note,
+    action: "Purchase Bill",
+    debitAmount: 0,
+    creditAmount: savedBills.roundOffAmount,
+    remark: savedBills.note,
   };
 
   console.log("cgst", cgst.debitAmount,  cgst.creditAmount);
@@ -1362,8 +1419,35 @@ async function journal(savedInvoice, defAcc, supplierAccount ) {
   console.log("supplierPaid", supplierPaid.debitAmount,  supplierPaid.creditAmount);
   console.log("paidAccount", paidAccount.debitAmount,  paidAccount.creditAmount);
 
-  const  debitAmount = cgst.debitAmount  + sgst.debitAmount + igst.debitAmount +  vat.debitAmount + sale.debitAmount + customer.debitAmount + discount.debitAmount + otherExpense.debitAmount + freight.debitAmount + roundOff.debitAmount + customerPaid.debitAmount + depositAccount.debitAmount ;
-  const  creditAmount = cgst.creditAmount  + sgst.creditAmount + igst.creditAmount +  vat.creditAmount + sale.creditAmount + customer.creditAmount + discount.creditAmount + otherExpense.creditAmount + freight.creditAmount + roundOff.creditAmount + customerPaid.creditAmount + depositAccount.creditAmount ;
+  // const  debitAmount = cgst.debitAmount  + sgst.debitAmount + igst.debitAmount +  vat.debitAmount + purchase.debitAmount + supplier.debitAmount + discount.debitAmount + otherExpense.debitAmount + freight.debitAmount + roundOff.debitAmount + supplierPaid.debitAmount + paidAccount.debitAmount ;
+  // const  creditAmount = cgst.creditAmount  + sgst.creditAmount + igst.creditAmount +  vat.creditAmount + purchase.creditAmount + supplier.creditAmount + discount.creditAmount + otherExpense.creditAmount + freight.creditAmount + roundOff.creditAmount + supplierPaid.creditAmount + paidAccount.creditAmount ;
+  const debitAmount = 
+  (cgst.debitAmount ?? 0) + 
+  (sgst.debitAmount ?? 0) + 
+  (igst.debitAmount ?? 0) + 
+  (vat.debitAmount ?? 0) + 
+  (purchase.debitAmount ?? 0) + 
+  (supplier.debitAmount ?? 0) + 
+  (discount.debitAmount ?? 0) + 
+  (otherExpense.debitAmount ?? 0) + 
+  (freight.debitAmount ?? 0) + 
+  (roundOff.debitAmount ?? 0) + 
+  (supplierPaid.debitAmount ?? 0) + 
+  (paidAccount.debitAmount ?? 0);
+
+const creditAmount = 
+  (cgst.creditAmount ?? 0) + 
+  (sgst.creditAmount ?? 0) + 
+  (igst.creditAmount ?? 0) + 
+  (vat.creditAmount ?? 0) + 
+  (purchase.creditAmount ?? 0) + 
+  (supplier.creditAmount ?? 0) + 
+  (discount.creditAmount ?? 0) + 
+  (otherExpense.creditAmount ?? 0) + 
+  (freight.creditAmount ?? 0) + 
+  (roundOff.creditAmount ?? 0) + 
+  (supplierPaid.creditAmount ?? 0) + 
+  (paidAccount.creditAmount ?? 0);
 
   console.log("Total Debit Amount: ", debitAmount );
   console.log("Total Credit Amount: ", creditAmount );
@@ -1371,50 +1455,50 @@ async function journal(savedInvoice, defAcc, supplierAccount ) {
   // console.log( discount, sale, cgst, sgst, igst, vat, customer, otherExpense, freight, roundOff );
 
 
-  // createTrialEntry( sale )
+  createTrialEntry( purchase )
 
-  // //Tax
-  // if(savedInvoice.cgst){
-  //   createTrialEntry( cgst )
-  // }
-  // if(savedInvoice.sgst){
-  //   createTrialEntry( sgst )
-  // }
-  // if(savedInvoice.igst){
-  //   createTrialEntry( igst )
-  // }
-  // if(savedInvoice.vat){
-  //   createTrialEntry( vat )
-  // }
+  //Tax
+  if(savedBills.cgst){
+    createTrialEntry( cgst )
+  }
+  if(savedBills.sgst){
+    createTrialEntry( sgst )
+  }
+  if(savedBills.igst){
+    createTrialEntry( igst )
+  }
+  if(savedBills.vat){
+    createTrialEntry( vat )
+  }
 
-  // //Discount  
-  // if(savedInvoice.totalDiscount){
-  //   createTrialEntry( discount )
-  // }
+  //Discount  
+  if(savedBills.totalDiscount){
+    createTrialEntry( discount )
+  }
 
-  // //Other Expense
-  // if(savedInvoice.otherExpenseAmount){
-  //   createTrialEntry( otherExpense )
-  // }
+  //Other Expense
+  if(savedBills.otherExpenseAmount){
+    createTrialEntry( otherExpense )
+  }
 
-  // //Freight
-  // if(savedInvoice.freightAmount){
-  //   createTrialEntry( freight )
-  // }
+  //Freight
+  if(savedBills.freightAmount){
+    createTrialEntry( freight )
+  }
   
-  // //Round Off
-  // if(savedInvoice.roundOffAmount){
-  //   createTrialEntry( roundOff )
-  // }
+  //Round Off
+  if(savedBills.roundOffAmount){
+    createTrialEntry( roundOff )
+  }
  
-  // //Customer
-  // createTrialEntry( customer )
+  //supplier
+  createTrialEntry( supplier )
   
-  // //Paid
-  // if(savedInvoice.paidAmount){
-  //   createTrialEntry( customerPaid )
-  //   createTrialEntry( depositAccount )
-  // }
+  //Paid
+  if(savedBills.paidAmount){
+    createTrialEntry( supplierPaid )
+    createTrialEntry( paidAccount )
+  }
 }
 
 
