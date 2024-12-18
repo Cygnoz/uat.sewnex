@@ -91,8 +91,6 @@ exports.addPurchaseOrder = async (req, res) => {
       await purchaseOrderPrefix(cleanedData, existingPrefix );
   
       const savedPurchaseOrder = await createNewPurchaseOrder(cleanedData, organizationId, openingDate, userId, userName );
-
-      savedPurchaseOrder.organizationId = undefined;
         
       res.status(201).json({ message: "Purchase order created successfully", savedPurchaseOrder });
       console.log( "Purchase order created successfully:", savedPurchaseOrder );

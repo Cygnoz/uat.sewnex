@@ -139,8 +139,6 @@ exports.addDebitNote = async (req, res) => {
 
     //Item Track
     await itemTrack( savedDebitNote, itemTable );
-
-    savedDebitNote.organizationId = undefined;
       
     res.status(201).json({ message: "Debit Note created successfully",savedDebitNote });
     // console.log( "Debit Note created successfully:", savedDebitNote );

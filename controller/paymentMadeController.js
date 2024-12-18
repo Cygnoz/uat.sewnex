@@ -99,13 +99,9 @@ exports.addPayment = async (req, res) => {
     // Create and save new payment
     const payment = await createNewPayment(updatedData , openingDate, organizationId, userId, userName);
 
-    updatedBills.organizationId = undefined;
-    payment.organizationId = undefined;
-
     //Response with the updated bills and the success message
     return res.status(200).json({
       message: 'Payment added successfully',  payment , updatedBills,
-
     });
 
   } catch (error) {
