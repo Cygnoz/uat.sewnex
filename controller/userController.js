@@ -6,30 +6,8 @@ const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const NodeCache = require('node-cache');
 const otpCache = new NodeCache({ stdTTL: 180 }); // 180 seconds
-// const rateLimit = require('express-rate-limit');
 
-// Rate limiter for OTP verification to prevent brute force attacks
-// const otpRateLimiter = rateLimit({
-//   windowMs: 5 * 60 * 1000, // 5 minutes
-//   max: 5, // limit each IP to 5 OTP attempts per windowMs
-//   handler: (req, res) => {
-//     return res.status(429).json({
-//       success: false,
-//       message: 'Too many OTP attempts, please try again after 5 minutes',
-//     });
-//   },
-// });
 
-// const loginRateLimiter = rateLimit({
-//   windowMs: 1 * 60 * 1000, // 1 minute window
-//   max: 5, // limit each IP to 5 login requests per windowMs
-//   handler: (req, res) => {
-//     return res.status(429).json({
-//       success: false,
-//       message: 'Too many login attempts, please try again after 1 minute',
-//     });
-//   },
-// });
 
 // Login 
 exports.login = async (req, res) => {
@@ -163,44 +141,21 @@ exports.verifyOtp = async (req, res) => {
 
 
 
-// Nodemailer transporter setup using environment variables
+// Create a reusable transporter object using AWS SES
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL,
-    pass: process.env.PASSWORD,
-  },
-});
+    host: process.env.SMTP_HOST,
+    port: parseInt(process.env.SMTP_PORT, 10) || 587,
+    secure: false, // Use true for 465
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+    tls: {
+      rejectUnauthorized: false, // Skip TLS certificate validation (optional)
+    },
+  });
+  
 
-// Function to send OTP email
-// const sendOtpEmail = async (email, otp) => {
-//   const mailOptions = {
-//     from: `"BillBizz" <${process.env.EMAIL}>`,
-//     to: email,
-//     subject: 'BillBizz Software OTP',
-//     text: `Hey there,
-
-// Your One-Time Password (OTP) is: ${otp}
-
-// This code is valid for 2 minutes. Please use it promptly to ensure secure access.
-
-// Thanks for using our service!
-
-// Cheers,
-
-// BillBizz`,
-//   };
-
-//   return transporter.sendMail(mailOptions, (error, info) => {
-//     if (error) {
-//       console.error('Error occurred:', error);
-//       return false;
-//     } else {
-//       console.log('Email sent:', info.response);
-//       return true;
-//     }
-//   });
-// };
 
 
 
