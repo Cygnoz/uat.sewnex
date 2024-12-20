@@ -37,11 +37,12 @@ const paymentDataExist = async ( organizationId, PaymentId ) => {
 
 
 exports.addPayment = async (req, res) => {
+  console.log("Add Payment :",req.body);  
   try {
-    const { organizationId, id: userId, userName } = req.user; // Assuming user contains organization info
-    const cleanedData = cleanSupplierData(req.body); // Cleaning data based on your custom method
+    const { organizationId, id: userId, userName } = req.user; 
+    const cleanedData = cleanSupplierData(req.body); 
 
-    const { unpaidBills, amountPaid } = cleanedData; // Extract paymentMade from cleanedData
+    const { unpaidBills, amountPaid } = cleanedData; 
     const { supplierId, supplierDisplayName } = cleanedData;
     const billIds = unpaidBills.map(unpaidBill => unpaidBill.billId);
 
@@ -67,12 +68,12 @@ exports.addPayment = async (req, res) => {
     
     // Validate supplier and organization
     if (!validateSupplierAndOrganization(organizationExists, supplierExists, existingPrefix, res)) {
-      return; // Stops execution if validation fails
+      return; 
     }
 
     // Validate input values, unpaidBills, and paymentTable
-    if (!validateInputs(cleanedData, supplierExists, unpaidBills, paymentTable, organizationExists, res)) {
-      return; // Stops execution if validation fails
+    if (!validateInputs(cleanedData, supplierExists, unpaidBills, organizationExists, paymentTable,  res)) {
+      return; 
     }
 
     // Calculate the total payment made
@@ -87,7 +88,7 @@ exports.addPayment = async (req, res) => {
     // Process unpaid bills and calculate `amountDue`
     const paymentResults = await processUnpaidBills(validatedBills);
 
-    console.log('Payment processing complete:', paymentResults);
+    // console.log('Payment processing complete:', paymentResults);
 
   
     // Re-fetch the updated bills to get the latest `amountDue` and `balanceAmount`
@@ -321,7 +322,7 @@ function generateTimeAndDateForDB(
 
 //Validate inputs
 function validateInputs( data, supplierExists, unpaidBills , organizationExists, paymentTableExist ,  res) {
-  const validationErrors = validatePaymentData(data, supplierExists, unpaidBills, organizationExists , paymentTableExist);
+  const validationErrors = validatePaymentData(data, supplierExists, unpaidBills , paymentTableExist, organizationExists);
 
   if (validationErrors.length > 0) {
     res.status(400).json({ message: validationErrors.join(", ") });
@@ -347,8 +348,8 @@ function createNewPayment(data, openingDate, organizationId, userId, userName) {
 function validatePaymentData( data, supplierExists, unpaidBills, paymentTable ) {
   const errors = [];
 
-  console.log("bills Request :",unpaidBills);
-  console.log("bills Fetched :",paymentTable);
+  // console.log("Bills Request :",unpaidBills);
+  // console.log("Bills Fetched :",paymentTable);
   
 
   //Basic Info
@@ -357,6 +358,8 @@ function validatePaymentData( data, supplierExists, unpaidBills, paymentTable ) 
 
 
   validateFloatFields(['amountPaid','amountUsedForPayments','amountInExcess'], data, errors);
+
+  validatePaymentMode(data.paymentMode, errors);
 
   //Currency
   // validateCurrency(data.currency, validCurrencies, errors);
@@ -379,7 +382,8 @@ function validateReqFields( data, errors ) {
 
 // Function to Validate Item Table 
 function validatePaymentTable(unpaidBills, paymentTable, errors) {
-  console.log("validate:",unpaidBills , paymentTable)
+  // console.log("unpaidBills:",unpaidBills)
+  // console.log("paymentTable:", paymentTable)
   // Check for bill count mismatch
   validateField( unpaidBills.length !== paymentTable.length, "Mismatch in bills count between request and database.", errors  );
 
@@ -414,6 +418,12 @@ function validatePaymentTable(unpaidBills, paymentTable, errors) {
   });
 }
 
+// Validate Payment Mode
+function validatePaymentMode(paymentMode, errors) {
+  validateField(
+    paymentMode && !validPaymentMode.includes(paymentMode),
+    "Invalid Payment Mode: " + paymentMode, errors );
+}
 
 
 
@@ -493,7 +503,7 @@ const calculateAmountDue = async (billId, { amount }) => {
     await bill.save();
 
     // Log the updated bill status for debugging
-    console.log(`Updated Bill ID ${billId}: Paid Amount: ${bill.paidAmount}, Balance Amount: ${bill.balanceAmount}`);
+    // console.log(`Updated Bill ID ${billId}: Paid Amount: ${bill.paidAmount}, Balance Amount: ${bill.balanceAmount}`);
 
     // Check if payment is complete
     if (bill.balanceAmount === 0) {
@@ -560,3 +570,6 @@ async function processUnpaidBills(unpaidBills) {
   }
   return results;
 }
+
+
+const validPaymentMode = [ "Cash", "check", "Card", "Bank Transfer" ]
