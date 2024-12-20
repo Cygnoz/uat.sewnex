@@ -653,7 +653,7 @@ async function checkDuplicateCustomerFieldsEdit(duplicateCheck,customerDisplayNa
 //Validate inputs
   function validateInputs(data, currencyExists, taxExists, organizationExists, res) {
     const validCurrencies = currencyExists.map((currency) => currency.currencyCode);
-    const validTaxTypes = ["Non-Tax", taxExists.taxType];
+    const validTaxTypes = [taxExists.taxType];
     const validationErrors = validateCustomerData(data, validCurrencies, validTaxTypes, organizationExists,taxExists.taxType);
   
     if (validationErrors.length > 0) {
