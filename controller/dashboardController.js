@@ -52,7 +52,23 @@ exports.createSalesDashboard = async (req, res) => {
         // Validate organizationId
         const { organizationExists, customerExist, salesOrderExist, salesQuoteExist, salesReceiptExist, invoiceExist, creditNoteExist } = await dataExist(organizationId, customerId, orderId, quoteId, receiptId, invoiceId, CNoteId);
 
-        currentDate(cleanedData);
+        const currentDate = new Date();
+        const currentMonth = currentDate.toLocaleString("default", { month: "long" }); // e.g., "March"
+        const currentYear = currentDate.getFullYear(); // e.g., 2024
+
+        // Add current month to salesOverTime and recentTransaction
+        const updatedSalesOverTime = salesOverTime?.map(entry => ({
+            month: entry.month || currentMonth, // Default to current month
+            sales: entry.sales
+        })) || [];
+
+        const updatedRecentTransaction = recentTransaction?.map(entry => ({
+            invoiceNo: entry.invoiceNo,
+            month: entry.month || currentMonth, // Default to current month
+            customer: entry.customer,
+            status: entry.status,
+            amount: entry.amount
+        })) || [];
 
         // Create new sales dashboard document
         const newDashboard = new SalesDashboard({
@@ -84,22 +100,3 @@ exports.createSalesDashboard = async (req, res) => {
 
 
 
-function currentDate(cleanedData) {
-    const currentDate = new Date();
-    const currentMonth = currentDate.toLocaleString("default", { month: "long" }); // e.g., "March"
-    const currentYear = currentDate.getFullYear(); // e.g., 2024
-
-    // Add current month to salesOverTime and recentTransaction
-    const updatedSalesOverTime = cleanedData.salesOverTime?.map(entry => ({
-        month: entry.month || currentMonth, // Default to current month
-        sales: entry.sales
-    })) || [];
-
-    const updatedRecentTransaction = cleanedData.recentTransaction?.map(entry => ({
-        invoiceNo: entry.invoiceNo,
-        month: entry.month || currentMonth, // Default to current month
-        customer: entry.customer,
-        status: entry.status,
-        amount: entry.amount
-    })) || [];
-}
