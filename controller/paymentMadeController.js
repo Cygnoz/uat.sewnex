@@ -227,10 +227,19 @@ function vendorPaymentPrefix( cleanData, existingPrefix ) {
   //Clean Data 
 function cleanSupplierData(data) {
     const cleanData = (value) => (value === null || value === undefined || value === "" ? undefined : value);
-    return Object.keys(data).reduce((acc, key) => {
+    const cleanedData = Object.keys(data).reduce((acc, key) => {
       acc[key] = cleanData(data[key]);
       return acc;
     }, {});
+
+    // Filter unpaidBills where payment is greater than 0
+    if (Array.isArray(cleanedData.unpaidBills)) {
+      cleanedData.unpaidBills = cleanedData.unpaidBills.filter(bill => {
+          return bill.payment && bill.payment > 0;
+      });
+    }
+
+  return cleanedData;
 }
 
 
