@@ -5,7 +5,7 @@ const unpaidBillSchema = new Schema({
   billDate: { type: String },
   dueDate: { type: String },
   billId: { type: String },
-  billNumber: { type: Number },
+  billNumber: { type: String },
   billAmount: { type: Number },
   amountDue: { type: Number },
   payment: { type: Number },
