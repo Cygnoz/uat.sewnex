@@ -50,15 +50,17 @@ exports.getCustomerTransactions = async (req, res) => {
 
 
 // Fetch existing data
-const dataExist = async (organizationId) => {
-    const [organizationExists, taxExists, currencyExists, settings, allCustomer ] = await Promise.all([
+const dataExist = async ( organizationId, customerId) => {
+    const [organizationExists, taxExists, currencyExists, settings, allCustomer, accountExist ] = await Promise.all([
       Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }),
       Tax.findOne({ organizationId },{ taxType: 1 }),
       Currency.find({ organizationId }, { currencyCode: 1, _id: 1 }),
       Settings.find({ organizationId },{ duplicateCustomerDisplayName: 1, duplicateCustomerEmail: 1, duplicateCustomerMobile: 1 }),
       Customer.find({ organizationId }),
+      Account.findOne({ accountId: customerId }),
     ]);
-    return { organizationExists, taxExists, currencyExists, settings, allCustomer };
+    
+    return { organizationExists, taxExists, currencyExists, settings, allCustomer, accountExist };
   };
 
 // Fetch Trial Balance
@@ -83,7 +85,7 @@ exports.addCustomer = async (req, res) => {
 
       const { customerEmail, debitOpeningBalance, creditOpeningBalance, customerDisplayName, mobile } = cleanedData;
   
-      const { organizationExists, taxExists, currencyExists, allCustomer , settings } = await dataExist(organizationId);
+      const { organizationExists, taxExists, currencyExists, allCustomer , settings } = await dataExist( organizationId, null );
       
       // checking values from Customer settings
       const { duplicateCustomerDisplayName , duplicateCustomerEmail , duplicateCustomerMobile } = settings[0]
@@ -129,13 +131,11 @@ exports.editCustomer = async (req, res) => {
       const cleanedData = cleanCustomerData(req.body);
       cleanedData.contactPerson = cleanedData.contactPerson?.map(person => cleanCustomerData(person)) || [];
 
-      console.log("Edit Customer:", cleanedData);
-
       const { customerId } = req.params;
   
       const { customerDisplayName ,customerEmail ,mobile} = cleanedData;
   
-      const { organizationExists, taxExists, currencyExists ,settings} = await dataExist(organizationId);
+      const { organizationExists, taxExists, currencyExists ,settings, accountExist} = await dataExist( organizationId, customerId );
 
       const { trailbalance } = await trialBalanceExist(organizationId,customerId);
       
@@ -152,19 +152,25 @@ exports.editCustomer = async (req, res) => {
         return res.status(404).json({ message: "Customer not found" });
       }
   
-      const oldCustomerDisplayName = existingCustomer.customerDisplayName;
-
+      
       if (!validateInputs(cleanedData, currencyExists, taxExists, organizationExists, res)) return;
       const errors = [];
       const duplicateCheck = { duplicateCustomerDisplayName, duplicateCustomerEmail, duplicateCustomerMobile };
-
+      
       await checkDuplicateCustomerFieldsEdit( duplicateCheck, customerDisplayName, customerEmail, mobile, organizationId,customerId, errors);  
       if (errors.length) {
-      return res.status(409).json({ message: errors }); }
-
+        return res.status(409).json({ message: errors }); }
+        
       //Opening balance
       editOpeningBalance(existingCustomer, cleanedData);
       await updateOpeningBalance(trailbalance, cleanedData);
+        
+      //Account Name
+      const oldCustomerDisplayName = existingCustomer.customerDisplayName;
+      if(oldCustomerDisplayName !== customerDisplayName){
+      await updateAccount(cleanedData,accountExist);
+      }
+        
 
   
       // Update customer fields
@@ -209,7 +215,7 @@ exports.getAllCustomer = async (req, res) => {
   try {
     const organizationId = req.user.organizationId;
 
-    const { organizationExists, allCustomer } = await dataExist(organizationId);
+    const { organizationExists, allCustomer } = await dataExist( organizationId, null);
 
     if (!organizationExists) {
       return res.status(404).json({
@@ -286,7 +292,7 @@ exports.getOneCustomer = async (req, res) => {
     const { customerId } = req.params;
     const organizationId = req.user.organizationId;
 
-    const {organizationExists} = await dataExist(organizationId);
+    const {organizationExists} = await dataExist( organizationId, null);
 
     if (!organizationExists) {
       return res.status(404).json({
@@ -423,7 +429,7 @@ exports.getOneCustomerHistory = async (req, res) => {
   try {
     const { customerId } = req.params;
     const organizationId = req.user.organizationId;
-    const {organizationExists} = await dataExist(organizationId);
+    const {organizationExists} = await dataExist( organizationId, null );
 
     if (!organizationExists) {
       return res.status(404).json({
@@ -653,7 +659,7 @@ async function checkDuplicateCustomerFieldsEdit(duplicateCheck,customerDisplayNa
 //Validate inputs
   function validateInputs(data, currencyExists, taxExists, organizationExists, res) {
     const validCurrencies = currencyExists.map((currency) => currency.currencyCode);
-    const validTaxTypes = ["Non-Tax", taxExists.taxType];
+    const validTaxTypes = [taxExists.taxType];
     const validationErrors = validateCustomerData(data, validCurrencies, validTaxTypes, organizationExists,taxExists.taxType);
   
     if (validationErrors.length > 0) {
@@ -899,7 +905,24 @@ async function updateOpeningBalance(existingTrialBalance, cleanData) {
 
 
 
+// Update Account Name
+async function updateAccount(cleanedData, accountExist) {
+  try {
+    console.log("Account name update:", accountExist);
+    
+    let accountName = { accountName: cleanedData.customerDisplayName };
 
+    Object.assign(accountExist, accountName);
+    const savedAccount = await accountExist.save();
+    console.log("Account name updated successfully:", savedAccount);
+    
+
+    return savedAccount;
+  } catch (error) {
+    console.error("Error updating account name:", error);
+    throw error;
+  }
+}
 
 
 
@@ -926,7 +949,7 @@ async function updateOpeningBalance(existingTrialBalance, cleanData) {
     const errors = [];
 
     //Basic Info
-    validateReqFields( data, taxType, errors);
+    validateReqFields( data, taxType, organization, errors);
     validInterestPercentage ( data.interestPercentage,  errors);
     validateCustomerType(data.customerType, errors);
     validateSalutation(data.salutation, errors);
@@ -962,11 +985,10 @@ function validateField(condition, errorMsg, errors) {
     if (condition) errors.push(errorMsg);
 }
 //Valid Req Fields
-function validateReqFields( data, taxType, errors ) {
+function validateReqFields( data, taxType, organization, errors ) {
   validateField( typeof data.customerDisplayName === 'undefined', `Customer Display Name required`, errors );  
   validateField( typeof taxType === 'undefined' || taxType === '' , `Please setup tax`, errors );  
-  validateField( typeof data.taxPreference === 'undefined' , `Please select tax prefernece`, errors );  
-  
+  validateField( data.billingCountry !== organization.organizationCountry , `Invalid Billing Country`, errors );    
 }
 //Valid Opening Balance
 function validateOpeningBalance( data, errors ) {
@@ -981,13 +1003,11 @@ function validInterestPercentage( interestPercentage, errors ) {
 
 //Valid Customer Type
   function validateCustomerType(customerType, errors) {
-    validateField(customerType && !validCustomerTypes.includes(customerType),
-      "Invalid Customer type: " + customerType, errors);
+    validateField(customerType && !validCustomerTypes.includes(customerType),"Invalid Customer type: " + customerType, errors);
   }
 //Validate Salutation
   function validateSalutation(salutation, errors) {
-    validateField(salutation && !validSalutations.includes(salutation),
-      "Invalid Salutation: " + salutation, errors);
+    validateField(salutation && !validSalutations.includes(salutation),"Invalid Salutation: " + salutation, errors);
   }
 //Validate Names 
   function validateNames(fields, data, errors) {
@@ -1046,9 +1066,7 @@ function validateIntegerFields(fields, data, errors) {
   }
 // Validate Place Of Supply
   function validatePlaceOfSupply(placeOfSupply, organization, errors) {
-    if (placeOfSupply && !validCountries[organization.organizationCountry]?.includes(placeOfSupply)) {
-      errors.push("Invalid Place of Supply: " + placeOfSupply);
-    }
+    validateField(placeOfSupply && !validCountries[organization.organizationCountry]?.includes(placeOfSupply),"Invalid Place of Supply: " + placeOfSupply, errors);
   }
 
 // Validate GST or VAT details
@@ -1059,10 +1077,7 @@ function validateGSTorVAT(data, errors) {
       break; 
     case "VAT":
       validateVATDetails(data, errors);
-      break;
-    case "Non-Tax":
-      clearTaxFields(data , errors );
-      break;
+      break;    
   }
 }
 
@@ -1088,15 +1103,7 @@ function validateVATDetails(data, errors) {
   validateField( data.vatNumber && !isAlphanumeric(data.vatNumber), `Invalid VAT number: ${data.vatNumber}`, errors );
 }
 
-// Clear tax fields when no tax is applied
-function clearTaxFields( data, errors ) {
-  ['gstTreatment', 'gstin_uin', 'vatNumber', 'placeOfSupply'].forEach(field => {
-    data[field] = undefined;
-  });
-  if (data.taxType ==='Non-Tax' && typeof data.taxReason === 'undefined' ) {
-    errors.push("Tax Exemption Reason required");
-  }  
-}
+
 //Validate Currency
 function validateCurrency(currency, validCurrencies, errors) {
   validateField(currency && !validCurrencies.includes(currency), "Invalid Currency: " + currency, errors);
