@@ -659,6 +659,7 @@ async function checkDuplicateCustomerFieldsEdit(duplicateCheck,customerDisplayNa
 //Validate inputs
   function validateInputs(data, currencyExists, taxExists, organizationExists, res) {
     const validCurrencies = currencyExists.map((currency) => currency.currencyCode);
+    // const validTaxTypes = ["Non-Tax", taxExists.taxType];
     const validTaxTypes = [taxExists.taxType];
     const validationErrors = validateCustomerData(data, validCurrencies, validTaxTypes, organizationExists,taxExists.taxType);
   
@@ -1077,6 +1078,9 @@ function validateGSTorVAT(data, errors) {
       break; 
     case "VAT":
       validateVATDetails(data, errors);
+      break;
+    case "Non-Tax":
+      clearTaxFields(data , errors );
       break;    
   }
 }
@@ -1101,6 +1105,16 @@ function validateGSTDetails(data, errors) {
 // Validate VAT details
 function validateVATDetails(data, errors) {
   validateField( data.vatNumber && !isAlphanumeric(data.vatNumber), `Invalid VAT number: ${data.vatNumber}`, errors );
+}
+
+// Clear tax fields when no tax is applied
+function clearTaxFields( data, errors ) {
+  ['gstTreatment', 'gstin_uin', 'vatNumber', 'placeOfSupply'].forEach(field => {
+    data[field] = undefined;
+  });
+  if (data.taxType ==='Non-Tax' && typeof data.taxReason === 'undefined' ) {
+    errors.push("Tax Exemption Reason required");
+  }  
 }
 
 
