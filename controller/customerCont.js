@@ -51,25 +51,19 @@ exports.getCustomerTransactions = async (req, res) => {
 
 // Fetch existing data
 const dataExist = async ( organizationId, customerId) => {
-    const [organizationExists, taxExists, currencyExists, settings, allCustomer, accountExist ] = await Promise.all([
+    const [organizationExists, taxExists, currencyExists, settings, allCustomer, accountExist, trailbalance ] = await Promise.all([
       Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }),
       Tax.findOne({ organizationId },{ taxType: 1 }),
       Currency.find({ organizationId }, { currencyCode: 1, _id: 1 }),
       Settings.find({ organizationId },{ duplicateCustomerDisplayName: 1, duplicateCustomerEmail: 1, duplicateCustomerMobile: 1 }),
       Customer.find({ organizationId }),
       Account.findOne({ accountId: customerId }),
-    ]);
-    
-    return { organizationExists, taxExists, currencyExists, settings, allCustomer, accountExist };
+      TrialBalance.findOne({ organizationId, operationId: customerId}),
+    ]);    
+    return { organizationExists, taxExists, currencyExists, settings, allCustomer, accountExist, trailbalance };
   };
 
-// Fetch Trial Balance
-const trialBalanceExist = async (organizationId,customerId) => {
-  const [trailbalance ] = await Promise.all([
-    TrialBalance.findOne({ organizationId, operationId: customerId}),
-  ]);
-  return { trailbalance };
-};
+
 
 
 
@@ -135,9 +129,7 @@ exports.editCustomer = async (req, res) => {
   
       const { customerDisplayName ,customerEmail ,mobile} = cleanedData;
   
-      const { organizationExists, taxExists, currencyExists ,settings, accountExist} = await dataExist( organizationId, customerId );
-
-      const { trailbalance } = await trialBalanceExist(organizationId,customerId);
+      const { organizationExists, taxExists, currencyExists ,settings, accountExist, trailbalance} = await dataExist( organizationId, customerId );
       
       //Checking values from Customer settings
       const { duplicateCustomerDisplayName , duplicateCustomerEmail , duplicateCustomerMobile } = settings[0]
