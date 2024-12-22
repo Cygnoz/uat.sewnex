@@ -9,7 +9,8 @@ const moment = require("moment-timezone");
 const TrialBalance = require("../database/model/trialBalance");
 const CustomerHistory = require("../database/model/customerHistory");
 const Settings = require("../database/model/settings")
-const { formatCustomDateTime } = require("../services/timeConverter");
+const { singleCustomDateTime, multiCustomDateTime } = require("../services/timeConverter");
+
 const { cleanData } = require("../services/cleanData");
 
 
@@ -27,7 +28,7 @@ const dataExist = async ( organizationId, customerId) => {
       CustomerHistory.find({ organizationId, customerId })
     ]);    
     return { organizationExists, taxExists, currencyExists, settings, allCustomer, customer, accountExist, trialBalance, customersHistory };
-  };
+};
 
 
 
@@ -77,7 +78,7 @@ exports.addCustomer = async (req, res) => {
       console.error("Error creating customer:", error);
       res.status(500).json({ message: "Internal server error." });
     }
-  };
+};
 
 
 // Edit Customer
@@ -158,7 +159,7 @@ exports.editCustomer = async (req, res) => {
       console.error("Error updating customer:", error);
       res.status(500).json({ message: "Internal server error." });
     }
-  };
+};
 
 
  // Get All Customer 
@@ -175,31 +176,10 @@ exports.getAllCustomer = async (req, res) => {
     if (!allCustomer.length) {
       return res.status(404).json({ message: "No Customer found" });
     }
+
+    const formattedObjects = multiCustomDateTime(allCustomer, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
     
-    // Format each customer after converting to plain object
-    const formattedCustomers = allCustomer.map(customer => {
-      const plainCustomer = customer.toObject();
-
-      if (plainCustomer.createdDateTime) {
-
-        const { formattedDate, formattedTime } = formatCustomDateTime(
-          plainCustomer.createdDateTime,
-          organizationExists.dateFormatExp,
-          organizationExists.timeZoneExp,
-          organizationExists.dateSplit
-        );
-
-        plainCustomer.createdDate = formattedDate;
-        plainCustomer.createdTime = formattedTime;
-
-      }
-
-      return plainCustomer;
-    });
-
-    console.log("Formatted Customer List:", formattedCustomers);
-
-    res.status(200).json(formattedCustomers);
+    res.status(200).json(formattedObjects);
   } catch (error) {
     console.error("Error fetching customer:", error);
     res.status(500).json({ message: "Internal server error." });
@@ -229,10 +209,10 @@ exports.getOneCustomer = async (req, res) => {
       return res.status(404).json({ message: "Customer not found" });
     }
 
-    const { formattedDate, formattedTime } = formatCustomDateTime( customers.createdDateTime, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );
+    const { createdDate, createdTime } = singleCustomDateTime( customers.createdDateTime, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );
 
-    customers.createdDate = formattedDate;
-    customers.createdTime = formattedTime;
+    customers.createdDate = createdDate;
+    customers.createdTime = createdTime;
     
 
     res.status(200).json(customers);
@@ -272,10 +252,10 @@ exports.getCustomerTransactions = async (req, res) => {
 
       if (plainData.createdDateTime) {
 
-        const { formattedDate, formattedTime } = formatCustomDateTime( plainData.createdDateTime, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );
+        const { createdDate, createdTime } = singleCustomDateTime( plainData.createdDateTime, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );
 
-        plainData.createdDate = formattedDate;
-        plainData.createdTime = formattedTime;
+        plainData.createdDate = createdDate;
+        plainData.createdTime = createdTime;
 
       }
 
@@ -409,7 +389,9 @@ exports.getOneCustomerHistory = async (req, res) => {
       return res.status(404).json({ message: "Customer history not found" });
     }
 
-    res.status(200).json(customersHistory);
+    const formattedObjects = multiCustomDateTime(customersHistory, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit, );    
+    
+    res.status(200).json(formattedObjects);
   } catch (error) {
     console.error("Error fetching customer:", error);
     res.status(500).json({ message: "Internal server error." });
