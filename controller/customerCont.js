@@ -9,8 +9,8 @@ const moment = require("moment-timezone");
 const TrialBalance = require("../database/model/trialBalance");
 const CustomerHistory = require("../database/model/customerHistory");
 const Settings = require("../database/model/settings")
-const { singleCustomDateTime, multiCustomDateTime } = require("../services/timeConverter");
 
+const { singleCustomDateTime, multiCustomDateTime } = require("../services/timeConverter");
 const { cleanData } = require("../services/cleanData");
 
 
@@ -633,6 +633,7 @@ async function checkDuplicateCustomerFieldsEdit(duplicateCheck,customerDisplayNa
       accountHead: "Asset",
       accountGroup: "Asset",
       description: "Customer",
+      delete: false,
     });
     return newAccount.save();
   }
