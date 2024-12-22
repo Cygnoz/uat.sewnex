@@ -1,4 +1,4 @@
-// v1.1
+// v1.2
 
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
@@ -61,6 +61,7 @@ const customerSchema = new Schema({
     businessLegalName: {type:String},
     businessTradeName: {type:String},
     vatNumber: {type:String},
+    vatTreatment: {type:String},
     
 
     //Billing Address
@@ -94,8 +95,6 @@ const customerSchema = new Schema({
 
     //Create info
     createdDateTime: { type: Date, default: () => new Date() },
-    createdDate: { type: String, default: undefined }, 
-    createdTime: { type: String, default: undefined }, 
 
     //lastModifiedDate
     lastModifiedDate:{type:String},

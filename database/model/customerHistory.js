@@ -1,4 +1,4 @@
-// v1.0
+// v1.1
 
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
@@ -9,11 +9,12 @@ const customerHistorySchema = new Schema({
   operationId: { type: String },
   customerId: { type: String },
   customerDisplayName: { type: String },
-  date: { type: String },
   title: { type: String },
   description: { type: String },
   userId: { type: String },
   userName: { type: String },
+  
+  createdDateTime: { type: Date, default: () => new Date() },
 });
 
 const customerHistory = mongoose.model("Customer History", customerHistorySchema);

@@ -9,62 +9,29 @@ const moment = require("moment-timezone");
 const TrialBalance = require("../database/model/trialBalance");
 const CustomerHistory = require("../database/model/customerHistory");
 const Settings = require("../database/model/settings")
-  
-
-
-
-
-
-exports.getCustomerTransactions = async (req, res) => {
-  try {
-      const { customerId } = req.params;
-      const { organizationId } = req.user; 
-
-    console.log(organizationId,customerId)
-      // Step 1: Find the customer's account code in the Account collection
-      const customer = await Customer.findOne({ _id:customerId, organizationId});
-      if (!customer) {
-          return res.status(404).json({ message: "Customer not found" });
-      }
-      //console.log("Customer",customer)
-
-      const account = await Account.findOne({ accountCode: customerId , organizationId });
-      if (!account) {
-          return res.status(404).json({ message: "Account not found for this customer" });
-      }
-      //console.log("Account",account)
-
-      // Step 2: Use account _id to find matching transactions in the TrialBalance collection
-      const customerTransactions = await TrialBalance.find({ accountId: account._id , organizationId });
-      //console.log("Trialbalance ",customerTransactions)
-
-      // Step 3: Send the customer transactions as a response
-      return res.status(200).json({ customerTransactions });
-  } catch (error) {
-      console.error("Error fetching customer transactions:", error);
-      return res.status(500).json({ message: "Internal server error" });
-  }
-};
-
-
+const { formatCustomDateTime } = require("../services/timeConverter");
+const { cleanData } = require("../services/cleanData");
 
 
 // Fetch existing data
 const dataExist = async ( organizationId, customerId) => {
-    const [organizationExists, taxExists, currencyExists, settings, allCustomer, accountExist, trailbalance ] = await Promise.all([
+    const [organizationExists, taxExists, currencyExists, settings, allCustomer, customer, accountExist, trialBalance, customersHistory ] = await Promise.all([
       Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }),
       Tax.findOne({ organizationId },{ taxType: 1 }),
       Currency.find({ organizationId }, { currencyCode: 1, _id: 1 }),
       Settings.find({ organizationId },{ duplicateCustomerDisplayName: 1, duplicateCustomerEmail: 1, duplicateCustomerMobile: 1 }),
       Customer.find({ organizationId }),
-      Account.findOne({ accountId: customerId }),
+      Customer.findOne({ _id:customerId, organizationId}),
+      Account.findOne({ accountId: customerId, organizationId }),
       TrialBalance.findOne({ organizationId, operationId: customerId}),
+      CustomerHistory.find({ organizationId, customerId })
     ]);    
-    return { organizationExists, taxExists, currencyExists, settings, allCustomer, accountExist, trailbalance };
+    return { organizationExists, taxExists, currencyExists, settings, allCustomer, customer, accountExist, trialBalance, customersHistory };
   };
 
 
 
+  
 
 
 // Add Customer
@@ -74,8 +41,8 @@ exports.addCustomer = async (req, res) => {
       const { organizationId, id: userId, userName } = req.user; 
       
       //Clean Data
-      const cleanedData = cleanCustomerData(req.body);
-      cleanedData.contactPerson = cleanedData.contactPerson?.map(person => cleanCustomerData(person)) || [];
+      const cleanedData = cleanData(req.body);
+      cleanedData.contactPerson = cleanedData.contactPerson?.map(person => cleanData(person)) || [];
 
       const { customerEmail, debitOpeningBalance, creditOpeningBalance, customerDisplayName, mobile } = cleanedData;
   
@@ -86,9 +53,6 @@ exports.addCustomer = async (req, res) => {
         
       //Data Exist Validation
       if (!validateOrganizationTaxCurrency(organizationExists, taxExists, currencyExists, res)) return;     
-  
-      //Date & Time
-      const openingDate = generateOpeningDate(organizationExists);
 
       //Validate Inputs  
       if (!validateInputs(cleanedData, currencyExists, taxExists, organizationExists, res)) return;
@@ -103,7 +67,7 @@ exports.addCustomer = async (req, res) => {
 
       const savedCustomer = await createNewCustomer(cleanedData, organizationId);
       
-      const savedAccount = await createNewAccount(customerDisplayName, openingDate, organizationId, allCustomer , savedCustomer );
+      const savedAccount = await createNewAccount(customerDisplayName, organizationId, allCustomer , savedCustomer );
   
       await saveTrialBalanceAndHistory(savedCustomer, savedAccount, debitOpeningBalance, creditOpeningBalance, userId, userName);
   
@@ -122,22 +86,20 @@ exports.editCustomer = async (req, res) => {
     try {
       const { organizationId, id: userId, userName } = req.user;
 
-      const cleanedData = cleanCustomerData(req.body);
-      cleanedData.contactPerson = cleanedData.contactPerson?.map(person => cleanCustomerData(person)) || [];
+      const cleanedData = cleanData(req.body);
+      cleanedData.contactPerson = cleanedData.contactPerson?.map(person => cleanData(person)) || [];
 
       const { customerId } = req.params;
   
       const { customerDisplayName ,customerEmail ,mobile} = cleanedData;
   
-      const { organizationExists, taxExists, currencyExists ,settings, accountExist, trailbalance} = await dataExist( organizationId, customerId );
+      const { organizationExists, taxExists, currencyExists ,settings, accountExist, trialBalance} = await dataExist( organizationId, customerId );
       
       //Checking values from Customer settings
       const { duplicateCustomerDisplayName , duplicateCustomerEmail , duplicateCustomerMobile } = settings[0]
        
       if (!validateOrganizationTaxCurrency(organizationExists, taxExists, currencyExists, res)) return;
-      
-      const openingDate = generateOpeningDate(organizationExists);
-  
+        
       const existingCustomer = await Customer.findById(customerId);
       if (!existingCustomer) {
         console.log("Customer not found with ID:", customerId);
@@ -155,16 +117,16 @@ exports.editCustomer = async (req, res) => {
         
       //Opening balance
       editOpeningBalance(existingCustomer, cleanedData);
-      await updateOpeningBalance(trailbalance, cleanedData);
+      await updateOpeningBalance(trialBalance, cleanedData);
         
       //Account Name
       const oldCustomerDisplayName = existingCustomer.customerDisplayName;
       if(oldCustomerDisplayName !== customerDisplayName){
       await updateAccount(cleanedData,accountExist);
       }
-        
 
-  
+      cleanedData.lastModifiedDate = new Date();
+
       // Update customer fields
       Object.assign(existingCustomer, cleanedData);
       const savedCustomer = await existingCustomer.save();
@@ -172,25 +134,21 @@ exports.editCustomer = async (req, res) => {
       if (!savedCustomer) {
         console.error("Customer could not be saved.");
         return res.status(500).json({ message: "Failed to Update Customer." });
-      }
-  
-      
+      }      
   
       // Add entry to Customer History
-      const accountCustomerHistoryEntry = new CustomerHistory({
+      const customerHistoryEntry = new CustomerHistory({
         organizationId,
         operationId: savedCustomer._id,
         customerId,
         customerDisplayName: savedCustomer.customerDisplayName,
-        date: openingDate,
         title: "Customer Data Modified",
-        description: `${savedCustomer.customerDisplayName} Account Modified by ${userName}`,
-
+        description: `${savedCustomer.customerDisplayName} Data Modified by ${userName}`,
         userId: userId,
         userName: userName,
       });
   
-      await accountCustomerHistoryEntry.save();
+      await customerHistoryEntry.save();
   
       res.status(200).json({
         message: "Customer updated successfully.",
@@ -202,7 +160,8 @@ exports.editCustomer = async (req, res) => {
     }
   };
 
-  // Get All Customer for a given organizationId
+
+ // Get All Customer 
 exports.getAllCustomer = async (req, res) => {
   try {
     const organizationId = req.user.organizationId;
@@ -210,29 +169,37 @@ exports.getAllCustomer = async (req, res) => {
     const { organizationExists, allCustomer } = await dataExist( organizationId, null);
 
     if (!organizationExists) {
-      return res.status(404).json({
-        message: "Organization not found",
-      });
+      return res.status(404).json({ message: "Organization not found" });
     }
 
     if (!allCustomer.length) {
-      return res.status(404).json({
-        message: "No Customer found",
-      });
+      return res.status(404).json({ message: "No Customer found" });
     }
-
-  
-    allCustomer.forEach(customer => {
-      if (customer.createdDateTime ) {   
-        let dateTime = moment(customer.createdDateTime).tz(organizationExists.timeZoneExp);
-        customer.createdDate = dateTime.format(organizationExists.dateFormatExp); 
-        customer.createdDate = customer.createdDate.replace(/\//g, organizationExists.dateSplit); 
-        customer.createdTime = dateTime.format('hh:mm:ss A');  
-      }
-    });
     
+    // Format each customer after converting to plain object
+    const formattedCustomers = allCustomer.map(customer => {
+      const plainCustomer = customer.toObject();
 
-    res.status(200).json(allCustomer);
+      if (plainCustomer.createdDateTime) {
+
+        const { formattedDate, formattedTime } = formatCustomDateTime(
+          plainCustomer.createdDateTime,
+          organizationExists.dateFormatExp,
+          organizationExists.timeZoneExp,
+          organizationExists.dateSplit
+        );
+
+        plainCustomer.createdDate = formattedDate;
+        plainCustomer.createdTime = formattedTime;
+
+      }
+
+      return plainCustomer;
+    });
+
+    console.log("Formatted Customer List:", formattedCustomers);
+
+    res.status(200).json(formattedCustomers);
   } catch (error) {
     console.error("Error fetching customer:", error);
     res.status(500).json({ message: "Internal server error." });
@@ -240,45 +207,10 @@ exports.getAllCustomer = async (req, res) => {
 };
 
 
-// exports.getAllCustomer = async (req, res) => {
-//   try {
-//     const organizationId = req.user.organizationId;
-//     const { page = 1, limit = 10 } = req.query;
-
-//     const { organizationExists, allCustomer } = await dataExist(organizationId);
-
-//     if (!organizationExists) {
-//       return res.status(404).json({
-//         message: "Organization not found",
-//       });
-//     }
-
-//     if (!allCustomer.length) {
-//       return res.status(404).json({
-//         message: "No customers found",
-//       });
-//     }
-
-//     // Pagination calculation
-//     const startIndex = (parseInt(page, 10) - 1) * parseInt(limit, 10);
-//     const paginatedCustomers = allCustomer.slice(startIndex, startIndex + parseInt(limit, 10));
-
-//     res.status(200).json({
-//       success: true,
-//       data: paginatedCustomers,
-//       totalCustomers: allCustomer.length,
-//       currentPage: parseInt(page, 10),
-//       totalPages: Math.ceil(allCustomer.length / limit)
-//     });
-//   } catch (error) {
-//     console.error("Error fetching customers:", error);
-//     res.status(500).json({ message: "Internal server error." });
-//   }
-// };  
 
 
 
-//Get one Customer for a given organizationId
+//Get one Customer
 exports.getOneCustomer = async (req, res) => {
   try {
     const { customerId } = req.params;
@@ -287,22 +219,21 @@ exports.getOneCustomer = async (req, res) => {
     const {organizationExists} = await dataExist( organizationId, null);
 
     if (!organizationExists) {
-      return res.status(404).json({
-        message: "Organization not found",
-      });
+      return res.status(404).json({ message: "Organization not found" });
     }
 
     // Find the Customer by CustomerId and organizationId
-    const customers = await Customer.findOne({
-      _id: customerId,
-      organizationId: organizationId},{organizationId : 0}
-    );
+    const customers = await Customer.findOne({ _id: customerId, organizationId: organizationId },{ organizationId : 0 });
 
     if (!customers) {
-      return res.status(404).json({
-        message: "Customer not found",
-      });
+      return res.status(404).json({ message: "Customer not found" });
     }
+
+    const { formattedDate, formattedTime } = formatCustomDateTime( customers.createdDateTime, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );
+
+    customers.createdDate = formattedDate;
+    customers.createdTime = formattedTime;
+    
 
     res.status(200).json(customers);
   } catch (error) {
@@ -311,55 +242,90 @@ exports.getOneCustomer = async (req, res) => {
   }
 };
 
+
+//Customer Transaction History (Trial Balance)
+exports.getCustomerTransactions = async (req, res) => {
+  try {
+      const { customerId } = req.params;
+      const { organizationId } = req.user; 
+
+      const { organizationExists, customer, accountExist } = await dataExist( organizationId, customerId);
+
+      if (!organizationExists) {
+        return res.status(404).json({ message: "Organization not found" });
+      }
+
+      if (!customer) {
+          return res.status(404).json({ message: "Customer not found" });
+      }
+
+      if (!accountExist) {
+          return res.status(404).json({ message: "Account not found for this customer" });
+      }
+
+      // Use account _id to find matching transactions in the TrialBalance collection
+      const customerTransactions = await TrialBalance.find({ accountId: accountExist._id , organizationId });
+
+      // Format each customer after converting to plain object
+      const formattedData = customerTransactions.map(customer => {
+      const plainData = customer.toObject();
+
+      if (plainData.createdDateTime) {
+
+        const { formattedDate, formattedTime } = formatCustomDateTime( plainData.createdDateTime, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );
+
+        plainData.createdDate = formattedDate;
+        plainData.createdTime = formattedTime;
+
+      }
+
+      return plainData;
+    });
+    
+    return res.status(200).json({ formattedData });
+
+  } catch (error) {
+      console.error("Error fetching customer transactions:", error);
+      return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+
+
 // Update the status of a Customer based on the provided status value
 exports.updateCustomerStatus = async (req, res) => {
   console.log("Update Customer Status:", req.body);
   try {
     const { customerId } = req.params;
     const {organizationId , userName , userId} = req.user;
-    const { status } = req.body; // Status is now taken from the request body
+    const { status } = req.body; 
 
-    // Validate organizationId
-    const organizationExists = await Organization.findOne({
-      organizationId: organizationId,
-    });
+    const { organizationExists, customer, accountExist } = await dataExist( organizationId, customerId);
+
     if (!organizationExists) {
-      return res.status(404).json({
-        message: "Organization not found",
-      });
+      return res.status(404).json({ message: "Organization not found" });
     }
 
-    // Check if the customer exists
-    const customer = await Customer.findOne({
-      _id: customerId,
-      organizationId: organizationId,
-    });
     if (!customer) {
-      return res.status(404).json({
-        message: "Customer not found",
-      });
+      return res.status(404).json({ message: "Customer not found" });        
     }
-    const openingDate = generateOpeningDate(organizationExists);
-    // Update the customer status with the value provided by the frontend
+
     customer.status = status;
 
-    // Save the updated customer
     await customer.save();
     // Add entry to Customer History
-       const accountCustomerHistoryEntry = new CustomerHistory({
-        organizationId,
-        operationId: customer._id,
-        customerId,
-        customerDisplayName: customer.customerDisplayName,
-        date: openingDate,
-        title: "customer Status Modified",
-        description: `customer status updated to ${status} by ${userName}`,
-
-        userId: userId,
-        userName: userName,
-      });
+    const accountCustomerHistoryEntry = new CustomerHistory({
+      organizationId,
+      operationId: customer._id,
+      customerId,
+      customerDisplayName: customer.customerDisplayName,
+      title: "Customer Status Modified",
+      description: `Customer status updated to ${status} by ${userName}`,
+      userId: userId,
+      userName: userName,
+    });
   
-      await accountCustomerHistoryEntry.save();
+    await accountCustomerHistoryEntry.save();
 
     res.status(200).json({
       message: "Customer status updated successfully.",
@@ -372,29 +338,26 @@ exports.updateCustomerStatus = async (req, res) => {
   }
 };
 
+
+
 // Customer Additional data
 exports.getCustomerAdditionalData = async (req, res) => {
   const organizationId = req.user.organizationId;
   try {
     // Check if an Organization already exists
-    const organization = await Organization.findOne({ organizationId });
-    if (!organization) {
-      return res.status(404).json({
-        message: "No Organization Found.",
-      });
+    const { organizationExists, taxExists } = await dataExist( organizationId, null);
+
+    if (!organizationExists) {
+      return res.status(404).json({ message: "Organization not found" });
     }
 
-    // Fetch tax data to check tax type
-    const taxData = await Tax.findOne({ organizationId });
-    if (!taxData) {
-      return res.status(404).json({
-        message: "No tax data found for the organization.",
-      });
+    if (!taxExists) {
+      return res.status(404).json({ message: "Tax data not found" })
     }
 
     // Prepare the response object
     const response = {
-      taxType: taxData.taxType,
+      taxType: taxExists.taxType,
       gstTreatment: [
         "Registered Business - Regular",
         "Registered Business - Composition",
@@ -406,6 +369,19 @@ exports.getCustomerAdditionalData = async (req, res) => {
         "Tax Deductor",
         "SEZ Developer",
       ],
+      vatTreatment: [
+        "Registered Business - Standard",
+        "Registered Business - Simplified",
+        "Unregistered Business",
+        "Consumer",
+        "Overseas",
+        "Special Economic Zone",
+        "Exempt Business",
+        "Reverse Charge Mechanism",
+        "Zero-Rated Export",
+        "Tax Deductor",
+        "Free Zone Business",
+      ]
     };
 
     // Return the combined response data
@@ -416,29 +392,21 @@ exports.getCustomerAdditionalData = async (req, res) => {
   }
 };
 
-//Get One Customer History for a given organizationId
+
+
+//Get One Customer operation History 
 exports.getOneCustomerHistory = async (req, res) => {
   try {
     const { customerId } = req.params;
     const organizationId = req.user.organizationId;
-    const {organizationExists} = await dataExist( organizationId, null );
+    const { organizationExists, customersHistory } = await dataExist( organizationId, customerId );
 
     if (!organizationExists) {
-      return res.status(404).json({
-        message: "Organization not found",
-      });
+      return res.status(404).json({ message: "Organization not found" });
     }
 
-    // Find the Customer History by CustomerId and organizationId
-    const customersHistory = await CustomerHistory.find({
-      customerId,
-      organizationId,
-    });
-
     if (!customersHistory) {
-      return res.status(404).json({
-        message: "Customer History not found",
-      });
+      return res.status(404).json({ message: "Customer history not found" });
     }
 
     res.status(200).json(customersHistory);
@@ -535,16 +503,21 @@ exports.getOneCustomerHistory = async (req, res) => {
     "Tax Deductor",
     "SEZ Developer",
   ];
+  const validVATTreatments = [
+    "Registered Business - Standard",
+    "Registered Business - Simplified",
+    "Unregistered Business",
+    "Consumer",
+    "Overseas",
+    "Special Economic Zone",
+    "Exempt Business",
+    "Reverse Charge Mechanism",
+    "Zero-Rated Export",
+    "Tax Deductor",
+    "Free Zone Business",
+  ]
   
-  
-  //Clean Data 
-  function cleanCustomerData(data) {
-    const cleanData = (value) => (value === null || value === undefined || value === "" ? undefined : value);
-    return Object.keys(data).reduce((acc, key) => {
-      acc[key] = cleanData(data[key]);
-      return acc;
-    }, {});
-  }
+
   
   // Validate Organization Tax Currency
   function validateOrganizationTaxCurrency(organizationExists, taxExists, currencyExists, res) {
@@ -564,15 +537,7 @@ exports.getOneCustomerHistory = async (req, res) => {
   }
   
 
-  //Return Date and Time 
-  function generateOpeningDate(organizationExists) {
-    const date = generateTimeAndDateForDB(
-        organizationExists.timeZoneExp,
-        organizationExists.dateFormatExp,
-        organizationExists.dateSplit
-      )
-    return date.dateTime;
-  }
+
  
 
 //Duplication check for add item
@@ -635,11 +600,11 @@ async function checkDuplicateCustomerFieldsEdit(duplicateCheck,customerDisplayNa
         
           for (const { condition, field, value, errorMessage } of checks) {
             if (condition) {
-              // Modify query to exclude the supplier with the given supplierId
+              // Modify query to exclude the supplier with the given customerId
               const existingRecord = await Customer.findOne({
                 [field]: value,
                 organizationId,
-                _id: { $ne: customerId }, // Exclude the document with the same supplierId
+                _id: { $ne: customerId }, // Exclude the document with the same customerId
               });
               if (existingRecord) {
                 errors.push(errorMessage);
@@ -669,7 +634,7 @@ async function checkDuplicateCustomerFieldsEdit(duplicateCheck,customerDisplayNa
   }
   
 // Create New Account
-  function createNewAccount( customerDisplayName, openingDate, organizationId, allCustomer ,savedCustomer ) {
+  function createNewAccount( customerDisplayName, organizationId, allCustomer ,savedCustomer ) {
 
     // Count existing organizations to generate the next organizationId
 
@@ -685,7 +650,6 @@ async function checkDuplicateCustomerFieldsEdit(duplicateCheck,customerDisplayNa
       accountSubhead: "Sundry Debtors",
       accountHead: "Asset",
       accountGroup: "Asset",
-      openingDate,
       description: "Customer",
     });
     return newAccount.save();
@@ -819,41 +783,7 @@ function getOpeningBalanceDescription(data, userName) {
 
 
   
-// Function to generate time and date for storing in the database
-function generateTimeAndDateForDB(
-    timeZone,
-    dateFormat,
-    dateSplit,
-    baseTime = new Date(),
-    timeFormat = "HH:mm:ss",
-    timeSplit = ":"
-  ) {
-    // Convert the base time to the desired time zone
-    const localDate = moment.tz(baseTime, timeZone);
-  
-    // Format date and time according to the specified formats
-    let formattedDate = localDate.format(dateFormat);
-  
-    // Handle date split if specified
-    if (dateSplit) {
-      // Replace default split characters with specified split characters
-      formattedDate = formattedDate.replace(/[-/]/g, dateSplit); // Adjust regex based on your date format separators
-    }
-  
-    const formattedTime = localDate.format(timeFormat);
-    const timeZoneName = localDate.format("z"); // Get time zone abbreviation
-  
-    // Combine the formatted date and time with the split characters and time zone
-    const dateTime = `${formattedDate} ${formattedTime
-      .split(":")
-      .join(timeSplit)} (${timeZoneName})`;
-  
-    return {
-      date: formattedDate,
-      time: `${formattedTime} (${timeZoneName})`,
-      dateTime: dateTime,
-    };
-  }
+
 
 
 //Edit Opening Balance
@@ -870,7 +800,6 @@ function editOpeningBalance(existingCustomer, cleanedData) {
 // Update Opening Balance
 async function updateOpeningBalance(existingTrialBalance, cleanData) {
   try {
-    const { debitOpeningBalance, creditOpeningBalance } = existingTrialBalance;
     let trialEntry;
 
     if (cleanData.debitOpeningBalance) {

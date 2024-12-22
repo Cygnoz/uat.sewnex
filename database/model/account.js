@@ -1,5 +1,5 @@
 
-// v1.1
+// v1.2
 
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
@@ -14,12 +14,13 @@ const accountSchema = new Schema({
     accountHead: {type:String},
     accountGroup: {type:String},
     
-    openingDate: {type:String},
     description: {type:String},
-
+    
     bankAccNum: {type:String},
     bankIfsc: {type:String},
     bankCurrency: {type:String},
+    
+    createdDateTime: { type: Date, default: () => new Date() },
 });
 
 const Accounts = mongoose.model("Accounts", accountSchema);

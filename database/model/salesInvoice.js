@@ -1,3 +1,5 @@
+// v1.1
+
 const mongoose = require('mongoose')
 const { Schema } = mongoose
 
@@ -83,7 +85,7 @@ const SalesInvoiceSchema = new Schema ({
 
   status: { type: String },
 
-  createdDate: { type: String },
+  createdDateTime: { type: Date, default: () => new Date() },
   userId: { type: String },
   userName: { type: String },
 })

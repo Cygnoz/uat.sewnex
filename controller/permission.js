@@ -1,4 +1,4 @@
-// v1.2
+// v1.3
 
 const User = require('../database/model/user');
 const Role = require('../database/model/role');
@@ -22,13 +22,6 @@ const checkPermission = (permissionAction) => {
       if (!role) {
         return res.status(401).json({ message: 'Role not found' });
       }
-      
-      const generatedDateTime = generateTimeAndDateForDB(
-        "Asia/Kolkata",
-        "DD/MM/YY",
-        "/"
-      );
-      const actionTime = generatedDateTime.dateTime;
 
       // Find the permission in the role's permissions array
       const permission = role.permissions.find(p => p.note === permissionAction);      
@@ -36,9 +29,8 @@ const checkPermission = (permissionAction) => {
       // If the permission exists, log the activity and grant access
       if (permission) {
         const activity = new ActivityLog({
-          userName: user.userName, // Assuming your User model has a username field
-          activity: `Accessed ${permission.note}`, // Log the note associated with the permission
-          timestamp: actionTime,
+          userName: user.userName, 
+          activity: `Accessed ${permission.note}`, 
         });
         await activity.save();
                 
@@ -49,7 +41,6 @@ const checkPermission = (permissionAction) => {
         const unauthorizedActivity = new ActivityLog({
           userName: user.userName,
           activity: `Tried to access ${permissionAction} without proper permissions`,
-          timestamp: actionTime,
           reqBody: JSON.stringify(req.body),
         });
         await unauthorizedActivity.save();
@@ -65,41 +56,6 @@ const checkPermission = (permissionAction) => {
 };
 
 
-// Function to generate time and date for storing in the database
-function generateTimeAndDateForDB(
-  timeZone,
-  dateFormat,
-  dateSplit,
-  baseTime = new Date(),
-  timeFormat = "HH:mm:ss",
-  timeSplit = ":"
-) {
-  // Convert the base time to the desired time zone
-  const localDate = moment.tz(baseTime, timeZone);
-
-  // Format date and time according to the specified formats
-  let formattedDate = localDate.format(dateFormat);
-
-  // Handle date split if specified
-  if (dateSplit) {
-    // Replace default split characters with specified split characters
-    formattedDate = formattedDate.replace(/[-/]/g, dateSplit); // Adjust regex based on your date format separators
-  }
-
-  const formattedTime = localDate.format(timeFormat);
-  const timeZoneName = localDate.format("z"); // Get time zone abbreviation
-
-  // Combine the formatted date and time with the split characters and time zone
-  const dateTime = `${formattedDate} ${formattedTime
-    .split(":")
-    .join(timeSplit)} (${timeZoneName})`;
-
-  return {
-    date: formattedDate,
-    time: `${formattedTime} (${timeZoneName})`,
-    dateTime: dateTime,
-  };
-}
 
 
 module.exports = checkPermission;
