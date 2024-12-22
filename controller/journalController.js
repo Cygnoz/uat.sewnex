@@ -7,6 +7,9 @@ const Journal = require("../database/model/journal");
 const TrialBalance = require("../database/model/trialBalance");
 const moment = require('moment-timezone');
 
+const { singleCustomDateTime, multiCustomDateTime } = require("../services/timeConverter");
+const { cleanData } = require("../services/cleanData");
+
 
 
 // Add Journal Entry
@@ -27,9 +30,7 @@ exports.addJournalEntry = async (req, res) => {
         const uniqueItemIds = new Set(transactionIds);
         if (uniqueItemIds.size !== transactionIds.length) {            
           return res.status(400).json({ message: "Duplicate Accounts found" });
-        }
-
-        
+        }        
 
         // Check if the organization exists
         const existingOrganization = await Organization.findOne({ organizationId });
@@ -39,9 +40,6 @@ exports.addJournalEntry = async (req, res) => {
             });
         }
         
-
-        const generatedDateTime = generateTimeAndDateForDB(existingOrganization.timeZoneExp, existingOrganization.dateFormatExp, existingOrganization.dateSplit);
-        const entryDate = generatedDateTime.dateTime;
 
         // Check if all accounts exist for the given organization
         const allAccountIds = transaction.map(trans => trans.accountId);
@@ -95,7 +93,7 @@ exports.addJournalEntry = async (req, res) => {
         cleanedData.journalId =journalId;
 
         // Create a new journal entry
-        const newJournalEntry = new Journal({ ...cleanedData, organizationId, entryDate });
+        const newJournalEntry = new Journal({ ...cleanedData, organizationId });
 
 
         
@@ -110,7 +108,6 @@ exports.addJournalEntry = async (req, res) => {
                 organizationId,
                 operationId:newJournalEntry._id,
                 transactionId: journalId,
-                date:entryDate,
                 accountId: trans.accountId,
                 accountName: trans.accountName,
                 action: "Journal",

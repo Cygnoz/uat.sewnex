@@ -16,17 +16,19 @@ const transactionSchema = new Schema({
 
 const journalSchema = new Schema({
     organizationId: {type:String},
-    journalId: {type:String},
+    journalId: {type:String}, //prefix
     date: {type:String},
-    entryDate: {type:String},
     reference: {type:String},
     note: {type:String},
     cashBasedJournal: {type:String},
     currency: {type:String},
+    
     transaction: [transactionSchema],
+    
     totalDebitAmount: {type:Number},
     totalCreditAmount: {type:Number},
-
+    
+    createdDateTime: { type: Date, default: () => new Date() },
 });
 
 const Journal = mongoose.model("Journals", journalSchema);

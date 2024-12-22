@@ -7,17 +7,24 @@ const Currency = require("../database/model/currency");
 const crypto = require('crypto');
 const moment = require('moment-timezone');
 
+const { singleCustomDateTime, multiCustomDateTime } = require("../services/timeConverter");
+const { cleanData } = require("../services/cleanData");
+
 const key = Buffer.from(process.env.ENCRYPTION_KEY, 'utf8'); 
 const iv = Buffer.from(process.env.ENCRYPTION_IV, 'utf8'); 
 
 
 // Fetch existing data
-const dataExist = async (organizationId) => {
-  const [ existingOrganization, currencyExists ] = await Promise.all([
+const dataExist = async ( organizationId, parentAccountId, accountId ) => {
+  const [ existingOrganization, currencyExists, parentAccountExist, accountExist, trialBalance, allAccount ] = await Promise.all([
     Organization.findOne({ organizationId }),
     Currency.find({ organizationId }, { currencyCode: 1, _id: 0 }),
+    Account.findOne({ organizationId , _id : parentAccountId}),
+    Account.findOne({ _id: accountId, organizationId: organizationId }),
+    TrialBalance.find({ accountId: accountId, organizationId: organizationId }),
+    Account.find({ organizationId: organizationId },{ bankAccNum: 0 , organizationId : 0 })
   ]);
-  return { existingOrganization, currencyExists };
+  return { existingOrganization, currencyExists, parentAccountExist, accountExist, trialBalance, allAccount };
 };
 
 
@@ -31,35 +38,24 @@ exports.addAccount = async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
 
-      const cleanedData = cleanCustomerData(req.body);
+      const cleanedData = cleanData(req.body);
+      
+      const { parentAccountId } = cleanedData;
 
-      const { existingOrganization, currencyExists } = await dataExist(organizationId);
+      const { existingOrganization, currencyExists, parentAccountExist } = await dataExist(organizationId, parentAccountId, null);
 
       //Data Exist Validation
-      if (!validateOrganizationTaxCurrency( existingOrganization, currencyExists, res)) return;     
+      if (!validateDataExist( existingOrganization, currencyExists, parentAccountId, parentAccountExist, null, null, res )) return;     
   
-
      //Validate Inputs  
-     if (!validateInputs( cleanedData, organizationId, currencyExists, res )) return;
-
-
-
-    const generatedDateTime = generateTimeAndDateForDB(existingOrganization.timeZoneExp, existingOrganization.dateFormatExp, existingOrganization.dateSplit);
-    const openingDate = generatedDateTime.dateTime;    
-    
+     if (!validateInputs( cleanedData, organizationId, currencyExists, parentAccountExist, null, null, res )) return; 
   
       // Check if an accounts with the same name already exists
-      const existingAccount = await Account.findOne({
-        accountName: cleanedData.accountName,
-        organizationId: organizationId,
-        });  
+      const existingAccount = await Account.findOne({ accountName: cleanedData.accountName, organizationId: organizationId });  
       if (existingAccount) {
         console.log("Account with the provided Account Name already exists");
-        return res.status(409).json({
-          message: "Account with the provided Account Name already exists.",
-        });        
-      }
-      
+        return res.status(409).json({ message: "Account with the provided Account Name already exists."});        
+      }     
 
       // Encrypt bankAccNum before storing it
       if(cleanedData.bankAccNum){ cleanedData.bankAccNum = encrypt(cleanedData.bankAccNum); }
@@ -70,12 +66,11 @@ exports.addAccount = async (req, res) => {
       const trialEntry = new TrialBalance({
         organizationId: organizationId,
         operationId: newAccount._id,
-        date: openingDate,
         accountId: newAccount._id,
         accountName: newAccount.accountName,
         action: "Opening Balance",
-        debitAmount: cleanedData.debitOpeningBalance,
-        creditAmount: cleanedData.creditOpeningBalance,
+        debitAmount: cleanedData.debitOpeningBalance || 0,
+        creditAmount: cleanedData.creditOpeningBalance || 0,
         remark: newAccount.remark,
       });
       await trialEntry.save();
@@ -100,54 +95,31 @@ exports.editAccount = async (req, res) => {
     const { accountId } = req.params;
     const organizationId = req.user.organizationId;
 
-    const cleanedData = cleanCustomerData(req.body);
+    const cleanedData = cleanData(req.body);
 
-    const { existingOrganization, currencyExists } = await dataExist(organizationId);
+    const { parentAccountId } = cleanedData;
+
+    const { existingOrganization, currencyExists, parentAccountExist, accountExist, trialBalance } = await dataExist(organizationId, parentAccountId, accountId);
 
     //Data Exist Validation
-    if (!validateOrganizationTaxCurrency( existingOrganization, currencyExists, res)) return;     
-  
+    if (!validateDataExist( existingOrganization, currencyExists, parentAccountId, parentAccountExist, accountId, accountExist, res )) return;       
 
     //Validate Inputs  
-    if (!validateInputs( cleanedData, organizationId, currencyExists, res )) return;
-     
-     
+    if (!validateInputs( cleanedData, organizationId, currencyExists, parentAccountExist, accountExist, trialBalance, res )) return; 
 
-    // Check if an account with the given organizationId and accountId exists
-    const account = await Account.findOne({
-      _id: accountId,
-      organizationId: organizationId,
-    });
-
-    if (!account) {
-      console.log("Account not found for the provided Account ID");
-      return res.status(404).json({
-        message:
-          "Account not found for the provided Account ID",
-      });
-    }
     // Encrypt bankAccNum before storing it
     if(cleanedData.bankAccNum){ cleanedData.bankAccNum = encrypt(bankAccNum); }
 
-    // Update account fields
-    account.accountName = cleanedData.accountName;
-    account.accountCode = cleanedData.accountCode;
-
-    account.accountSubhead = cleanedData.accountSubhead;
-    account.accountHead = cleanedData.accountHead;
-    account.accountGroup = cleanedData.accountGroup;
-
-    account.description = cleanedData.description;
-    account.bankAccNum = cleanedData.bankAccNum;
-    account.bankIfsc = cleanedData.bankIfsc;
-    account.bankCurrency = cleanedData.bankCurrency;
-
     // Save updated account
-    await account.save();
+    Object.assign(accountExist, cleanedData);
+    const savedAccount = await accountExist.save();
 
-    res.status(200).json({
-      message: "Account updated successfully.",
-    });
+    if (!savedAccount) {
+      console.error("Account could not be saved.");
+      return res.status(500).json({ message: "Failed to Update account." });
+    } 
+
+    res.status(200).json({ message: "Account updated successfully." });
     console.log("Account updated successfully:");
   } catch (error) {
     console.error("Error updating Account:", error);
@@ -161,18 +133,16 @@ exports.getAllAccount = async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
 
-        // Find all accounts where organizationId matches
-        const accounts = await Account.find(
-          { organizationId: organizationId },{ bankAccNum: 0 , organizationId : 0 } 
-      );
+      const { existingOrganization, allAccount } = await dataExist(organizationId, null, null);
 
-    if (!accounts.length) {
-      return res.status(404).json({
-        message: "No accounts found for the provided organization ID.",
-      });
-    }
+      if (!allAccount.length) {
+        return res.status(404).json({ message: "No accounts found for the provided organization ID." });
+      }
 
-    res.status(200).json(accounts);
+      const formattedObjects = multiCustomDateTime(allAccount, existingOrganization.dateFormatExp, existingOrganization.timeZoneExp, existingOrganization.dateSplit );    
+
+
+    res.status(200).json(formattedObjects);
   } catch (error) {
     console.error("Error fetching accounts:", error);
     res.status(500).json({ message: "Internal server error." });
@@ -186,27 +156,17 @@ exports.getOneAccount = async (req, res) => {
     const { accountId } = req.params;
     const organizationId = req.user.organizationId;
 
+    // Find the account by accountId 
+    const { existingOrganization, accountExist } = await dataExist(organizationId, null, accountId);
 
-    // // Find the account by accountId and organizationId
-    // const account = await Account.findOne({
-    //   _id: accountId,
-    //   organizationId: organizationId,
-    // });
-
-      // Find the account by accountId and organizationId
-    const account = await Account.findOne({
-      _id: accountId,
-      organizationId: organizationId},{organizationId : 0}
-    );
-
-    if (!account) {
-      return res.status(404).json({
-        message:
-          "Account not found for the provided Organization ID and Account ID.",
-      });
+    if (!accountExist) {
+      return res.status(404).json({ message: "Account not found for the provided Organization ID and Account ID." });
     }
 
-    res.status(200).json(account);
+    const formattedObjects = singleCustomDateTime(accountExist, existingOrganization.dateFormatExp, existingOrganization.timeZoneExp, existingOrganization.dateSplit );    
+
+
+    res.status(200).json(formattedObjects);
   } catch (error) {
     console.error("Error fetching account:", error);
     res.status(500).json({ message: "Internal server error." });
@@ -220,15 +180,10 @@ exports.getBankAccNum = async (req, res) => {
       const { accountId } = req.params;
       const organizationId = req.user.organizationId;
 
-      const account = await Account.findOne({
-          _id: accountId,
-          organizationId: organizationId,
-      }, 'bankAccNum'); 
+      const account = await Account.findOne({ _id: accountId, organizationId: organizationId }, 'bankAccNum'); 
 
       if (!account) {
-          return res.status(404).json({
-              message: "Account not found for the provided Organization ID and Account ID.",
-          });
+          return res.status(404).json({ message: "Account not found" });
       }
 
       // Decrypt the bankAccNum
@@ -252,26 +207,23 @@ exports.deleteAccount = async (req, res) => {
     const organizationId = req.user.organizationId;
 
     // Check if an account with the given organizationId and accountId exists
-    const account = await Account.findOne({
-      _id: accountId,
-      organizationId: organizationId,
-    });
+    const { existingOrganization, accountExist, trialBalance } = await dataExist(organizationId, null, accountId);
 
-    if (!account) {
-      return res.status(404).json({
-        message:
-          "Account not found for the provided Organization ID and Account ID.",
-      });
+    if (!accountExist) {
+      return res.status(404).json({ message: "Account not found" });
+    }
+    if (trialBalance.length > 1) {
+      return res.status(404).json({ message: "You cannot delete this account as it is associated with transactions." });
+    }
+    if (accountExist.delete === "false") {
+      return res.status(404).json({ message: "Account cannot be deleted" });
     }
 
     // Delete the account
-    await account.delete();
+    await accountExist.delete();
 
-    res.status(200).json({
-      message: "Account deleted successfully.",
-      deletedAccount: account,
-    });
-    console.log("Account deleted successfully:", account);
+    res.status(200).json({ message: "Account deleted successfully.", deletedAccount: accountExist });
+    console.log("Account deleted successfully:", accountExist );
   } catch (error) {
     console.error("Error deleting Account:", error);
     res.status(500).json({ message: "Internal server error." });
@@ -279,30 +231,69 @@ exports.deleteAccount = async (req, res) => {
 };
 
 
-//Get one Account for a given organizationId
+//Get all trial balance for a given account
 exports.getOneTrailBalance = async (req, res) => {
   try {
       const { accountId } = req.params;
       const organizationId = req.user.organizationId;      
 
       // Find the TrialBalance by accountId and organizationId
-      const trialBalance = await TrialBalance.find({
-          accountId: accountId,
-          organizationId: organizationId,
-      });
+      const { existingOrganization, accountExist, trialBalance } = await dataExist(organizationId, null, accountId);
 
+
+      if (!accountExist) {
+        return res.status(404).json({ message: "Account not found." });
+      }
       if (!trialBalance) {
-          return res.status(404).json({
-              message: "Trial Balance not found.",
-          });
+          return res.status(404).json({ message: "Trial Balance not found." });
       }
 
-      res.status(200).json(trialBalance);
+      // Sort trialBalance by createdDateTime
+      trialBalance.sort((a, b) => new Date(a.createdDateTime) - new Date(b.createdDateTime));
+
+      const formattedObjects = multiCustomDateTime(trialBalance, existingOrganization.dateFormatExp, existingOrganization.timeZoneExp, existingOrganization.dateSplit );    
+
+      const trialBalanceWithCumulativeSum = calculateCumulativeSum(formattedObjects);
+
+      console.log("Trial Balance fetched successfully:", trialBalanceWithCumulativeSum);
+      
+
+      res.status(200).json(trialBalanceWithCumulativeSum);
   } catch (error) {
       console.error("Error fetching account:", error);
       res.status(500).json({ message: "Internal server error." });
   }
 };
+
+
+// Add cumulative sum to transactions
+function calculateCumulativeSum(transactions) {
+  let cumulativeSum = 0;
+  return transactions.map((transaction) => {
+    // Calculate cumulative sum
+    cumulativeSum += (transaction.debitAmount || 0) - (transaction.creditAmount || 0);
+
+    // Format the cumulative sum based on its value
+    const formattedCumulativeSum =
+      cumulativeSum === 0
+        ? 0
+        : cumulativeSum > 0
+        ? `${Math.abs(cumulativeSum)}(Dr)`
+        : `${Math.abs(cumulativeSum)}(Cr)`;
+
+    return {
+      ...transaction,
+      cumulativeSum: formattedCumulativeSum,
+    };
+  });
+}
+
+
+
+
+
+
+
 
 
 
@@ -379,51 +370,8 @@ function decrypt(encryptedText) {
 }
 
 
-//Clean Data 
-function cleanCustomerData(data) {
-  const cleanData = (value) => (value === null || value === undefined || value === "" ? undefined : value);
-  return Object.keys(data).reduce((acc, key) => {
-    acc[key] = cleanData(data[key]);
-    return acc;
-  }, {});
-}
 
 
-// Function to generate time and date for storing in the database
-function generateTimeAndDateForDB(
-  timeZone,
-  dateFormat,
-  dateSplit,
-  baseTime = new Date(),
-  timeFormat = "HH:mm:ss",
-  timeSplit = ":"
-) {
-  // Convert the base time to the desired time zone
-  const localDate = moment.tz(baseTime, timeZone);
-
-  // Format date and time according to the specified formats
-  let formattedDate = localDate.format(dateFormat);
-
-  // Handle date split if specified
-  if (dateSplit) {
-    // Replace default split characters with specified split characters
-    formattedDate = formattedDate.replace(/[-/]/g, dateSplit); // Adjust regex based on your date format separators
-  }
-
-  const formattedTime = localDate.format(timeFormat);
-  const timeZoneName = localDate.format("z"); // Get time zone abbreviation
-
-  // Combine the formatted date and time with the split characters and time zone
-  const dateTime = `${formattedDate} ${formattedTime
-    .split(":")
-    .join(timeSplit)} (${timeZoneName})`;
-
-  return {
-    date: formattedDate,
-    time: `${formattedTime} (${timeZoneName})`,
-    dateTime: dateTime,
-  };
-}
 
 
 // Validation function for account structure
@@ -448,7 +396,7 @@ function validateBankDetails(accountSubhead, bankDetails) {
 
 
   // Validate Organization Tax Currency
-  function validateOrganizationTaxCurrency( existingOrganization, currencyExists, res) {
+  function validateDataExist( existingOrganization, currencyExists, parentAccountId, parentAccountExist, accountId, accountExist, res) {
     if (!existingOrganization) {
       res.status(404).json({ message: "Organization not found" });
       return false;
@@ -456,6 +404,18 @@ function validateBankDetails(accountSubhead, bankDetails) {
     if (!currencyExists) {
       res.status(404).json({ message: "Currency not found" });
       return false;
+    }
+    if (parentAccountId) {
+      if (!parentAccountExist) {
+        res.status(404).json({ message: "Parent account not found" });
+        return false;
+      }
+    }
+    if (accountId) {
+      if (!accountExist) {
+        res.status(404).json({ message: "Account not found" });
+        return false;
+      }
     }
     
     return true;
@@ -490,9 +450,9 @@ function validateBankDetails(accountSubhead, bankDetails) {
 
 
 //Validate inputs
-function validateInputs( data,  organizationId, currencyExists, res ) {
+function validateInputs( data,  organizationId, currencyExists, parentAccountExist, accountExist, trialBalance, res ) {
   const validCurrencies = currencyExists.map((currency) => currency.currencyCode);
-  const validationErrors = validateItemData( data, organizationId, validCurrencies );
+  const validationErrors = validateData( data, organizationId, validCurrencies, parentAccountExist, accountExist, trialBalance );
 
  if (validationErrors.length > 0) {
    res.status(400).json({ message: validationErrors.join(", ") });
@@ -512,7 +472,7 @@ function validateField(condition, errorMsg, errors) {
 
 
 //Validate Data
-function validateItemData( data, organizationId, validCurrencies ) {  
+function validateData( data, organizationId, validCurrencies, parentAccountExist, accountExist, trialBalance ) {  
   
   const errors = [];
 
@@ -520,7 +480,7 @@ function validateItemData( data, organizationId, validCurrencies ) {
 
   //OtherDetails
   validateReqFields( data, errors);
-  validateAccountStructure(data.accountGroup, data.accountHead, data.accountSubhead, errors);
+  validateAccountStructure(data.accountGroup, data.accountHead, data.accountSubhead, parentAccountExist, errors);
 
 
   validateAlphanumericFields(['bankIfsc'], data, errors);
@@ -531,7 +491,13 @@ function validateItemData( data, organizationId, validCurrencies ) {
   //Currency
   validateCurrency(data.bankCurrency, validCurrencies, errors);
 
-  //Tax Details
+  //Edit Account
+  if(accountExist){
+
+    if(trialBalance.length > 1){
+      validateField( accountExist.accountSubhead !== data.accountSubhead || accountExist.accountHead !== data.accountHead || accountExist.accountGroup !== data.accountGroup, "Account Type cannot be changed", errors);
+    }
+  }
 
   return errors;
 }
@@ -542,45 +508,32 @@ function validateItemData( data, organizationId, validCurrencies ) {
 
 
 //Valid Req Fields
-function validateReqFields( data, errors ) { 
-  if (typeof data.accountName === 'undefined' ) {
-    errors.push("Account Name required");
-  }
-  if (typeof data.accountSubhead === 'undefined' ) {
-  errors.push(" Account Subhead required");
-  }
-  if (typeof data.accountHead === 'undefined' ) {
-  errors.push("Account Head required");
-  }
-  if (typeof data.accountGroup === 'undefined' ) {
-    errors.push("Account Group required");
-  }
-  if (typeof data.accountHead === 'undefined' ) {
-    errors.push("Account Head required");
-  }
-  if (typeof data.debitOpeningBalance === 'undefined' && typeof data.creditOpeningBalance === 'undefined') {
-    errors.push("Opening Balance required");
-  }
-  if (typeof data.debitOpeningBalance !== 'undefined' && typeof data.creditOpeningBalance !== 'undefined') {
-    errors.push("Select Credit or Debit Opening Balance");
-  }
+function validateReqFields( data, errors ) {
+  
+  validateField(typeof data.accountName === 'undefined', "Account Name required", errors);
+  validateField(typeof data.accountSubhead === 'undefined', "Account Subhead required", errors);
+  validateField(typeof data.accountHead === 'undefined', "Account Head required", errors);
+  validateField(typeof data.accountGroup === 'undefined', "Account Group required", errors);
+  
+  
+  // validateField( typeof data.debitOpeningBalance === 'undefined' && typeof data.creditOpeningBalance === 'undefined', "Opening Balance required", errors );
+  validateField( typeof data.debitOpeningBalance !== 'undefined' && typeof data.creditOpeningBalance !== 'undefined', "Select Credit or Debit Opening Balance", errors );
 
-  if (data.accountSubhead === "Bank" && typeof data.bankAccNum === 'undefined' ) {
-  errors.push("Bank Account Number required");
-  }
-  if (data.accountSubhead === "Bank" && typeof data.bankIfsc === 'undefined' ) {
-    errors.push("IFSC required");
-  }
-  if (data.accountSubhead === "Bank" && typeof data.bankCurrency === 'undefined' ) {
-    errors.push("Currency required");
+  if (data.accountSubhead === "Bank") {
+    validateField(typeof data.bankAccNum === 'undefined', "Bank Account Number required", errors);
+    validateField(typeof data.bankIfsc === 'undefined', "IFSC required", errors);
+    validateField(typeof data.bankCurrency === 'undefined', "Currency required", errors);
   }
 }
 
 
 // Validation function for account structure
-function validateAccountStructure(accountGroup, accountHead, accountSubhead, errors) {
-  validateField(!validStructure[accountGroup]?.[accountHead]?.includes(accountSubhead) || false,
-    "Invalid Account Group, Head, or Subhead.", errors);
+function validateAccountStructure(accountGroup, accountHead, accountSubhead, parentAccountExist, errors) {
+  validateField(!validStructure[accountGroup]?.[accountHead]?.includes(accountSubhead) || false, "Invalid Account Group, Head, or Subhead.", errors);
+  if(parentAccountExist){
+    validateField(!validStructure[parentAccountExist.accountGroup]?.[parentAccountExist.accountHead]?.includes(parentAccountExist.accountSubhead) || false, "Invalid Parent Account.", errors);
+    validateField( parentAccountExist.accountGroup === accountGroup || parentAccountExist.accountHead === accountHead || parentAccountExist.accountSubhead === accountSubhead , "Invalid Parent Account.", errors);
+  }
 }
 
 
