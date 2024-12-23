@@ -177,7 +177,6 @@ exports.getAllCreditNote = async (req, res) => {
 };
 
 
-
 // Get One Credit Note
 exports.getOneCreditNote = async (req, res) => {
 try {
@@ -659,8 +658,11 @@ function validateInvoiceData(data, items, invoiceExist, errors) {
       validateField(CNItem.igst !== invoiceItem.igst, 
                     `Item IGST mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.igst}, got ${CNItem.igst}`, 
                     errors);
-      validateField(CNItem.quantity === 0 || CNItem.quantity > invoiceItem.quantity, 
-                    `Provided quantity (${CNItem.quantity}), Quantity cannot be zero or exceed the invoice quantity (${invoiceItem.quantity})`, 
+      validateField(CNItem.stockOnHand !== invoiceItem.quantity, 
+                    `Stock on Hand mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.quantity}, got ${CNItem.quantity}`, 
+                    errors);
+      validateField(CNItem.quantity === 0 || CNItem.quantity > CNItem.stockOnHand, 
+                    `Provided quantity (${CNItem.quantity}), Quantity cannot be zero or exceed the stock on hand (${CNItem.stockOnHand})`, 
                     errors);
     }
   });
