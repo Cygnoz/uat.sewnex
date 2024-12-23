@@ -358,7 +358,7 @@ async function deleteSaleOrder(salesOrderId, organizationId, res) {
 
 // Utility Functions
 const validDeliveryMethod = ["Road","Rail","Air","Sea"];
-const validPaymentMode = [];
+const validPaymentMode = [ "Cash", "Card Transfer", "UPI", "Credit" ];
 const validDiscountTransactionType = ["Currency", "Percentage"];
 const validCountries = {
   "United Arab Emirates": [
