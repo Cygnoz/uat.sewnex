@@ -417,6 +417,8 @@ exports.createOrganizationAndClient = async (req, res) => {
       contactNum,
       email,
       password,
+      startDate,
+      endDate
       // Add other fields as needed
     } = req.body;
 
@@ -424,18 +426,12 @@ exports.createOrganizationAndClient = async (req, res) => {
     const existingOrganization = await Organization.findOne({ organizationName });
 
     if (existingOrganization) {
-      return res.status(409).json({
-        message: "Organization with the provided name already exists.",
-      });
+      return res.status(409).json({ message: "Organization with the provided name already exists." });
     }
 
-    const clientExists = await Client.findOne({
-      email:email,
-    });
+    const clientExists = await Client.findOne({ email:email });
     if (clientExists) {
-      return res.status(404).json({
-        message: "Client Exists",
-      });
+      return res.status(404).json({ message: "Client Exists" });
     }
     
 
@@ -454,6 +450,9 @@ exports.createOrganizationAndClient = async (req, res) => {
       organizationName,
       primaryContactName: contactName,
       primaryContactNum: contactNum,
+      primaryContactEmail: email,
+      startDate,
+      endDate
     });
 
     let savedOrganization = await newOrganization.save();
@@ -501,6 +500,12 @@ exports.createOrganizationAndClient = async (req, res) => {
       return res.status(500).json({ message: accountsCreationResult.message });
     }
 
+     // Create Prefix for the organization
+     const prefixCreationResult = await createPrefixForOrganization(organizationId);
+     if (!prefixCreationResult.success) {
+       return res.status(500).json({ message: prefixCreationResult.message });
+     }   
+
     // Hash the password before saving
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -540,13 +545,6 @@ exports.createOrganizationAndClient = async (req, res) => {
       return res.status(500).json({ message: "Failed to create user." });
     }
 
-
-    // Create Prefix for the organization
-    const prefixCreationResult = await createPrefixForOrganization(organizationId);
-    if (!prefixCreationResult.success) {
-      return res.status(500).json({ message: prefixCreationResult.message });
-    }    
-
     res.status(201).json({
       message: "Client created successfully.",
       organizationId: organizationId,
@@ -573,6 +571,25 @@ exports.getAllClient = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json("Internal server error");
+  }
+};
+
+
+// Get One organization(Nex)
+exports.getOneOrganizationNex = async (req, res) => {
+  try {
+    const { organizationId } = req.params;
+
+    const existingOrganization = await Organization.findOne({ organizationId });
+
+    if (existingOrganization) {
+      res.status(200).json(existingOrganization);
+    } else {
+      res.status(404).json({ message: "Organization not found" });
+    }
+  } catch (error) {
+    console.error("Error fetching organization:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 };
 

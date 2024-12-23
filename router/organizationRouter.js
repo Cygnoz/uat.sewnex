@@ -45,6 +45,9 @@ router.get('/get-one-organization',verifyToken,checkPermission('Viewed Organizat
 
 
 
+
+
+
 // Setting
 
 router.get('/get-settings',verifyToken,checkPermission('Viewed Setting details'),settingController.getSettings)
@@ -142,6 +145,11 @@ router.delete('/delete-organization/:organizationId',organizationController.dele
 
 router.get('/delete-all',clientController.deleteAll)
 
+
+
+
+//Nex Portal
+router.get('/get-one-organization-nex/:organizationId',clientController.getOneOrganizationNex)
 
 
 

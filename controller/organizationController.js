@@ -48,6 +48,8 @@ exports.getOneOrganization = async (req, res) => {
   }
 };
 
+
+
 // Delete Organization - Internal
 exports.deleteOrganization = async (req, res) => {
   try {

@@ -12,6 +12,7 @@ const organizationSchema = new Schema({
 
   primaryContactName: { type: String },
   primaryContactNum: { type: String },
+  primaryContactEmail: { type: String },
   
   organizationCountry: { type: String },
   organizationIndustry: { type: String },
@@ -36,6 +37,9 @@ const organizationSchema = new Schema({
   dateFormat: { type: String },
   dateFormatExp: { type: String },
   dateSplit: { type: String },
+
+  startDate: { type: String },
+  endDate: { type: String },
  
 
 }, { versionKey: false }); 
