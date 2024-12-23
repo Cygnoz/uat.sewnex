@@ -78,9 +78,7 @@ exports.addCreditNote = async (req, res) => {
     //Clean Data
     const cleanedData = cleanCreditNoteData(req.body);
 
-    const { items } = cleanedData;
-    const { customerId } = cleanedData;
-    const { invoiceId } = cleanedData;
+    const { items, customerId, invoiceId } = cleanedData;
     
     const itemIds = items.map(item => item.itemId);
     
@@ -128,6 +126,9 @@ exports.addCreditNote = async (req, res) => {
 
     //Prefix
     await creditNotePrefix(cleanedData, existingPrefix );
+
+    //Handle stockOnHand
+    await creditNoteStockOnHand( cleanedData );
 
     const savedCreditNote = await createNewCreditNote(cleanedData, organizationId, openingDate, userId, userName );
 
@@ -272,6 +273,29 @@ function creditNotePrefix( cleanData, existingPrefix ) {
   existingPrefix.save()
 
   return 
+}
+
+// Handle stockOnHand (mark as async to handle await)
+async function creditNoteStockOnHand(cleanedData) {
+  const { items, invoiceId, invoiceNumber } = cleanedData; 
+
+  // Check if the invoice exists and if the items have been credited before
+  const existingCreditNote = await CreditNote.findOne({ invoiceNumber, invoiceId });
+
+  if (existingCreditNote) {
+    // Check and update stock for each item
+    for (const item of items) {
+      const existingItem = existingCreditNote.items.find(i => i.itemId.toString() === item.itemId.toString());
+
+      if (existingItem) {
+        // Decrease the stock on hand by the returned quantity
+        existingItem.stockOnHand -= item.itemQuantity;
+
+        // Save the updated credit note
+        await existingCreditNote.save();
+      }
+    }
+  }
 }
 
 
