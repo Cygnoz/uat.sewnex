@@ -295,7 +295,7 @@ exports.getAllItemM = async (req, res) => {
 
     const { enrichedItems  } = await mItemDataExists(organizationId);
 
-    if (enrichedItems .length > 0) {
+    if (enrichedItems.length > 0) {
       const allItems = enrichedItems.map((item) => {
         const { organizationId, ...rest } = item; 
         return rest;

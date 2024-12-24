@@ -44,7 +44,7 @@ const itemSchema = new Schema({
     
     //Purchase Info
     costPrice: { type: Number },
-    preferredVendor: { type: String },
+    preferredVendorId: { type: String },
 
     taxRate:{type:String},
     cgst:{type:Number},
