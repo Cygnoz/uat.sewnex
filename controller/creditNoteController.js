@@ -131,6 +131,9 @@ exports.addCreditNote = async (req, res) => {
 
     //Item Track
     await itemTrack( savedCreditNote, itemTable );
+
+    // Update Sales Invoice
+    await updateSalesInvoiceWithCreditNote(invoiceId, items, savedCreditNote._id);
       
     res.status(201).json({ message: "Credit Note created successfully",savedCreditNote });
     // console.log( "Debit Note created successfully:", savedCreditNote );
@@ -161,45 +164,12 @@ exports.getAllCreditNote = async (req, res) => {
       });
     }
 
-    // Map over allCreditNotes and process each credit note
-    const updatedCreditNotes = await Promise.all(allCreditNote.map(async (history) => {
-      const { invoiceId, invoiceNumber, items } = history.toObject(); // Convert to plain object and extract data
-
-      // Fetch the existing invoice corresponding to the invoiceId
-      const existingInvoice = await CreditNote.findOne({ invoiceId });
-
-      if (existingInvoice) {
-        // Iterate through each item in the credit note to check its stock
-        for (let CNItem of items) {
-          const { itemId, itemName, quantity } = CNItem;
-
-          // Check if the item exists in the credit note's items
-          const creditNoteItem = existingInvoice.items.find(item => item.itemId === itemId && item.itemName === itemName);
-
-          if (creditNoteItem) {
-            // Reduce stockOnHand based on the quantity in the credit note
-            creditNoteItem.stockOnHand -= quantity;
-
-            // Save the updated invoice after reducing stock
-            await existingInvoice.save();
-          }
-        }
-      }
-
-      // Remove organizationId from the credit note object and return the updated data
-      const { organizationId, ...rest } = history.toObject();
-      return rest;
-    }));
+    // Process each credit note using the helper function
+    const updatedCreditNotes = await Promise.all(
+      allCreditNote.map((creditNote) => calculateStock(creditNote))
+    );
 
     res.status(200).json(updatedCreditNotes);
-
-  //   // Map over allCreditNote to remove the organizationId from each object
-  //   const AllCreditNote = allCreditNote.map((history) => {
-  //     const { organizationId, ...rest } = history.toObject(); // Convert to plain object and omit organizationId
-  //     return rest;
-  // });
-
-  //   res.status(200).json(AllCreditNote);
   } catch (error) {
     console.error("Error fetching credit note:", error);
     res.status(500).json({ message: "Internal server error." });
@@ -687,12 +657,20 @@ function validateInvoiceData(data, items, invoiceExist, errors) {
       validateField(CNItem.igst !== invoiceItem.igst, 
                     `Item IGST mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.igst}, got ${CNItem.igst}`, 
                     errors);
-      // validateField(CNItem.stockOnHand !== invoiceItem.quantity, 
+      // validateField(CNItem.stock !== invoiceItem.quantity, 
       //               `Stock on Hand mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.quantity}, got ${CNItem.quantity}`, 
       //               errors);
       validateField(CNItem.quantity > invoiceItem.quantity, 
                     `Provided quantity (${CNItem.quantity}) cannot exceed invoice quantity (${invoiceItem.quantity}).`, 
                     errors);
+      validateField(CNItem.quantity <= 0, 
+                    `Quantity must be greater than 0 for item ${CNItem.itemId}.`, 
+                    errors);
+      if (CNItem.stock !== undefined) {
+        validateField(CNItem.quantity > CNItem.stock, 
+                      `Provided quantity (${CNItem.quantity}) cannot exceed stock available (${CNItem.stock}) for item ${CNItem.itemId}.`, 
+                      errors);
+      }
     }
   });
 
@@ -827,6 +805,102 @@ function capitalize(word) {
       // console.log("1",newTrialEntry);
     }
   }
+
+
+
+// Function to update salesInvoice with returnItem and creditNoteId
+const updateSalesInvoiceWithCreditNote = async (invoiceId, items, creditNoteId) => {
+  try {
+    for (const item of items) {
+      await Invoice.findOneAndUpdate(
+        { _id: invoiceId, 'returnItem.itemId': item.itemId },
+        {
+          $inc: { 'returnItem.$.quantity': item.quantity } // Increment quantity if item exists
+        }
+      );
+
+      // If the itemId was not found and updated, add a new entry
+      await Invoice.findOneAndUpdate(
+        { _id: invoiceId, 'returnItem.itemId': { $ne: item.itemId } },
+        {
+          $push: {
+            returnItem: {
+              itemId: item.itemId,
+              itemName: item.itemName,
+              quantity: item.quantity
+            }
+          }
+        }
+      );
+    }
+
+    // Add the creditNoteId to the creditNote array
+    await Invoice.findByIdAndUpdate(
+      invoiceId,
+      {
+        $push: {
+          creditNote: {
+            creditNoteId: creditNoteId
+          }
+        }
+      },
+      { new: true }
+    );
+  } catch (error) {
+    console.error("Error updating salesInvoice:", error);
+    throw new Error("Failed to update Sales Invoice with Credit Note details.");
+  }
+};
+
+
+
+
+// Helper function to calculate stock
+const calculateStock = async (creditNote) => {
+  const { invoiceId, items } = creditNote;
+
+  // Fetch corresponding salesInvoice
+  const salesInvoice = await Invoice.findById(invoiceId);
+  console.log("invoiceId:",salesInvoice);
+  
+
+  if (salesInvoice) {
+    items.forEach((creditItem) => {
+      const salesItem = salesInvoice.items.find(
+        (item) => item.itemId.toString() === creditItem.itemId.toString()
+      );
+
+      if (salesItem) {
+        // Find returnItem in salesInvoice
+        const returnItem = salesInvoice.returnItem.find(
+          (returnItem) => returnItem.itemId.toString() === creditItem.itemId.toString()
+        );
+
+        if (returnItem) {
+          creditItem.stock = salesItem.quantity - returnItem.quantity;
+        } else {
+          creditItem.stock = salesItem.quantity;
+        }
+      } else {
+        creditItem.stock = 0; // Default if itemId is not found
+      }
+    });
+
+    // Update stock in the creditNote schema
+    await CreditNote.findByIdAndUpdate(
+      creditNote._id,
+      { items },
+      { new: true }
+    );
+  }
+
+  // Remove organizationId before returning
+  const { organizationId, ...rest } = creditNote.toObject();
+  return rest;
+};
+
+
+
 
 
 

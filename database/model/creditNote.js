@@ -6,7 +6,7 @@ const itemsSchema = new Schema({
   itemName: { type: String },
 
   quantity: {type:Number},
-  stockOnHand: {type:Number},
+  stock: {type:Number},
   sellingPrice: {type:Number},
 
   taxPreference: {type:String}, //Taxable or Not
