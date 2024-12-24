@@ -42,7 +42,7 @@ exports.addAccount = async (req, res) => {
       
       const { parentAccountId } = cleanedData;
 
-      const { existingOrganization, currencyExists, parentAccountExist } = await dataExist(organizationId, parentAccountId, null);
+      const { existingOrganization, currencyExists, parentAccountExist } = await dataExist(organizationId, parentAccountId, null);      
 
       //Data Exist Validation
       if (!validateDataExist( existingOrganization, currencyExists, parentAccountId, parentAccountExist, null, null, res )) return;     
@@ -60,7 +60,7 @@ exports.addAccount = async (req, res) => {
       // Encrypt bankAccNum before storing it
       if(cleanedData.bankAccNum){ cleanedData.bankAccNum = encrypt(cleanedData.bankAccNum); }
 
-      const newAccount = new Account({ ...cleanedData, organizationId, openingDate });      
+      const newAccount = new Account({ ...cleanedData, organizationId, delete: "true" });      
       await newAccount.save();
 
       const trialEntry = new TrialBalance({
@@ -305,11 +305,11 @@ function calculateCumulativeSum(transactions) {
 const validStructure = {
   Asset: {
     Asset: [
-      "Asset",
-      "Current asset",
+      "Other Asset",
+      "Current Asset",
       "Cash",
       "Bank",
-      "Fixed asset",
+      "Fixed Asset",
       "Stock",
       "Payment Clearing",
       "Sundry Debtors",
@@ -319,7 +319,7 @@ const validStructure = {
   },
   Liability: {
     Liabilities: [
-      "Current Liability",
+      "Other Current Liability",
       "Credit Card",
       "Long Term Liability",
       "Other Liability",
@@ -452,7 +452,8 @@ function validateBankDetails(accountSubhead, bankDetails) {
 //Validate inputs
 function validateInputs( data,  organizationId, currencyExists, parentAccountExist, accountExist, trialBalance, res ) {
   const validCurrencies = currencyExists.map((currency) => currency.currencyCode);
-  const validationErrors = validateData( data, organizationId, validCurrencies, parentAccountExist, accountExist, trialBalance );
+  const parentAccountType = ["Other Asset", "Bank", "Payment clearing", "Credit card", "Other Liability", "Overseas Tax Payable", "Other Income", "Other Expense" ];  
+  const validationErrors = validateData( data, organizationId, validCurrencies, parentAccountType, parentAccountExist, accountExist, trialBalance );
 
  if (validationErrors.length > 0) {
    res.status(400).json({ message: validationErrors.join(", ") });
@@ -472,7 +473,7 @@ function validateField(condition, errorMsg, errors) {
 
 
 //Validate Data
-function validateData( data, organizationId, validCurrencies, parentAccountExist, accountExist, trialBalance ) {  
+function validateData( data, organizationId, validCurrencies, parentAccountType, parentAccountExist, accountExist, trialBalance ) {  
   
   const errors = [];
 
@@ -481,6 +482,10 @@ function validateData( data, organizationId, validCurrencies, parentAccountExist
   //OtherDetails
   validateReqFields( data, errors);
   validateAccountStructure(data.accountGroup, data.accountHead, data.accountSubhead, parentAccountExist, errors);
+
+  //Parent Account
+  validateParentAccountType(parentAccountExist, data.accountSubhead, parentAccountType, errors);
+  
 
 
   validateAlphanumericFields(['bankIfsc'], data, errors);
@@ -531,8 +536,8 @@ function validateReqFields( data, errors ) {
 function validateAccountStructure(accountGroup, accountHead, accountSubhead, parentAccountExist, errors) {
   validateField(!validStructure[accountGroup]?.[accountHead]?.includes(accountSubhead) || false, "Invalid Account Group, Head, or Subhead.", errors);
   if(parentAccountExist){
-    validateField(!validStructure[parentAccountExist.accountGroup]?.[parentAccountExist.accountHead]?.includes(parentAccountExist.accountSubhead) || false, "Invalid Parent Account.", errors);
-    validateField( parentAccountExist.accountGroup === accountGroup || parentAccountExist.accountHead === accountHead || parentAccountExist.accountSubhead === accountSubhead , "Invalid Parent Account.", errors);
+    validateField(!validStructure[parentAccountExist.accountGroup]?.[parentAccountExist.accountHead]?.includes(parentAccountExist.accountSubhead) || false, "Invalid Parent Account.", errors);    
+    validateField( parentAccountExist.accountGroup !== accountGroup || parentAccountExist.accountHead !== accountHead || parentAccountExist.accountSubhead !== accountSubhead , "Invalid Parent Account.", errors);
   }
 }
 
@@ -576,6 +581,11 @@ function validateCurrency(currency, validCurrencies, errors) {
 }
 
 
+//Validate Parent Account Type
+function validateParentAccountType(parentAccountExist, accountSubhead, parentAccountType, errors) {
+  if (parentAccountExist) {
+  validateField(accountSubhead && !parentAccountType.includes(accountSubhead), "The account type cannot be designated as a sub-account.", errors);
+}}
 
 
 
