@@ -23,7 +23,7 @@ const dataExist = async (organizationId) => {
 
 const dataExists = async (organizationId) => {
   const [newItems] = await Promise.all([
-    Item.find({ organizationId}, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1, organizationId: 0 }),
+    Item.find({ organizationId }, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1, organizationId: 0 }),
   ]);
   return { newItems};
 };
@@ -312,7 +312,7 @@ exports.getAllItemM = async (req, res) => {
 
 // Get one item
 exports.getAItem = async (req, res) => {
-    const itemId = req.params;
+    const {itemId} = req.params;
     const organizationId = req.user.organizationId;
 
     // Check if an Organization already exists
