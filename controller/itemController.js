@@ -472,7 +472,7 @@ const updateOpeningBalanceInItemTrack = async (openingStock, itemTrackAll, prevS
   itemTrackAll.forEach(itemTrack => {
     // Ensure CurrentStock is non-negative before updating
     if (itemTrack.currentStock < 0) {
-      console.error("CurrentStock must be non-negative");
+      console.error("Current Stock must be non-negative");
       return;
     }
 
@@ -482,7 +482,14 @@ const updateOpeningBalanceInItemTrack = async (openingStock, itemTrackAll, prevS
 
   itemTrackAll.forEach(itemTrack => {
     if (itemTrack.action === "Opening Stock") {
-      itemTrack.creditQuantity += diff;
+      const currentCreditQuantity = itemTrack.creditQuantity || 0;
+      const newCreditQuantity = currentCreditQuantity + diff;
+
+      if (isNaN(newCreditQuantity)) {
+        console.error("Invalid value for creditQuantity");
+        return;
+      }
+      itemTrack.creditQuantity = newCreditQuantity;
     }    
   });
 
@@ -491,7 +498,11 @@ const updateOpeningBalanceInItemTrack = async (openingStock, itemTrackAll, prevS
 
   // If you need to persist these changes, save each itemTrack to the database
   for (const itemTrack of itemTrackAll) {
-    await itemTrack.save(); // Assuming itemTrack is a mongoose model instance
+    try {
+      await itemTrack.save();
+    } catch (error) {
+      console.error("Error saving itemTrack:", error.message);
+    }
   }
 };
 
