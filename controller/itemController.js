@@ -4,6 +4,7 @@ const ItemTrack = require("../database/model/itemTrack");
 const Settings = require("../database/model/settings");
 const BMCR = require("../database/model/bmcr");
 const Tax = require("../database/model/tax");
+const Supplier = require("../database/model/supplier");
 const moment = require('moment-timezone');
 const mongoose = require('mongoose');
 
@@ -312,29 +313,43 @@ exports.getAllItemM = async (req, res) => {
 
 // Get one item
 exports.getAItem = async (req, res) => {
-    const {itemId} = req.params;
+    const { itemId } = req.params;
     const organizationId = req.user.organizationId;
 
-    // Check if an Organization already exists
-    const existingOrganization = await Organization.findOne({ organizationId });
- 
-    if (!existingOrganization) {
-      return res.status(404).json({
-        message: "No Organization Found.",
-      });
-    }
+    try {
+      // Check if an Organization already exists
+      const existingOrganization = await Organization.findOne({ organizationId });
 
-  try {
-    const singleItem = await Item.findById(itemId);
-    if (singleItem) {
+      if (!existingOrganization) {
+          return res.status(404).json({
+              message: "No Organization Found."
+          });
+      }
+
+      // Fetch item
+      const singleItem = await Item.findById(itemId).lean();
+
+      if (!singleItem) {
+          return res.status(404).json({ message: "Item not found." });
+      }
+
+      // Fetch specific supplier details based on preferredVendorId
+      if (singleItem.preferredVendorId) {
+          const supplierData = await Supplier.findById(
+              singleItem.preferredVendorId,
+              'supplierDisplayName workPhone mobile billingAttention billingCountry billingAddressStreet1 billingAddressStreet2 billingCity billingState billingPinCode billingPhone billingFaxNum'
+          ).lean();
+
+          singleItem.supplierDetails = supplierData || null; 
+      } else {
+          singleItem.supplierDetails = null;
+      }
+
       res.status(200).json(singleItem);
-    } else {
-      res.status(404).json({ message: "Item not found." });
+    } catch (error) {
+      console.error("Error fetching Item:", error);
+      res.status(500).json({ message: "Internal server error." });
     }
-  } catch (error) {
-    console.error("Error fetching Item:", error);
-    res.status(500).json({ message: "Internal server error." });
-  }
 };
 
 // Update Item
