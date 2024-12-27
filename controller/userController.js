@@ -29,7 +29,7 @@ exports.login = async (req, res) => {
       return res.status(401).json({ success: false, message: 'User not found!' });
     }
 
-    const organization = await Organization.findOne({ _id: user.organizationId });
+    const organization = await Organization.findOne({ organizationId: user.organizationId });
 
     // Check if organization exists
     if (!organization) {
@@ -80,7 +80,6 @@ exports.login = async (req, res) => {
 exports.verifyOtp = async (req, res) => {
   try {
     const { email, otp } = req.body;
-    console.log(email, otp);
 
     // Validate input
     if (!otp) {
@@ -95,7 +94,7 @@ exports.verifyOtp = async (req, res) => {
       return res.status(401).json({ success: false, message: 'User not found!' });
     }
 
-    const organization = await Organization.findOne({ _id: user.organizationId });
+    const organization = await Organization.findOne({ organizationId: user.organizationId });
     if (!organization) {
       return res.status(401).json({ success: false, message: 'Organization not found!' });
     }
