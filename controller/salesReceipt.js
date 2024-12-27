@@ -193,7 +193,7 @@ exports.getLastSalesReceiptPrefix = async (req, res) => {
       }
       
       const series = prefix.series[0];     
-      const lastPrefix = series.customerPayment + series.customerPaymentNum;
+      const lastPrefix = series.receipt + series.receiptNum;
 
       lastPrefix.organizationId = undefined;
 
@@ -210,9 +210,9 @@ function salesReceiptPrefix( cleanData, existingPrefix ) {
   if (!activeSeries) {
       return res.status(404).json({ message: "No active series found for the organization." });
   }
-  cleanData.customerPayment = `${activeSeries.customerPayment}${activeSeries.customerPaymentNum}`;
+  cleanData.customerPayment = `${activeSeries.receipt}${activeSeries.receiptNum}`;
 
-  activeSeries.customerPaymentNum += 1;
+  activeSeries.receiptNum += 1;
 
   existingPrefix.save()
 
