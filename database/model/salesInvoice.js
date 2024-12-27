@@ -7,6 +7,7 @@ const itemsSchema = new Schema({
   itemName: {type:String},
 
   quantity: {type:Number},
+  returnQuantity: { type: Number, default: 0 },
   sellingPrice: {type:Number},
 
   taxPreference: {type:String},
@@ -28,17 +29,6 @@ const itemsSchema = new Schema({
   itemAmount: {type:Number},
 
   }, { _id: false });
-
-
-  const returnItemSchema = new Schema({
-    itemId: {type:String},
-    itemName: {type:String},  
-    quantity: {type:Number},  
-    }, { _id: false });
-   
-  const creditNoteSchema = new Schema({
-    creditNoteId: {type:String}
-    }, { _id: false });
 
 
 const SalesInvoiceSchema = new Schema ({
@@ -106,9 +96,6 @@ const SalesInvoiceSchema = new Schema ({
   paidStatus: { type: String },
 
   salesOrderId: { type: String },
-
-  returnItem : [returnItemSchema],
-  creditNote : [creditNoteSchema],  
 
   createdDate: { type: String },
   userId: { type: String },
