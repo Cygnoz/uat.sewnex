@@ -146,9 +146,9 @@ router.get('/delete-all',clientController.deleteAll)
 
 
 //Nex Portal
-router.get('/get-one-organization-nex/:organizationId',nexVerifyToken,clientController.getOneOrganizationNex)
+router.get('/get-one-organization-nex/:organizationId',clientController.getOneOrganizationNex)
 
-router.post('/create-client',nexVerifyToken,clientController.createOrganizationAndClient)
+router.post('/create-client',clientController.createOrganizationAndClient)
 
 
 
