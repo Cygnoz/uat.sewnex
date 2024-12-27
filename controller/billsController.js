@@ -8,23 +8,24 @@ const ItemTrack = require("../database/model/itemTrack");
 const Tax = require('../database/model/tax');  
 const moment = require("moment-timezone");
 const mongoose = require('mongoose');
-
+const Prefix = require("../database/model/prefix");
 const DefAcc  = require("../database/model/defaultAccount");
 const TrialBalance = require("../database/model/trialBalance");
 const Account = require("../database/model/account");
 
 // Fetch existing data
 const dataExist = async ( organizationId, supplierId, supplierDisplayName, purchaseOrderId ) => {
-    const [organizationExists, supplierExist, purchaseOrderExist, taxExists, settings, defaultAccount , supplierAccount] = await Promise.all([
+    const [organizationExists, supplierExist, purchaseOrderExist, taxExists, existingPrefix, settings, defaultAccount , supplierAccount] = await Promise.all([
       Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
       Supplier.findOne({ organizationId , _id:supplierId}, { _id: 1, supplierDisplayName: 1, taxType: 1 }),
       PurchaseOrder.findOne({organizationId , _id:purchaseOrderId}),
       Tax.findOne({ organizationId }),
+      Prefix.findOne({ organizationId }),
       Settings.findOne({ organizationId }),
       DefAcc.findOne({ organizationId },{ purchaseAccount: 1, purchaseDiscountAccount: 1, inputCgst: 1, inputSgst: 1, inputIgst: 1 ,inputVat: 1 }),
       Account.findOne({ organizationId , accountName:supplierDisplayName },{ _id:1, accountName:1 })
     ]);    
-  return { organizationExists, supplierExist, purchaseOrderExist, taxExists, settings, defaultAccount, supplierAccount };
+  return { organizationExists, supplierExist, purchaseOrderExist, taxExists, existingPrefix, settings, defaultAccount, supplierAccount };
 };
 
 
@@ -157,18 +158,18 @@ exports.addBills = async (req, res) => {
         return res.status(400).json({ message: `Invalid item IDs: ${invalidItemIds.join(', ')}` });
       }   
       
-      const { organizationExists, supplierExist, purchaseOrderExist, taxExists, settings, defaultAccount, supplierAccount } = await dataExist( organizationId, supplierId, supplierDisplayName, purchaseOrderId );
+      const { organizationExists, supplierExist, purchaseOrderExist, taxExists, existingPrefix, settings, defaultAccount, supplierAccount } = await dataExist( organizationId, supplierId, supplierDisplayName, purchaseOrderId );
       
       const { itemTable } = await newDataExists( organizationId, items );
       
       //Data Exist Validation
-      if (!validateOrganizationSupplierOrder( purchaseOrderId, organizationExists, supplierExist, purchaseOrderExist, defaultAccount, res )) return;
+      if (!validateOrganizationSupplierOrder( purchaseOrderId, organizationExists, supplierExist, purchaseOrderExist, existingPrefix, defaultAccount, res )) return;
       
       //Validate Inputs  
       if (!validateInputs( cleanedData, supplierExist, purchaseOrderExist, items, itemTable, organizationExists, defaultAccount, res)) return;
       
       //Check Bill Exist
-      if (await checkExistingBill(cleanedData.billNumber, organizationId, res)) return;
+      // if (await checkExistingBill(cleanedData.billNumber, organizationId, res)) return;
       
       //Date & Time
       const openingDate = generateOpeningDate(organizationExists);
@@ -185,6 +186,9 @@ exports.addBills = async (req, res) => {
 
       // Calculate Sales 
       if (!calculateBills( cleanedData, itemTable, res )) return;      
+
+      //Prefix
+      await billsPrefix(cleanedData, existingPrefix );
   
       const savedBills = await createNewBills(cleanedData, organizationId, openingDate, userId, userName );
   
@@ -480,7 +484,46 @@ async function defaultAccounting( data, defaultAccount, organizationExists ) {
 
 
 
+// Get last credit note prefix
+exports.getLastBillsPrefix = async (req, res) => {
+  try {
+    const organizationId = req.user.organizationId;
 
+      // Find all accounts where organizationId matches
+      const prefix = await Prefix.findOne({ organizationId:organizationId,'series.status': true });
+
+      if (!prefix) {
+          return res.status(404).json({
+              message: "No Prefix found for the provided organization ID.",
+          });
+      }
+      
+      const series = prefix.series[0];     
+      const lastPrefix = series.bill + series.billNum;
+
+      lastPrefix.organizationId = undefined;
+
+      res.status(200).json(lastPrefix);
+  } catch (error) {
+      console.error("Error fetching accounts:", error);
+      res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+// Credit Note Prefix
+function billsPrefix( cleanData, existingPrefix ) {
+  const activeSeries = existingPrefix.series.find(series => series.status === true);
+  if (!activeSeries) {
+      return res.status(404).json({ message: "No active series found for the organization." });
+  }
+  cleanData.billNumber = `${activeSeries.bill}${activeSeries.billNum}`;
+
+  activeSeries.billNum += 1;
+
+  existingPrefix.save()
+
+  return 
+}
 
 
 
@@ -498,14 +541,14 @@ async function defaultAccounting( data, defaultAccount, organizationExists ) {
 
 
   // Check for existing bill
-  async function checkExistingBill(billNumber, organizationId, res) {
-    const existingBill = await Bills.findOne({ billNumber, organizationId });
-    if (existingBill) {
-      res.status(409).json({ message: "Bill already exists." });
-      return true;
-    }
-    return false;
-  }
+  // async function checkExistingBill(billNumber, organizationId, res) {
+  //   const existingBill = await Bills.findOne({ billNumber, organizationId });
+  //   if (existingBill) {
+  //     res.status(409).json({ message: "Bill already exists." });
+  //     return true;
+  //   }
+  //   return false;
+  // }
   
   
   //Clean Data 
@@ -519,7 +562,7 @@ async function defaultAccounting( data, defaultAccount, organizationExists ) {
   
   
   // Validate Organization Tax Currency
-  function validateOrganizationSupplierOrder( purchaseOrderId, organizationExists, supplierExist, purchaseOrderExist, defaultAccount, res ) {
+  function validateOrganizationSupplierOrder( purchaseOrderId, organizationExists, supplierExist, purchaseOrderExist, existingPrefix, defaultAccount, res ) {
     if (!organizationExists) {
       res.status(404).json({ message: "Organization not found" });
       return false;
@@ -533,10 +576,14 @@ async function defaultAccounting( data, defaultAccount, organizationExists ) {
       res.status(404).json({ message: "Purchase order not found" });
       return false;
     }}
+    if (!existingPrefix) {
+      res.status(404).json({ message: "Prefix not found" });
+      return false;
+    }
     if (!defaultAccount) {
     res.status(404).json({ message: "Setup Accounts in settings" });
     return false;
-  }
+    }
     return true;
   }
   
@@ -877,7 +924,7 @@ function validateInputs( data, supplierExist, purchaseOrderExist, items, itemExi
   validateField( supplierExist.taxtype == 'GST' && typeof data.destinationOfSupply === 'undefined', "Destination of supply required", errors  );
   
   validateField( typeof data.items === 'undefined', "Select an item", errors  );
-  validateField( typeof data.billNumber === 'undefined', "Select an bill number", errors  );
+  validateField( typeof data.supplierInvoiceNum === 'undefined', "Select an supplier invoice number", errors  );
 
   validateField( typeof data.otherExpenseAmount !== 'undefined' && typeof data.otherExpenseReason === 'undefined', "Please enter other expense reason", errors  );
   validateField( typeof data.otherExpenseAmount !== 'undefined' && typeof data.otherExpenseAccountId === 'undefined', "Please select expense account", errors  );

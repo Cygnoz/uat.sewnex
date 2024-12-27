@@ -54,7 +54,8 @@ const PurchaseBillSchema = new Schema({
   //deliveryAddress: { type: String},  // customer/organization
   // customerId: { type: String},
 
-  billNumber: { type: String }, //type
+  supplierInvoiceNum: { type: String },
+  billNumber: { type: String }, //Prefix
 
   sourceOfSupply: { type: String },
   destinationOfSupply: { type: String },
