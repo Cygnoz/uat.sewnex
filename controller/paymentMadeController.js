@@ -194,7 +194,7 @@ exports.getLastPaymentMadePrefix = async (req, res) => {
       }
       
       const series = prefix.series[0];     
-      const lastPrefix = series.vendorPayment + series.vendorPaymentNum;
+      const lastPrefix = series.payment + series.paymentNum;
 
       lastPrefix.organizationId = undefined;
 
@@ -211,9 +211,9 @@ function vendorPaymentPrefix( cleanData, existingPrefix ) {
   if (!activeSeries) {
       return res.status(404).json({ message: "No active series found for the organization." });
   }
-  cleanData.payment = `${activeSeries.vendorPayment}${activeSeries.vendorPaymentNum}`;
+  cleanData.payment = `${activeSeries.payment}${activeSeries.paymentNum}`;
 
-  activeSeries.vendorPaymentNum += 1;
+  activeSeries.paymentNum += 1;
 
   existingPrefix.save()
 
