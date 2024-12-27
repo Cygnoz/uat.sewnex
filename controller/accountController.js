@@ -32,7 +32,6 @@ const dataExist = async ( organizationId, parentAccountId, accountId ) => {
 
 //Add Account
 exports.addAccount = async (req, res) => {
-    const startTime = Date.now();
     console.log("Add Account:", req.body);
 
     try {
@@ -81,9 +80,6 @@ exports.addAccount = async (req, res) => {
       console.error("Error creating Account:", error);
       res.status(500).json({ message: "Internal server error." });
     } 
-    const endTime = Date.now();
-    const responseTime = endTime - startTime;
-    console.log(`Response time: ${responseTime} ms`); 
 };
 
 
@@ -582,7 +578,7 @@ function validateCurrency(currency, validCurrencies, errors) {
 //Validate Parent Account Type
 function validateParentAccountType(parentAccountExist, accountSubhead, parentAccountType, errors) {
   if (parentAccountExist) {
-  validateField(accountSubhead && !parentAccountType.includes(accountSubhead), "The account type cannot be designated as a sub-account.", errors);
+  validateField(accountSubhead && parentAccountType.includes(accountSubhead), "The account type cannot be designated as a sub-account.", errors);
 }}
 
 
