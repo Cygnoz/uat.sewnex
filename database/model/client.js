@@ -1,11 +1,10 @@
-// v1.0
+// v1.1
 
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
 
 
 const clientSchema = new Schema({
-  organizationName: { type: String },
   organizationId: { type: String },
   contactName: { type: String },
   contactNum: { type: String },

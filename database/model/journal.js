@@ -1,4 +1,4 @@
-// v1.0
+// v1.1
 
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
@@ -6,7 +6,6 @@ const { Schema } = mongoose;
 
 const transactionSchema = new Schema({
     accountId: { type: String },
-    accountName: { type: String },
     creditAmount: { type: Number },
     debitAmount: { type: Number },
     description: { type: String },

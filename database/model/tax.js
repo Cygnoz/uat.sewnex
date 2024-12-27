@@ -27,7 +27,7 @@ const taxSchema = new mongoose.Schema({
 
   //GST
   gstIn: { type: String },
-  gstBusinesLegalName: { type: String },
+  gstBusinessLegalName: { type: String },
   gstBusinessTradeName: { type: String },
   gstRegisteredDate: { type: String },
   gstTaxRate: [gstTaxRateSchema],
@@ -41,7 +41,7 @@ const taxSchema = new mongoose.Schema({
 
   //VAT
   vatNumber: { type: String },
-  vatBusinesLegalName: { type: String },
+  vatBusinessLegalName: { type: String },
   vatBusinessTradeName: { type: String },
   vatRegisteredDate: { type: String },
   tinNumber: { type: String },

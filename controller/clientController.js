@@ -245,17 +245,16 @@ const createPrefixForOrganization = async (organizationId) => {
         status:true,
         journal:"JN-",journalNum:1,        
         creditNote: "CN-",creditNoteNum: 1,        
-        customerPayment: 'CP-',customerPaymentNum: 1,
+        receipt: 'CP-',receiptNum: 1,
         purchaseOrder: "PO-",purchaseOrderNum: 1,        
         salesOrder: "SO-",salesOrderNum: 1,
-        vendorPayment: "VP-",vendorPaymentNum: 1,
-        retainerInvoice: "RET-",retainerInvoiceNum: 1,
-        vendorCredits: "DN-",vendorCreditsNum: 1,
-        billOfSupply: "BOS-",billOfSupplyNum: 1,
+        payment: "VP-",paymentNum: 1,
+        bill: "BS-",billNum: 1,
         debitNote: "CDN-",debitNoteNum: 1,
         invoice:"INV-",invoiceNum: 1,
         quote: "QT-",quoteNum: 1,        
-        deliveryChallan: "DC-",deliveryChallanNum: 1,  }]},            
+        deliveryChallan: "DC-",deliveryChallanNum: 1,
+        expense: "EX-",expenseNum: 1,  }]},            
     ];
 
     await Prefix.insertMany(prefix);
@@ -403,8 +402,9 @@ const createSettingsOrganization = async (organizationId) => {
 
 
 
-
-
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/; //minimum 8 characters,one uppercase letter, one lowercase letter, one number, and one special character
+// const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/; // Minimum 8 characters, at least one letter and one number
 
 
 // Create New Client, Organization, Prefix, Role
@@ -417,25 +417,33 @@ exports.createOrganizationAndClient = async (req, res) => {
       contactNum,
       email,
       password,
+      startDate,
+      endDate
       // Add other fields as needed
     } = req.body;
+
+    // Email Validation
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ message: "Invalid email format." });
+    }
+
+    // Password Validation
+    if (!passwordRegex.test(password)) {
+      return res.status(400).json({ 
+        message: "Password must be at least 8 characters long and include at least one letter and one number." 
+      });
+    }
 
     // Check if an organization with the same organizationName already exists
     const existingOrganization = await Organization.findOne({ organizationName });
 
     if (existingOrganization) {
-      return res.status(409).json({
-        message: "Organization with the provided name already exists.",
-      });
+      return res.status(409).json({ message: "Organization with the provided name already exists." });
     }
 
-    const clientExists = await Client.findOne({
-      email:email,
-    });
+    const clientExists = await Client.findOne({ email:email });
     if (clientExists) {
-      return res.status(404).json({
-        message: "Client Exists",
-      });
+      return res.status(404).json({ message: "Client Exists" });
     }
     
 
@@ -454,6 +462,9 @@ exports.createOrganizationAndClient = async (req, res) => {
       organizationName,
       primaryContactName: contactName,
       primaryContactNum: contactNum,
+      primaryContactEmail: email,
+      startDate,
+      endDate
     });
 
     let savedOrganization = await newOrganization.save();
@@ -501,12 +512,17 @@ exports.createOrganizationAndClient = async (req, res) => {
       return res.status(500).json({ message: accountsCreationResult.message });
     }
 
+     // Create Prefix for the organization
+     const prefixCreationResult = await createPrefixForOrganization(organizationId);
+     if (!prefixCreationResult.success) {
+       return res.status(500).json({ message: prefixCreationResult.message });
+     }   
+
     // Hash the password before saving
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Create a new client
     const newClient = new Client({
-      organizationName,
       organizationId,
       contactName,
       contactNum,
@@ -523,7 +539,6 @@ exports.createOrganizationAndClient = async (req, res) => {
 
     // Create a new user
     const newUser = new User({
-      organizationName,
       organizationId,
       userName: contactName,
       userNum: contactNum,
@@ -539,13 +554,6 @@ exports.createOrganizationAndClient = async (req, res) => {
       console.error("User could not be saved.");
       return res.status(500).json({ message: "Failed to create user." });
     }
-
-
-    // Create Prefix for the organization
-    const prefixCreationResult = await createPrefixForOrganization(organizationId);
-    if (!prefixCreationResult.success) {
-      return res.status(500).json({ message: prefixCreationResult.message });
-    }    
 
     res.status(201).json({
       message: "Client created successfully.",
@@ -573,6 +581,23 @@ exports.getAllClient = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json("Internal server error");
+  }
+};
+
+
+// Get One organization(Nex)
+exports.getOneOrganizationNex = async (req, res) => {
+  try {
+    const { organizationId } = req.params;
+
+    const existingOrganization = await Organization.findOne({ organizationId });
+
+    if (existingOrganization) res.status(200).json(existingOrganization);
+    else res.status(404).json({ message: "Organization not found" });
+    
+  } catch (error) {
+    console.error("Error fetching organization:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 };
 
@@ -648,13 +673,11 @@ exports.deleteAll = async (req, res) => {
 
 // Fetch existing data
 const dataExist = async (organizationId) => {
-  const [ salesAccount, purchaseAccount,salesDiscountAccount, purchaseDiscountAccount,] = await Promise.all([
-    Account.findOne({ organizationId, accountName:'Sales' }, { _id: 1 }),
-    Account.findOne({ organizationId, accountName:'Cost of Goods Sold' }, { _id: 1 }),
+  const [ salesDiscountAccount, purchaseDiscountAccount ] = await Promise.all([
     Account.findOne({ organizationId, accountName:'Discount' }, { _id: 1 }),
     Account.findOne({ organizationId, accountName:'Purchase Discounts' }, { _id: 1 }),
   ]);
-  return {  salesAccount, purchaseAccount,salesDiscountAccount, purchaseDiscountAccount, };
+  return { salesDiscountAccount, purchaseDiscountAccount };
 };
 
 
@@ -668,18 +691,10 @@ const dataExist = async (organizationId) => {
 
 async function defaultAccounts(organizationId) {
   try {
-    const {
-      salesAccount, purchaseAccount,
-      salesDiscountAccount, purchaseDiscountAccount,
-    } = await dataExist(organizationId);
-
-    console.log(salesAccount);
+    const { salesDiscountAccount, purchaseDiscountAccount } = await dataExist(organizationId);
     
-
     const defaultAccountData = {
       organizationId,
-      salesAccount  :salesAccount._id,
-      purchaseAccount :purchaseAccount._id,
       salesDiscountAccount :salesDiscountAccount._id, 
       purchaseDiscountAccount :purchaseDiscountAccount._id,
     };
@@ -718,6 +733,8 @@ async function insertAccounts(accounts,organizationId) {
           accountSubhead: account.accountSubhead,
           accountHead: account.accountHead,
           accountGroup: account.accountGroup,
+
+          systemAccounts: account.systemAccounts,
 
           description: account.description
       };});
@@ -758,85 +775,97 @@ console.log('Trial balance entries created successfully');
 
 
 const accounts = [
-  { accountName: "Advance Tax", accountSubhead: "Current Asset", accountHead: "Asset", accountGroup: "Asset",accountCode:"AC-01",description: "Any tax which is paid in advance is recorded into the advance tax account. This advance tax payment could be a quarterly, half yearly or yearly payment." },
-  { accountName: "Employee Advance", accountSubhead: "Current Asset", accountHead: "Asset", accountGroup: "Asset",accountCode:"AC-02",description: "Money paid out to an employee in advance can be tracked here till it's repaid or shown to be spent for company purposes." },
-  { accountName: "Prepaid Expense", accountSubhead: "Current Asset", accountHead: "Asset", accountGroup: "Asset",accountCode:"AC-03",description: "An asset account that reports amounts paid in advance while purchasing goods or services from a vendor." },
-  { accountName: "TDS Receivable", accountSubhead: "Current Asset", accountHead: "Asset", accountGroup: "Asset",accountCode:"AC-04" ,description: "TDS Receivable."},
-  { accountName: "Sales to Customers (Cash)", accountSubhead: "Current Asset", accountHead: "Asset", accountGroup: "Asset",accountCode:"AC-05",description: "Sales to Customers (Cash)." },
-  { accountName: "Reverse Charge Tax Input but not due", accountSubhead: "Current Asset", accountHead: "Asset", accountGroup: "Asset",accountCode:"AC-06",description: "The amount of tax payable for your reverse charge purchases can be tracked here." },
-  
-  // { accountName: "Accounts Receivable", accountSubhead: "Accounts Receivable", accountHead: "Asset", accountGroup: "Asset",accountCode:"AC-07",description: "The money that customers owe you becomes the accounts receivable. A good example of this is a payment expected from an invoice sent to your customer." },
-  
-  { accountName: "Inventory Asset", accountSubhead: "Stock", accountHead: "Asset", accountGroup: "Asset",accountCode:"AC-08",description: "An account which tracks the value of goods in your inventory.." },
-  
-  { accountName: "Petty Cash", accountSubhead: "Cash", accountHead: "Asset", accountGroup: "Asset",accountCode:"AC-09",description: "It is a small amount of cash that is used to pay your minor or casual expenses rather than writing a check." },
-  { accountName: "Undeposited Funds", accountSubhead: "Cash", accountHead: "Asset", accountGroup: "Asset",accountCode:"AC-10" ,description: "Record funds received by your company yet to be deposited in a bank as undeposited funds and group them as a current asset in your balance sheet."},
+  //Current Asset
+  { accountName: "Advance Tax", accountSubhead: "Current Asset", accountHead: "Asset", accountGroup: "Asset",accountCode:"AC-01",systemAccounts: true,description: "Any tax which is paid in advance is recorded into the advance tax account. This advance tax payment could be a quarterly, half yearly or yearly payment." },
+  { accountName: "Employee Advance", accountSubhead: "Current Asset", accountHead: "Asset", accountGroup: "Asset",accountCode:"AC-02",systemAccounts: true,description: "Money paid out to an employee in advance can be tracked here till it's repaid or shown to be spent for company purposes." },
+  { accountName: "Input Tax Credit", accountSubhead: "Current Asset", accountHead: "Asset", accountGroup: "Asset",accountCode:"AC-03",systemAccounts: true,description: "Input Tax Credits" },
+  { accountName: "Prepaid Expense", accountSubhead: "Current Asset", accountHead: "Asset", accountGroup: "Asset",accountCode:"AC-04",systemAccounts: false,description: "An asset account that reports amounts paid in advance while purchasing goods or services from a vendor." },
+  { accountName: "Reverse Charge Tax Input but not due", accountSubhead: "Current Asset", accountHead: "Asset", accountGroup: "Asset",accountCode:"AC-05",systemAccounts: true,description: "The amount of tax payable for your reverse charge purchases can be tracked here." },
+  { accountName: "Sales to Customers (Cash)", accountSubhead: "Current Asset", accountHead: "Asset", accountGroup: "Asset",accountCode:"AC-06",systemAccounts: true,description: "Sales to Customers (Cash)." },
+  { accountName: "TDS Receivable", accountSubhead: "Current Asset", accountHead: "Asset", accountGroup: "Asset",accountCode:"AC-07" ,systemAccounts: false,description: "TDS Receivable."},
 
-  { accountName: "Capital Stock", accountSubhead: "Equity", accountHead: "Equity", accountGroup: "Asset",accountCode:"AC-11" ,description: "An equity account that tracks the capital introduced when a business is operated through a company or corporation."},
-  { accountName: "Distribution", accountSubhead: "Equity", accountHead: "Equity", accountGroup: "Asset",accountCode:"AC-12",description: "An equity account that tracks the payment of stock, cash or physical products to its shareholders." },
-  { accountName: "Dividends Paid", accountSubhead: "Equity", accountHead: "Equity", accountGroup: "Asset",accountCode:"AC-13",description: "An equity account to track the dividends paid when a corporation declares dividend on its common stock." },
-  { accountName: "Drawings", accountSubhead: "Equity", accountHead: "Equity", accountGroup: "Asset",accountCode:"AC-14",description: "The money withdrawn from a business by its owner can be tracked with this account." },
-  { accountName: "Investments", accountSubhead: "Equity", accountHead: "Equity", accountGroup: "Asset",accountCode:"AC-15" ,description: "An equity account used to track the amount that you invest."},
-  { accountName: "Opening Balance Offset", accountSubhead: "Equity", accountHead: "Equity", accountGroup: "Asset",accountCode:"AC-16",description: "This is an account where you can record the balance from your previous years earning or the amount set aside for some activities. It is like a buffer account for your funds." },
-  { accountName: "Owner's Equity", accountSubhead: "Equity", accountHead: "Equity", accountGroup: "Asset",accountCode:"AC-17",description: "The owners rights to the assets of a company can be quantified in the owner''s equity account." },
+  //Fixed Asset
+  { accountName: "Furniture and Equipment", accountSubhead: "Fixed Asset", accountHead: "Asset", accountGroup: "Asset",accountCode:"AC-08",systemAccounts: false,description: "Purchases of furniture and equipment for your office that can be used for a long period of time usually exceeding one year can be tracked with this account." },
+  
+  //Stock
+  { accountName: "Inventory Asset", accountSubhead: "Stock", accountHead: "Asset", accountGroup: "Asset",accountCode:"AC-09",systemAccounts: true,description: "An account which tracks the value of goods in your inventory.." },
+  
+  //Cash
+  { accountName: "Petty Cash", accountSubhead: "Cash", accountHead: "Asset", accountGroup: "Asset",accountCode:"AC-10",systemAccounts: true,description: "It is a small amount of cash that is used to pay your minor or casual expenses rather than writing a check." },
+  { accountName: "Undeposited Funds", accountSubhead: "Cash", accountHead: "Asset", accountGroup: "Asset",accountCode:"AC-11" ,systemAccounts: true,description: "Record funds received by your company yet to be deposited in a bank as undeposited funds and group them as a current asset in your balance sheet."},
 
+  //Equity
+  { accountName: "Capital Stock", accountSubhead: "Equity", accountHead: "Equity", accountGroup: "Asset",accountCode:"AC-12" ,systemAccounts: false,description: "An equity account that tracks the capital introduced when a business is operated through a company or corporation."},
+  { accountName: "Distribution", accountSubhead: "Equity", accountHead: "Equity", accountGroup: "Asset",accountCode:"AC-13",systemAccounts: false,description: "An equity account that tracks the payment of stock, cash or physical products to its shareholders." },
+  { accountName: "Dividends Paid", accountSubhead: "Equity", accountHead: "Equity", accountGroup: "Asset",accountCode:"AC-14",systemAccounts: false,description: "An equity account to track the dividends paid when a corporation declares dividend on its common stock." },
+  { accountName: "Drawings", accountSubhead: "Equity", accountHead: "Equity", accountGroup: "Asset",accountCode:"AC-15",systemAccounts: true,description: "The money withdrawn from a business by its owner can be tracked with this account." },
+  { accountName: "Investments", accountSubhead: "Equity", accountHead: "Equity", accountGroup: "Asset",accountCode:"AC-16" ,systemAccounts: false,description: "An equity account used to track the amount that you invest."},
+  { accountName: "Opening Balance Offset", accountSubhead: "Equity", accountHead: "Equity", accountGroup: "Asset",accountCode:"AC-17",systemAccounts: true,description: "This is an account where you can record the balance from your previous years earning or the amount set aside for some activities. It is like a buffer account for your funds." },
+  { accountName: "Owner's Equity", accountSubhead: "Equity", accountHead: "Equity", accountGroup: "Asset",accountCode:"AC-18",systemAccounts: true,description: "The owners rights to the assets of a company can be quantified in the owner''s equity account." },
+  { accountName: "Retained Earning", accountSubhead: "Equity", accountHead: "Equity", accountGroup: "Asset",accountCode:"AC-19",systemAccounts: true,description: "Retained Earnings." },
+
+  //Income
+  { accountName: "Discount", accountSubhead: "Income", accountHead: "Income", accountGroup: "Asset",accountCode:"AC-20",systemAccounts: true,description: "Any reduction on your selling price as a discount can be recorded into the discount account."},
+  { accountName: "General Income", accountSubhead: "Income", accountHead: "Income", accountGroup: "Asset",accountCode:"AC-21",systemAccounts: true,description: "A general category of account where you can record any income which cannot be recorded into any other category." },
+  { accountName: "Interest Income", accountSubhead: "Income", accountHead: "Income", accountGroup: "Asset",accountCode:"AC-22",systemAccounts: true,description: "A percentage of your balances and deposits are given as interest to you by your banks and financial institutions. This interest is recorded into the interest income account." },
+  { accountName: "Late Fee Income", accountSubhead: "Income", accountHead: "Income", accountGroup: "Asset",accountCode:"AC-23",systemAccounts: true,description: "Any late fee income is recorded into the late fee income account. The late fee is levied when the payment for an invoice is not received by the due date."},
+  { accountName: "Other Charges", accountSubhead: "Income", accountHead: "Income", accountGroup: "Asset",accountCode:"AC-24",systemAccounts: true,description: "Miscellaneous charges like adjustments made to the invoice can be recorded in this account."},
+  { accountName: "Sales", accountSubhead: "Income", accountHead: "Income", accountGroup: "Asset",accountCode:"AC-25",systemAccounts: true,description: "The income from the sales in your business is recorded under the sales account."},
+  { accountName: "Shipping Charge", accountSubhead: "Income", accountHead: "Income", accountGroup: "Asset",accountCode:"AC-26",systemAccounts: true,description: "Shipping charges made to the invoice will be recorded in this account."},
   
-  { accountName: "General Income", accountSubhead: "Income", accountHead: "Income", accountGroup: "Asset",accountCode:"AC-18",description: "A general category of account where you can record any income which cannot be recorded into any other category." },
-  { accountName: "Interest Income", accountSubhead: "Income", accountHead: "Income", accountGroup: "Asset",accountCode:"AC-19",description: "A percentage of your balances and deposits are given as interest to you by your banks and financial institutions. This interest is recorded into the interest income account." },
-  { accountName: "Sales", accountSubhead: "Income", accountHead: "Income", accountGroup: "Asset",accountCode:"AC-20",description: "The income from the sales in your business is recorded under the sales account."},
-  { accountName: "Other Charges", accountSubhead: "Income", accountHead: "Income", accountGroup: "Asset",accountCode:"AC-21",description: "Miscellaneous charges like adjustments made to the invoice can be recorded in this account."},
-  { accountName: "Shipping Charge", accountSubhead: "Income", accountHead: "Income", accountGroup: "Asset",accountCode:"AC-22",description: "Shipping charges made to the invoice will be recorded in this account."},
-  { accountName: "Late Fee Income", accountSubhead: "Income", accountHead: "Income", accountGroup: "Asset",accountCode:"AC-23",description: "Any late fee income is recorded into the late fee income account. The late fee is levied when the payment for an invoice is not received by the due date."},
-  { accountName: "Discount", accountSubhead: "Income", accountHead: "Income", accountGroup: "Asset",accountCode:"AC-24",description: "Any reduction on your selling price as a discount can be recorded into the discount account."},
+  //Current Liability
+  { accountName: "Employee Reimbursements", accountSubhead: "Current Liability", accountHead: "Liabilities", accountGroup: "Liability",accountCode:"AC-27",systemAccounts: true,description: "This account can be used to track the reimbursements that are due to be paid out to employees." },
+  { accountName: "Output Tax Credit", accountSubhead: "Current Liability", accountHead: "Liabilities", accountGroup: "Liability",accountCode:"AC-28",systemAccounts: true,description: "Output Tax Credit" },
+  { accountName: "Opening Balance Adjustments", accountSubhead: "Current Liability", accountHead: "Liabilities", accountGroup: "Liability",accountCode:"AC-29" ,systemAccounts: true,description: "This account will hold the difference in the debits and credits entered during the opening balance."},
+  { accountName: "Tax Payable", accountSubhead: "Current Liability", accountHead: "Liabilities", accountGroup: "Liability",accountCode:"AC-30" ,systemAccounts: true,description: "The amount of money which you owe to your tax authority is recorded under the tax payable account. This amount is a sum of your outstanding in taxes and the tax charged on sales."},
+  { accountName: "TDS Payable", accountSubhead: "Current Liability", accountHead: "Liabilities", accountGroup: "Liability",accountCode:"AC-31",systemAccounts: false,description: "TDS Payable" },
+  { accountName: "Unearned Revenue", accountSubhead: "Current Liability", accountHead: "Liabilities", accountGroup: "Liability",accountCode:"AC-32" ,systemAccounts: true,description: "A liability account that reports amounts received in advance of providing goods or services. When the goods or services are provided, this account balance is decreased and a revenue account is increased."},
   
-  { accountName: "Employee Reimbursements", accountSubhead: "Current Liability", accountHead: "Liabilities", accountGroup: "Liability",accountCode:"AC-25",description: "This account can be used to track the reimbursements that are due to be paid out to employees." },
-  { accountName: "TDS Payable", accountSubhead: "Current Liability", accountHead: "Liabilities", accountGroup: "Liability",accountCode:"AC-26",description: "TDS Payable" },
+  //Long Term Liability
+  { accountName: "Construction Loan", accountSubhead: "Long Term Liability", accountHead: "Liabilities", accountGroup: "Liability",accountCode:"AC-33",systemAccounts: false,description: "An expense account that tracks the amount you repay for construction loans." },
+  { accountName: "Mortgages", accountSubhead: "Long Term Liability", accountHead: "Liabilities", accountGroup: "Liability",accountCode:"AC-34" ,systemAccounts: false,description: "An expense account that tracks the amounts you pay for the mortgage loan."},
   
-  // { accountName: "Accounts Payable", accountSubhead: "Accounts Payable", accountHead: "Liabilities", accountGroup: "Liability",accountCode:"AC-27",description: "This is an account of all the money which you owe to others like a pending bill payment to a vendor,etc." },
+  //Other Liability
+  { accountName: "Dimension Adjustments", accountSubhead: "Other Liability", accountHead: "Liabilities", accountGroup: "Liability",accountCode:"AC-35" ,systemAccounts: false,description: "This adjustment account tracks the transfers between different dimensions like tags, branches."},
   
-  { accountName: "Construction Loan", accountSubhead: "Long Term Liability", accountHead: "Liabilities", accountGroup: "Liability",accountCode:"AC-28",description: "An expense account that tracks the amount you repay for construction loans." },
-  { accountName: "Mortgages", accountSubhead: "Long Term Liability", accountHead: "Liabilities", accountGroup: "Liability",accountCode:"AC-29" ,description: "An expense account that tracks the amounts you pay for the mortgage loan."},
+  //Expense
+  { accountName: "Advertising and Marketing", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-36",systemAccounts: false,description: "Your expenses on promotional, marketing and advertising activities like banners, web-adds, trade shows, etc. are recorded in advertising and marketing account." },
+  { accountName: "Automobile Expense", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-37" ,systemAccounts: false,description: "Transportation related expenses like fuel charges and maintenance charges for automobiles, are included to the automobile expense account."},
+  { accountName: "Bad Debt", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-38" ,systemAccounts: true,description: "Any amount which is lost and is unrecoverable is recorded into the bad debt account."},
+  { accountName: "Bank Fees and Charges", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-39" ,systemAccounts: true,description: "Any bank fees levied is recorded into the bank fees and charges account. A bank account maintenance fee, transaction charges, a late payment fee are some examples."},
+  { accountName: "Consultant Expense", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-40" ,systemAccounts: false,description: "Charges for availing the services of a consultant is recorded as a consultant expenses. The fees paid to a soft skills consultant to impart personality development training for your employees is a good example."},
+  { accountName: "Contract Assets", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-41" ,systemAccounts: false,description: " An asset account to track the amount that you receive from your customers while you're yet to complete rendering the services."},
+  { accountName: "Credit Card Charges", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-42" ,systemAccounts: false,description: " Service fees for transactions , balance transfer fees, annual credit fees and other charges levied on a credit card are recorded into the credit card account."},
+  { accountName: "Depreciation and Amortisation", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-43",systemAccounts: false,description: "An expense account that is used to track the depreciation of tangible assets and intangible assets, which is amortization." },
+  { accountName: "Depreciation Expense", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-44",systemAccounts: false,description: "Any depreciation in value of your assets can be captured as a depreciation expense." },
+  { accountName: "Fuel/Mileage Expenses", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-45",systemAccounts: false,description: "Fuel/Mileage Expenses" },
+  { accountName: "IT and Internet Expense", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-46",systemAccounts: false,description: "Money spent on your IT infrastructure and usage like internet connection, purchasing computer equipment etc is recorded as an IT and Computer Expense." },
+  { accountName: "Janitorial Expense", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-47" ,systemAccounts: false,description: "All your janitorial and cleaning expenses are recorded into the janitorial expenses account."},
+  { accountName: "Lodging", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-48" ,systemAccounts: true,description: "Any expense related to putting up at motels etc while on business travel can be entered here."},
+  { accountName: "Meals and Entertainment", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-49",systemAccounts: false,description: "Expenses on food and entertainment are recorded into this account." },
+  { accountName: "Merchandise", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-50" ,systemAccounts: false,description: "An expense account to track the amount spent on purchasing merchandise."},
+  { accountName: "Office Supplies", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-51",systemAccounts: false,description: "All expenses on purchasing office supplies like stationery are recorded into the office supplies account." },
+  { accountName: "Other Expenses", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-52",systemAccounts: true,description: "Any minor expense on activities unrelated to primary business operations is recorded under the other expense account." },
+  { accountName: "Parking", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-53",systemAccounts: true,description: "The parking fares you pay while on business trips can be recorded under this expense category." },
+  { accountName: "Postage", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability" ,accountCode:"AC-54",systemAccounts: false,description: "Your expenses on ground mails, shipping and air mails can be recorded under the postage account."},
+  { accountName: "Printing and Stationary", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-55",systemAccounts: false,description: "Expenses incurred by the organization towards printing and stationery." },
+  { accountName: "Purchase Discounts", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-56",systemAccounts: true,description: "Tracks any reduction that your vendor offers on your purchases. Some vendors also provide them to encourage quick payment settlement." },
+  { accountName: "Raw Material and Consumables", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-57" ,systemAccounts: false,description: "An expense account to track the amount spent on purchasing raw materials and consumables."},
+  { accountName: "Rent Expense", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-58",systemAccounts: false,description: "The rent paid for your office or any space related to your business can be recorded as a rental expense." },
+  { accountName: "Repairs and Maintenance", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-59",systemAccounts: false,description: "The costs involved in maintenance and repair of assets is recorded under this account." },
+  { accountName: "Salaries and Employee Wages", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-60",systemAccounts: false,description: "Salaries for your employees and the wages paid to workers are recorded under the salaries and wages account." },
+  { accountName: "Telephone Expense", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-61",systemAccounts: false,description: "The expenses on your telephone, mobile and fax usage are accounted as telephone expenses." },
+  { accountName: "Transportation Expense", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-62" ,systemAccounts: false,description: "An expense account to track the amount spent on transporting goods or providing services."},
+  { accountName: "Travel Expense", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-63",systemAccounts: false,description: "Expenses on business travels like hotel bookings, flight charges, etc. are recorded as travel expenses." },
+  { accountName: "Uncategorized", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-64",systemAccounts: true,description: "This account can be used to temporarily track expenses that are yet to be identified and classified into a particular category." },
   
-  { accountName: "Opening Balance Adjustments", accountSubhead: "Other Liability", accountHead: "Liabilities", accountGroup: "Liability",accountCode:"AC-30" ,description: "This account will hold the difference in the debits and credits entered during the opening balance."},
-  { accountName: "Unearned Revenue", accountSubhead: "Other Liability", accountHead: "Liabilities", accountGroup: "Liability",accountCode:"AC-31" ,description: "A liability account that reports amounts received in advance of providing goods or services. When the goods or services are provided, this account balance is decreased and a revenue account is increased."},
-  { accountName: "Tax Payable", accountSubhead: "Other Liability", accountHead: "Liabilities", accountGroup: "Liability",accountCode:"AC-32" ,description: "The amount of money which you owe to your tax authority is recorded under the tax payable account. This amount is a sum of your outstanding in taxes and the tax charged on sales."},
-  { accountName: "Accounts Payable", accountSubhead: "Other Liability", accountHead: "Liabilities", accountGroup: "Liability",accountCode:"AC-33" ,description: "This is an account of all the money which you owe to others like a pending bill payment to a vendor,etc."},
-  { accountName: "Dimension Adjustments", accountSubhead: "Other Liability", accountHead: "Liabilities", accountGroup: "Liability",accountCode:"AC-34" ,description: "This adjustment account tracks the transfers between different dimensions like tags, branches."},
+  //Cost of Goods Sold
+  { accountName: "Cost of Goods Sold", accountSubhead: "Cost of Goods Sold", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-65" ,systemAccounts: true,description: "An expense account which tracks the value of the goods sold."},
+  { accountName: "Job Costing", accountSubhead: "Cost of Goods Sold", accountHead: "Expenses", accountGroup: "Liability" ,accountCode:"AC-66",systemAccounts: false,description: "An expense account to track the costs that you incur in performing a job or a task."},
+  { accountName: "Labor", accountSubhead: "Cost of Goods Sold", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-67",systemAccounts: false,description: " An expense account that tracks the amount that you pay as labor." },
+  { accountName: "Materials", accountSubhead: "Cost of Goods Sold", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-68",systemAccounts: false,description: "An expense account that tracks the amount you use in purchasing materials." },
+  { accountName: "Subcontractor", accountSubhead: "Cost of Goods Sold", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-69",systemAccounts: false,description: "An expense account to track the amount that you pay subcontractors who provide service to you." },
   
-  { accountName: "Advertising and Marketing", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-35",description: "Your expenses on promotional, marketing and advertising activities like banners, web-adds, trade shows, etc. are recorded in advertising and marketing account." },
-  { accountName: "Automobile Expense", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-36" ,description: "Transportation related expenses like fuel charges and maintenance charges for automobiles, are included to the automobile expense account."},
-  { accountName: "Bad Debt", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-37" ,description: "Any amount which is lost and is unrecoverable is recorded into the bad debt account."},
-  { accountName: "Bank Fees and Charges", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-38" ,description: "Any bank fees levied is recorded into the bank fees and charges account. A bank account maintenance fee, transaction charges, a late payment fee are some examples."},
-  { accountName: "Consultant Expense", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-39" ,description: "Charges for availing the services of a consultant is recorded as a consultant expenses. The fees paid to a soft skills consultant to impart personality development training for your employees is a good example."},
-  { accountName: "Contract Assets", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-40" ,description: " An asset account to track the amount that you receive from your customers while you're yet to complete rendering the services."},
-  { accountName: "Credit Card Charges", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-41" ,description: " Service fees for transactions , balance transfer fees, annual credit fees and other charges levied on a credit card are recorded into the credit card account."},
-  { accountName: "Depreciation and Amortisation", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-42",description: "An expense account that is used to track the depreciation of tangible assets and intangible assets, which is amortization." },
-  { accountName: "Depreciation Expense", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-43",description: "Any depreciation in value of your assets can be captured as a depreciation expense." },
-  { accountName: "Fuel/Mileage Expenses", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-44",description: "Fuel/Mileage Expenses" },
-  { accountName: "IT and Internet Expense", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-45",description: "Money spent on your IT infrastructure and usage like internet connection, purchasing computer equipment etc is recorded as an IT and Computer Expense." },
-  { accountName: "Janitorial Expense", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-46" ,description: "All your janitorial and cleaning expenses are recorded into the janitorial expenses account."},
-  { accountName: "Lodging", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-47" ,description: "Any expense related to putting up at motels etc while on business travel can be entered here."},
-  { accountName: "Meals and Entertainment", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-48",description: "Expenses on food and entertainment are recorded into this account." },
-  { accountName: "Merchandise", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-49" ,description: "An expense account to track the amount spent on purchasing merchandise."},
-  { accountName: "Office Supplies", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-50",description: "All expenses on purchasing office supplies like stationery are recorded into the office supplies account." },
-  { accountName: "Other Expenses", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-51",description: "Any minor expense on activities unrelated to primary business operations is recorded under the other expense account." },
-  { accountName: "Postage", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability" ,accountCode:"AC-52",description: "Your expenses on ground mails, shipping and air mails can be recorded under the postage account."},
-  { accountName: "Printing and Stationary", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-53",description: "Expenses incurred by the organization towards printing and stationery." },
-  { accountName: "Parking", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-54",description: "The parking fares you pay while on business trips can be recorded under this expense category." },
-  { accountName: "Purchase Discounts", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-55",description: "Tracks any reduction that your vendor offers on your purchases. Some vendors also provide them to encourage quick payment settlement." },
-  { accountName: "Raw Material and Consumables", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-56" ,description: "An expense account to track the amount spent on purchasing raw materials and consumables."},
-  { accountName: "Rent Expense", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-57",description: "The rent paid for your office or any space related to your business can be recorded as a rental expense." },
-  { accountName: "Repairs and Maintenance", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-58",description: "The costs involved in maintenance and repair of assets is recorded under this account." },
-  { accountName: "Telephone Expense", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-59",description: "The expenses on your telephone, mobile and fax usage are accounted as telephone expenses." },
-  { accountName: "Transportation Expense", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-60" ,description: "An expense account to track the amount spent on transporting goods or providing services."},
-  { accountName: "Travel Expense", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-61",description: "Expenses on business travels like hotel bookings, flight charges, etc. are recorded as travel expenses." },
-  { accountName: "Uncategorized", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-62",description: "This account can be used to temporarily track expenses that are yet to be identified and classified into a particular category." },
-  { accountName: "Salaries and Employee Wages", accountSubhead: "Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-63",description: "Salaries for your employees and the wages paid to workers are recorded under the salaries and wages account." },
-  
-  { accountName: "Cost of Goods Sold", accountSubhead: "Cost of Goods Sold", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-64" ,description: "An expense account which tracks the value of the goods sold."},
-  { accountName: "Exchange Gain or Loss", accountSubhead: "Cost of Goods Sold", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-65" ,description: "Changing the conversion rate can result in a gain or a loss. You can record this into the exchange gain or loss account."},
-  { accountName: "Job Costing", accountSubhead: "Cost of Goods Sold", accountHead: "Expenses", accountGroup: "Liability" ,accountCode:"AC-66",description: "An expense account to track the costs that you incur in performing a job or a task."},
-  { accountName: "Labor", accountSubhead: "Cost of Goods Sold", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-67",description: " An expense account that tracks the amount that you pay as labor." },
-  { accountName: "Materials", accountSubhead: "Cost of Goods Sold", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-68",description: "An expense account that tracks the amount you use in purchasing materials." },
-  { accountName: "Subcontractor", accountSubhead: "Cost of Goods Sold", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-69",description: "An expense account to track the amount that you pay subcontractors who provide service to you." }
+  //Other Expense
+  { accountName: "Exchange Gain or Loss", accountSubhead: "Other Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-70" ,systemAccounts: true,description: "Changing the conversion rate can result in a gain or a loss. You can record this into the exchange gain or loss account."},
 ];

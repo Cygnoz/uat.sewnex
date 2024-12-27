@@ -1,3 +1,5 @@
+// v1.0
+
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
 
@@ -57,7 +59,7 @@ const itemSchema = new Schema({
     openingStockRatePerUnit: { type: Number },
     reorderPoint: { type: Number },
     
-    createdDate: { type: String },
+    createdDateTime: { type: Date, default: () => new Date() },
     lastModifiedDate: { type: String },  
 });
 

@@ -2,13 +2,15 @@
 const Currency = require("../../database/model/currency")
 const Organization = require("../../database/model/organization")
 
+const { cleanData } = require("../../services/cleanData");
+
+
 // Get Currency 
 exports.getCurrency = async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
   
-  
-      const currencies = await Currency.find({organizationId:organizationId},{organizationId:0});
+      const currencies = await Currency.find({ organizationId:organizationId},{organizationId:0});
   
       if (currencies) {
         res.status(200).json(currencies);
@@ -46,7 +48,7 @@ exports.viewCurrency = async (req, res) => {
 exports.addCurrency = async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
-      const cleanedData = cleanCustomerData(req.body);
+      const cleanedData = cleanData(req.body);
       const { currencyCode, currencySymbol, currencyName, decimalPlaces, format  } = cleanedData;
   
       const organization = await Organization.findOne({ organizationId });
@@ -83,7 +85,7 @@ exports.addCurrency = async (req, res) => {
 exports.editCurrency = async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
-      const cleanedData = cleanCustomerData(req.body);
+      const cleanedData = cleanData(req.body);
       const { currencyId, currencyCode, currencySymbol, currencyName, decimalPlaces, format } = cleanedData;
   
       const updatedCurrency = await Currency.findByIdAndUpdate(
@@ -136,24 +138,3 @@ exports.deleteCurrency = async (req, res) => {
     }
 };
   
-
-
-
-
-
-
-
-
-
-
-
-
-
-//Clean Data 
-function cleanCustomerData(data) {
-  const cleanData = (value) => (value === null || value === undefined || value === "" ? undefined : value);
-  return Object.keys(data).reduce((acc, key) => {
-    acc[key] = cleanData(data[key]);
-    return acc;
-  }, {});
-}

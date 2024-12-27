@@ -9,136 +9,6 @@ const moment = require("moment-timezone");
 
 
 
-const isDuplicateGSTTaxName = async (organizationId, gstTaxRate ) => {
-  const taxName = gstTaxRate.taxName ;
-
-  // Check for GST tax name duplicate
-  const gstTaxRecord = await Tax.findOne({ organizationId, 'gstTaxRate.taxName': taxName });
-
-  // Return true if duplicate exists in either GST or VAT rates
-  return !!gstTaxRecord ;
-};
-
-const isDuplicateVATTaxName = async (organizationId, vatTaxRate) => {
-  const taxName = vatTaxRate.taxName;
-
-  // Check for VAT tax name duplicate
-  const vatTaxRecord = await Tax.findOne({ organizationId, 'vatTaxRate.taxName': taxName });
-
-  // Return true if duplicate exists in either GST or VAT rates
-  return !!vatTaxRecord;
-};
-
-
-// Update GST-related fields
-const updateGSTFields = (taxRecord, cleanedData) => {
-  const {
-    gstIn, gstBusinesLegalName, gstBusinessTradeName, gstRegisteredDate, compositionSchema,
-    reverseCharge, importExport, digitalServices, compositionPercentage, gstTaxRate
-  } = cleanedData;
-  
-
-  taxRecord.taxType = "GST";
-  if (gstIn) taxRecord.gstIn = gstIn;
-  if (gstBusinesLegalName) taxRecord.gstBusinesLegalName = gstBusinesLegalName;
-  if (gstBusinessTradeName) taxRecord.gstBusinessTradeName = gstBusinessTradeName;
-  if (gstRegisteredDate) taxRecord.gstRegisteredDate = gstRegisteredDate;
-  if (compositionSchema) taxRecord.compositionSchema = compositionSchema;
-  if (reverseCharge) taxRecord.reverseCharge = reverseCharge;
-  if (importExport) taxRecord.importExport = importExport;
-  if (digitalServices) taxRecord.digitalServices = digitalServices;
-  if (compositionPercentage) taxRecord.compositionPercentage = compositionPercentage;
-  if (gstTaxRate) taxRecord.gstTaxRate.push(gstTaxRate);
-};
-
-// Update VAT-related fields
-const updateVATFields = (taxRecord, cleanedData) => {
-  const {
-    vatNumber, vatBusinesLegalName, vatBusinessTradeName, vatRegisteredDate,
-    tinNumber, vatTaxRate
-  } = cleanedData;
-
-  
-
-  taxRecord.taxType = "VAT";
-  if (vatNumber) taxRecord.vatNumber = vatNumber;
-  if (vatBusinesLegalName) taxRecord.vatBusinesLegalName = vatBusinesLegalName;
-  if (vatBusinessTradeName) taxRecord.vatBusinessTradeName = vatBusinessTradeName;
-  if (vatRegisteredDate) taxRecord.vatRegisteredDate = vatRegisteredDate;
-  if (tinNumber) taxRecord.tinNumber = tinNumber;
-  if (vatTaxRate) taxRecord.vatTaxRate.push(vatTaxRate);
-};
-
-// Update MSME-related fields
-const updateMSMEFields = (taxRecord, cleanedData) => {
-  const { msmeType, msmeRegistrationNumber } = cleanedData;
-  
-  if (msmeType) taxRecord.msmeType = msmeType;
-  if (msmeRegistrationNumber) taxRecord.msmeRegistrationNumber = msmeRegistrationNumber;
-};
-
-// Validation function for GST tax rates
-const validateGstTaxRates = (gstTaxRate) => {
-  if ( gstTaxRate === undefined ) {
-    return { isValid: true };
-  } 
-  let { taxName, taxRate, cgst, sgst, igst } = gstTaxRate;  
-
-  cgst = parseFloat(cgst);
-  sgst = parseFloat(sgst);
-  igst = parseFloat(igst);
-
- 
-
-  // Validate for required fields
-  if (taxName === undefined ) {
-    return { isValid: false, message: "Tax name is required" };
-  }
-  if (taxRate === undefined ) {
-    return { isValid: false, message: "Tax rate is required" };
-  }
-  if (cgst === undefined ) {
-    return { isValid: false, message: "CGST is required" };
-  }
-  if (sgst === undefined ) {
-    return { isValid: false, message: "SGST is required" };
-  }
-  if (igst === undefined ) {
-    return { isValid: false, message: "IGST is required" };
-  }
-
-  // Check if CGST equals SGST
-  if (cgst !== sgst) {
-    return { isValid: false, message: "CGST must be equal to SGST." };
-  }
-
-  // Check if the sum of CGST and SGST equals IGST
-  if (cgst + sgst !== igst) {
-    return { isValid: false, message: "Sum of CGST & SGST must be equal to IGST." };
-  }
-
-  return { isValid: true };
-};
-
-
-// Validation function for VAT tax rates
-const validateVatTaxRates = (vatTaxRate) => {
-  if ( vatTaxRate === undefined ) {
-    return { isValid: true };
-  }  
-  
-  const { taxName, taxRate } = vatTaxRate;
-
-  if ( taxName === undefined ) {
-    return { isValid: false, message: "Tax name is required" };
-  }
-  if ( taxRate === undefined ) {
-    return { isValid: false, message: "Tax rate is required" };
-  }
-
-
-return { isValid: true };
-};
 
 
 // Add Tax
@@ -184,11 +54,10 @@ exports.addTax = async (req, res) => {
     if (!taxRecord) {
       return res.status(404).json({ message: "Tax record not found for the given organization." });
     }
-    
-    const acctype = taxRecord.taxType;
 
-    const generatedDateTime = generateTimeAndDateForDB( existingOrganization.timeZoneExp, existingOrganization.dateFormatExp, existingOrganization.dateSplit );
-    const createdDateAndTime = generatedDateTime.dateTime;
+    const { inputTax, outputTax } = await dataExist( organizationId );
+
+    const accountType = taxRecord.taxType;
 
     if (taxType === 'GST') {
         updateGSTFields( taxRecord, cleanedData );
@@ -200,12 +69,14 @@ exports.addTax = async (req, res) => {
 
     const updatedTaxRecord = await taxRecord.save();   
 
-    if (!acctype) {
+    if (!accountType) {
       if (taxType === 'GST') {
-        await insertAccounts(gstAccounts, organizationId, createdDateAndTime);
+        await insertAccounts(inputGstAccounts, organizationId, inputTax );
+        await insertAccounts(outputGstAccounts, organizationId, outputTax );
         await defaultAccounts(organizationId,taxType);
       }else if (taxType === 'VAT') {
-        await insertAccounts(vatAccounts, organizationId, createdDateAndTime);
+        await insertAccounts(inputVatAccounts, organizationId, inputTax);
+        await insertAccounts(outputVatAccounts, organizationId, outputTax);
         await defaultAccounts(organizationId,taxType);
       }
       
@@ -349,74 +220,184 @@ exports.getTax = async (req, res) => {
 
 
 
-const gstAccounts = [
-  {
-    accountName: "Input SGST",
-    accountSubhead: "Current Asset",
-    accountHead: "Asset",
-    accountGroup: "Asset",
-    accountCode: "TX-01",
-    description: "Input SGST",
-  },
-  {
-    accountName: "Input CGST",
-    accountSubhead: "Current Asset",
-    accountHead: "Asset",
-    accountGroup: "Asset",
-    accountCode: "TX-02",
-    description: "Input CGST",
-  },
-  {
-    accountName: "Input IGST",
-    accountSubhead: "Current Asset",
-    accountHead: "Asset",
-    accountGroup: "Asset",
-    accountCode: "TX-03",
-    description: "Input IGST",
-  },{
-    accountName: "Output SGST",
-    accountSubhead: "Current Liability",
-    accountHead: "Liabilities",
-    accountGroup: "Liability",
-    accountCode: "TX-04",
-    description: "Output SGST",
-  },
-  {
-    accountName: "Output CGST",
-    accountSubhead: "Current Liability",
-    accountHead: "Liabilities",
-    accountGroup: "Liability",
-    accountCode: "TX-05",
-    description: "Output CGST",
-  },
-  {
-    accountName: "Output IGST",
-    accountSubhead: "Current Liability",
-    accountHead: "Liabilities",
-    accountGroup: "Liability",
-    accountCode: "TX-06",
-    description: "Output IGST",
-  },];
 
-const vatAccounts = [
-    {
-      accountName: "Input VAT",
-      accountSubhead: "Current Asset",
-      accountHead: "Asset",
-      accountGroup: "Asset",
-      accountCode: "TX-01",
-      description: "Input VAT",
-    },    
-    {
-      accountName: "Output VAT",
-      accountSubhead: "Current Liability",
-      accountHead: "Liabilities",
-      accountGroup: "Liability",
-      accountCode: "TX-02",
-      description: "Output VAT",
-    },];
 
-async function insertAccounts(accounts,organizationId,createdDateAndTime) {
+
+//Duplicate Check
+const isDuplicateGSTTaxName = async (organizationId, gstTaxRate ) => {
+  const taxName = gstTaxRate.taxName ;
+
+  // Check for GST tax name duplicate
+  const gstTaxRecord = await Tax.findOne({ organizationId, 'gstTaxRate.taxName': taxName });
+
+  // Return true if duplicate exists in either GST or VAT rates
+  return !!gstTaxRecord ;
+};
+const isDuplicateVATTaxName = async (organizationId, vatTaxRate) => {
+  const taxName = vatTaxRate.taxName;
+
+  // Check for VAT tax name duplicate
+  const vatTaxRecord = await Tax.findOne({ organizationId, 'vatTaxRate.taxName': taxName });
+
+  // Return true if duplicate exists in either GST or VAT rates
+  return !!vatTaxRecord;
+};
+
+
+
+
+
+
+
+
+
+
+// Update GST-related fields
+const updateGSTFields = (taxRecord, cleanedData) => {
+  taxRecord.taxType = "GST";
+  if (cleanedData.gstIn) taxRecord.gstIn = gstIn;
+  if (cleanedData.gstBusinessLegalName) taxRecord.gstBusinessLegalName = gstBusinessLegalName;
+  if (cleanedData.gstBusinessTradeName) taxRecord.gstBusinessTradeName = gstBusinessTradeName;
+  if (cleanedData.gstRegisteredDate) taxRecord.gstRegisteredDate = gstRegisteredDate;
+  if (cleanedData.compositionSchema) taxRecord.compositionSchema = compositionSchema;
+  if (cleanedData.reverseCharge) taxRecord.reverseCharge = reverseCharge;
+  if (cleanedData.importExport) taxRecord.importExport = importExport;
+  if (cleanedData.digitalServices) taxRecord.digitalServices = digitalServices;
+  if (cleanedData.compositionPercentage) taxRecord.compositionPercentage = compositionPercentage;
+  if (cleanedData.gstTaxRate) taxRecord.gstTaxRate.push(gstTaxRate);
+};
+// Update VAT-related fields
+const updateVATFields = (taxRecord, cleanedData) => {
+  taxRecord.taxType = "VAT";
+  if (cleanedData.vatNumber) taxRecord.vatNumber = vatNumber;
+  if (cleanedData.vatBusinessLegalName) taxRecord.vatBusinessLegalName = vatBusinessLegalName;
+  if (cleanedData.vatBusinessTradeName) taxRecord.vatBusinessTradeName = vatBusinessTradeName;
+  if (cleanedData.vatRegisteredDate) taxRecord.vatRegisteredDate = vatRegisteredDate;
+  if (cleanedData.tinNumber) taxRecord.tinNumber = tinNumber;
+  if (cleanedData.vatTaxRate) taxRecord.vatTaxRate.push(vatTaxRate);
+};
+// Update MSME-related fields
+const updateMSMEFields = (taxRecord, cleanedData) => {
+  if (cleanedData.msmeType) taxRecord.msmeType = msmeType;
+  if (cleanedData.msmeRegistrationNumber) taxRecord.msmeRegistrationNumber = msmeRegistrationNumber;
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Validation function for GST tax rates
+const validateGstTaxRates = (gstTaxRate) => {
+  if ( gstTaxRate === undefined ) {
+    return { isValid: true };
+  } 
+  let { taxName, taxRate, cgst, sgst, igst } = gstTaxRate;  
+
+  cgst = parseFloat(cgst);
+  sgst = parseFloat(sgst);
+  igst = parseFloat(igst);
+
+ 
+
+  // Validate for required fields
+  if (taxName === undefined ) {
+    return { isValid: false, message: "Tax name is required" };
+  }
+  if (taxRate === undefined ) {
+    return { isValid: false, message: "Tax rate is required" };
+  }
+  if (cgst === undefined ) {
+    return { isValid: false, message: "CGST is required" };
+  }
+  if (sgst === undefined ) {
+    return { isValid: false, message: "SGST is required" };
+  }
+  if (igst === undefined ) {
+    return { isValid: false, message: "IGST is required" };
+  }
+
+  // Check if CGST equals SGST
+  if (cgst !== sgst) {
+    return { isValid: false, message: "CGST must be equal to SGST." };
+  }
+
+  // Check if the sum of CGST and SGST equals IGST
+  if (cgst + sgst !== igst) {
+    return { isValid: false, message: "Sum of CGST & SGST must be equal to IGST." };
+  }
+
+  return { isValid: true };
+};
+// Validation function for VAT tax rates
+const validateVatTaxRates = (vatTaxRate) => {
+  if ( vatTaxRate === undefined ) {
+    return { isValid: true };
+  }  
+  
+  const { taxName, taxRate } = vatTaxRate;
+
+  if ( taxName === undefined ) {
+    return { isValid: false, message: "Tax name is required" };
+  }
+  if ( taxRate === undefined ) {
+    return { isValid: false, message: "Tax rate is required" };
+  }
+
+
+return { isValid: true };
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+const inputGstAccounts = [
+  { accountName: "Input SGST", accountSubhead: "Current Asset", accountHead: "Asset", accountGroup: "Asset", accountCode: "TX-01", description: "Input SGST"},
+  { accountName: "Input CGST", accountSubhead: "Current Asset", accountHead: "Asset", accountGroup: "Asset", accountCode: "TX-02", description: "Input CGST"},
+  { accountName: "Input IGST", accountSubhead: "Current Asset", accountHead: "Asset", accountGroup: "Asset", accountCode: "TX-05", description: "Input IGST"},  
+];
+
+const outputGstAccounts = [
+  { accountName: "Output SGST", accountSubhead: "Current Liability", accountHead: "Liabilities", accountGroup: "Liability", accountCode: "TX-03", description: "Output SGST"},
+  { accountName: "Output CGST", accountSubhead: "Current Liability", accountHead: "Liabilities", accountGroup: "Liability", accountCode: "TX-04", description: "Output CGST"},    
+  { accountName: "Output IGST", accountSubhead: "Current Liability", accountHead: "Liabilities", accountGroup: "Liability", accountCode: "TX-06", description: "Output IGST"},  
+];
+    
+
+const inputVatAccounts = [
+    { accountName: "Input VAT", accountSubhead: "Current Asset", accountHead: "Asset", accountGroup: "Asset", accountCode: "TX-01", description: "Input VAT"},  
+];
+
+const outputVatAccounts = [
+  { accountName: "Output VAT", accountSubhead: "Current Liability", accountHead: "Liabilities", accountGroup: "Liability", accountCode: "TX-02", description: "Output VAT"},
+];
+
+
+async function insertAccounts( accounts, organizationId, accId ) {
 
   const accountDocuments = accounts.map(account => {
       return {
@@ -428,7 +409,8 @@ async function insertAccounts(accounts,organizationId,createdDateAndTime) {
           accountHead: account.accountHead,
           accountGroup: account.accountGroup,
 
-          openingDate: createdDateAndTime, 
+          parentAccountId: accId._id,
+          systemAccounts: true,
           description: account.description
       };});
 
@@ -445,7 +427,6 @@ async function insertAccounts(accounts,organizationId,createdDateAndTime) {
     const newTrialEntry = new TrialBalance({
         organizationId,
         operationId: savedAccount._id,
-        date: savedAccount.openingDate,
         accountId: savedAccount._id,
         accountName: savedAccount.accountName,
         action: "Opening Balance",
@@ -488,7 +469,7 @@ console.log('Trial balance entries created successfully');
 
   // Fetch existing data
 const dataExist = async (organizationId) => {
-  const [ outputCgst, outputSgst, outputIgst, inputCgst, inputSgst, inputIgst, outputVat, inputVat] = await Promise.all([
+  const [ outputCgst, outputSgst, outputIgst, inputCgst, inputSgst, inputIgst, outputVat, inputVat, inputTax, outputTax ] = await Promise.all([
     
     Account.findOne({ organizationId, accountName:'Output CGST' }, { _id: 1 }),
     Account.findOne({ organizationId, accountName:'Output SGST' }, { _id: 1 }),
@@ -501,8 +482,11 @@ const dataExist = async (organizationId) => {
     Account.findOne({ organizationId, accountName:'Output VAT' }, { _id: 1 }),
     Account.findOne({ organizationId, accountName:'Input VAT' }, { _id: 1 }),
 
+    Account.findOne({ organizationId, accountName:'Input Tax Credit' }, { _id: 1 }),
+    Account.findOne({ organizationId, accountName:'Output Tax Credit' }, { _id: 1 }),
+
   ]);
-  return { outputCgst, outputSgst, outputIgst, inputCgst, inputSgst, inputIgst, outputVat, inputVat };
+  return { outputCgst, outputSgst, outputIgst, inputCgst, inputSgst, inputIgst, outputVat, inputVat, inputTax, outputTax };
 };
 
 

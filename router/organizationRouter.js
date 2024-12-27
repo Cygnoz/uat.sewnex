@@ -5,18 +5,18 @@ const organizationController = require("../controller/organizationController")
 const clientController = require("../controller/clientController")
 const userController = require("../controller/userController")
 
+
 const currencyController = require("../controller/settings/currencyController")
 const paymentTermCont = require("../controller/settings/paymentTermCont")
 const prefixController = require("../controller/settings/prefixController")
 const settingController = require("../controller/settings/settingController")
 const taxController = require("../controller/settings/taxController")
-const deafalutController = require("../controller/settings/defaultAccCont")
 
 
 
 const checkPermission = require('../controller/permission');
 const { verifyToken } = require('../controller/middleware');
-
+const { nexVerifyToken } = require('../controller/nexMiddleware');
 
 
 
@@ -37,6 +37,9 @@ router.get('/get-additional-data',verifyToken,organizationController.getAddition
 router.post('/setup-organization',verifyToken,checkPermission('Setup/Modified Organization Details'),organizationController.setupOrganization)
 
 router.get('/get-one-organization',verifyToken,checkPermission('Viewed Organization Details'),organizationController.getOneOrganization)
+
+
+
 
 
 
@@ -120,9 +123,9 @@ router.put('/status-prefix',verifyToken,checkPermission('Modified Prefix Status'
 
 //Default Account
 
-router.post('/add-default-account',verifyToken,deafalutController.addDefaultAccount)
+// router.post('/add-default-account',verifyToken,defaultController.addDefaultAccount)
 
-router.get('/get-default-account',verifyToken,deafalutController.getDefaultAccount)
+// router.get('/get-default-account',verifyToken,defaultController.getDefaultAccount)
 
 
 
@@ -133,8 +136,6 @@ router.get('/get-default-account',verifyToken,deafalutController.getDefaultAccou
 
 router.get('/get-all-organization',organizationController.getAllOrganization)
 
-router.post('/create-client',clientController.createOrganizationAndClient)
-
 router.get('/get-all-client',clientController.getAllClient)
 
 router.delete('/delete-organization/:organizationId',organizationController.deleteOrganization)
@@ -142,6 +143,12 @@ router.delete('/delete-organization/:organizationId',organizationController.dele
 router.get('/delete-all',clientController.deleteAll)
 
 
+
+
+//Nex Portal
+router.get('/get-one-organization-nex/:organizationId',nexVerifyToken,clientController.getOneOrganizationNex)
+
+router.post('/create-client',nexVerifyToken,clientController.createOrganizationAndClient)
 
 
 

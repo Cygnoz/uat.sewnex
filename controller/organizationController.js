@@ -1,15 +1,9 @@
 // v1.0
 
 const Organization = require("../database/model/organization");
-const Account = require("../database/model/account");
 const Currency = require("../database/model/currency");
-const TrialBalance = require("../database/model/trialBalance")
-const moment = require("moment-timezone");
 
-
-
-
-
+const { cleanData } = require("../services/cleanData");
 
 
 
@@ -19,7 +13,6 @@ exports.getAllOrganization = async (req, res) => {
     const allOrganizations = await Organization.find();
 
     if (allOrganizations.length > 0) {
-      //allOrganizations.organizationId = undefined;
       res.status(200).json(allOrganizations);
     } else {
       res.status(404).json("No organizations found");
@@ -47,6 +40,8 @@ exports.getOneOrganization = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
+
 
 // Delete Organization - Internal
 exports.deleteOrganization = async (req, res) => {
@@ -163,28 +158,19 @@ exports.setupOrganization = async (req, res) => {
     const organizationId = req.user.organizationId;
 
     //Clean Data
-    const cleanedData = cleanCustomerData(req.body);
+    const cleanedData = cleanData(req.body);
 
-    const { timeZoneExp, dateFormatExp, dateSplit, baseCurrency } = cleanedData;
-
+    const { baseCurrency } = cleanedData;
 
     const existingOrganization = await Organization.findOne({ organizationId });
 
     if (!existingOrganization) {
-      return res.status(404).json({
-        message: "No Organization Found.",
-      });
+      return res.status(404).json({ message: "No Organization Found." });
     }
-
-    const generatedDateTime = generateTimeAndDateForDB( timeZoneExp, dateFormatExp, dateSplit );
-
-    const createdDateAndTime = generatedDateTime.dateTime;
 
     const currencyExists = await Currency.find({ organizationId }, { currencyCode: 1, _id: 0 });
     if (!currencyExists.length) {
-      return res.status(404).json({
-        message: "Currency not found",
-      });
+      return res.status(404).json({ message: "Currency not found" });
     }  
     
     //Validate data
@@ -197,9 +183,7 @@ exports.setupOrganization = async (req, res) => {
 
     if (!savedOrganization) {
       console.error("Organization could not be saved.");
-      return res
-        .status(500)
-        .json({ message: "Failed to update organization." });
+      return res.status(500).json({ message: "Failed to update organization." });
     }
 
     // Check and update baseCurrency in the currencies collection
@@ -231,50 +215,8 @@ exports.setupOrganization = async (req, res) => {
 
 
 
-// Function to generate time and date for storing in the database
-function generateTimeAndDateForDB(
-  timeZone,
-  dateFormat,
-  dateSplit,
-  baseTime = new Date(),
-  timeFormat = "HH:mm:ss",
-  timeSplit = ":"
-) {
-  // Convert the base time to the desired time zone
-  const localDate = moment.tz(baseTime, timeZone);
 
-  // Format date and time according to the specified formats
-  let formattedDate = localDate.format(dateFormat);
 
-  // Handle date split if specified
-  if (dateSplit) {
-    // Replace default split characters with specified split characters
-    formattedDate = formattedDate.replace(/[-/]/g, dateSplit); // Adjust regex based on your date format separators
-  }
-
-  const formattedTime = localDate.format(timeFormat);
-  const timeZoneName = localDate.format("z"); // Get time zone abbreviation
-
-  // Combine the formatted date and time with the split characters and time zone
-  const dateTime = `${formattedDate} ${formattedTime
-    .split(":")
-    .join(timeSplit)} (${timeZoneName})`;
-
-  return {
-    date: formattedDate,
-    time: `${formattedTime} (${timeZoneName})`,
-    dateTime: dateTime,
-  };
-}
-
-  //Clean Data 
-  function cleanCustomerData(data) {
-    const cleanData = (value) => (value === null || value === undefined || value === "" || value === 0 ? undefined : value);
-    return Object.keys(data).reduce((acc, key) => {
-      acc[key] = cleanData(data[key]);
-      return acc;
-    }, {});
-  }
 
 const countriesData = [
   {
