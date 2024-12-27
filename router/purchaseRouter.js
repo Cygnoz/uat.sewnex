@@ -30,11 +30,12 @@ router.post('/add-Bills',verifyToken, billsController.addBills);
 router.get('/get-all-Bills',verifyToken, billsController.getAllBills);
 router.get('/get-a-Bill/:billId',verifyToken, billsController.getOneBill);
 router.get('/bill-journal/:billId',verifyToken,billsController.billJournal);
+router.get('/get-last-bills-prefix', verifyToken, billsController.getLastBillsPrefix);
 // router.put('/update-Bill/:id',billsController.updatePurchaseBill)
 // router.delete('/delete-Bill/:id',billsController.deletePurchaseBill) 
 
 
- //paymentmade
+ //paymentMade
 router.post('/add-payment', verifyToken, PaymentMadeController.addPayment);
 router.get('/getAllPayments', verifyToken, PaymentMadeController.getAllPayment );
 
