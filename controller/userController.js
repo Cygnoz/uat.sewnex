@@ -1,6 +1,7 @@
 // v1.0
 
 const User = require('../database/model/user');
+const Organization = require('../database/model/organization');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
@@ -26,6 +27,21 @@ exports.login = async (req, res) => {
     // Check if user exists
     if (!user) {
       return res.status(401).json({ success: false, message: 'User not found!' });
+    }
+
+    const organization = await Organization.findOne({ _id: user.organizationId });
+
+    // Check if organization exists
+    if (!organization) {
+      return res.status(401).json({ success: false, message: 'Organization not found!' });
+    }
+    // Check if organization is active
+    if (!organization.isActive) {
+      return res.status(401).json({ success: false, message: 'Organization is not active!' });
+    }
+    // Check if user is active
+    if (!user.isActive) {
+      return res.status(401).json({ success: false, message: 'User is not active!' });
     }
 
     // Match the password
@@ -79,6 +95,12 @@ exports.verifyOtp = async (req, res) => {
       return res.status(401).json({ success: false, message: 'User not found!' });
     }
 
+    const organization = await Organization.findOne({ _id: user.organizationId });
+    if (!organization) {
+      return res.status(401).json({ success: false, message: 'Organization not found!' });
+    }
+
+
     // Get OTP from cache
     const cachedOtp = otpCache.get(email);
     // console.log(`Cached OTP: ${cachedOtp}, Provided OTP: ${otp}`);
@@ -100,6 +122,7 @@ exports.verifyOtp = async (req, res) => {
         {
           id: user._id,
           organizationId: user.organizationId,
+          organizationName: organization.organizationName,
           userName: user.userName,
           ip: requestIP,  // Bind IP address
           userAgent: requestUserAgent,  // Bind User-Agent (browser/device)

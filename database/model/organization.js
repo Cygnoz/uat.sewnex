@@ -1,12 +1,11 @@
-// v1.0
+// v1.3
 
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
 
 
 const organizationSchema = new Schema({
-
-  organizationId: { type: String, index: true},
+  organizationId: { type: String },
   organizationName: { type: String },
   organizationLogo: { type: String },
 
@@ -17,8 +16,7 @@ const organizationSchema = new Schema({
   organizationCountry: { type: String },
   organizationIndustry: { type: String },
 
-  createdDateAndTime: { type: String },  
-
+  
   //address
   addline1: { type: String },
   addline2: { type: String },
@@ -28,19 +26,22 @@ const organizationSchema = new Schema({
   
   organizationPhNum: { type: String },
   website: { type: String },
-
+  
   baseCurrency: { type: String },
   fiscalYear: { type: String },
-
+  
   timeZone: { type: String },
   timeZoneExp: { type: String },
   dateFormat: { type: String },
   dateFormatExp: { type: String },
   dateSplit: { type: String },
-
+  
   startDate: { type: String },
   endDate: { type: String },
- 
+
+  isActive: { type: Boolean, default: true },
+  
+  createdDateTime: { type: Date, default: () => new Date() },
 
 }, { versionKey: false }); 
 

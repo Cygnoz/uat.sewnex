@@ -1,4 +1,4 @@
-// v1.1
+// v1.2
 
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
@@ -6,9 +6,6 @@ const { Schema } = mongoose;
 
 const defaultAccountSchema = new Schema({
     organizationId: {type:String},
-
-    salesAccount: {type:String},    
-    purchaseAccount: {type:String},
 
     salesDiscountAccount: {type:String},
     purchaseDiscountAccount: {type:String},

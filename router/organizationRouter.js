@@ -11,13 +11,12 @@ const paymentTermCont = require("../controller/settings/paymentTermCont")
 const prefixController = require("../controller/settings/prefixController")
 const settingController = require("../controller/settings/settingController")
 const taxController = require("../controller/settings/taxController")
-const deafalutController = require("../controller/settings/defaultAccCont")
 
 
 
 const checkPermission = require('../controller/permission');
 const { verifyToken } = require('../controller/middleware');
-
+const { nexVerifyToken } = require('../controller/nexMiddleware');
 
 
 
@@ -124,9 +123,9 @@ router.put('/status-prefix',verifyToken,checkPermission('Modified Prefix Status'
 
 //Default Account
 
-router.post('/add-default-account',verifyToken,deafalutController.addDefaultAccount)
+// router.post('/add-default-account',verifyToken,defaultController.addDefaultAccount)
 
-router.get('/get-default-account',verifyToken,deafalutController.getDefaultAccount)
+// router.get('/get-default-account',verifyToken,defaultController.getDefaultAccount)
 
 
 
@@ -136,8 +135,6 @@ router.get('/get-default-account',verifyToken,deafalutController.getDefaultAccou
 //Internal
 
 router.get('/get-all-organization',organizationController.getAllOrganization)
-
-router.post('/create-client',clientController.createOrganizationAndClient)
 
 router.get('/get-all-client',clientController.getAllClient)
 
@@ -149,8 +146,9 @@ router.get('/delete-all',clientController.deleteAll)
 
 
 //Nex Portal
-router.get('/get-one-organization-nex/:organizationId',clientController.getOneOrganizationNex)
+router.get('/get-one-organization-nex/:organizationId',nexVerifyToken,clientController.getOneOrganizationNex)
 
+router.post('/create-client',nexVerifyToken,clientController.createOrganizationAndClient)
 
 
 
