@@ -28,6 +28,20 @@ const itemsSchema = new Schema({
 
 }, { _id: false });
 
+
+const returnItemSchema = new Schema({
+  itemId: {type:String},
+  itemName: {type:String},  
+  quantity: {type:Number},  
+  }, { _id: false });
+ 
+const debitNoteSchema = new Schema({
+  debitNoteId: {type:String}
+  }, { _id: false });
+
+
+
+
 const PurchaseBillSchema = new Schema({
   organizationId: { type: String },
   supplierId: { type: String },
@@ -95,9 +109,12 @@ const PurchaseBillSchema = new Schema({
 
   paidStatus: { type: String },
   
+  purchaseOrderId:{ type: String },
+
   createdDate: { type: String },
 
-  purchaseOrderId:{ type: String }
+  returnItem : [returnItemSchema],
+  debitNote : [debitNoteSchema],  
 
 });
 

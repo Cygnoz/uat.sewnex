@@ -347,7 +347,6 @@ function createNewPayment(data, openingDate, organizationId, userId, userName) {
   return newPayment.save(); // Save the payment to the database
 }
 
-
 //Validate Data
 function validatePaymentData( data, supplierExists, unpaidBills, paymentTable ) {
   const errors = [];
@@ -368,7 +367,6 @@ function validatePaymentData( data, supplierExists, unpaidBills, paymentTable ) 
 
   return errors;
 }
-
 
 // Field validation utility
 function validateField(condition, errorMsg, errors) {
@@ -411,10 +409,8 @@ function validatePaymentTable(unpaidBills, paymentTable, errors) {
     // Validate amountDue
     validateField( unpaidBill.amountDue !== fetchedBills.balanceAmount, `Amount Due for bill number ${unpaidBill.billNumber}: ${unpaidBill.amountDue}`, errors );
 
-
-  // Validate float fields
-  validateFloatFields(['amountDue', 'billAmount', 'payment'], unpaidBill, errors);
-
+    // Validate float fields
+    validateFloatFields(['amountDue', 'billAmount', 'payment'], unpaidBill, errors);
 
   });
 }

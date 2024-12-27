@@ -82,9 +82,7 @@ exports.addDebitNote = async (req, res) => {
     //Clean Data
     const cleanedData = cleanDebitNoteData(req.body);
 
-    const { items } = cleanedData;
-    const { supplierId } = cleanedData;
-    const { billId } = cleanedData;
+    const { supplierId, items, billId } = cleanedData;
     
     const itemIds = items.map(item => item.itemId);
     
@@ -139,6 +137,9 @@ exports.addDebitNote = async (req, res) => {
 
     //Item Track
     await itemTrack( savedDebitNote, itemTable );
+
+    // Update Purchase Bill
+    await updateBillWithDebitNote(billId, items, savedDebitNote._id);
       
     res.status(201).json({ message: "Debit Note created successfully",savedDebitNote });
     // console.log( "Debit Note created successfully:", savedDebitNote );
@@ -169,13 +170,12 @@ exports.getAllDebitNote = async (req, res) => {
       });
     }
 
-    // Map over all categories to remove the organizationId from each object
-    const AllDebitNote = allDebitNote.map((history) => {
-      const { organizationId, ...rest } = history.toObject(); // Convert to plain object and omit organizationId
-      return rest;
-  });
+    // Process each debit note using the helper function
+    const updatedDebitNotes = await Promise.all(
+      allDebitNote.map((debitNote) => calculateStock(debitNote))
+    );
 
-    res.status(200).json({allDebitNote: AllDebitNote});
+    res.status(200).json(updatedDebitNotes);
   } catch (error) {
     console.error("Error fetching Debit Note:", error);
     res.status(500).json({ message: "Internal server error." });
@@ -672,7 +672,7 @@ items.forEach((item) => {
   validateIntegerFields(['itemQuantity'], item, errors);
 
   // Validate Stock Count 
-  validateField( item.itemQuantity > fetchedItem.currentStock, `Insufficient Stock for ${item.itemName}: Requested quantity ${item.itemQuantity}, Available stock ${fetchedItem.currentStock}`, errors );
+  // validateField( item.itemQuantity > fetchedItem.currentStock, `Insufficient Stock for ${item.itemName}: Requested quantity ${item.itemQuantity}, Available stock ${fetchedItem.currentStock}`, errors );
 
   // Validate float fields
   validateFloatFields(['itemCostPrice', 'itemTotaltax', 'itemAmount'], item, errors);
@@ -730,6 +730,17 @@ function validateBillData(data, items, billExist, errors) {
       // validateField(dNItem.itemDiscount !== billItem.itemDiscount, 
       //               `Item Discount mismatch for ${billItem.itemId}: Expected ${billItem.itemDiscount}, got ${dNItem.itemDiscount}`, 
       //               errors);
+      validateField(dNItem.itemQuantity > billItem.itemQuantity, 
+                    `Provided quantity (${dNItem.itemQuantity}) cannot exceed invoice quantity (${billItem.itemQuantity}).`, 
+                    errors);
+      validateField(dNItem.itemQuantity <= 0, 
+                    `Quantity must be greater than 0 for item ${dNItem.itemId}.`, 
+                    errors);
+      if (dNItem.stock !== undefined) {
+        validateField(dNItem.itemQuantity > dNItem.stock, 
+                    `Provided quantity (${dNItem.itemQuantity}) cannot exceed stock available (${dNItem.stock}) for item ${dNItem.itemId}.`, 
+                    errors);
+      }
     }
   });
 }
@@ -887,6 +898,98 @@ async function itemTrack(savedDebitNote, itemTable) {
     // console.log("1",newTrialEntry);
   }
 }
+
+
+
+
+// Function to update bills with returnItem and debitNoteId
+const updateBillWithDebitNote = async (billId, items, debitNoteId) => {
+  try {
+    for (const item of items) {
+      await Bills.findOneAndUpdate(
+        { _id: billId, 'returnItem.itemId': item.itemId },
+        {
+          $inc: { 'returnItem.$.quantity': item.itemQuantity } // Increment quantity if item exists
+        }
+      );
+
+      // If the itemId was not found and updated, add a new entry
+      await Bills.findOneAndUpdate(
+        { _id: billId, 'returnItem.itemId': { $ne: item.itemId } },
+        {
+          $push: {
+            returnItem: {
+              itemId: item.itemId,
+              itemName: item.itemName,
+              quantity: item.itemQuantity
+            }
+          }
+        }
+      );
+    }
+
+    // Add the debitNoteId to the debitNote array
+    await Bills.findByIdAndUpdate(
+      billId,
+      {
+        $push: {
+          debitNote: {
+            debitNoteId: debitNoteId
+          }
+        }
+      },
+      { new: true }
+    );
+  } catch (error) {
+    console.error("Error updating Bills:", error);
+    throw new Error("Failed to update Bills with Debit Note details.");
+  }
+};
+
+
+
+// Helper function to calculate stock
+const calculateStock = async (debitNote) => {
+  const { billId, items } = debitNote;
+
+  // Fetch corresponding bills
+  const bills = await Bills.findById(billId);  
+
+  if (bills) {
+    items.forEach((debitItem) => {
+      const purchaseItem = bills.items.find(
+        (item) => item.itemId.toString() === debitItem.itemId.toString()
+      );
+
+      if (purchaseItem) {
+        // Find returnItem in biils
+        const returnItem = bills.returnItem.find(
+          (returnItem) => returnItem.itemId.toString() === debitItem.itemId.toString()
+        );
+
+        if (returnItem) {
+          debitItem.stock = purchaseItem.itemQuantity - returnItem.quantity;
+        } else {
+          debitItem.stock = purchaseItem.itemQuantity;
+        }
+      } else {
+        debitItem.stock = 0; // Default if itemId is not found
+      }
+    });
+
+    // Update stock in the debitNote schema
+    await DebitNote.findByIdAndUpdate(
+      debitNote._id,
+      { items },
+      { new: true }
+    );
+  }
+
+  // Remove organizationId before returning
+  const { organizationId, ...rest } = debitNote.toObject();
+  return rest;
+};
+
 
 
 
