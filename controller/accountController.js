@@ -5,9 +5,9 @@ const Account = require("../database/model/account")
 const TrialBalance = require("../database/model/trialBalance")
 const Currency = require("../database/model/currency");
 const crypto = require('crypto');
-const moment = require('moment-timezone');
 
 const { singleCustomDateTime, multiCustomDateTime } = require("../services/timeConverter");
+const { singleAccountName, multiAccountName } = require("../services/accountName");
 const { cleanData } = require("../services/cleanData");
 
 const key = Buffer.from(process.env.ENCRYPTION_KEY, 'utf8'); 
@@ -60,14 +60,13 @@ exports.addAccount = async (req, res) => {
       // Encrypt bankAccNum before storing it
       if(cleanedData.bankAccNum){ cleanedData.bankAccNum = encrypt(cleanedData.bankAccNum); }
 
-      const newAccount = new Account({ ...cleanedData, organizationId, delete: "true" });      
+      const newAccount = new Account({ ...cleanedData, organizationId, systemAccounts: false });      
       await newAccount.save();
 
       const trialEntry = new TrialBalance({
         organizationId: organizationId,
         operationId: newAccount._id,
         accountId: newAccount._id,
-        accountName: newAccount.accountName,
         action: "Opening Balance",
         debitAmount: cleanedData.debitOpeningBalance || 0,
         creditAmount: cleanedData.creditOpeningBalance || 0,
@@ -139,9 +138,9 @@ exports.getAllAccount = async (req, res) => {
         return res.status(404).json({ message: "No accounts found for the provided organization ID." });
       }
 
-      const formattedObjects = multiCustomDateTime(allAccount, existingOrganization.dateFormatExp, existingOrganization.timeZoneExp, existingOrganization.dateSplit );    
+      const formattedObjects = multiCustomDateTime(allAccount, existingOrganization.dateFormatExp, existingOrganization.timeZoneExp, existingOrganization.dateSplit );          
 
-
+      
     res.status(200).json(formattedObjects);
   } catch (error) {
     console.error("Error fetching accounts:", error);
@@ -164,8 +163,7 @@ exports.getOneAccount = async (req, res) => {
     }
 
     const formattedObjects = singleCustomDateTime(accountExist, existingOrganization.dateFormatExp, existingOrganization.timeZoneExp, existingOrganization.dateSplit );    
-
-
+    
     res.status(200).json(formattedObjects);
   } catch (error) {
     console.error("Error fetching account:", error);
@@ -237,9 +235,7 @@ exports.getOneTrailBalance = async (req, res) => {
       const { accountId } = req.params;
       const organizationId = req.user.organizationId;      
 
-      // Find the TrialBalance by accountId and organizationId
       const { existingOrganization, accountExist, trialBalance } = await dataExist(organizationId, null, accountId);
-
 
       if (!accountExist) {
         return res.status(404).json({ message: "Account not found." });
@@ -252,13 +248,15 @@ exports.getOneTrailBalance = async (req, res) => {
       trialBalance.sort((a, b) => new Date(a.createdDateTime) - new Date(b.createdDateTime));
 
       const formattedObjects = multiCustomDateTime(trialBalance, existingOrganization.dateFormatExp, existingOrganization.timeZoneExp, existingOrganization.dateSplit );    
-
+      
       const trialBalanceWithCumulativeSum = calculateCumulativeSum(formattedObjects);
+      
+      const data = await multiAccountName(trialBalanceWithCumulativeSum, organizationId);
 
-      console.log("Trial Balance fetched successfully:", trialBalanceWithCumulativeSum);
+      console.log("Trial Balance fetched successfully:", data);
       
 
-      res.status(200).json(trialBalanceWithCumulativeSum);
+      res.status(200).json(data);
   } catch (error) {
       console.error("Error fetching account:", error);
       res.status(500).json({ message: "Internal server error." });
@@ -312,19 +310,19 @@ const validStructure = {
       "Fixed Asset",
       "Stock",
       "Payment Clearing",
-      "Sundry Debtors",
+      // "Sundry Debtors",
     ],
     Equity: ["Equity"],
     Income: ["Income", "Other Income"],
   },
   Liability: {
     Liabilities: [
-      "Other Current Liability",
+      "Current Liability",
       "Credit Card",
       "Long Term Liability",
       "Other Liability",
       "Overseas Tax Payable",
-      "Sundry Creditors",
+      // "Sundry Creditors",
     ],
     Expenses: ["Expense", "Cost of Goods Sold", "Other Expense"],
   },

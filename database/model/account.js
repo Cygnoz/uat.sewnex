@@ -1,4 +1,4 @@
-// v1.3
+// v1.4
 
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
@@ -22,7 +22,7 @@ const accountSchema = new Schema({
     bankIfsc: {type:String},
     bankCurrency: {type:String},
 
-    delete: { type: Boolean }, // false: non deletable(system accounts/customer/supplier), true: deletable 
+    systemAccounts: { type: Boolean }, // false: edit and deletable(non - system accounts), true: non-edit and non-deletable(system accounts)
 
     createdDateTime: { type: Date, default: () => new Date() },
 

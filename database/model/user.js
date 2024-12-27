@@ -1,17 +1,17 @@
-// v1.0
+// v1.2
 
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
 
 
 const userSchema = new Schema({
-  organizationName: { type: String },
   organizationId: { type: String },
   userName: { type: String },
   userNum: { type: String },
   userEmail: { type: String },
   password: { type: String },
   role: { type: String },
+  isActive: { type: Boolean, default: true },
     
 });
 

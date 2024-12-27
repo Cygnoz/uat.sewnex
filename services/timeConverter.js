@@ -1,10 +1,8 @@
 const moment = require("moment-timezone");
 
-
-
 // Single function to format date and time
-function singleCustomDateTime(dateTime, dateFormat, timeZone, dateSplit) {
-  const dateTimeMoment = moment(dateTime).tz(timeZone);
+function singleCustomDateTime(data, dateFormat, timeZone, dateSplit) {
+  const dateTimeMoment = moment(data.dateTime).tz(timeZone);
 
   // Format the date with split character
   let createdDate = dateTimeMoment.format(dateFormat);
@@ -14,13 +12,14 @@ function singleCustomDateTime(dateTime, dateFormat, timeZone, dateSplit) {
 
   const createdTime = dateTimeMoment.format('hh:mm:ss A');
 
-  return { createdDate, createdTime };
+  return {
+    ...data,
+    createdDate,
+    createdTime
+  };
 }
 
-
-
-
-// Multiple functions to format date and time
+// Multiple function to format date and time
 function multiCustomDateTime(objects, dateFormat, timeZone, dateSplit) {
   if (!Array.isArray(objects)) {
     throw new Error("The first parameter must be an array of objects.");
@@ -34,16 +33,15 @@ function multiCustomDateTime(objects, dateFormat, timeZone, dateSplit) {
     // Get the original document if it exists
     const originalDoc = obj._doc || obj;
 
-    const formatted = singleCustomDateTime(originalDoc.createdDateTime, dateFormat, timeZone, dateSplit);
+    const formatted = singleCustomDateTime(originalDoc, dateFormat, timeZone, dateSplit);
 
     // Return a new object with the formatted data included
     return {
       ...originalDoc,
       createdDate: formatted.createdDate,
-      createdTime: formatted.createdTime
+      createdTime: formatted.createdTime,
     };
   });
 }
-
 
 module.exports = { singleCustomDateTime, multiCustomDateTime };

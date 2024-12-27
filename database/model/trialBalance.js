@@ -1,4 +1,4 @@
-// v1.1
+// v1.3
 
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
@@ -10,8 +10,7 @@ const trialBalanceSchema = new Schema({
     transactionId: {type:String}, //prefix
     
     accountId: {type:String},
-    accountName: {type:String},
-    
+
     action: {type:String},
     
     debitAmount: {type:Number},
