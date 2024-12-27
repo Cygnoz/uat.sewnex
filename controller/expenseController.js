@@ -577,7 +577,7 @@ function expensePrefix( cleanData, existingPrefix ) {
 
 
   // Validate Organization Supplier Account
-  function validateOrganizationSupplierAccount( organizationExists, accountExist, supplierExist, supplierId, res ) {
+  function validateOrganizationSupplierAccount( organizationExists, accountExist, supplierExist, supplierId, existingPrefix, res ) {
     if (!organizationExists) {
       res.status(404).json({ message: "Organization not found" });
       return false;
