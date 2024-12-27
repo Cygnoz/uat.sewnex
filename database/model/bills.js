@@ -6,6 +6,7 @@ const itemsSchema = new Schema({
   itemName: { type: String },
 
   itemQuantity: { type: Number },
+  returnQuantity: { type: Number },
   itemCostPrice: { type: Number },
 
   itemTax:{ type:Number },
@@ -28,12 +29,6 @@ const itemsSchema = new Schema({
 
 }, { _id: false });
 
-
-const returnItemSchema = new Schema({
-  itemId: {type:String},
-  itemName: {type:String},  
-  quantity: {type:Number},  
-  }, { _id: false });
  
 const debitNoteSchema = new Schema({
   debitNoteId: {type:String}
@@ -114,7 +109,6 @@ const PurchaseBillSchema = new Schema({
 
   createdDate: { type: String },
 
-  returnItem : [returnItemSchema],
   debitNote : [debitNoteSchema],  
 
 });

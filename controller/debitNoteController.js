@@ -972,6 +972,11 @@ const calculateStock = async (debitNote) => {
         } else {
           debitItem.stock = purchaseItem.itemQuantity;
         }
+
+        // Ensure stock is never negative
+        if (debitItem.stock < 0) {
+          debitItem.stock = 0;
+        }
       } else {
         debitItem.stock = 0; // Default if itemId is not found
       }
