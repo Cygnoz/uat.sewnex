@@ -422,17 +422,17 @@ exports.createOrganizationAndClient = async (req, res) => {
       // Add other fields as needed
     } = req.body;
 
-    // Email Validation
-    if (!emailRegex.test(email)) {
-      return res.status(400).json({ message: "Invalid email format." });
-    }
+    // // Email Validation
+    // if (!emailRegex.test(email)) {
+    //   return res.status(400).json({ message: "Invalid email format." });
+    // }
 
-    // Password Validation
-    if (!passwordRegex.test(password)) {
-      return res.status(400).json({ 
-        message: "Password must be at least 8 characters long and include at least one letter and one number." 
-      });
-    }
+    // // Password Validation
+    // if (!passwordRegex.test(password)) {
+    //   return res.status(400).json({ 
+    //     message: "Password must be at least 8 characters long and include at least one letter and one number." 
+    //   });
+    // }
 
     // Check if an organization with the same organizationName already exists
     const existingOrganization = await Organization.findOne({ organizationName });
