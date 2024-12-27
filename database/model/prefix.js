@@ -45,6 +45,9 @@ const seriesSchema = new Schema({
   quote: { type: String },
   quoteNum: { type: Number },
 
+  expense: { type: String },
+  expenseNum: { type: Number },
+
   deliveryChallan: { type: String },
   deliveryChallanNum: { type: Number },
 
