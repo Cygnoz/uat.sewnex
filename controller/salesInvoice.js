@@ -88,12 +88,12 @@ const accDataExists = async ( defaultAccount, organizationId, otherExpenseAccoun
 //Get one and All
 const salesDataExist = async ( organizationId, invoiceId ) => {    
     
-  const [organizationExists, allinvoice, invoice ] = await Promise.all([
+  const [organizationExists, allInvoice, invoice ] = await Promise.all([
     Organization.findOne({ organizationId }, { organizationId: 1}),
     Invoice.find({ organizationId }),
     Invoice.findOne({ organizationId , _id: invoiceId },)
   ]);
-  return { organizationExists, allinvoice, invoice };
+  return { organizationExists, allInvoice, invoice };
 };
 
 
@@ -248,12 +248,12 @@ exports.invoiceJournal = async (req, res) => {
 };
 
 
-// Get All Sales allinvoice
+// Get All Sales allInvoice
 exports.getAllSalesInvoice = async (req, res) => {
   try {
     const organizationId = req.user.organizationId;
 
-    const { organizationExists, allinvoice } = await salesDataExist(organizationId);
+    const { organizationExists, allInvoice } = await salesDataExist(organizationId);
 
     if (!organizationExists) {
       return res.status(404).json({
@@ -261,7 +261,7 @@ exports.getAllSalesInvoice = async (req, res) => {
       });
     }
 
-    if (!allinvoice.length) {
+    if (!allInvoice.length) {
       return res.status(404).json({
         message: "No Invoice found",
       });
@@ -274,7 +274,7 @@ exports.getAllSalesInvoice = async (req, res) => {
    const updatedInvoices = [];
 
    // Map through purchase bills and update paidStatus if needed
-   for (const invoice of allinvoice) {
+   for (const invoice of allInvoice) {
    const { organizationId, balanceAmount, dueDate, paidStatus: currentStatus, ...rest } = invoice.toObject();
    
    // Determine the correct paidStatus based on balanceAmount and dueDate
@@ -295,7 +295,7 @@ exports.getAllSalesInvoice = async (req, res) => {
    // Push the bill object with the updated status to the result array
    updatedInvoices.push({ ...rest, balanceAmount , dueDate , paidStatus: newStatus });
    }
-  //  allinvoice=updatedInvoices
+  //  allInvoice=updatedInvoices
 
     res.status(200).json({updatedInvoices});
   } catch (error) {
