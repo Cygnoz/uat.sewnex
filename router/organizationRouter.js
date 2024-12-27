@@ -16,7 +16,7 @@ const taxController = require("../controller/settings/taxController")
 
 const checkPermission = require('../controller/permission');
 const { verifyToken } = require('../controller/middleware');
-const { nexVerifyToken } = require('../controller/nexMiddleware');
+// const { nexVerifyToken } = require('../controller/nexMiddleware');
 
 
 
