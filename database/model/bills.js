@@ -29,12 +29,6 @@ const itemsSchema = new Schema({
 
 }, { _id: false });
 
- 
-const debitNoteSchema = new Schema({
-  debitNoteId: {type:String}
-  }, { _id: false });
-
-
 
 
 const PurchaseBillSchema = new Schema({
@@ -108,8 +102,6 @@ const PurchaseBillSchema = new Schema({
   purchaseOrderId:{ type: String },
 
   createdDate: { type: String },
-
-  debitNote : [debitNoteSchema],  
 
 });
 

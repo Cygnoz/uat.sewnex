@@ -484,7 +484,7 @@ async function defaultAccounting( data, defaultAccount, organizationExists ) {
 
 
 
-// Get last credit note prefix
+// Get last bill prefix
 exports.getLastBillsPrefix = async (req, res) => {
   try {
     const organizationId = req.user.organizationId;

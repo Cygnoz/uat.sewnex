@@ -139,7 +139,7 @@ exports.addDebitNote = async (req, res) => {
     await itemTrack( savedDebitNote, itemTable );
 
     // Update Purchase Bill
-    await updateBillWithDebitNote(billId, items, savedDebitNote._id);
+    await updateBillWithDebitNote(billId, items);
       
     res.status(201).json({ message: "Debit Note created successfully",savedDebitNote });
     // console.log( "Debit Note created successfully:", savedDebitNote );
@@ -693,25 +693,16 @@ function validateBillData(data, items, billExist, errors) {
   validateField( billExist.billDate !== data.billDate, `Bill Date mismatch for ${billExist.billDate}`, errors  );
   validateField( billExist.orderNumber !== data.orderNumber, `Order Number mismatch for ${billExist.orderNumber}`, errors  );
 
-  // Loop through each item in billExist.items
-  billExist.items.forEach(billItem => {
-    const dNItem = items.find(dataItem => dataItem.itemId === billItem.itemId);
+  // Validate only the items included in the debit note
+  items.forEach(dNItem => {
+    const billItem = billExist.items.find(dataItem => dataItem.itemId === dNItem.itemId);
 
-    if (!dNItem) {
-      errors.push(`Item ID ${billItem.itemId} not found in provided items`);
+    // console.log("billItem:",billItem);
+    // console.log("dNItem:",dNItem);
+
+    if (!billItem) {
+      errors.push(`Item ID ${dNItem.itemId} not found in provided bills.`);
     } else {
-      
-     // Convert quantities to numbers for comparison
-     const dNItemQuantity = Number(dNItem.itemQuantity);
-     const billItemQuantity = Number(billItem.itemQuantity);
-
-     // Check if the debit note item quantity exceeds the allowed quantity in the bill
-     if (dNItemQuantity > billItemQuantity) {
-       errors.push(
-         `Item Quantity for ${billItem.itemId} exceeds allowed quantity: Maximum ${billItemQuantity}, got ${dNItemQuantity}`
-       );
-     }
-      
       validateField(dNItem.itemName !== billItem.itemName, 
                     `Item Name mismatch for ${billItem.itemId}: Expected ${billItem.itemName}, got ${dNItem.itemName}`, 
                     errors);
@@ -727,20 +718,25 @@ function validateBillData(data, items, billExist, errors) {
       validateField(dNItem.itemIgst !== billItem.itemIgst, 
                     `Item IGST mismatch for ${billItem.itemId}: Expected ${billItem.itemIgst}, got ${dNItem.itemIgst}`, 
                     errors);
-      // validateField(dNItem.itemDiscount !== billItem.itemDiscount, 
-      //               `Item Discount mismatch for ${billItem.itemId}: Expected ${billItem.itemDiscount}, got ${dNItem.itemDiscount}`, 
-      //               errors);
+      if (!billItem.returnQuantity) {
+        validateField(dNItem.stock !== billItem.itemQuantity, 
+                    `Stock mismatch for ${billItem.itemId}: Expected ${billItem.itemQuantity}, got ${dNItem.stock}`, 
+                    errors);
+      } else {
+        const expectedReturnQuantity = billItem.itemQuantity - billItem.returnQuantity;
+        validateField(dNItem.stock !== expectedReturnQuantity, 
+                    `Stock mismatch for ${billItem.itemId}: Expected ${expectedReturnQuantity}, got ${dNItem.stock}`, 
+                    errors);
+      }
       validateField(dNItem.itemQuantity > billItem.itemQuantity, 
-                    `Provided quantity (${dNItem.itemQuantity}) cannot exceed invoice quantity (${billItem.itemQuantity}).`, 
+                    `Provided quantity (${dNItem.itemQuantity}) cannot exceed bill items quantity (${billItem.itemQuantity}).`, 
                     errors);
       validateField(dNItem.itemQuantity <= 0, 
                     `Quantity must be greater than 0 for item ${dNItem.itemId}.`, 
                     errors);
-      if (dNItem.stock !== undefined) {
-        validateField(dNItem.itemQuantity > dNItem.stock, 
-                    `Provided quantity (${dNItem.itemQuantity}) cannot exceed stock available (${dNItem.stock}) for item ${dNItem.itemId}.`, 
-                    errors);
-      }
+      validateField(dNItem.itemQuantity > dNItem.stock, 
+                  `Provided quantity (${dNItem.itemQuantity}) cannot exceed stock available (${dNItem.stock}) for item ${dNItem.itemId}.`, 
+                  errors);
     }
   });
 }
@@ -909,37 +905,22 @@ const updateBillWithDebitNote = async (billId, items, debitNoteId) => {
       await Bills.findOneAndUpdate(
         { _id: billId, 'returnItem.itemId': item.itemId },
         {
-          $inc: { 'returnItem.$.quantity': item.itemQuantity } // Increment quantity if item exists
+          $inc: { 'items.$.returnQuantity': item.itemQuantity } // Increment quantity if item exists
         }
       );
 
       // If the itemId was not found and updated, add a new entry
       await Bills.findOneAndUpdate(
-        { _id: billId, 'returnItem.itemId': { $ne: item.itemId } },
+        { _id: billId, 'items.itemId': { $ne: item.itemId } },
         {
           $push: {
-            returnItem: {
-              itemId: item.itemId,
-              itemName: item.itemName,
-              quantity: item.itemQuantity
+            items: {
+              returnQuantity: item.itemQuantity
             }
           }
         }
       );
     }
-
-    // Add the debitNoteId to the debitNote array
-    await Bills.findByIdAndUpdate(
-      billId,
-      {
-        $push: {
-          debitNote: {
-            debitNoteId: debitNoteId
-          }
-        }
-      },
-      { new: true }
-    );
   } catch (error) {
     console.error("Error updating Bills:", error);
     throw new Error("Failed to update Bills with Debit Note details.");
@@ -950,37 +931,34 @@ const updateBillWithDebitNote = async (billId, items, debitNoteId) => {
 
 // Helper function to calculate stock
 const calculateStock = async (debitNote) => {
-  const { billId, items } = debitNote;
+  try {
+    const { billId, items } = debitNote;
 
-  // Fetch corresponding bills
-  const bills = await Bills.findById(billId);  
+    // Fetch corresponding bills
+    const bills = await Bills.findById(billId);  
 
-  if (bills) {
-    items.forEach((debitItem) => {
-      const purchaseItem = bills.items.find(
-        (item) => item.itemId.toString() === debitItem.itemId.toString()
-      );
-
-      if (purchaseItem) {
-        // Find returnItem in biils
-        const returnItem = bills.returnItem.find(
-          (returnItem) => returnItem.itemId.toString() === debitItem.itemId.toString()
+    if (bills) {
+      items.forEach((debitItem) => {
+        const purchaseItem = bills.items.find(
+          (item) => item.itemId.toString() === debitItem.itemId.toString()
         );
 
-        if (returnItem) {
-          debitItem.stock = purchaseItem.itemQuantity - returnItem.quantity;
+        if (purchaseItem) {
+          // Calculate stock based on itemQuantity and returnQuantity
+          debitItem.stock = Math.max(purchaseItem.itemQuantity - debitItem.returnQuantity, 0);
         } else {
-          debitItem.stock = purchaseItem.itemQuantity;
+          // If no matching item in bills, set stock to 0
+          debitItem.stock = 0;
         }
 
         // Ensure stock is never negative
         if (debitItem.stock < 0) {
           debitItem.stock = 0;
         }
-      } else {
-        debitItem.stock = 0; // Default if itemId is not found
-      }
-    });
+      });
+    } else {
+      console.warn(`Bills with ID ${billId} not found.`);
+    }
 
     // Update stock in the debitNote schema
     await DebitNote.findByIdAndUpdate(
@@ -988,11 +966,14 @@ const calculateStock = async (debitNote) => {
       { items },
       { new: true }
     );
-  }
 
-  // Remove organizationId before returning
-  const { organizationId, ...rest } = debitNote.toObject();
-  return rest;
+    // Remove organizationId before returning
+    const { organizationId, ...rest } = debitNote.toObject();
+    return rest;
+} catch (error) {
+  console.error("Error in calculateStock:", error);
+  throw new Error("Failed to calculate stock for Credit Note.");
+}
 };
 
 

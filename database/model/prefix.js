@@ -54,4 +54,5 @@ const prefixSchema = new Schema({
 });
 
 const Prefix = mongoose.model("Prefix", prefixSchema);
+
 module.exports = Prefix;
