@@ -42,6 +42,9 @@ const SalesQuotesSchema = new Schema ({
   //salesPersonId: { type: String }, //next phase
   //salesPersonName: { type: String }, //next phase
 
+  taxPreference: {type: String}, //Taxable / Non-Taxable
+  taxType: { type: String }, //Intra, Inter, Non-tax, VAT   
+
   salesQuoteDate: { type: String },  
   expiryDate: { type: String },
 
@@ -55,7 +58,6 @@ const SalesQuotesSchema = new Schema ({
 
   discountTransactionType: { type: String }, //Currency,Percentage
   discountTransactionAmount: { type: Number },
-  taxType: { type: String }, //Intra, Inter, Non-tax, VAT   
   
   subTotal: { type: Number },
   totalItem: { type: Number },

@@ -352,20 +352,23 @@ function salesPrefix( cleanData, existingPrefix ) {
 
 // Tax Type
 function taxtype( cleanedData, customerExist, organizationExists ) {
-  if(customerExist.taxType === 'GST' ){
-    if(cleanedData.placeOfSupply === organizationExists.state){
-      cleanedData.taxType ='Intra';
+  if (cleanedData.taxPreference === 'Taxable') {
+    if(customerExist.taxType === 'GST' ){
+      if(cleanedData.placeOfSupply === organizationExists.state){
+        cleanedData.taxType ='Intra';
+      }
+      else{
+        cleanedData.taxType ='Inter';
+      }
     }
-    else{
-      cleanedData.taxType ='Inter';
+    if(customerExist.taxType === 'VAT' ){
+      cleanedData.taxType ='VAT';
     }
+  } else {
+    if(customerExist.taxPreference === 'Non-Taxable' ){
+      cleanedData.taxType ='Non-Taxable';
+    } 
   }
-  if(customerExist.taxType === 'VAT' ){
-    cleanedData.taxType ='VAT';
-  }
-  if(customerExist.taxType === 'Non-Tax' ){
-    cleanedData.taxType ='Non-Tax';
-  }  
   return  
 }
 
@@ -688,7 +691,6 @@ function calculateSalesOrder(cleanedData, res) {
     } else {
       console.log(`Skipping Tax for Non-Taxable item: ${item.itemName}`);
       console.log(`Item: ${item.itemName}, Calculated Discount: ${totalDiscount}`);
-
     }
 
     // Update total values

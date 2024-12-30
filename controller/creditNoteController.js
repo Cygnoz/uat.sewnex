@@ -892,8 +892,8 @@ const calculateStock = async (creditNote) => {
     );
 
     // Remove organizationId before returning
-  const { organizationId, ...rest } = creditNote.toObject();
-  return rest;
+    const { organizationId, ...rest } = creditNote.toObject();
+    return rest;
     
   } catch (error) {
     console.error("Error in calculateStock:", error);
