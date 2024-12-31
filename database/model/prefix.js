@@ -1,4 +1,4 @@
-// v1.0
+// v1.1
 
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
@@ -8,45 +8,41 @@ const seriesSchema = new Schema({
   seriesName: { type: String },
   status: { type: Boolean }, 
   
-  journal: { type: String },
+  journal: { type: String }, //Journal
   journalNum: { type: Number },
 
-  creditNote: { type: String },
+  creditNote: { type: String },//Credit note
   creditNoteNum: { type: Number },
 
-  customerPayment: { type: String },
-  customerPaymentNum: { type: Number },
-
+  receipt: { type: String },//receipt  *
+  receiptNum: { type: Number },
   
-  purchaseOrder: { type: String },
+  purchaseOrder: { type: String },//purchase order
   purchaseOrderNum: { type: Number },
 
-  salesOrder: { type: String },
+  salesOrder: { type: String },//sales order
   salesOrderNum: { type: Number },
 
-  vendorPayment: { type: String },
-  vendorPaymentNum: { type: Number },
+  payment: { type: String },//payment *
+  paymentNum: { type: Number },
 
-  retainerInvoice: { type: String },
-  retainerInvoiceNum: { type: Number },
+  bill: { type: String },//bill
+  billNum: { type: Number },
 
-  vendorCredits: { type: String },
-  vendorCreditsNum: { type: Number },
-  
-  billOfSupply: { type: String },
-  billOfSupplyNum: { type: Number },
-
-  debitNote: { type: String },
+  debitNote: { type: String },//debit note
   debitNoteNum: { type: Number },
 
-  invoice: { type: String },
+  invoice: { type: String },//invoice
   invoiceNum: { type: Number },
 
-  quote: { type: String },
+  quote: { type: String },//quote
   quoteNum: { type: Number },
 
-  deliveryChallan: { type: String },
+  deliveryChallan: { type: String },//delivery challan
   deliveryChallanNum: { type: Number },
+
+  expense: { type: String },//expense
+  expenseNum: { type: Number }, 
 
 });
 

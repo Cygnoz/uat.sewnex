@@ -195,7 +195,7 @@ exports.getLastPaymentMadePrefix = async (req, res) => {
       }
       
       const series = prefix.series[0];     
-      const lastPrefix = series.vendorPayment + series.vendorPaymentNum;
+      const lastPrefix = series.payment + series.paymentNum;
 
       lastPrefix.organizationId = undefined;
 
@@ -212,9 +212,9 @@ function vendorPaymentPrefix( cleanData, existingPrefix ) {
   if (!activeSeries) {
       return res.status(404).json({ message: "No active series found for the organization." });
   }
-  cleanData.payment = `${activeSeries.vendorPayment}${activeSeries.vendorPaymentNum}`;
+  cleanData.payment = `${activeSeries.payment}${activeSeries.paymentNum}`;
 
-  activeSeries.vendorPaymentNum += 1;
+  activeSeries.paymentNum += 1;
 
   existingPrefix.save()
 
@@ -348,7 +348,6 @@ function createNewPayment(data, openingDate, organizationId, userId, userName) {
   return newPayment.save(); // Save the payment to the database
 }
 
-
 //Validate Data
 function validatePaymentData( data, supplierExists, unpaidBills, paymentTable ) {
   const errors = [];
@@ -371,7 +370,6 @@ function validatePaymentData( data, supplierExists, unpaidBills, paymentTable ) 
 
   return errors;
 }
-
 
 // Field validation utility
 function validateField(condition, errorMsg, errors) {
@@ -415,10 +413,8 @@ function validatePaymentTable(unpaidBills, paymentTable, errors) {
     // Validate amountDue
     validateField( unpaidBill.amountDue !== fetchedBills.balanceAmount, `Amount Due for bill number ${unpaidBill.billNumber}: ${unpaidBill.amountDue}`, errors );
 
-
-  // Validate float fields
-  validateFloatFields(['amountDue', 'billAmount', 'payment'], unpaidBill, errors);
-
+    // Validate float fields
+    validateFloatFields(['amountDue', 'billAmount', 'payment'], unpaidBill, errors);
 
   });
 }

@@ -82,9 +82,7 @@ exports.addDebitNote = async (req, res) => {
     //Clean Data
     const cleanedData = cleanDebitNoteData(req.body);
 
-    const { items } = cleanedData;
-    const { supplierId } = cleanedData;
-    const { billId } = cleanedData;
+    const { supplierId, items, billId } = cleanedData;
     
     const itemIds = items.map(item => item.itemId);
     
@@ -139,6 +137,9 @@ exports.addDebitNote = async (req, res) => {
 
     //Item Track
     await itemTrack( savedDebitNote, itemTable );
+
+    // Update Purchase Bill
+    await updateBillWithDebitNote(billId, items);
       
     res.status(201).json({ message: "Debit Note created successfully",savedDebitNote });
     // console.log( "Debit Note created successfully:", savedDebitNote );
@@ -169,13 +170,12 @@ exports.getAllDebitNote = async (req, res) => {
       });
     }
 
-    // Map over all categories to remove the organizationId from each object
-    const AllDebitNote = allDebitNote.map((history) => {
-      const { organizationId, ...rest } = history.toObject(); // Convert to plain object and omit organizationId
-      return rest;
-  });
+    // Process each debit note using the helper function
+    const updatedDebitNotes = await Promise.all(
+      allDebitNote.map((debitNote) => calculateStock(debitNote))
+    );
 
-    res.status(200).json({allDebitNote: AllDebitNote});
+    res.status(200).json(updatedDebitNotes);
   } catch (error) {
     console.error("Error fetching Debit Note:", error);
     res.status(500).json({ message: "Internal server error." });
@@ -672,7 +672,7 @@ items.forEach((item) => {
   validateIntegerFields(['itemQuantity'], item, errors);
 
   // Validate Stock Count 
-  validateField( item.itemQuantity > fetchedItem.currentStock, `Insufficient Stock for ${item.itemName}: Requested quantity ${item.itemQuantity}, Available stock ${fetchedItem.currentStock}`, errors );
+  // validateField( item.itemQuantity > fetchedItem.currentStock, `Insufficient Stock for ${item.itemName}: Requested quantity ${item.itemQuantity}, Available stock ${fetchedItem.currentStock}`, errors );
 
   // Validate float fields
   validateFloatFields(['itemCostPrice', 'itemTotaltax', 'itemAmount'], item, errors);
@@ -693,25 +693,16 @@ function validateBillData(data, items, billExist, errors) {
   validateField( billExist.billDate !== data.billDate, `Bill Date mismatch for ${billExist.billDate}`, errors  );
   validateField( billExist.orderNumber !== data.orderNumber, `Order Number mismatch for ${billExist.orderNumber}`, errors  );
 
-  // Loop through each item in billExist.items
-  billExist.items.forEach(billItem => {
-    const dNItem = items.find(dataItem => dataItem.itemId === billItem.itemId);
+  // Validate only the items included in the debit note
+  items.forEach(dNItem => {
+    const billItem = billExist.items.find(dataItem => dataItem.itemId === dNItem.itemId);
 
-    if (!dNItem) {
-      errors.push(`Item ID ${billItem.itemId} not found in provided items`);
+    // console.log("billItem:",billItem);
+    // console.log("dNItem:",dNItem);
+
+    if (!billItem) {
+      errors.push(`Item ID ${dNItem.itemId} not found in provided bills.`);
     } else {
-      
-     // Convert quantities to numbers for comparison
-     const dNItemQuantity = Number(dNItem.itemQuantity);
-     const billItemQuantity = Number(billItem.itemQuantity);
-
-     // Check if the debit note item quantity exceeds the allowed quantity in the bill
-     if (dNItemQuantity > billItemQuantity) {
-       errors.push(
-         `Item Quantity for ${billItem.itemId} exceeds allowed quantity: Maximum ${billItemQuantity}, got ${dNItemQuantity}`
-       );
-     }
-      
       validateField(dNItem.itemName !== billItem.itemName, 
                     `Item Name mismatch for ${billItem.itemId}: Expected ${billItem.itemName}, got ${dNItem.itemName}`, 
                     errors);
@@ -727,9 +718,25 @@ function validateBillData(data, items, billExist, errors) {
       validateField(dNItem.itemIgst !== billItem.itemIgst, 
                     `Item IGST mismatch for ${billItem.itemId}: Expected ${billItem.itemIgst}, got ${dNItem.itemIgst}`, 
                     errors);
-      // validateField(dNItem.itemDiscount !== billItem.itemDiscount, 
-      //               `Item Discount mismatch for ${billItem.itemId}: Expected ${billItem.itemDiscount}, got ${dNItem.itemDiscount}`, 
-      //               errors);
+      if (!billItem.returnQuantity) {
+        validateField(dNItem.stock !== billItem.itemQuantity, 
+                    `Stock mismatch for ${billItem.itemId}: Expected ${billItem.itemQuantity}, got ${dNItem.stock}`, 
+                    errors);
+      } else {
+        const expectedReturnQuantity = billItem.itemQuantity - billItem.returnQuantity;
+        validateField(dNItem.stock !== expectedReturnQuantity, 
+                    `Stock mismatch for ${billItem.itemId}: Expected ${expectedReturnQuantity}, got ${dNItem.stock}`, 
+                    errors);
+      }
+      validateField(dNItem.itemQuantity > billItem.itemQuantity, 
+                    `Provided quantity (${dNItem.itemQuantity}) cannot exceed bill items quantity (${billItem.itemQuantity}).`, 
+                    errors);
+      validateField(dNItem.itemQuantity <= 0, 
+                    `Quantity must be greater than 0 for item ${dNItem.itemId}.`, 
+                    errors);
+      validateField(dNItem.itemQuantity > dNItem.stock, 
+                  `Provided quantity (${dNItem.itemQuantity}) cannot exceed stock available (${dNItem.stock}) for item ${dNItem.itemId}.`, 
+                  errors);
     }
   });
 }
@@ -887,6 +894,88 @@ async function itemTrack(savedDebitNote, itemTable) {
     // console.log("1",newTrialEntry);
   }
 }
+
+
+
+
+// Function to update bills with returnItem and debitNoteId
+const updateBillWithDebitNote = async (billId, items, debitNoteId) => {
+  try {
+    for (const item of items) {
+      await Bills.findOneAndUpdate(
+        { _id: billId, 'returnItem.itemId': item.itemId },
+        {
+          $inc: { 'items.$.returnQuantity': item.itemQuantity } // Increment quantity if item exists
+        }
+      );
+
+      // If the itemId was not found and updated, add a new entry
+      await Bills.findOneAndUpdate(
+        { _id: billId, 'items.itemId': { $ne: item.itemId } },
+        {
+          $push: {
+            items: {
+              returnQuantity: item.itemQuantity
+            }
+          }
+        }
+      );
+    }
+  } catch (error) {
+    console.error("Error updating Bills:", error);
+    throw new Error("Failed to update Bills with Debit Note details.");
+  }
+};
+
+
+
+// Helper function to calculate stock
+const calculateStock = async (debitNote) => {
+  try {
+    const { billId, items } = debitNote;
+
+    // Fetch corresponding bills
+    const bills = await Bills.findById(billId);  
+
+    if (bills) {
+      items.forEach((debitItem) => {
+        const purchaseItem = bills.items.find(
+          (item) => item.itemId.toString() === debitItem.itemId.toString()
+        );
+
+        if (purchaseItem) {
+          // Calculate stock based on itemQuantity and returnQuantity
+          debitItem.stock = Math.max(purchaseItem.itemQuantity - debitItem.returnQuantity, 0);
+        } else {
+          // If no matching item in bills, set stock to 0
+          debitItem.stock = 0;
+        }
+
+        // Ensure stock is never negative
+        if (debitItem.stock < 0) {
+          debitItem.stock = 0;
+        }
+      });
+    } else {
+      console.warn(`Bills with ID ${billId} not found.`);
+    }
+
+    // Update stock in the debitNote schema
+    await DebitNote.findByIdAndUpdate(
+      debitNote._id,
+      { items },
+      { new: true }
+    );
+
+    // Remove organizationId before returning
+    const { organizationId, ...rest } = debitNote.toObject();
+    return rest;
+} catch (error) {
+  console.error("Error in calculateStock:", error);
+  throw new Error("Failed to calculate stock for Credit Note.");
+}
+};
+
 
 
 

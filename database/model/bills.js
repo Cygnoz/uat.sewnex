@@ -6,6 +6,7 @@ const itemsSchema = new Schema({
   itemName: { type: String },
 
   itemQuantity: { type: Number },
+  returnQuantity: { type: Number },
   itemCostPrice: { type: Number },
 
   itemTax:{ type:Number },
@@ -28,6 +29,8 @@ const itemsSchema = new Schema({
 
 }, { _id: false });
 
+
+
 const PurchaseBillSchema = new Schema({
   organizationId: { type: String },
   supplierId: { type: String },
@@ -40,7 +43,8 @@ const PurchaseBillSchema = new Schema({
   //deliveryAddress: { type: String},  // customer/organization
   // customerId: { type: String},
 
-  billNumber: { type: String }, //type
+  supplierInvoiceNum: { type: String },
+  billNumber: { type: String }, //Prefix
 
   sourceOfSupply: { type: String },
   destinationOfSupply: { type: String },
@@ -95,9 +99,9 @@ const PurchaseBillSchema = new Schema({
 
   paidStatus: { type: String },
   
-  createdDate: { type: String },
+  purchaseOrderId:{ type: String },
 
-  purchaseOrderId:{ type: String }
+  createdDate: { type: String },
 
 });
 
