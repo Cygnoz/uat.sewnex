@@ -6,6 +6,7 @@ const { Schema } = mongoose;
 
 const transactionSchema = new Schema({
     accountId: { type: String },
+    accountName: { type: String },
     creditAmount: { type: Number },
     debitAmount: { type: Number },
     description: { type: String },

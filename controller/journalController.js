@@ -8,6 +8,7 @@ const TrialBalance = require("../database/model/trialBalance");
 const moment = require('moment-timezone');
 
 const { singleCustomDateTime, multiCustomDateTime } = require("../services/timeConverter");
+const { singleAccountName, multiAccountName } = require("../services/accountName");
 const { cleanData } = require("../services/cleanData");
 
 
@@ -19,8 +20,8 @@ exports.addJournalEntry = async (req, res) => {
         const { organizationId, id: userId, userName } = req.user;
 
         //Clean Data
-        const cleanedData = cleanCustomerData(req.body);
-        cleanedData.transaction = cleanedData.transaction?.map(acc => cleanCustomerData(acc)) || [];
+        const cleanedData = cleanData(req.body);
+        cleanedData.transaction = cleanedData.transaction?.map(acc => cleanData(acc)) || [];
 
         const { transaction } = cleanedData;
 
@@ -170,6 +171,9 @@ exports.getOneJournal = async (req, res) => {
             });
         }
 
+        const data = await multiAccountName(journal.transaction, organizationId);
+        journal.transaction = data;        
+
         res.status(200).json(journal);
     } catch (error) {
         console.error("Error fetching journal:", error);
@@ -211,32 +215,7 @@ exports.getLastJournalPrefix = async (req, res) => {
 
 
 
-// Function to generate time and date for storing in the database
-function generateTimeAndDateForDB(timeZone, dateFormat, dateSplit, baseTime = new Date(), timeFormat = 'HH:mm:ss', timeSplit = ':') {
-    // Convert the base time to the desired time zone
-    const localDate = moment.tz(baseTime, timeZone);
-  
-    // Format date and time according to the specified formats
-    let formattedDate = localDate.format(dateFormat);
-    
-    // Handle date split if specified
-    if (dateSplit) {
-      // Replace default split characters with specified split characters
-      formattedDate = formattedDate.replace(/[-/]/g, dateSplit); // Adjust regex based on your date format separators
-    }
-  
-    const formattedTime = localDate.format(timeFormat);
-    const timeZoneName = localDate.format('z'); // Get time zone abbreviation
-  
-    // Combine the formatted date and time with the split characters and time zone
-    const dateTime = `${formattedDate} ${formattedTime.split(':').join(timeSplit)} (${timeZoneName})`;
-  
-    return {
-      date: formattedDate,
-      time: `${formattedTime} (${timeZoneName})`,
-      dateTime: dateTime
-    };
-  }
+
   
 
 
@@ -248,14 +227,7 @@ function generateTimeAndDateForDB(timeZone, dateFormat, dateSplit, baseTime = ne
 
 
 
-  //Clean Data 
-function cleanCustomerData(data) {
-    const cleanData = (value) => (value === null || value === undefined || value === "" ? undefined : value);
-    return Object.keys(data).reduce((acc, key) => {
-      acc[key] = cleanData(data[key]);
-      return acc;
-    }, {});
-  }
+
 
 
 

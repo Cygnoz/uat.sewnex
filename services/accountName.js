@@ -38,18 +38,20 @@ async function multiAccountName(dataArray, organizationId) {
         throw new Error("Each object must have an accountId property.");
       }
 
-      const account = await Accounts.findOne({ _id: data.accountId, organizationId });
+      const account = await Accounts.findOne({ _id: data.accountId, organizationId },{ accountName: 1 });
 
       if (!account) {
         throw new Error(`No account found for accountId: ${data.accountId} and organizationId: ${organizationId}`);
       }
-
+        
       return {
         ...data,
-        accountName: account.accountName
+        accountName: account.accountName,
       };
     })
   );
+
+  console.log("result",results);  
 
   return results;
 }
