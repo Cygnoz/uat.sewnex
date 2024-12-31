@@ -365,7 +365,7 @@ function taxtype( cleanedData, customerExist, organizationExists ) {
       cleanedData.taxType ='VAT';
     }
   } else {
-    if(customerExist.taxPreference === 'Non-Taxable' ){
+    if(cleanedData.taxPreference === 'Non-Taxable' ){
       cleanedData.taxType ='Non-Taxable';
     } 
   }
