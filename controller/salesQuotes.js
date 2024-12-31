@@ -729,12 +729,18 @@ function calculateSalesOrder(cleanedData, res) {
   console.log(`Final Total Amount: ${roundedTotalAmount} , Provided ${cleanedData.totalAmount}` );
   console.log(`Final Total Discount Amount: ${roundedTotalDiscount} , Provided ${cleanedData.totalDiscount}` );
 
-  validateAmount(roundedSubTotal, cleanedData.subTotal, 'SubTotal', errors);
-  validateAmount(roundedTotalTax, cleanedData.totalTax, 'Total Tax', errors);
-  validateAmount(roundedTotalAmount, cleanedData.totalAmount, 'Total Amount', errors);
-  validateAmount(roundedTotalDiscount, cleanedData.totalDiscount, 'Total Discount Amount', errors);
-  validateAmount(totalItemCount, cleanedData.totalItem, 'Total Item count', errors);
-
+  if (cleanedData.taxPreference === 'Non-Taxable') {
+    validateAmount(roundedSubTotal, cleanedData.subTotal, 'SubTotal', errors);
+    validateAmount(roundedTotalAmount, cleanedData.totalAmount, 'Total Amount', errors);
+    validateAmount(totalItemCount, cleanedData.totalItem, 'Total Item count', errors);
+  } else {
+    validateAmount(roundedSubTotal, cleanedData.subTotal, 'SubTotal', errors);
+    validateAmount(roundedTotalTax, cleanedData.totalTax, 'Total Tax', errors);
+    validateAmount(roundedTotalAmount, cleanedData.totalAmount, 'Total Amount', errors);
+    validateAmount(roundedTotalDiscount, cleanedData.totalDiscount, 'Total Discount Amount', errors);
+    validateAmount(totalItemCount, cleanedData.totalItem, 'Total Item count', errors);
+  }
+  
   if (errors.length > 0) {
     res.status(400).json({ message: errors.join(", ") });
     return false;
