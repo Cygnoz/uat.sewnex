@@ -100,13 +100,9 @@ exports.addPayment = async (req, res) => {
     // Create and save new payment
     const payment = await createNewPayment(updatedData , openingDate, organizationId, userId, userName);
 
-    updatedBills.organizationId = undefined;
-    payment.organizationId = undefined;
-
     //Response with the updated bills and the success message
     return res.status(200).json({
       message: 'Payment added successfully',  payment , updatedBills,
-
     });
 
   } catch (error) {
@@ -232,10 +228,19 @@ function vendorPaymentPrefix( cleanData, existingPrefix ) {
   //Clean Data 
 function cleanSupplierData(data) {
     const cleanData = (value) => (value === null || value === undefined || value === "" ? undefined : value);
-    return Object.keys(data).reduce((acc, key) => {
+    const cleanedData = Object.keys(data).reduce((acc, key) => {
       acc[key] = cleanData(data[key]);
       return acc;
     }, {});
+
+    // Filter unpaidBills where payment is greater than 0
+    if (Array.isArray(cleanedData.unpaidBills)) {
+      cleanedData.unpaidBills = cleanedData.unpaidBills.filter(bill => {
+          return bill.payment && bill.payment > 0;
+      });
+    }
+
+  return cleanedData;
 }
 
 
