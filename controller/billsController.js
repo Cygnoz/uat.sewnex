@@ -108,6 +108,8 @@ exports.addBills = async (req, res) => {
       cleanedData.items = cleanedData.items?.map(person => cleanBillsData(person)) || [];
       // console.log("cleanedData",cleanedData);
 
+      
+
   
       const { items, supplierId, purchaseOrderId } = cleanedData;
       const { supplierDisplayName, otherExpenseAccountId, freightAccountId, paidAccountId } = cleanedData;
@@ -175,7 +177,7 @@ exports.addBills = async (req, res) => {
       const openingDate = generateOpeningDate(organizationExists);
   
       //Tax Type
-      taxtype(cleanedData, supplierExist );
+      taxType(cleanedData, supplierExist );
 
       //Default Account
       const { defAcc, error } = await defaultAccounting( cleanedData, defaultAccount, organizationExists );
@@ -425,10 +427,10 @@ async function defaultAccounting( data, defaultAccount, organizationExists ) {
   if (!defaultAccount.purchaseAccount && typeof data.totalAmount !== 'undefined') errorMessage += "Sales Account not found. ";
   if (!defaultAccount.purchaseDiscountAccount && (typeof data.totalDiscount !== 'undefined' || data.totalDiscount !== 0 )) errorMessage += "Discount Account not found. ";
  
-  if (!defaultAccount.inputCgst && typeof data.cgst !== 'undefined') errorMessage += "CGST Account not found. ";
-  if (!defaultAccount.inputSgst && typeof data.sgst !== 'undefined') errorMessage += "SGST Account not found. ";
-  if (!defaultAccount.inputIgst && typeof data.igst !== 'undefined') errorMessage += "IGST Account not found. ";
-  if (!defaultAccount.inputVat && typeof data.vat !== 'undefined') errorMessage += "VAT Account not found. ";
+  if (!defaultAccount.inputCgst && ( typeof data.cgst !== 'undefined' && data.cgst !== 0 )) errorMessage += "CGST Account not found. ";
+  if (!defaultAccount.inputSgst && ( typeof data.sgst !== 'undefined' && data.sgst !== 0 )) errorMessage += "SGST Account not found. ";
+  if (!defaultAccount.inputIgst && ( typeof data.igst !== 'undefined' && data.igst !== 0 )) errorMessage += "IGST Account not found. ";
+  if (!defaultAccount.inputVat && ( typeof data.vat !== 'undefined' && data.vat !== 0 )) errorMessage += "VAT Account not found. ";
    
   if (!otherExpenseAcc && typeof data.otherExpenseAmount !== 'undefined') errorMessage += "Other Expense Account not found. ";
   if (!freightAcc && typeof data.freightAmount !== 'undefined') errorMessage += "Freight Account not found. ";
@@ -444,7 +446,7 @@ async function defaultAccounting( data, defaultAccount, organizationExists ) {
   defaultAccount.purchaseAccountName = purchaseAccountName?.accountName;
   defaultAccount.purchaseDiscountAccountName = purchaseDiscountAccountName?.accountName;
 
-  if (data.taxtype !== 'VAT') {
+  if (data.taxType !== 'VAT') {
     defaultAccount.inputCgstName = inputCgstName?.accountName;
     defaultAccount.inputSgstName = inputSgstName?.accountName;
     defaultAccount.inputIgstName = inputIgstName?.accountName;
@@ -590,7 +592,7 @@ function billsPrefix( cleanData, existingPrefix ) {
   
   
   // Tax Type
-  function taxtype( cleanedData, supplierExist ) {
+  function taxType( cleanedData, supplierExist ) {
     if(supplierExist.taxType === 'GST' ){
       if(cleanedData.sourceOfSupply === cleanedData.destinationOfSupply){
         cleanedData.taxMode ='Intra';
@@ -920,8 +922,8 @@ function validateInputs( data, supplierExist, purchaseOrderExist, items, itemExi
   //Valid Req Fields
   function validateReqFields( data, supplierExist, defaultAccount, errors ) {
   validateField( typeof data.supplierId === 'undefined' || typeof data.supplierDisplayName === 'undefined', "Please select a Supplier", errors  );
-  validateField( supplierExist.taxtype == 'GST' && typeof data.sourceOfSupply === 'undefined', "Source of supply required", errors  );
-  validateField( supplierExist.taxtype == 'GST' && typeof data.destinationOfSupply === 'undefined', "Destination of supply required", errors  );
+  validateField( supplierExist.taxType == 'GST' && typeof data.sourceOfSupply === 'undefined', "Source of supply required", errors  );
+  validateField( supplierExist.taxType == 'GST' && typeof data.destinationOfSupply === 'undefined', "Destination of supply required", errors  );
   
   validateField( typeof data.items === 'undefined', "Select an item", errors  );
   validateField( typeof data.supplierInvoiceNum === 'undefined', "Select an supplier invoice number", errors  );
