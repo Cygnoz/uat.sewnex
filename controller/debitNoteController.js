@@ -629,7 +629,7 @@ validateField( typeof data.supplierId === 'undefined' || typeof data.supplierDis
 validateField( supplierExist.taxtype == 'GST' && typeof data.sourceOfSupply === 'undefined', "Source of supply required", errors  );
 validateField( supplierExist.taxtype == 'GST' && typeof data.destinationOfSupply === 'undefined', "Destination of supply required", errors  );
 validateField( typeof data.items === 'undefined', "Select an item", errors  );
-validateField( typeof data.billNumber === 'undefined', "Select an bill number", errors  );
+// validateField( typeof data.billNumber === 'undefined', "Select an bill number", errors  );
 validateField( typeof data.billType === 'undefined', "Select an bill type", errors  );
 }
 
@@ -898,12 +898,12 @@ async function itemTrack(savedDebitNote, itemTable) {
 
 
 
-// Function to update bills with returnItem and debitNoteId
-const updateBillWithDebitNote = async (billId, items, debitNoteId) => {
+// Function to update bills with returnItem
+const updateBillWithDebitNote = async (billId, items) => {
   try {
     for (const item of items) {
       await Bills.findOneAndUpdate(
-        { _id: billId, 'returnItem.itemId': item.itemId },
+        { _id: billId, 'items.itemId': item.itemId },
         {
           $inc: { 'items.$.returnQuantity': item.itemQuantity } // Increment quantity if item exists
         }
