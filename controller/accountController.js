@@ -325,7 +325,7 @@ const validStructure = {
 };
 
 
-//Encrpytion 
+//encryption 
 function encrypt(text) {
   try {
       const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
@@ -342,7 +342,7 @@ function encrypt(text) {
 }
 
 
-//Decrpytion
+//decryption
 function decrypt(encryptedText) {
   try {
       // Split the encrypted text to get the IV, encrypted data, and authentication tag
