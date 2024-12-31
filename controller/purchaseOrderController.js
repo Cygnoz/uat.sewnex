@@ -137,13 +137,16 @@ exports.addPurchaseOrder = async (req, res) => {
   
  // Get One Purchase Order
  exports.getOnePurchaseOrder = async (req, res) => {
+  
     try {
       const organizationId = req.user.organizationId;
-      const {orderId} = cleanPurchaseOrderData(req.params.orderId);      
-      
+      const {orderId} = cleanPurchaseOrderData(req.params);      
+      console.log("orderId",orderId);
+
       if(orderId){
     
       const { organizationExists, purchaseOrder } = await purchaseOrderDataExist(organizationId, orderId);
+    console.log("purchaseOrder...:",purchaseOrder);
     
       if (!organizationExists) {
         return res.status(404).json({
@@ -181,6 +184,9 @@ exports.addPurchaseOrder = async (req, res) => {
         ...purchaseOrder.toObject(),
         items: updatedItems,
       };
+
+      console.log("updatedPurchaseOrder...:",updatedPurchaseOrder);
+
 
       updatedPurchaseOrder.organizationId = undefined;
 
