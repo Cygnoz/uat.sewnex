@@ -4,21 +4,25 @@ const ItemTrack = require("../database/model/itemTrack");
 const Settings = require("../database/model/settings");
 const BMCR = require("../database/model/bmcr");
 const Tax = require("../database/model/tax");
-const moment = require('moment-timezone');
-const mongoose = require('mongoose');
+const Account = require("../database/model/account")
+
+
+const { cleanData } = require("../services/cleanData");
 
 
 
 
 // Fetch existing data
-const dataExist = async (organizationId) => {
-  const [organizationExists, taxExists, allItem, settingsExist] = await Promise.all([
+const dataExist = async ( organizationId, salesAccountId = null , purchaseAccountId = null ) => {  
+  const [ organizationExists, taxExists, allItem, settingsExist, salesAccount, purchaseAccount ] = await Promise.all([
     Organization.findOne({ organizationId }),
     Tax.findOne({ organizationId }),
     Item.find({ organizationId }),
-    Settings.findOne({ organizationId })
+    Settings.findOne({ organizationId }),
+    Account.findOne({ organizationId , _id : salesAccountId}),
+    Account.findOne({ organizationId , _id : purchaseAccountId}),
   ]);
-  return { organizationExists, taxExists, allItem, settingsExist };
+  return { organizationExists, taxExists, allItem, settingsExist,  salesAccount, purchaseAccount };
 };
 
 const dataExists = async (organizationId) => {
@@ -138,17 +142,18 @@ exports.addItem = async (req, res) => {
     try {
      const organizationId = req.user.organizationId;
 
-      const cleanedData = cleanCustomerData(req.body);
+      const cleanedData = cleanData(req.body);      
+      
+      const { salesAccountId, purchaseAccountId, itemName, sku, openingStock, taxRate } = cleanedData;
 
       //Data Exist Validation
-      const { organizationExists, taxExists, settingsExist } = await dataExist(organizationId);
+      const { organizationExists, taxExists, settingsExist,  salesAccount, purchaseAccount } = await dataExist( organizationId, salesAccountId, purchaseAccountId );
       const { brandExist, manufacturerExist, categoriesExist, rackExist } = await bmcrDataExist(organizationId);
       const bmcr = { brandExist, manufacturerExist, categoriesExist, rackExist };
       
 
       if (!validateOrganizationTaxCurrency(organizationExists, taxExists, settingsExist, res)) return;     
 
-      const { itemName, sku, openingStock, taxRate } = cleanedData;
 
        // Check for duplicate item name
        if (!settingsExist.itemDuplicateName && await isDuplicateItemName(itemName, organizationId, res)) return;
@@ -158,34 +163,32 @@ exports.addItem = async (req, res) => {
 
 
       //Validate Inputs  
-      if (!validateInputs(cleanedData, taxExists, organizationId, bmcr, res)) return;
+      if (!validateInputs(cleanedData, taxExists, organizationId, bmcr, salesAccount, purchaseAccount, res)) return;
 
-      const generatedDateTime = generateTimeAndDateForDB(organizationExists.timeZoneExp, organizationExists.dateFormatExp, organizationExists.dateSplit);
-      const createdDate = generatedDateTime.dateTime
 
       let igst, cgst, sgst, vat; 
 
-    if (taxExists.taxType === 'GST') {
-      taxExists.gstTaxRate.forEach((tax) => {
-        if (tax.taxName === taxRate) {
-          igst = tax.igst;
-          cgst = tax.cgst; 
-          sgst = tax.sgst;           
+        if (taxExists.taxType === 'GST') {
+          taxExists.gstTaxRate.forEach((tax) => {
+            if (tax.taxName === taxRate) {
+              igst = tax.igst;
+              cgst = tax.cgst; 
+              sgst = tax.sgst;           
+            }
+          });
         }
-      });
-    }
-  
-    // Check if taxType is VAT
-    if (taxExists.taxType === 'VAT') {
-      taxExists.vatTaxRate.forEach((tax) => {
-        if (tax.taxName === taxRate) {
-          vat = tax.vat; 
+      
+        // Check if taxType is VAT
+        if (taxExists.taxType === 'VAT') {
+          taxExists.vatTaxRate.forEach((tax) => {
+            if (tax.taxName === taxRate) {
+              vat = tax.vat; 
+            }
+          });
         }
-      });
-    }
   
      
-      const newItem = new Item({ ...cleanedData, organizationId, igst:igst, cgst, sgst, vat, createdDate });
+      const newItem = new Item({ ...cleanedData, organizationId, igst:igst, cgst, sgst, vat });
 
       const savedItem = await newItem.save();
 
@@ -194,9 +197,7 @@ exports.addItem = async (req, res) => {
           organizationId,
           operationId: savedItem._id,
           action: "Opening Stock", 
-          date: createdDate,
           itemId: savedItem._id,
-          itemName,
           sellingPrice:savedItem.sellingPrice,
           costPrice:savedItem.costPrice,
           debitQuantity: openingStock || 0 ,
@@ -310,6 +311,7 @@ exports.getAllItemM = async (req, res) => {
   }
 };
 
+
 // Get one item
 exports.getAItem = async (req, res) => {
     const itemId = req.params;
@@ -337,14 +339,15 @@ exports.getAItem = async (req, res) => {
   }
 };
 
+
 // Update Item
 exports.updateItem = async (req, res) => {
-  console.log("Received request to update item:", req.body);
- 
+  console.log("Edit item:", req.body); 
   try {    
     const organizationId = req.user.organizationId;
     const { itemId } = req.params;
-    const cleanedData = cleanCustomerData(req.body);
+    const cleanedData = cleanData(req.body);
+    const { salesAccountId, purchaseAccountId, itemName, sku, taxRate, openingStock } = cleanedData;
 
     const existingItem = await Item.findById(itemId);
       if (!existingItem) {
@@ -354,7 +357,7 @@ exports.updateItem = async (req, res) => {
 
 
     //Data Exist Validation
-    const { organizationExists, taxExists, settingsExist } = await dataExist(organizationId);
+    const { organizationExists, taxExists, settingsExist, salesAccount, purchaseAccount } = await dataExist( organizationId, salesAccountId, purchaseAccountId );
     const { brandExist, manufacturerExist, categoriesExist, rackExist } = await bmcrDataExist(organizationId);
     const bmcr = { brandExist, manufacturerExist, categoriesExist, rackExist };
     const { itemTrackAll  } = await itemDataExist( organizationId, itemId );
@@ -362,7 +365,6 @@ exports.updateItem = async (req, res) => {
     
     if (!validateOrganizationTaxCurrency(organizationExists, taxExists, settingsExist, itemId, res)) return;     
     
-    const { itemName, sku, taxRate, openingStock } = cleanedData;
 
     // Check for duplicate item name
     if (!settingsExist.itemDuplicateName && await isDuplicateItemNameExist( itemName, organizationId, itemId, res )) return;
@@ -371,10 +373,8 @@ exports.updateItem = async (req, res) => {
     if (cleanedData.sku !== undefined && await isDuplicateSKUExist( sku, organizationId, itemId, res )) return;
 
    //Validate Inputs  
-   if (!validateInputs(cleanedData, taxExists, organizationId, bmcr, res)) return;
+   if (!validateInputs(cleanedData, taxExists, organizationId, bmcr,  salesAccount, purchaseAccount, res)) return;
 
-   const generatedDateTime = generateTimeAndDateForDB(organizationExists.timeZoneExp, organizationExists.dateFormatExp, organizationExists.dateSplit);
-   cleanedData.lastModifiedDate = generatedDateTime.dateTime;
 
     if (taxExists.taxType === 'GST') {
       taxExists.gstTaxRate.forEach((tax) => {
@@ -563,14 +563,7 @@ const isDuplicateSKUExist = async (sku, organizationId, itemId, res) => {
 };
 
 
-//Clean Data 
-function cleanCustomerData(data) {
-    const cleanData = (value) => (value === null || value === undefined || value === "" ? undefined : value);
-    return Object.keys(data).reduce((acc, key) => {
-      acc[key] = cleanData(data[key]);
-      return acc;
-    }, {});
-  }
+
 
 // Validate Organization Tax Currency
 function validateOrganizationTaxCurrency(organizationExists, taxExists, allItem, settingsExist, res) {
@@ -599,42 +592,14 @@ function validateOrganizationTaxCurrency(organizationExists, taxExists, allItem,
 
 
 
-// Function to generate time and date for storing in the database
-function generateTimeAndDateForDB(timeZone, dateFormat, dateSplit, baseTime = new Date(), timeFormat = 'HH:mm:ss', timeSplit = ':') {
-  // Convert the base time to the desired time zone
-  const localDate = moment.tz(baseTime, timeZone);
-
-  // Format date and time according to the specified formats
-  let formattedDate = localDate.format(dateFormat);
-  
-  // Handle date split if specified
-  if (dateSplit) {
-    // Replace default split characters with specified split characters
-    formattedDate = formattedDate.replace(/[-/]/g, dateSplit); // Adjust regex based on your date format separators
-  }
-
-  const formattedTime = localDate.format(timeFormat);
-  const timeZoneName = localDate.format('z'); // Get time zone abbreviation
-
-  // Combine the formatted date and time with the split characters and time zone
-  const dateTime = `${formattedDate} ${formattedTime.split(':').join(timeSplit)} (${timeZoneName})`;
-
-  return {
-    date: formattedDate,
-    time: `${formattedTime} (${timeZoneName})`,
-    dateTime: dateTime
-  };
-}
-
-
 
 
 const validItemTypes = [ "goods", "service" ];
 const validTaxPreference = [ "Non-taxable", "Taxable" ]; 
 
 //Validate inputs
-function validateInputs(data, taxExists, organizationId, bmcr, res) {
-   const validationErrors = validateItemData( data, taxExists, organizationId, bmcr );
+function validateInputs(data, taxExists, organizationId, bmcr,  salesAccount, purchaseAccount, res) {
+   const validationErrors = validateItemData( data, taxExists, organizationId, bmcr,  salesAccount, purchaseAccount );
 
   if (validationErrors.length > 0) {
     res.status(400).json({ message: validationErrors.join(", ") });
@@ -646,16 +611,17 @@ function validateInputs(data, taxExists, organizationId, bmcr, res) {
 
 
 //Validate Data
-function validateItemData( data, taxExists, organizationId, bmcr ) {  
+function validateItemData( data, taxExists, organizationId, bmcr,  salesAccount, purchaseAccount ) {  
   
   const errors = [];
 
   //Basic Info
 
   //OtherDetails
+  validateReqFields( data, errors );
+  validateAccountStructure( data, salesAccount, purchaseAccount, errors);
   validateItemType(data.itemType, errors);
   validateTaxPreference(data.taxPreference, errors);
-  validateReqFields( data, errors);
   validateBMCRFields( data.brand, data.manufacturer, data.categories, data.rack, bmcr, errors);
 
 
@@ -694,25 +660,27 @@ function validateTaxPreference(taxPreference, errors) {
 
 //Valid Req Fields
 function validateReqFields( data, errors ) {
-  if (typeof data.itemName === 'undefined' ) {
-    errors.push("Item Name required");
+  validateField(typeof data.itemName === 'undefined',"Item Name required", errors);
+  
+  validateField(typeof data.taxPreference === 'undefined',"Tax Preference required", errors);
+  validateField(data.taxPreference ==='Taxable' && typeof data.taxRate === 'undefined',"Tax Rate required", errors);
+  validateField(data.taxPreference ==='Non-taxable' && typeof data.taxExemptReason === 'undefined',"Tax Exemption Reason required", errors);
+  validateField(data.taxPreference ==='Non-taxable' && typeof data.taxRate !== 'undefined',"Invalid Tax Preference", errors);
+  
+  validateField(typeof data.sellingPrice !== 'undefined' && typeof data.salesAccountId === 'undefined',"Sales Account required", errors);
+  validateField(typeof data.costPrice !== 'undefined' && typeof data.purchaseAccountId === 'undefined',"Purchase Account required", errors);
+}
+
+// Validation function for account structure
+function validateAccountStructure( data, salesAccount, purchaseAccount, errors ) {
+  if(data.salesAccountId) {
+    validateField( salesAccount.accountGroup !== "Asset" || salesAccount.accountHead !== "Income" || salesAccount.accountSubhead !== "Income" , "Invalid Sales Account.", errors);
   }
-  if (typeof data.sellingPrice === 'undefined' ) {
-  errors.push(" Selling Price required");
-  }  
-  if (typeof data.taxPreference === 'undefined' ) {
-  errors.push("Tax Preference required");
-  }
-  if (data.taxPreference ==='Taxable' && typeof data.taxRate === 'undefined' ) {
-  errors.push("Tax Rate required");
-  }
-  if (data.taxPreference ==='Non-taxable' && typeof data.taxExemptReason === 'undefined' ) {
-    errors.push("Tax Exemption Reason required");
-  }
-  if (data.taxPreference ==='Non-taxable' && typeof data.taxRate !== 'undefined' ) {
-    errors.push("Invalid Tax Preference");
+  if(data.purchaseAccountId) {
+    validateField( purchaseAccount.accountGroup !== "Liability" || purchaseAccount.accountHead !== "Expenses" ||  (purchaseAccount.accountSubhead !== "Expense" && purchaseAccount.accountSubhead !== "Cost of Goods Sold") , "Invalid Purchase Account.", errors);
   }
 }
+
 
 //Valid BMCR field
 function validateBMCRFields(brand, manufacturer, categories, rack, bmcr, errors) {
@@ -772,7 +740,6 @@ function validateAlphabetsFields(fields, data, errors) {
 //Validate Tax Type
 function validateTaxType( taxRate, taxPreference, taxExists, errors ) {
   const taxType = taxExists.taxType;
-  console.log("tax now :", taxExists.taxType);
   let taxFound = false;
 
 

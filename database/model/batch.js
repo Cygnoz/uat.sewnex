@@ -4,18 +4,18 @@ const mongoose = require("mongoose");
 const { Schema } = mongoose;
 
 
-const itemTrackSchema = new Schema({
+const batchSchema = new Schema({
     organizationId: {type:String},
     operationId: {type:String},
     transactionId: {type:String}, //Prefix
     action: {type:String}, //Sale, Sale return, Purchase, Purchase Return,Opening Stock, Inventory Adjustment
  
+    batchNumber: {type:String},
     itemId: {type:String},
-    sellingPrice:{ type:Number },
-    costPrice: { type: Number },
-
-    creditQuantity: {type:Number},
-    debitQuantity: {type:Number},
+    manufacturingDate: { type: Date, default: () => new Date() },
+    expiryDate: { type: Date, default: undefined },
+    quantity: {type:Number},
+    location: {type:String},
     
     currentStock: {type:Number},
     
@@ -25,6 +25,6 @@ const itemTrackSchema = new Schema({
 
 }); 
 // , { timestamps: true }
-const ItemTrack = mongoose.model("ItemTrack", itemTrackSchema);
+const Batch = mongoose.model("Batch", batchSchema);
 
-module.exports = ItemTrack;
+module.exports = Batch;
