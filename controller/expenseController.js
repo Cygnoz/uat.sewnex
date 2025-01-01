@@ -73,7 +73,7 @@ exports.addExpense = async (req, res) => {
       if (!calculateExpense( cleanedData, res )) return;
 
       //Prefix
-      await expensePrefix(cleanedData, existingPrefix );
+      // await expensePrefix(cleanedData, existingPrefix );
 
       // Create a new expense
       const savedExpense = await createNewExpense(cleanedData, organizationId, openingDate, userId, userName);
