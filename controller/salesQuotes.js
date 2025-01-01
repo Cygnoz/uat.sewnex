@@ -350,27 +350,25 @@ function salesPrefix( cleanData, existingPrefix ) {
   return 
 }
 
+
+
 // Tax Type
 function taxtype( cleanedData, customerExist, organizationExists ) {
-  cleanedData.items.forEach(item => {
-    if (cleanedData.taxPreference === 'Taxable' && item.taxPreference === 'Taxable') {
-      if(customerExist.taxType === 'GST' ){
+    if (cleanedData.taxPreference === 'Taxable') {
+      if(customerExist.taxType === 'GST'){
         if(cleanedData.placeOfSupply === organizationExists.state){
-          cleanedData.taxType ='Intra';
+          cleanedData.taxType = 'Intra';
         }
-        else{
-          cleanedData.taxType ='Inter';
-        }
-      }
-      if(customerExist.taxType === 'VAT' ){
+        else {
+          cleanedData.taxType = 'Inter';
+        } 
+      } 
+      if(customerExist.taxType === 'VAT'){
         cleanedData.taxType ='VAT';
       }
     } else {
-      if(cleanedData.taxPreference === 'Non-Taxable' && item.taxPreference === 'Taxable' ){
-        cleanedData.taxType ='Non-Taxable';
-      } 
+      cleanedData.taxType ='Non-Taxable';
     }
-  });
   return  
 }
 
@@ -619,13 +617,9 @@ function isValidEmail(value) {
 
 
 
-
-
-
-
 function calculateSalesOrder(cleanedData, res) {
 
-  console.log(cleanedData);
+  // console.log(cleanedData);
   
   const errors = [];
   let totalAmount = 0;
