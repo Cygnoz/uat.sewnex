@@ -198,7 +198,7 @@ exports.addBills = async (req, res) => {
   
       const savedBills = await createNewBills(cleanedData, organizationId, openingDate, userId, userName );
   
-      //Jornal      
+      //Journal      
       await journal( savedBills, defAcc, supplierAccount );
 
       //Item Track
@@ -990,12 +990,12 @@ function validateInputs( data, supplierExist, purchaseOrderExist, items, itemExi
     validateIntegerFields(['itemQuantity'], item, errors);
   
     // Validate float fields
-    validateFloatFields(['itemCostPrice', 'itemTotaltax', 'itemAmount'], item, errors);
+    validateFloatFields(['itemCostPrice', 'itemTotalTax', 'itemAmount'], item, errors);
   });
   }
   
   
-  // valiadate purchase order data
+  // validate purchase order data
   function validatePurchaseOrderData(data, purchaseOrderExist, items, errors) {  
     // console.log("data:", data);
     // console.log("purchaseOrderExist:", purchaseOrderExist);
@@ -1237,7 +1237,7 @@ function validateSourceOfSupply(sourceOfSupply, organization, errors) {
       "Himachal Pradesh",
       "Jammu and Kashmir",
       "Jharkhand",
-      "Karnataka",
+      "Kanazawa",
       "Kerala",
       "Ladakh",
       "Lakshadweep",
