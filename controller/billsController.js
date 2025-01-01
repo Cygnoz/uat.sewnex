@@ -190,11 +190,7 @@ exports.addBills = async (req, res) => {
       if (!calculateBills( cleanedData, itemTable, res )) return;      
 
       //Prefix
-      await billsPrefix(cleanedData, existingPrefix );
-
-      if(cleanedData._id){
-        cleanedData._id = undefined;
-      }
+      // await billsPrefix(cleanedData, existingPrefix );
   
       const savedBills = await createNewBills(cleanedData, organizationId, openingDate, userId, userName );
   
