@@ -8,6 +8,7 @@ const Account = require("../database/model/account")
 
 
 const { cleanData } = require("../services/cleanData");
+const Supplier = require("../database/model/supplier");
 
 
 
@@ -27,7 +28,7 @@ const dataExist = async ( organizationId, salesAccountId = null , purchaseAccoun
 
 const dataExists = async (organizationId) => {
   const [newItems] = await Promise.all([
-    Item.find({ organizationId}, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1, organizationId: 0 }),
+    Item.find({ organizationId }, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1, organizationId: 0 }),
   ]);
   return { newItems};
 };
@@ -296,7 +297,7 @@ exports.getAllItemM = async (req, res) => {
 
     const { enrichedItems  } = await mItemDataExists(organizationId);
 
-    if (enrichedItems .length > 0) {
+    if (enrichedItems.length > 0) {
       const allItems = enrichedItems.map((item) => {
         const { organizationId, ...rest } = item; 
         return rest;
@@ -314,29 +315,43 @@ exports.getAllItemM = async (req, res) => {
 
 // Get one item
 exports.getAItem = async (req, res) => {
-    const itemId = req.params;
+    const { itemId } = req.params;
     const organizationId = req.user.organizationId;
 
-    // Check if an Organization already exists
-    const existingOrganization = await Organization.findOne({ organizationId });
- 
-    if (!existingOrganization) {
-      return res.status(404).json({
-        message: "No Organization Found.",
-      });
-    }
+    try {
+      // Check if an Organization already exists
+      const existingOrganization = await Organization.findOne({ organizationId });
 
-  try {
-    const singleItem = await Item.findById(itemId);
-    if (singleItem) {
+      if (!existingOrganization) {
+          return res.status(404).json({
+              message: "No Organization Found."
+          });
+      }
+
+      // Fetch item
+      const singleItem = await Item.findById(itemId).lean();
+
+      if (!singleItem) {
+          return res.status(404).json({ message: "Item not found." });
+      }
+
+      // Fetch specific supplier details based on preferredVendorId
+      if (singleItem.preferredVendorId) {
+          const supplierData = await Supplier.findById(
+              singleItem.preferredVendorId,
+              'supplierDisplayName workPhone mobile billingAttention billingCountry billingAddressStreet1 billingAddressStreet2 billingCity billingState billingPinCode billingPhone billingFaxNum'
+          ).lean();
+
+          singleItem.supplierDetails = supplierData || null; 
+      } else {
+          singleItem.supplierDetails = null;
+      }
+
       res.status(200).json(singleItem);
-    } else {
-      res.status(404).json({ message: "Item not found." });
+    } catch (error) {
+      console.error("Error fetching Item:", error);
+      res.status(500).json({ message: "Internal server error." });
     }
-  } catch (error) {
-    console.error("Error fetching Item:", error);
-    res.status(500).json({ message: "Internal server error." });
-  }
 };
 
 
