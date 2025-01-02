@@ -5,13 +5,35 @@ const Account = require("../database/model/account");
 const Prefix = require("../database/model/prefix");
 const Journal = require("../database/model/journal");
 const TrialBalance = require("../database/model/trialBalance");
-const moment = require('moment-timezone');
 
 const { singleCustomDateTime, multiCustomDateTime } = require("../services/timeConverter");
-const { singleAccountName, multiAccountName } = require("../services/accountName");
 const { cleanData } = require("../services/cleanData");
 
 
+// Fetch existing data
+const dataExist = async ( organizationId, journalId ) => {
+    const [ existingOrganization, allJournal, journal, prefix ] = await Promise.all([
+    Organization.findOne({ organizationId }).lean(),
+
+    Journal.find({ organizationId })
+    .populate({
+    path: "transaction.accountId", 
+    select: "accountName",
+    })
+    .lean(),
+    
+    Journal.findOne({ _id: journalId, organizationId })
+    .populate({
+    path: "transaction.accountId", // Populate the accountId field
+    select: "accountName", // Include only the accountName field
+    })    
+    .lean(),
+      
+    Prefix.findOne({ organizationId:organizationId,'series.status': true }).lean(),
+
+    ]);
+    return { existingOrganization, allJournal, journal, prefix };
+  };
 
 // Add Journal Entry
 exports.addJournalEntry = async (req, res) => {
@@ -64,7 +86,6 @@ exports.addJournalEntry = async (req, res) => {
         if (!existingPrefix) {
             return res.status(404).json({ message: "No Prefix data found for the organization." });
         }
-        console.log("Existing Prefix:", existingPrefix);
 
         // Ensure series is an array and contains items
         if (!Array.isArray(existingPrefix.series)) {
@@ -110,7 +131,6 @@ exports.addJournalEntry = async (req, res) => {
                 operationId:newJournalEntry._id,
                 transactionId: journalId,
                 accountId: trans.accountId,
-                accountName: trans.accountName,
                 action: "Journal",
                 debitAmount: trans.debitAmount,
                 creditAmount: trans.creditAmount,
@@ -140,16 +160,28 @@ exports.getAllJournal = async (req, res) => {
     try {
         const organizationId = req.user.organizationId;
 
-        // Find all accounts where organizationId matches
-        const journal = await Journal.find({ organizationId });
+        const { allJournal, existingOrganization } = await dataExist( organizationId, null );
 
-        if (!journal.length) {
+        if (!allJournal.length) {
             return res.status(404).json({
                 message: "No Journal found for the provided organization ID.",
             });
         }
 
-        res.status(200).json(journal);
+        const transformedItems = allJournal.map(acc => ({
+            ...acc,        
+            transaction : acc.transaction.map(data => ({
+                ...data,        
+                accountId: data.accountId?._id || undefined,
+                accountName: data.accountId?.accountName || undefined,
+              })),
+        }));
+
+
+        const formattedObjects = multiCustomDateTime(transformedItems, existingOrganization.dateFormatExp, existingOrganization.timeZoneExp, existingOrganization.dateSplit );          
+     
+
+        res.status(200).json(formattedObjects);
     } catch (error) {
         console.error("Error fetching journals:", error);
         res.status(500).json({ message: "Internal server error." });
@@ -162,8 +194,7 @@ exports.getOneJournal = async (req, res) => {
         const { id } = req.params;
         const organizationId = req.user.organizationId;
 
-        // Find the journal where id and organizationId matches
-        const journal = await Journal.findOne({ _id: id, organizationId: organizationId });
+        const { journal, existingOrganization } = await dataExist( organizationId, id );
         
         if (!journal) {
             return res.status(404).json({
@@ -171,10 +202,19 @@ exports.getOneJournal = async (req, res) => {
             });
         }
 
-        const data = await multiAccountName(journal.transaction, organizationId);
-        journal.transaction = data;        
+        
+        console.log("Journal:", journal);
+        
+        journal.transaction = journal.transaction.map(acc => ({
+            ...acc,        
+            accountId: acc.accountId?._id || undefined,
+            accountName: acc.accountId?.accountName || undefined,
+        }));
+        
+        const formattedObjects = singleCustomDateTime(journal, existingOrganization.dateFormatExp, existingOrganization.timeZoneExp, existingOrganization.dateSplit );          
 
-        res.status(200).json(journal);
+        res.status(200).json(formattedObjects);
+
     } catch (error) {
         console.error("Error fetching journal:", error);
         res.status(500).json({ message: "Internal server error." });
@@ -188,7 +228,7 @@ exports.getLastJournalPrefix = async (req, res) => {
         const organizationId = req.user.organizationId;
 
         // Find all accounts where organizationId matches
-        const prefix = await Prefix.findOne({ organizationId:organizationId,'series.status': true });
+        const { prefix } = await dataExist( organizationId, null );
 
         if (!prefix) {
             return res.status(404).json({
@@ -198,7 +238,6 @@ exports.getLastJournalPrefix = async (req, res) => {
         
         const series = prefix.series[0];     
         const lastPrefix = series.journal + series.journalNum;
-        console.log(lastPrefix);
 
         res.status(200).json(lastPrefix);
     } catch (error) {

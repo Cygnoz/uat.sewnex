@@ -7,7 +7,6 @@ const Currency = require("../database/model/currency");
 const crypto = require('crypto');
 
 const { singleCustomDateTime, multiCustomDateTime } = require("../services/timeConverter");
-const { singleAccountName, multiAccountName } = require("../services/accountName");
 const { cleanData } = require("../services/cleanData");
 
 const key = Buffer.from(process.env.ENCRYPTION_KEY, 'utf8'); 
@@ -17,12 +16,16 @@ const iv = Buffer.from(process.env.ENCRYPTION_IV, 'utf8');
 // Fetch existing data
 const dataExist = async ( organizationId, parentAccountId, accountId ) => {
   const [ existingOrganization, currencyExists, parentAccountExist, accountExist, trialBalance, allAccount ] = await Promise.all([
-    Organization.findOne({ organizationId }),
-    Currency.find({ organizationId }, { currencyCode: 1, _id: 0 }),
-    Account.findOne({ organizationId , _id : parentAccountId}),
-    Account.findOne({ _id: accountId, organizationId: organizationId }),
-    TrialBalance.find({ accountId: accountId, organizationId: organizationId }),
+    Organization.findOne({ organizationId }).lean(),
+    Currency.find({ organizationId }, { currencyCode: 1, _id: 0 }).lean(),
+    Account.findOne({ organizationId , _id : parentAccountId}).lean(),
+    Account.findOne({ _id: accountId, organizationId: organizationId }).lean(),
+    TrialBalance.find({ accountId: accountId, organizationId: organizationId })
+    .populate('accountId', 'accountName')
+    .lean(),
     Account.find({ organizationId: organizationId },{ bankAccNum: 0 , organizationId : 0 })
+    .populate('parentAccountId', 'accountName')
+    .lean(),
   ]);
   return { existingOrganization, currencyExists, parentAccountExist, accountExist, trialBalance, allAccount };
 };
@@ -134,7 +137,13 @@ exports.getAllAccount = async (req, res) => {
         return res.status(404).json({ message: "No accounts found for the provided organization ID." });
       }
 
-      const formattedObjects = multiCustomDateTime(allAccount, existingOrganization.dateFormatExp, existingOrganization.timeZoneExp, existingOrganization.dateSplit );          
+      const transformedItems = allAccount.map(acc => ({
+        ...acc,        
+        parentAccountId: acc.parentAccountId?._id || undefined,
+        parentAccountName: acc.parentAccountId?.accountName || undefined,
+      }));
+
+      const formattedObjects = multiCustomDateTime(transformedItems, existingOrganization.dateFormatExp, existingOrganization.timeZoneExp, existingOrganization.dateSplit );          
 
       
     res.status(200).json(formattedObjects);
@@ -240,19 +249,20 @@ exports.getOneTrailBalance = async (req, res) => {
           return res.status(404).json({ message: "Trial Balance not found." });
       }
 
+      const transformedItems = trialBalance.map(acc => ({
+        ...acc,        
+        accountId: acc.accountId?._id || undefined,
+        accountName: acc.accountId?.accountName || undefined,
+      }));
+
       // Sort trialBalance by createdDateTime
-      trialBalance.sort((a, b) => new Date(a.createdDateTime) - new Date(b.createdDateTime));
+      transformedItems.sort((a, b) => new Date(a.createdDateTime) - new Date(b.createdDateTime));
 
-      const formattedObjects = multiCustomDateTime(trialBalance, existingOrganization.dateFormatExp, existingOrganization.timeZoneExp, existingOrganization.dateSplit );    
+      const formattedObjects = multiCustomDateTime(transformedItems, existingOrganization.dateFormatExp, existingOrganization.timeZoneExp, existingOrganization.dateSplit );    
       
-      const trialBalanceWithCumulativeSum = calculateCumulativeSum(formattedObjects);
-      
-      const data = await multiAccountName(trialBalanceWithCumulativeSum, organizationId);
+      const trialBalanceWithCumulativeSum = calculateCumulativeSum(formattedObjects);      
 
-      console.log("Trial Balance fetched successfully:", data);
-      
-
-      res.status(200).json(data);
+      res.status(200).json(trialBalanceWithCumulativeSum);
   } catch (error) {
       console.error("Error fetching account:", error);
       res.status(500).json({ message: "Internal server error." });

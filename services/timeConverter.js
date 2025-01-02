@@ -30,14 +30,11 @@ function multiCustomDateTime(objects, dateFormat, timeZone, dateSplit) {
       throw new Error("Each object must have a createdDateTime property.");
     }
 
-    // Get the original document if it exists
-    const originalDoc = obj._doc || obj;
-
-    const formatted = singleCustomDateTime(originalDoc, dateFormat, timeZone, dateSplit);
+    const formatted = singleCustomDateTime(obj, dateFormat, timeZone, dateSplit);
 
     // Return a new object with the formatted data included
     return {
-      ...originalDoc,
+      ...obj,
       createdDate: formatted.createdDate,
       createdTime: formatted.createdTime,
     };
