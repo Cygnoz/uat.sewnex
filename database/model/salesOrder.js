@@ -21,7 +21,7 @@ const itemsSchema = new Schema({
     igstAmount: { type: Number },
     vatAmount: { type: Number },
 
-    itemTotaltax: {type:Number},
+    itemTotalTax: {type:Number},
 
     discountType: {type:String}, //Currency,Percentage
     discountAmount: {type:Number}, 
@@ -69,7 +69,7 @@ const SalesOrderSchema = new Schema ({
 
   discountTransactionType: { type: String }, // Currency,Percentage
   discountTransactionAmount: { type: Number },
-  taxtype: { type: String }, //Intra, Inter, Non-tax, VAT   
+  taxType: { type: String }, //Intra, Inter, Non-tax, VAT   
   
   subTotal: { type: Number },
   totalItem: { type: Number },

@@ -112,7 +112,7 @@ exports.addOrder = async (req, res) => {
       if (!validateInputs( cleanedData, customerExist, items, itemTable, organizationExists, res)) return;
 
       //Tax Type
-      taxtype(cleanedData, customerExist,organizationExists );
+      taxType(cleanedData, customerExist,organizationExists );
 
       // Calculate Sales 
       if (!calculateSalesOrder( cleanedData, res )) return;
@@ -385,7 +385,7 @@ function salesPrefix( cleanData, existingPrefix ) {
 
   
 // Tax Type
-function taxtype( cleanedData, customerExist, organizationExists ) {
+function taxType( cleanedData, customerExist, organizationExists ) {
   if(customerExist.taxType === 'GST' ){
     if(cleanedData.placeOfSupply === organizationExists.state){
       cleanedData.taxType ='Intra';
@@ -548,7 +548,7 @@ items.forEach((item) => {
   validateField( item.quantity > fetchedItem.currentStock, `Insufficient Stock for ${item.itemName}: Requested quantity ${item.quantity}, Available stock ${fetchedItem.currentStock}`, errors );
 
   // Validate float fields
-  validateFloatFields(['sellingPrice', 'itemTotaltax', 'discountAmount', 'itemAmount'], item, errors);
+  validateFloatFields(['sellingPrice', 'itemTotalTax', 'discountAmount', 'itemAmount'], item, errors);
 });
 }
 
@@ -722,7 +722,7 @@ function calculateSalesOrder(cleanedData, res) {
       checkAmount(calculatedSgstAmount, item.sgstAmount, item.itemName, 'SGST',errors);
       checkAmount(calculatedIgstAmount, item.igstAmount, item.itemName, 'IGST',errors);
       checkAmount(calculatedVatAmount, item.vatAmount, item.itemName, 'VAT',errors);
-      checkAmount(calculatedTaxAmount, item.itemTotaltax, item.itemName, 'Total tax',errors);
+      checkAmount(calculatedTaxAmount, item.itemTotalTax, item.itemName, 'Total tax',errors);
 
       totalTax += calculatedCgstAmount + calculatedSgstAmount + calculatedIgstAmount + calculatedVatAmount || 0 ;
 
@@ -739,7 +739,7 @@ function calculateSalesOrder(cleanedData, res) {
     checkAmount(itemTotal, item.itemAmount, item.itemName, 'Item Total',errors);
 
     console.log(`${item.itemName} Item Total: ${itemTotal} , Provided ${item.itemAmount}`);
-    console.log(`${item.itemName} Total Tax: ${calculatedTaxAmount} , Provided ${item.itemTotaltax || 0 }`);
+    console.log(`${item.itemName} Total Tax: ${calculatedTaxAmount} , Provided ${item.itemTotalTax || 0 }`);
     console.log("");
   });
 

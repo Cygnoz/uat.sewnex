@@ -100,8 +100,6 @@ const SalesInvoiceSchema = new Schema ({
   userId: { type: String },
   userName: { type: String },
 
-  returnItem : [returnItemSchema],
-  creditNote : [creditNoteSchema],  
 })
 
 

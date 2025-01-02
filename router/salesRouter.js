@@ -18,7 +18,7 @@ const { verifyToken } = require('../controller/middleware');
 router.put('/add-sales-settings',verifyToken,salesSettings.addSalesOrderSettings)
 
 router.put('/add-creditNote-settings',verifyToken,salesSettings.updateCreditNoteSettings)
-addInvoiceSettings
+
 
 
 //Sales Quotes

@@ -14,7 +14,7 @@ const DefAcc  = require("../database/model/defaultAccount");
 const TrialBalance = require("../database/model/trialBalance");
 const Account = require("../database/model/account");
 
-taxType
+
 
 // Fetch existing data
 const dataExist = async ( organizationId, customerId, customerName ) => {

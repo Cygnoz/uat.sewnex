@@ -84,7 +84,7 @@ exports.addQuotes = async (req, res) => {
 
       
       //Tax Type
-      taxtype(cleanedData, customerExist,organizationExists );
+      taxType(cleanedData, customerExist,organizationExists );
       
       
       // Calculate Sales 
@@ -353,7 +353,7 @@ function salesPrefix( cleanData, existingPrefix ) {
 
 
 // Tax Type
-function taxtype( cleanedData, customerExist, organizationExists ) {
+function taxType( cleanedData, customerExist, organizationExists ) {
     if (cleanedData.taxPreference === 'Taxable') {
       if(customerExist.taxType === 'GST'){
         if(cleanedData.placeOfSupply === organizationExists.state){
@@ -471,7 +471,7 @@ function validateField(condition, errorMsg, errors) {
 //Valid Req Fields
 function validateReqFields( data, customerExist, errors ) {
   validateField( typeof data.customerId === 'undefined' || typeof data.customerName === 'undefined', "Please select a Customer", errors  );
-  validateField( customerExist.taxtype == 'GST' && typeof data.placeOfSupply === 'undefined', "Place of supply required", errors  );
+  validateField( customerExist.taxType == 'GST' && typeof data.placeOfSupply === 'undefined', "Place of supply required", errors  );
   validateField( typeof data.items === 'undefined', "Select an item", errors  );
 }
 // Function to Validate Item Table 
@@ -515,7 +515,7 @@ function validateItemTable(items, itemTable, errors) {
     validateIntegerFields(['quantity'], item, errors);
 
     // Validate float fields
-    validateFloatFields(['sellingPrice', 'itemTotaltax', 'discountAmount', 'itemAmount'], item, errors);
+    validateFloatFields(['sellingPrice', 'itemTotalTax', 'discountAmount', 'itemAmount'], item, errors);
   });
 }
 // Validate Place Of Supply
@@ -679,7 +679,7 @@ function calculateSalesOrder(cleanedData, res) {
       checkAmount(calculatedSgstAmount, item.sgstAmount, item.itemName, 'SGST',errors);
       checkAmount(calculatedIgstAmount, item.igstAmount, item.itemName, 'IGST',errors);
       checkAmount(calculatedVatAmount, item.vatAmount, item.itemName, 'VAT',errors);
-      checkAmount(calculatedTaxAmount, item.itemTotaltax, item.itemName, 'Total tax',errors);
+      checkAmount(calculatedTaxAmount, item.itemTotalTax, item.itemName, 'Total tax',errors);
 
       totalTax += calculatedCgstAmount + calculatedSgstAmount + calculatedIgstAmount + calculatedVatAmount || 0 ;
 
@@ -695,7 +695,7 @@ function calculateSalesOrder(cleanedData, res) {
     checkAmount(itemTotal, item.itemAmount, item.itemName, 'Item Total',errors);
 
     console.log(`${item.itemName} Item Total: ${itemTotal} , Provided ${item.itemAmount}`);
-    console.log(`${item.itemName} Total Tax: ${calculatedTaxAmount} , Provided ${item.itemTotaltax || 0 }`);
+    console.log(`${item.itemName} Total Tax: ${calculatedTaxAmount} , Provided ${item.itemTotalTax || 0 }`);
     console.log("");
   });
 
