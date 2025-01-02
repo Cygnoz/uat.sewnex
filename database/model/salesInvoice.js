@@ -4,7 +4,6 @@ const { Schema } = mongoose
 const itemsSchema = new Schema({
 
   itemId: {type:String},
-  itemName: {type:String},
 
   quantity: {type:Number},
   sellingPrice: {type:Number},
@@ -27,6 +26,16 @@ const itemsSchema = new Schema({
   discountAmount: {type:Number}, 
   itemAmount: {type:Number},
 
+  }, { _id: false });
+
+
+const returnItemSchema = new Schema({
+  itemId: {type:String},
+  quantity: {type:Number},  
+  }, { _id: false });
+
+const creditNoteSchema = new Schema({
+  creditNoteId: {type:String}
   }, { _id: false });
 
 const SalesInvoiceSchema = new Schema ({
@@ -96,6 +105,9 @@ const SalesInvoiceSchema = new Schema ({
   createdDate: { type: String },
   userId: { type: String },
   userName: { type: String },
+
+  returnItem : [returnItemSchema],
+  creditNote : [creditNoteSchema],  
 })
 
 

@@ -1,6 +1,7 @@
 const Settings = require('../database/model/settings')
 
 //Sales Order
+
 exports.addSalesOrderSettings = async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
