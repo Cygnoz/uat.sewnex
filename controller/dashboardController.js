@@ -7,8 +7,6 @@ const moment = require("moment-timezone");
 exports.calculateTotalInventoryValue = async (req, res) => {
   try {
     const organizationId = req.user.organizationId;
-    // const organizationId = req.body.organizationId;
-    console.log(organizationId);
     
     // Get the start and end of the current month
     const startOfMonth = moment().startOf('month').toDate();

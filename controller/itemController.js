@@ -26,20 +26,14 @@ const dataExist = async ( organizationId, salesAccountId = null , purchaseAccoun
   return { organizationExists, taxExists, allItem, settingsExist,  salesAccount, purchaseAccount };
 };
 
-const dataExists = async (organizationId) => {
-  const [newItems] = await Promise.all([
-    Item.find({ organizationId }, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1, organizationId: 0 }),
-  ]);
-  return { newItems};
-};
-
 
 
 //Xs Item Exist
 const xsItemDataExists = async (organizationId) => {
                 // Retrieve items with specified fields
                 const [newItems] = await Promise.all([
-                  Item.find( { organizationId }, { _id: 1, itemName: 1, itemImage: 1, taxPreference: 1, sellingPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 } ),
+                  Item.find( { organizationId }, { _id: 1, itemName: 1, itemImage: 1, taxPreference: 1, sellingPrice: 1, costPrice:1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 } ),
+                  
                 ]);
 
                 
@@ -77,7 +71,9 @@ const xsItemDataExists = async (organizationId) => {
 const mItemDataExists = async (organizationId) => {
           // Retrieve items with specified fields
           const [newItems] = await Promise.all([
-            Item.find( { organizationId }, { organizationId: 0 } ),
+            // Item.find( { organizationId },{ itemName :1, sku:1, costPrice:1, sellingPrice:1, reorderPoint:1 } ),
+            Item.find( { organizationId },{ organizationId :0, itemImage: 0 } ),
+
           ]);
 
           // Extract itemIds from newItems
@@ -166,30 +162,11 @@ exports.addItem = async (req, res) => {
       //Validate Inputs  
       if (!validateInputs(cleanedData, taxExists, organizationId, bmcr, salesAccount, purchaseAccount, res)) return;
 
-
-      let igst, cgst, sgst, vat; 
-
-        if (taxExists.taxType === 'GST') {
-          taxExists.gstTaxRate.forEach((tax) => {
-            if (tax.taxName === taxRate) {
-              igst = tax.igst;
-              cgst = tax.cgst; 
-              sgst = tax.sgst;           
-            }
-          });
-        }
-      
-        // Check if taxType is VAT
-        if (taxExists.taxType === 'VAT') {
-          taxExists.vatTaxRate.forEach((tax) => {
-            if (tax.taxName === taxRate) {
-              vat = tax.vat; 
-            }
-          });
-        }
-  
+      //Tax Type
+      taxType( cleanedData, taxExists, taxRate );      
+       
      
-      const newItem = new Item({ ...cleanedData, organizationId, igst:igst, cgst, sgst, vat });
+      const newItem = new Item({ ...cleanedData, organizationId });
 
       const savedItem = await newItem.save();
 
@@ -302,7 +279,7 @@ exports.getAllItemM = async (req, res) => {
         const { organizationId, ...rest } = item; 
         return rest;
       });
-      res.status(200).json(allItems);
+      res.status(200).json(allItems);            
     } else {
       return res.status(404).json("No Items found.");
     }
@@ -387,46 +364,28 @@ exports.updateItem = async (req, res) => {
     // Check for duplicate SKU
     if (cleanedData.sku !== undefined && await isDuplicateSKUExist( sku, organizationId, itemId, res )) return;
 
-   //Validate Inputs  
-   if (!validateInputs(cleanedData, taxExists, organizationId, bmcr,  salesAccount, purchaseAccount, res)) return;
+    //Validate Inputs  
+    if (!validateInputs(cleanedData, taxExists, organizationId, bmcr,  salesAccount, purchaseAccount, res)) return;
+   
+     //Tax Type
+    taxType( cleanedData, taxExists, taxRate );      
 
+    // Update customer fields
+    Object.assign( existingItem, cleanedData );
+    const savedItem = await existingItem.save();
 
-    if (taxExists.taxType === 'GST') {
-      taxExists.gstTaxRate.forEach((tax) => {
-        if (tax.taxName === taxRate) {
-          cleanedData.igst = tax.igst;
-          cleanedData.cgst = tax.cgst; 
-          cleanedData.sgst = tax.sgst;           
-        }
-      });
-    }
-  
-    // Check if taxType is VAT
-    if (taxExists.taxType === 'VAT') {
-      taxExists.vatTaxRate.forEach((tax) => {
-        if (tax.taxName === taxRate) {
-          cleanedData.vat = tax.vat; 
-        }
-      });
-    }
-
-
-     // Update customer fields
-     Object.assign( existingItem, cleanedData );
-     const savedItem = await existingItem.save();
-
-     await updateOpeningBalanceInItemTrack(openingStock, itemTrackAll, prevStock);
+    await updateOpeningBalanceInItemTrack(openingStock, itemTrackAll, prevStock);
  
-     if (!savedItem) {
-       console.error("Item could not be saved.");
-       return res.status(500).json({ message: "Failed to Update Item" });
-     }      
+    if (!savedItem) {
+      console.error("Item could not be saved.");
+      return res.status(500).json({ message: "Failed to Update Item" });
+    }      
 
-      res.status(200).json({ message: "Item updated successfully", savedItem });
-      console.log("Item updated successfully:", savedItem);
+    res.status(200).json({ message: "Item updated successfully", savedItem });
+    console.log("Item updated successfully:", savedItem);
   } catch (error) {
-      console.error("Error updating item:", error);
-      res.status(500).json({ message: "Internal server error" });
+    console.error("Error updating item:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 };
 
@@ -599,6 +558,40 @@ function validateOrganizationTaxCurrency(organizationExists, taxExists, allItem,
   }
   return true;
 }
+
+
+function taxType( cleanedData, taxExists, taxRate ) {
+
+  if (taxExists.taxType === 'GST') {
+    taxExists.gstTaxRate.forEach((tax) => {
+      if (tax.taxName === taxRate) {
+        cleanedData.igst = tax.igst;
+        cleanedData.cgst = tax.cgst; 
+        cleanedData.sgst = tax.sgst;           
+      }
+    });
+  }
+
+  // Check if taxType is VAT
+  if (taxExists.taxType === 'VAT') {
+    taxExists.vatTaxRate.forEach((tax) => {
+      if (tax.taxName === taxRate) {
+        cleanedData.vat = tax.vat; 
+      }
+    });
+  }
+  
+}
+
+
+
+
+
+
+
+
+
+
 
 
 
