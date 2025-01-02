@@ -30,7 +30,7 @@ const newDataExists = async (organizationId, items) => {
   const itemIds = items.map(item => item.itemId);
 
   const [newItems] = await Promise.all([
-    Item.find({ organizationId, _id: { $in: itemIds } }, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, costPrice:1,  taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }),
+    Item.find({ organizationId, _id: { $in: itemIds } }, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, costPrice: 1, returnableItem: 1,  taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }),
   ]);
 
   // Aggregate ItemTrack to get the latest entry for each itemId
@@ -78,9 +78,7 @@ exports.addCreditNote = async (req, res) => {
     //Clean Data
     const cleanedData = cleanCreditNoteData(req.body);
 
-    const { items } = cleanedData;
-    const { customerId } = cleanedData;
-    const { invoiceId } = cleanedData;
+    const { items, customerId, invoiceId } = cleanedData;
     
     const itemIds = items.map(item => item.itemId);
     
@@ -134,7 +132,8 @@ exports.addCreditNote = async (req, res) => {
     //Item Track
     await itemTrack( savedCreditNote, itemTable );
 
-    savedCreditNote.organizationId = undefined;
+    // Update Sales Invoice
+    await updateSalesInvoiceWithCreditNote(invoiceId, items);
       
     res.status(201).json({ message: "Credit Note created successfully",savedCreditNote });
     // console.log( "Debit Note created successfully:", savedCreditNote );
@@ -165,19 +164,25 @@ exports.getAllCreditNote = async (req, res) => {
       });
     }
 
-    // Map over allCreditNote to remove the organizationId from each object
-    const AllCreditNote = allCreditNote.map((history) => {
-      const { organizationId, ...rest } = history.toObject(); // Convert to plain object and omit organizationId
-      return rest;
-  });
+    // Process and filter credit notes using the helper function
+    const updatedCreditNotes = (
+      await Promise.all(allCreditNote.map((creditNote) => calculateStock(creditNote)))
+    ).filter((creditNote) =>
+      creditNote.items.some((item) => item.stock > 0)
+    );
 
-    res.status(200).json(AllCreditNote);
+    if (!updatedCreditNotes.length) {
+      return res.status(404).json({
+        message: "No valid Credit Notes with available stock found",
+      });
+    }
+
+    res.status(200).json(updatedCreditNotes);
   } catch (error) {
     console.error("Error fetching credit note:", error);
     res.status(500).json({ message: "Internal server error." });
   }
 };
-
 
 
 // Get One Credit Note
@@ -586,6 +591,9 @@ function validateItemTable(items, itemTable, errors) {
   // Iterate through each item to validate individual fields
   items.forEach((item) => {
     const fetchedItem = itemTable.find(it => it._id.toString() === item.itemId);
+
+
+    validateField( fetchedItem.returnableItem !== true, "Non-returnable items found. Credit note can only be added for returnable items.", errors );
   
     // Check if item exists in the item table
     validateField( !fetchedItem, `Item with ID ${item.itemId} was not found.`, errors );
@@ -625,19 +633,22 @@ function validateInvoiceData(data, items, invoiceExist, errors) {
   // console.log("invoiceExist:", invoiceExist);
   // console.log("items:", items);
 
-   // Initialize `billExist.items` to an empty array if undefined
+   // Initialize `invoiceExist.items` to an empty array if undefined
    invoiceExist.items = Array.isArray(invoiceExist.items) ? invoiceExist.items : [];
 
   // Validate basic fields
   validateField( invoiceExist.salesInvoiceDate !== data.invoiceDate, `Bill Date mismatch for ${invoiceExist.salesInvoiceDate}`, errors  );
   validateField( invoiceExist.salesOrderNumber !== data.orderNumber, `Order Number mismatch for ${invoiceExist.salesOrderNumber}`, errors  );
 
-  // Loop through each item in billExist.items
-  invoiceExist.items.forEach(invoiceItem => {
-    const CNItem = items.find(dataItem => dataItem.itemId === invoiceItem.itemId);
+  // Validate only the items included in the credit note
+  items.forEach(CNItem => {
+    const invoiceItem = invoiceExist.items.find(item => item.itemId === CNItem.itemId);
 
-    if (!CNItem) {
-      errors.push(`Item ID ${invoiceItem.itemId} not found in provided items`);
+    // console.log("invoiceItem:",invoiceItem);
+    // console.log("CNItem:",CNItem);
+
+    if (!invoiceItem) {
+      errors.push(`Item ID ${CNItem.itemId} not found in the invoice.`);
     } else {
       validateField(CNItem.itemName !== invoiceItem.itemName, 
                     `Item Name mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.itemName}, got ${CNItem.itemName}`, 
@@ -654,8 +665,28 @@ function validateInvoiceData(data, items, invoiceExist, errors) {
       validateField(CNItem.igst !== invoiceItem.igst, 
                     `Item IGST mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.igst}, got ${CNItem.igst}`, 
                     errors);
+      if (!invoiceItem.returnQuantity) {
+        validateField(CNItem.stock !== invoiceItem.quantity, 
+                    `Stock mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.quantity}, got ${CNItem.stock}`, 
+                    errors);
+      } else {
+        const expectedReturnQuantity = invoiceItem.quantity - invoiceItem.returnQuantity;
+        validateField(CNItem.stock !== expectedReturnQuantity, 
+                    `Stock mismatch for ${invoiceItem.itemId}: Expected ${expectedReturnQuantity}, got ${CNItem.stock}`, 
+                    errors);
+      }
+      validateField(CNItem.quantity > invoiceItem.quantity, 
+                    `Provided quantity (${CNItem.quantity}) cannot exceed invoice quantity (${invoiceItem.quantity}).`, 
+                    errors);
+      validateField(CNItem.quantity <= 0, 
+                    `Quantity must be greater than 0 for item ${CNItem.itemId}.`, 
+                    errors);
+      validateField(CNItem.quantity > CNItem.stock, 
+                    `Provided quantity (${CNItem.quantity}) cannot exceed stock available (${CNItem.stock}) for item ${CNItem.itemId}.`, 
+                    errors);
     }
   });
+
 }
 
 
@@ -784,9 +815,94 @@ function capitalize(word) {
       // Save the tracking entry and update the item's stock in the item table
       // await newTrialEntry.save();
   
-      console.log("1",newTrialEntry);
+      // console.log("1",newTrialEntry);
     }
   }
+
+
+
+// Function to update salesInvoice with returnQuantity
+const updateSalesInvoiceWithCreditNote = async (invoiceId, items) => {
+  try {
+    for (const item of items) {
+      await Invoice.findOneAndUpdate(
+        { _id: invoiceId, 'items.itemId': item.itemId },
+        {
+          $inc: { 'items.$.returnQuantity': item.quantity } // Increment returnQuantity for the matched itemId
+        }
+      );
+
+      // If the itemId was not found and updated, add a new entry
+      await Invoice.findOneAndUpdate(
+        { _id: invoiceId, 'items.itemId': { $ne: item.itemId } },
+        {
+          $push: {
+            items: {
+              returnQuantity: item.quantity
+            }
+          }
+        }
+      );
+    }
+  } catch (error) {
+    console.error("Error updating salesInvoice with returnQuantity:", error);
+    throw new Error("Failed to update Sales Invoice with Credit Note details.");
+  }
+};
+
+
+
+
+// Helper function to calculate stock
+const calculateStock = async (creditNote) => {
+  try {
+    const { invoiceId, items } = creditNote;
+
+    // Fetch corresponding salesInvoice
+    const salesInvoice = await Invoice.findById(invoiceId);
+
+    if (salesInvoice) {
+      items.forEach((creditItem) => {
+        const salesItem = salesInvoice.items.find(
+          (item) => item.itemId.toString() === creditItem.itemId.toString()
+        );
+
+        if (salesItem) {
+          // Calculate stock based on quantity and returnQuantity
+          creditItem.stock = Math.max(salesItem.quantity - salesItem.returnQuantity, 0);
+        } else {
+          // If no matching item in salesInvoice, set stock to 0
+          creditItem.stock = 0;
+        }
+
+        // Ensure stock is never negative
+        if (creditItem.stock < 0) {
+          creditItem.stock = 0;
+        }
+      });
+    } else {
+      console.warn(`Sales Invoice with ID ${invoiceId} not found.`);
+    }
+
+    // Update stock in the creditNote schema
+    await CreditNote.findByIdAndUpdate(
+      creditNote._id,
+      { items },
+      { new: true }
+    );
+
+    // Remove organizationId before returning
+    const { organizationId, ...rest } = creditNote.toObject();
+    return rest;
+    
+  } catch (error) {
+    console.error("Error in calculateStock:", error);
+    throw new Error("Failed to calculate stock for Credit Note.");
+  }
+};
+
+
+
 
 
 

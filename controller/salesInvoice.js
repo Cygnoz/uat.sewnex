@@ -14,6 +14,7 @@ const DefAcc  = require("../database/model/defaultAccount");
 const TrialBalance = require("../database/model/trialBalance");
 const Account = require("../database/model/account");
 
+taxType
 
 // Fetch existing data
 const dataExist = async ( organizationId, customerId, customerName ) => {
@@ -88,12 +89,12 @@ const accDataExists = async ( defaultAccount, organizationId, otherExpenseAccoun
 //Get one and All
 const salesDataExist = async ( organizationId, invoiceId ) => {    
     
-  const [organizationExists, allinvoice, invoice ] = await Promise.all([
+  const [organizationExists, allInvoice, invoice ] = await Promise.all([
     Organization.findOne({ organizationId }, { organizationId: 1}),
     Invoice.find({ organizationId }),
     Invoice.findOne({ organizationId , _id: invoiceId },)
   ]);
-  return { organizationExists, allinvoice, invoice };
+  return { organizationExists, allInvoice, invoice };
 };
 
 
@@ -155,7 +156,7 @@ exports.addInvoice = async (req, res) => {
       if (!validateInputs( cleanedData, customerExist, items, itemTable, organizationExists, defaultAccount, res)) return;
 
       //Tax Type
-      taxtype(cleanedData, customerExist,organizationExists );
+      taxType(cleanedData, customerExist,organizationExists );
 
       //Default Account
       const { defAcc, error } = await defaultAccounting( cleanedData, defaultAccount, organizationExists );
@@ -248,12 +249,12 @@ exports.invoiceJournal = async (req, res) => {
 };
 
 
-// Get All Sales allinvoice
+// Get All Sales allInvoice
 exports.getAllSalesInvoice = async (req, res) => {
   try {
     const organizationId = req.user.organizationId;
 
-    const { organizationExists, allinvoice } = await salesDataExist(organizationId);
+    const { organizationExists, allInvoice } = await salesDataExist(organizationId);
 
     if (!organizationExists) {
       return res.status(404).json({
@@ -261,7 +262,7 @@ exports.getAllSalesInvoice = async (req, res) => {
       });
     }
 
-    if (!allinvoice.length) {
+    if (!allInvoice.length) {
       return res.status(404).json({
         message: "No Invoice found",
       });
@@ -274,7 +275,7 @@ exports.getAllSalesInvoice = async (req, res) => {
    const updatedInvoices = [];
 
    // Map through purchase bills and update paidStatus if needed
-   for (const invoice of allinvoice) {
+   for (const invoice of allInvoice) {
    const { organizationId, balanceAmount, dueDate, paidStatus: currentStatus, ...rest } = invoice.toObject();
    
    // Determine the correct paidStatus based on balanceAmount and dueDate
@@ -295,9 +296,9 @@ exports.getAllSalesInvoice = async (req, res) => {
    // Push the bill object with the updated status to the result array
    updatedInvoices.push({ ...rest, balanceAmount , dueDate , paidStatus: newStatus });
    }
-   allinvoice=updatedInvoices
+  //  allInvoice=updatedInvoices
 
-    res.status(200).json({allinvoice});
+    res.status(200).json({updatedInvoices});
   } catch (error) {
     console.error("Error fetching Invoice:", error);
     res.status(500).json({ message: "Internal server error." });
@@ -358,7 +359,7 @@ async function deleteSaleOrder(salesOrderId, organizationId, res) {
 
 // Utility Functions
 const validDeliveryMethod = ["Road","Rail","Air","Sea"];
-const validPaymentMode = [];
+const validPaymentMode = [ "Cash", "Card Transfer", "UPI", "Credit" ];
 const validDiscountTransactionType = ["Currency", "Percentage"];
 const validCountries = {
   "United Arab Emirates": [
@@ -522,7 +523,7 @@ function salesPrefix( cleanData, existingPrefix ) {
 
   
 // Tax Type
-function taxtype( cleanedData, customerExist, organizationExists ) {
+function taxType( cleanedData, customerExist, organizationExists ) {
   if(customerExist.taxType === 'GST' ){
     if(cleanedData.placeOfSupply === organizationExists.state){
       cleanedData.taxType ='Intra';
@@ -586,7 +587,7 @@ async function defaultAccounting( data, defaultAccount, organizationExists ) {
   defaultAccount.salesAccountName = salesAccountName?.accountName;
   defaultAccount.salesDiscountAccountName = salesDiscountAccountName?.accountName;
 
-  if (data.taxtype !== 'VAT') {
+  if (data.taxType !== 'VAT') {
     defaultAccount.outputCgstName = outputCgstName?.accountName;
     defaultAccount.outputSgstName = outputSgstName?.accountName;
     defaultAccount.outputIgstName = outputIgstName?.accountName;
@@ -749,7 +750,7 @@ items.forEach((item) => {
   validateField( item.itemName !== fetchedItem.itemName, `Item Name Mismatch : ${item.itemName}`, errors );
 
   // Validate selling price
-  validateField( item.sellingPrice !== fetchedItem.sellingPrice, `Selling price Mismatch for ${item.itemName}:  ${item.sellingPrice}`, errors );
+  // validateField( item.sellingPrice !== fetchedItem.sellingPrice, `Selling price Mismatch for ${item.itemName}:  ${item.sellingPrice}`, errors );
 
   // Validate CGST
   validateField( item.cgst !== fetchedItem.cgst, `CGST Mismatch for ${item.itemName}: ${item.cgst}`, errors );
@@ -773,7 +774,7 @@ items.forEach((item) => {
   validateField( item.quantity > fetchedItem.currentStock, `Insufficient Stock for ${item.itemName}: Requested quantity ${item.quantity}, Available stock ${fetchedItem.currentStock}`, errors );
 
   // Validate float fields
-  validateFloatFields(['sellingPrice', 'itemTotaltax', 'discountAmount', 'itemAmount'], item, errors);
+  validateFloatFields(['sellingPrice', 'itemTotalTax', 'discountAmount', 'itemAmount'], item, errors);
 });
 }
 
@@ -942,7 +943,7 @@ function calculateSalesOrder(cleanedData, res) {
       checkAmount(calculatedSgstAmount, item.sgstAmount, item.itemName, 'SGST',errors);
       checkAmount(calculatedIgstAmount, item.igstAmount, item.itemName, 'IGST',errors);
       checkAmount(calculatedVatAmount, item.vatAmount, item.itemName, 'VAT',errors);
-      checkAmount(calculatedTaxAmount, item.itemTotaltax, item.itemName, 'Total tax',errors);
+      checkAmount(calculatedTaxAmount, item.itemTotalTax, item.itemName, 'Total tax',errors);
 
       totalTax += calculatedCgstAmount + calculatedSgstAmount + calculatedIgstAmount + calculatedVatAmount || 0 ;
 
@@ -959,7 +960,7 @@ function calculateSalesOrder(cleanedData, res) {
     checkAmount(itemTotal, item.itemAmount, item.itemName, 'Item Total',errors);
 
     console.log(`${item.itemName} Item Total: ${itemTotal} , Provided ${item.itemAmount}`);
-    console.log(`${item.itemName} Total Tax: ${calculatedTaxAmount} , Provided ${item.itemTotaltax || 0 }`);
+    console.log(`${item.itemName} Total Tax: ${calculatedTaxAmount} , Provided ${item.itemTotalTax || 0 }`);
     console.log("");
   });
   

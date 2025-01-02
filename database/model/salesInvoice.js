@@ -6,6 +6,7 @@ const itemsSchema = new Schema({
   itemId: {type:String},
 
   quantity: {type:Number},
+  returnQuantity: { type: Number},
   sellingPrice: {type:Number},
 
   taxPreference: {type:String},
@@ -20,7 +21,7 @@ const itemsSchema = new Schema({
   igstAmount: { type: Number },
   vatAmount: { type: Number },
 
-  itemTotaltax: {type:Number},
+  itemTotalTax: {type:Number},
 
   discountType: {type:String}, //Currency,Percentage
   discountAmount: {type:Number}, 
@@ -28,15 +29,6 @@ const itemsSchema = new Schema({
 
   }, { _id: false });
 
-
-const returnItemSchema = new Schema({
-  itemId: {type:String},
-  quantity: {type:Number},  
-  }, { _id: false });
-
-const creditNoteSchema = new Schema({
-  creditNoteId: {type:String}
-  }, { _id: false });
 
 const SalesInvoiceSchema = new Schema ({
 
@@ -79,7 +71,7 @@ const SalesInvoiceSchema = new Schema ({
 
   discountTransactionType: { type: String }, // Currency,Percentage
   discountTransactionAmount: { type: Number },
-  taxtype: { type: String },//Intra, Inter, Non-tax, VAT 
+  taxType: { type: String },//Intra, Inter, Non-tax, VAT 
 
   saleAmount: { type: Number },
   
@@ -97,6 +89,8 @@ const SalesInvoiceSchema = new Schema ({
   paidAmount: { type: Number },
   balanceAmount: { type: Number },
   depositAccountId: { type: String },
+
+  paymentMethod: { type: String },
 
   paidStatus: { type: String },
 

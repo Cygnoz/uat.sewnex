@@ -350,22 +350,25 @@ function salesPrefix( cleanData, existingPrefix ) {
   return 
 }
 
+
+
 // Tax Type
 function taxtype( cleanedData, customerExist, organizationExists ) {
-  if(customerExist.taxType === 'GST' ){
-    if(cleanedData.placeOfSupply === organizationExists.state){
-      cleanedData.taxType ='Intra';
+    if (cleanedData.taxPreference === 'Taxable') {
+      if(customerExist.taxType === 'GST'){
+        if(cleanedData.placeOfSupply === organizationExists.state){
+          cleanedData.taxType = 'Intra';
+        }
+        else {
+          cleanedData.taxType = 'Inter';
+        } 
+      } 
+      if(customerExist.taxType === 'VAT'){
+        cleanedData.taxType ='VAT';
+      }
+    } else {
+      cleanedData.taxType ='Non-Taxable';
     }
-    else{
-      cleanedData.taxType ='Inter';
-    }
-  }
-  if(customerExist.taxType === 'VAT' ){
-    cleanedData.taxType ='VAT';
-  }
-  if(customerExist.taxType === 'Non-Tax' ){
-    cleanedData.taxType ='Non-Tax';
-  }  
   return  
 }
 
@@ -488,7 +491,7 @@ function validateItemTable(items, itemTable, errors) {
     validateField( item.itemName !== fetchedItem.itemName, `Item Name Mismatch : ${item.itemName}`, errors );
 
     // Validate selling price
-    validateField( item.sellingPrice !== fetchedItem.sellingPrice, `Selling price Mismatch for ${item.itemName}:  ${item.sellingPrice}`, errors );
+    // validateField( item.sellingPrice !== fetchedItem.sellingPrice, `Selling price Mismatch for ${item.itemName}:  ${item.sellingPrice}`, errors );
 
     // Validate CGST
     validateField( item.cgst !== fetchedItem.cgst, `CGST Mismatch for ${item.itemName}: ${item.cgst}`, errors );
@@ -614,13 +617,9 @@ function isValidEmail(value) {
 
 
 
-
-
-
-
 function calculateSalesOrder(cleanedData, res) {
 
-  console.log(cleanedData);
+  // console.log(cleanedData);
   
   const errors = [];
   let totalAmount = 0;
@@ -688,7 +687,6 @@ function calculateSalesOrder(cleanedData, res) {
     } else {
       console.log(`Skipping Tax for Non-Taxable item: ${item.itemName}`);
       console.log(`Item: ${item.itemName}, Calculated Discount: ${totalDiscount}`);
-
     }
 
     // Update total values
@@ -727,12 +725,18 @@ function calculateSalesOrder(cleanedData, res) {
   console.log(`Final Total Amount: ${roundedTotalAmount} , Provided ${cleanedData.totalAmount}` );
   console.log(`Final Total Discount Amount: ${roundedTotalDiscount} , Provided ${cleanedData.totalDiscount}` );
 
-  validateAmount(roundedSubTotal, cleanedData.subTotal, 'SubTotal', errors);
-  validateAmount(roundedTotalTax, cleanedData.totalTax, 'Total Tax', errors);
-  validateAmount(roundedTotalAmount, cleanedData.totalAmount, 'Total Amount', errors);
-  validateAmount(roundedTotalDiscount, cleanedData.totalDiscount, 'Total Discount Amount', errors);
-  validateAmount(totalItemCount, cleanedData.totalItem, 'Total Item count', errors);
-
+  if (cleanedData.taxPreference === 'Non-Taxable') {
+    validateAmount(roundedSubTotal, cleanedData.subTotal, 'SubTotal', errors);
+    validateAmount(roundedTotalAmount, cleanedData.totalAmount, 'Total Amount', errors);
+    validateAmount(totalItemCount, cleanedData.totalItem, 'Total Item count', errors);
+  } else {
+    validateAmount(roundedSubTotal, cleanedData.subTotal, 'SubTotal', errors);
+    validateAmount(roundedTotalTax, cleanedData.totalTax, 'Total Tax', errors);
+    validateAmount(roundedTotalAmount, cleanedData.totalAmount, 'Total Amount', errors);
+    validateAmount(roundedTotalDiscount, cleanedData.totalDiscount, 'Total Discount Amount', errors);
+    validateAmount(totalItemCount, cleanedData.totalItem, 'Total Item count', errors);
+  }
+  
   if (errors.length > 0) {
     res.status(400).json({ message: errors.join(", ") });
     return false;
