@@ -144,6 +144,7 @@ exports.getAllAccount = async (req, res) => {
         parentAccountId: acc.parentAccountId?._id || undefined,
         parentAccountName: acc.parentAccountId?.accountName || undefined,
       }));
+       
 
       const formattedObjects = multiCustomDateTime(transformedItems, existingOrganization.dateFormatExp, existingOrganization.timeZoneExp, existingOrganization.dateSplit );          
 

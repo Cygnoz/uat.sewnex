@@ -1,3 +1,5 @@
+//v1.5
+
 const moment = require("moment-timezone");
 
 // Single function to format date and time
@@ -25,10 +27,10 @@ function multiCustomDateTime(objects, dateFormat, timeZone, dateSplit) {
     throw new Error("The first parameter must be an array of objects.");
   }
 
-  return objects.map(obj => {
-    if (!obj.createdDateTime) {
-      throw new Error("Each object must have a createdDateTime property.");
-    }
+  return objects.map(obj => {    
+    // if (!obj.createdDateTime) {
+    //   throw new Error("Each object must have a createdDateTime property.");
+    // }
 
     const formatted = singleCustomDateTime(obj, dateFormat, timeZone, dateSplit);
 
