@@ -4,20 +4,24 @@ const Category = require("../database/model/expenseCategory");
 const Account = require("../database/model/account")
 const TrialBalance = require("../database/model/trialBalance");
 const Supplier = require('../database/model/supplier');
+const Tax = require('../database/model/tax');  
+const Prefix = require("../database/model/prefix");
 const moment = require("moment-timezone");
 const mongoose = require('mongoose');
 
 
 
 const dataExist = async (organizationId, supplierId) => {
-    const [organizationExists, expenseExists, categoryExists, accountExist, supplierExist] = await Promise.all([
+    const [organizationExists, expenseExists, categoryExists, accountExist, supplierExist, existingPrefix] = await Promise.all([
       Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1, state: 1 }),
       Expense.find({ organizationId }),
       Category.find({ organizationId }),
       Account.find({ organizationId }),
       Supplier.findOne({ organizationId , _id:supplierId}, { _id: 1, supplierDisplayName: 1, taxType: 1, sourceOfSupply: 1, gstin_uin: 1, gstTreatment: 1 }),
+      Prefix.findOne({ organizationId })
     ]);
-    return { organizationExists, expenseExists, categoryExists, accountExist, supplierExist };
+    
+    return { organizationExists, expenseExists, categoryExists, accountExist, supplierExist, existingPrefix };
   };
 
 
@@ -41,7 +45,7 @@ exports.addExpense = async (req, res) => {
       }
 
       // Validate organizationId
-      const { organizationExists, accountExist, supplierExist } = await dataExist(organizationId, supplierId);
+      const { organizationExists, accountExist, supplierExist, existingPrefix } = await dataExist(organizationId, supplierId);
 
       // Extract all account IDs from accountExist
       const accountIds = accountExist.map(account => account._id.toString());
@@ -55,7 +59,7 @@ exports.addExpense = async (req, res) => {
       }
 
       //Data Exist Validation
-      if (!validateOrganizationSupplierAccount( organizationExists, accountExist, supplierExist, supplierId, res )) return;
+      if (!validateOrganizationSupplierAccount( organizationExists, accountExist, supplierExist, supplierId, existingPrefix, res )) return;
 
       if (!validateInputs(cleanedData, organizationExists, res)) return;
 
@@ -68,13 +72,14 @@ exports.addExpense = async (req, res) => {
       // Calculate Expense 
       if (!calculateExpense( cleanedData, res )) return;
 
+      //Prefix
+      // await expensePrefix(cleanedData, existingPrefix );
+
       // Create a new expense
       const savedExpense = await createNewExpense(cleanedData, organizationId, openingDate, userId, userName);
       // console.log("savedExpense:",savedExpense)
       const savedTrialBalance= await createTrialBalance(savedExpense);
       // console.log("savedTrialBalance:",savedTrialBalance)
-
-      savedExpense.organizationId = undefined;
 
       res.status(201).json({ message: "Expense created successfully." });
   } catch (error) {
@@ -128,7 +133,7 @@ exports.getOneExpense = async (req, res) => {
         });
       }
   
-      // Find the Customer by   supplierId and organizationId
+      // Find the Customer by supplierId and organizationId
       const expense = await Expense.findOne({
         _id: expenseId,
         organizationId: organizationId,
@@ -147,6 +152,7 @@ exports.getOneExpense = async (req, res) => {
       res.status(500).json({ message: "Internal server error." });
     }
   };
+
 
 // //update expense
 // exports.updateExpense = async (req, res) => {
@@ -327,8 +333,6 @@ exports.addCategory = async (req, res) => {
         const newCategory = new Category({ organizationId, expenseCategory, description, userId, userName });
         await newCategory.save();
 
-        newCategory.organizationId = undefined;
-
         res.status(201).json({ message: "Category created successfully", newCategory});
     } catch (error) {
         console.error("Error adding category:", error);
@@ -491,7 +495,6 @@ exports.deleteCategory = async (req, res) => {
 };
 
 
-
 function removeSpaces(body) {
     const cleanedBody = {};
 
@@ -507,6 +510,51 @@ function removeSpaces(body) {
 
     return cleanedBody;
 }
+
+
+
+
+// Get last expense prefix
+exports.getLastExpensePrefix = async (req, res) => {
+  try {
+    const organizationId = req.user.organizationId;
+
+      // Find all accounts where organizationId matches
+      const prefix = await Prefix.findOne({ organizationId:organizationId,'series.status': true });
+
+      if (!prefix) {
+          return res.status(404).json({
+              message: "No Prefix found for the provided organization ID.",
+          });
+      }
+      
+      const series = prefix.series[0];     
+      const lastPrefix = series.expense + series.expenseNum;
+
+      lastPrefix.organizationId = undefined;
+
+      res.status(200).json(lastPrefix);
+  } catch (error) {
+      console.error("Error fetching accounts:", error);
+      res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+// Expense Prefix
+function expensePrefix( cleanData, existingPrefix ) {
+  const activeSeries = existingPrefix.series.find(series => series.status === true);
+  if (!activeSeries) {
+      return res.status(404).json({ message: "No active series found for the organization." });
+  }
+  cleanData.expenseNumber = `${activeSeries.expense}${activeSeries.expenseNum}`;
+
+  activeSeries.expenseNum += 1;
+
+  existingPrefix.save()
+
+  return 
+}
+
 
 
 
@@ -529,7 +577,7 @@ function removeSpaces(body) {
 
 
   // Validate Organization Supplier Account
-  function validateOrganizationSupplierAccount( organizationExists, accountExist, supplierExist, supplierId, res ) {
+  function validateOrganizationSupplierAccount( organizationExists, accountExist, supplierExist, supplierId, existingPrefix, res ) {
     if (!organizationExists) {
       res.status(404).json({ message: "Organization not found" });
       return false;
@@ -541,6 +589,10 @@ function removeSpaces(body) {
     // Check supplierExist only if supplierId is not empty
     if (supplierId && supplierId.trim() !== "" && !supplierExist) {
       res.status(404).json({ message: "Supplier not found." });
+      return false;
+    }
+    if (!existingPrefix) {
+      res.status(404).json({ message: "Prefix not found" });
       return false;
     }
     return true;
@@ -590,12 +642,10 @@ function removeSpaces(body) {
 
       subTotal += amount;
 
-      const gstTreatment = cleanedData.gstTreatment !== "Unregistered Business" || cleanedData.gstTreatment !== "Overseas";
-      const taxGroup = data.taxGroup !== "None";
+      const gstTreatment = cleanedData.gstTreatment !== "Registered Business - Composition" || cleanedData.gstTreatment !== "Unregistered Business" || cleanedData.gstTreatment !== "Overseas" || cleanedData.gstTreatment !== "Consumer";
+      const taxGroup = data.taxGroup !== "Non-Taxable";
       const isnotMileage = (cleanedData.distance > 0 || cleanedData.distance === "undefined") && (cleanedData.ratePerKm > 0 || cleanedData.ratePerKm === "undefined");
 
-
-      console.log("test:",data);
       // Handle tax calculation only for taxable expense
       if (gstTreatment && taxGroup && !isnotMileage) {
         if (taxMode === 'Intra') {
@@ -631,14 +681,18 @@ function removeSpaces(body) {
       } else {
         console.log('Skipping Tax for Non-Taxable expense');
 
-        amount = roundToTwoDecimals(distance * ratePerKm);
-        checkAmount(distance, cleanedData.distance, 'Distance',errors);
-        checkAmount(ratePerKm, cleanedData.ratePerKm, 'Rate Per Km',errors);
-        checkAmount(amount, data.amount, 'Amount',errors);
+        if (distance && ratePerKm) {
+          amount = roundToTwoDecimals(distance * ratePerKm);
+          checkAmount(distance, cleanedData.distance, 'Distance',errors);
+          checkAmount(ratePerKm, cleanedData.ratePerKm, 'Rate Per Km',errors);
+          checkAmount(amount, data.amount, 'Amount',errors);
 
-        console.log("distance",distance);
-        console.log("ratePerKm",ratePerKm);
-        console.log("amount",amount);
+          console.log("distance",distance);
+          console.log("ratePerKm",ratePerKm);
+          console.log("amount",amount);
+        } else {
+          amount = subTotal;
+        }
       }
     });
 
@@ -860,7 +914,7 @@ function validateGSTorVAT(data, errors) {
       validateGSTDetails(data, errors);
     } else if (prefix === "VAT") {
       validateVATDetails(data, errors);
-    } else if (taxGroup === "None") {
+    } else if (taxGroup === "Non-Taxable") {
       clearTaxFields(data);
     } else {
       // Handle unexpected taxGroup values

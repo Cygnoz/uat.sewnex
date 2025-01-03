@@ -27,6 +27,7 @@ const expenseTableSchema = new Schema({
 const expenseSchema = new Schema({
     organizationId:{ type : String },
     expenseDate: { type: String },
+    expenseNumber: { type: String },   //Prefix
 
     // employee: { type: String },
 
@@ -63,7 +64,7 @@ const expenseSchema = new Schema({
 
     createdDate: { type: String },
 
-    expense : [expenseTableSchema]
+    expense: [expenseTableSchema]
 
 });
  
