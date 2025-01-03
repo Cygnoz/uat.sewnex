@@ -1,4 +1,4 @@
-// v1.2
+// v1.4
 
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
@@ -50,13 +50,13 @@ const itemSchema = new Schema({
 
     //Sale Info
     sellingPrice: { type: Number },
-    salesAccountId: { type: String },
+    salesAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'Accounts' },
     saleMrp: { type: Number },
     
     //Purchase Info
     costPrice: { type: Number },
-    purchaseAccountId: { type: String },
-    preferredVendorId: { type: String },
+    purchaseAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'Accounts' },
+    preferredVendorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier' },
 
     taxRate:{type:String},
     cgst:{type:Number},

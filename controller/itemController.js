@@ -32,14 +32,24 @@ const dataExist = async ( organizationId, salesAccountId = null , purchaseAccoun
 const xsItemDataExists = async (organizationId) => {
                 // Retrieve items with specified fields
                 const [newItems] = await Promise.all([
-                  Item.find( { organizationId }, { _id: 1, itemName: 1, itemImage: 1, taxPreference: 1, sellingPrice: 1, costPrice:1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 } ),
-                  
-                ]);
-
+                  Item.find( { organizationId }, { _id: 1, itemName: 1, itemImage: 1, taxPreference: 1, sellingPrice: 1, salesAccountId:1, purchaseAccountId:1, costPrice:1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 } )
+                  .populate('salesAccountId', 'accountName') 
+                  .populate('purchaseAccountId', 'accountName') 
+                  .lean(),                  
+                ]);     
                 
+                
+                const transformedItems = newItems.map(item => ({
+                  ...item,
+                  salesAccountId: item.salesAccountId?._id || undefined,
+                  salesAccountName: item.salesAccountId?.accountName || undefined,
+                  
+                  purchaseAccountId: item.purchaseAccountId?._id || undefined,
+                  purchaseAccountName: item.purchaseAccountId?.accountName || undefined,
+                }));
 
                 // Extract itemIds from newItems
-                const itemIds = newItems.map(item => item._id.toString());
+                const itemIds = transformedItems.map(item => item._id.toString());
               
 
                 // Aggregate ItemTrack to get the latest entry for each itemId
@@ -57,9 +67,8 @@ const xsItemDataExists = async (organizationId) => {
                 }, {});
 
                 // Attach the last entry from ItemTrack to each item in newItems
-                const enrichedItems = newItems.map(item => ({
-                  ...item._doc, // Copy item fields
-                  // lastEntry: itemTrackMap[item._id] || null, // Attach lastEntry if found
+                const enrichedItems = transformedItems.map(item => ({
+                  ...item, // Copy item fields
                   currentStock: itemTrackMap[item._id.toString()] ? itemTrackMap[item._id.toString()].currentStock : null
                 }));
 
@@ -72,12 +81,29 @@ const mItemDataExists = async (organizationId) => {
           // Retrieve items with specified fields
           const [newItems] = await Promise.all([
             // Item.find( { organizationId },{ itemName :1, sku:1, costPrice:1, sellingPrice:1, reorderPoint:1 } ),
-            Item.find( { organizationId },{ organizationId :0, itemImage: 0 } ),
+            Item.find( { organizationId },{ organizationId :0, itemImage: 0 } )
+            .populate('salesAccountId', 'accountName') 
+            .populate('purchaseAccountId', 'accountName')
+            .populate('preferredVendorId', 'supplierDisplayName')  
+            .lean(),
 
           ]);
 
+          const transformedItems = newItems.map(item => ({
+            ...item,
+            salesAccountId: item.salesAccountId?._id || undefined,
+            salesAccountName: item.salesAccountId?.accountName || undefined,
+
+            purchaseAccountId: item.purchaseAccountId?._id || undefined,
+            purchaseAccountName: item.purchaseAccountId?.accountName || undefined,
+
+            preferredVendorId: item.preferredVendorId?._id || undefined,
+            preferredVendorName: item.preferredVendorId?.supplierDisplayName || undefined,
+          }));
+
+
           // Extract itemIds from newItems
-          const itemIds = newItems.map(item => item._id.toString());
+          const itemIds = transformedItems.map(item => item._id.toString());
 
 
           // Aggregate ItemTrack to get the latest entry for each itemId
@@ -95,11 +121,12 @@ const mItemDataExists = async (organizationId) => {
           }, {});
 
           // Attach the last entry from ItemTrack to each item in newItems
-          const enrichedItems = newItems.map(item => ({
-            ...item._doc, // Copy item fields
-            // lastEntry: itemTrackMap[item._id] || null, // Attach lastEntry if found
+          const enrichedItems = transformedItems.map(item => ({
+            ...item, // Copy item fields
             currentStock: itemTrackMap[item._id.toString()] ? itemTrackMap[item._id.toString()].currentStock : null
           }));
+          
+          
 
           return { enrichedItems };
 };
@@ -199,7 +226,6 @@ exports.getAllItem = async (req, res) => {
   try {
     const organizationId = req.user.organizationId;
 
-
     // Check if an Organization already exists
     const existingOrganization = await Organization.findOne({ organizationId });
     
@@ -209,16 +235,10 @@ exports.getAllItem = async (req, res) => {
       });
     }
 
-    const allItem = await Item.find({ organizationId });
-    if (allItem.length > 0) {
-      const AllItem = allItem.map((history) => {
-        const { organizationId, ...rest } = history.toObject(); // Convert to plain object and omit organizationId
-        return rest;
-      });
-      res.status(200).json(AllItem);
-    } else {
-      return res.status(404).json("No Items found.");
-    }
+    const allItem = await Item.find({ organizationId },{ organizationId :0, itemImage: 0 }).lean();
+    if (allItem) res.status(200).json(allItem);
+    else return res.status(404).json("No Items found.");
+    
   } catch (error) {
     console.error("Error fetching Items:", error);
     res.status(500).json({ message: "Internal server error." });
@@ -230,8 +250,6 @@ exports.getAllItemXS = async (req, res) => {
   try {
     const organizationId = req.user.organizationId;
 
-
-
     // Check if an Organization already exists
     const existingOrganization = await Organization.findOne({ organizationId });
     
@@ -242,12 +260,8 @@ exports.getAllItemXS = async (req, res) => {
     }
     const { enrichedItems  } = await xsItemDataExists(organizationId);
 
-    if (enrichedItems .length > 0) {
-      const allItems = enrichedItems.map((item) => {
-        const { organizationId, ...rest } = item; // Omit organizationId
-        return rest;
-      });
-      res.status(200).json(allItems);
+    if (enrichedItems ) {
+      res.status(200).json(enrichedItems);
     } else {
       return res.status(404).json("No Items found.");
     }
@@ -274,12 +288,8 @@ exports.getAllItemM = async (req, res) => {
 
     const { enrichedItems  } = await mItemDataExists(organizationId);
 
-    if (enrichedItems.length > 0) {
-      const allItems = enrichedItems.map((item) => {
-        const { organizationId, ...rest } = item; 
-        return rest;
-      });
-      res.status(200).json(allItems);            
+    if ( enrichedItems ) {
+      res.status(200).json(enrichedItems);            
     } else {
       return res.status(404).json("No Items found.");
     }
@@ -306,25 +316,29 @@ exports.getAItem = async (req, res) => {
       }
 
       // Fetch item
-      const singleItem = await Item.findById(itemId).lean();
+      const singleItem = await Item.findById(itemId)
+      .populate('salesAccountId', 'accountName') 
+      .populate('purchaseAccountId', 'accountName')
+      .populate('preferredVendorId', 'supplierDisplayName')
+      .lean();
 
       if (!singleItem) {
           return res.status(404).json({ message: "Item not found." });
       }
+      
+      const transformedItems = {
+        ...singleItem,
+        salesAccountId: singleItem.salesAccountId?._id || undefined,
+        salesAccountName: singleItem.salesAccountId?.accountName || undefined,
 
-      // Fetch specific supplier details based on preferredVendorId
-      if (singleItem.preferredVendorId) {
-          const supplierData = await Supplier.findById(
-              singleItem.preferredVendorId,
-              'supplierDisplayName workPhone mobile billingAttention billingCountry billingAddressStreet1 billingAddressStreet2 billingCity billingState billingPinCode billingPhone billingFaxNum'
-          ).lean();
+        purchaseAccountId: singleItem.purchaseAccountId?._id || undefined,
+        purchaseAccountName: singleItem.purchaseAccountId?.accountName || undefined,
 
-          singleItem.supplierDetails = supplierData || null; 
-      } else {
-          singleItem.supplierDetails = null;
-      }
+        preferredVendorId: singleItem.preferredVendorId?._id || undefined,
+        preferredVendorName: singleItem.preferredVendorId?.supplierDisplayName || undefined,
+      };
 
-      res.status(200).json(singleItem);
+      res.status(200).json(transformedItems);
     } catch (error) {
       console.error("Error fetching Item:", error);
       res.status(500).json({ message: "Internal server error." });
