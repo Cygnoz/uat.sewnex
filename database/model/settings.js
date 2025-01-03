@@ -30,7 +30,7 @@ const settingSchema = new Schema({
   linkedinLink: { type: String },  displayLinkedinLink: { type: Boolean },
   facebookLink: { type: String },  displayFacebookLink: { type: Boolean },
   
-  //Bankfield
+  //Bank field
   accountHolderName: { type: String },  displayAccountHolderName: { type: Boolean },
   bankName: { type: String },  displayBankName: { type: Boolean },
   accNum: { type: String },  displayAccNum: { type: Boolean },
@@ -70,18 +70,18 @@ const settingSchema = new Schema({
 
 
   //Sales Order
-  salesOrderAddress: { type: Boolean },//deafult=false
-  salesOrderCustomerNote: { type: Boolean },//deafult=false
-  salesOrderTermsCondition: { type: Boolean },//deafult=false
+  salesOrderAddress: { type: Boolean },//default=false
+  salesOrderCustomerNote: { type: Boolean },//default=false
+  salesOrderTermsCondition: { type: Boolean },//default=false
   salesOrderClose: { type: String }, //default=invoice    (invoice, shipment, shipmentAndInvoice)
-  restrictSalesOrderClose: { type: Boolean }, //deafult=false
+  restrictSalesOrderClose: { type: Boolean }, //default=false
   termCondition: { type: String },
   customerNote: { type: String },
 
 
   //Shipment
-  carrierNotification: { type: Boolean }, //deafult=false
-  manualNotification: { type: Boolean }, //deafult=false
+  carrierNotification: { type: Boolean }, //default=false
+  manualNotification: { type: Boolean }, //default=false
   shippingAddress:[shipSchema],
 
 

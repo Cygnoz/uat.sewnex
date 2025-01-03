@@ -1,4 +1,4 @@
-// v1.4
+// v1.5
 
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
@@ -14,7 +14,7 @@ const accountSchema = new Schema({
     accountHead: {type:String},
     accountGroup: {type:String},
 
-    parentAccountId: {type:String},
+    parentAccountId: {type: mongoose.Schema.Types.ObjectId, ref: 'Accounts'},
 
     description: {type:String},
 

@@ -1,4 +1,4 @@
-// v1.2
+// v1.3
 
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
@@ -14,8 +14,6 @@ const userSchema = new Schema({
   isActive: { type: Boolean, default: true },
     
 });
-
-userSchema.index({ organizationId: 1, userEmail: 1 });
 
 const User = mongoose.model("User", userSchema);
 
