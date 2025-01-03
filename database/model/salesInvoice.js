@@ -3,7 +3,7 @@ const { Schema } = mongoose
 
 const itemsSchema = new Schema({
 
-  itemId: {type:String},
+  itemId: {type: mongoose.Schema.Types.ObjectId, ref: 'Item'},
 
   quantity: {type:Number},
   returnQuantity: { type: Number},
@@ -30,12 +30,18 @@ const itemsSchema = new Schema({
   }, { _id: false });
 
 
+const journalSchema = new Schema({
+  accountId: {type: mongoose.Schema.Types.ObjectId, ref: 'Accounts'},
+  debitAmount: {type:Number},
+  creditAmount: {type:Number},
+  }, { _id: false });
+
+
 const SalesInvoiceSchema = new Schema ({
 
   organizationId: { type: String, index: true },
   
-  customerId: { type: String },
-  customerName: { type: String },
+  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
   placeOfSupply: { type: String },  
   reference: { type: String },
 
@@ -61,12 +67,15 @@ const SalesInvoiceSchema = new Schema ({
   tc: { type: String },
 
   //new
+  otherExpenseAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'Accounts' },
   otherExpenseAmount: { type: Number },
   otherExpenseReason: { type: String },
-  otherExpenseAccountId: { type: String },
+  
   vehicleNumber: { type: String },
+  
+  freightAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'Accounts' },
   freightAmount: { type: Number },
-  freightAccountId: { type: String },
+  
   roundOffAmount: { type: Number },
 
   discountTransactionType: { type: String }, // Currency,Percentage
@@ -88,7 +97,7 @@ const SalesInvoiceSchema = new Schema ({
 
   paidAmount: { type: Number },
   balanceAmount: { type: Number },
-  depositAccountId: { type: String },
+  depositAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'Accounts' },
 
   paymentMethod: { type: String },
 
@@ -96,7 +105,9 @@ const SalesInvoiceSchema = new Schema ({
 
   salesOrderId: { type: String },
 
-  createdDate: { type: String },
+  journal:[ journalSchema ], 
+
+  createdDateTime: { type: Date, default: () => new Date() },
   userId: { type: String },
   userName: { type: String },
 

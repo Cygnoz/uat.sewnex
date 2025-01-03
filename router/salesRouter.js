@@ -2,13 +2,14 @@ const express = require("express")
 
 const router = new express.Router()
 
+const salesQuotes = require('../controller/Quote/salesQuotes')
+const salesOrder = require('../controller/Order/salesOrder')
+const salesInvoice = require('../controller/Invoice/salesInvoice')
+const salesReceipt = require('../controller/Receipt/salesReceipt')
+const creditNote = require('../controller/Credit Note/creditNoteController')
+
 const salesSettings = require('../controller/salesSettings')
-const salesQuotes = require('../controller/salesQuotes')
-const salesOrder = require('../controller/salesOrder')
-const salesInvoice = require('../controller/salesInvoice')
 const customerController = require('../controller/customerController')
-const salesReceipt = require('../controller/salesReceipt')
-const creditNote = require('../controller/creditNoteController')
 
 const checkPermission = require('../controller/permission');
 const { verifyToken } = require('../controller/middleware');
@@ -70,7 +71,7 @@ router.get('/sales-order/:invoiceId',verifyToken,salesInvoice.getOneSalesInvoice
 
 
 
-// customer sales Hisory
+// customer sales History
 router.get('/get-customer-sales-history/:id',verifyToken,customerController.customerSaleHistory)
 
 

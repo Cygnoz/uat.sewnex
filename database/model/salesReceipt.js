@@ -37,7 +37,7 @@ const SalesReceiptSchema = new Schema ({
 
   amountReceived: { type: Number },
 
-  createdDate: { type: String },
+  createdDateTime: { type: Date, default: () => new Date() },
   userId: { type: String },
   userName: { type: String },
 })

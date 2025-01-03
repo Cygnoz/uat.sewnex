@@ -1,19 +1,20 @@
 // v1.0
 
-const Organization = require("../database/model/organization");
-const Item = require("../database/model/item");
-const Customer = require("../database/model/customer");
+const Organization = require("../../database/model/organization");
+const Item = require("../../database/model/item");
+const Customer = require("../../database/model/customer");
 const moment = require("moment-timezone");
-const Settings = require("../database/model/settings")
-const Invoice = require("../database/model/salesInvoice")
-const ItemTrack = require("../database/model/itemTrack")
-const Prefix = require("../database/model/prefix");
+const Settings = require("../../database/model/settings")
+const Invoice = require("../../database/model/salesInvoice")
+const ItemTrack = require("../../database/model/itemTrack")
+const Prefix = require("../../database/model/prefix");
 const mongoose = require('mongoose');
-const SalesOrder = require("../database/model/salesOrder");
-const DefAcc  = require("../database/model/defaultAccount");
-const TrialBalance = require("../database/model/trialBalance");
-const Account = require("../database/model/account");
+const SalesOrder = require("../../database/model/salesOrder");
+const DefAcc  = require("../../database/model/defaultAccount");
+const TrialBalance = require("../../database/model/trialBalance");
+const Account = require("../../database/model/account");
 
+const { cleanData } = require("../../services/cleanData");
 
 
 // Fetch existing data
@@ -31,7 +32,7 @@ const dataExist = async ( organizationId, customerId, customerName ) => {
 
 
 //Fetch Item Data
-const newDataExists = async (organizationId,items) => {
+const itemDataExists = async (organizationId,items) => {
                 // Retrieve items with specified fields
                 const itemIds = items.map(item => item.itemId);
 
@@ -65,24 +66,14 @@ const newDataExists = async (organizationId,items) => {
 
 
 // Fetch Acc existing data
-const accDataExists = async ( defaultAccount, organizationId, otherExpenseAccountId, freightAccountId, depositAccountId ) => {
-  const [ salesAccountName, salesDiscountAccountName , outputCgstName, outputSgstName, outputIgstName, outputVatName, otherExpenseAcc, freightAcc, depositAcc ] = await Promise.all([
-    Account.findOne({ organizationId , _id: defaultAccount.salesAccount }, { accountName: 1 }),
-    Account.findOne({ organizationId , _id: defaultAccount.salesDiscountAccount}, { accountName: 1 }),
-
-    Account.findOne({ organizationId , _id: defaultAccount.outputCgst}, { accountName: 1 }),
-    Account.findOne({ organizationId , _id: defaultAccount.outputSgst}, { accountName: 1 }),
-    Account.findOne({ organizationId , _id: defaultAccount.outputIgst}, { accountName: 1 }),
-
-    Account.findOne({ organizationId , _id: defaultAccount.outputVat}, { accountName: 1 }),
-
+const accDataExists = async ( organizationId, otherExpenseAccountId, freightAccountId, depositAccountId ) => {
+  const [ otherExpenseAcc, freightAcc, depositAcc ] = await Promise.all([
     Account.findOne({ organizationId , _id: otherExpenseAccountId, accountHead: "Expenses" }, { _id:1, accountName: 1 }),
     Account.findOne({ organizationId , _id: freightAccountId, accountHead: "Expenses" }, { _id:1, accountName: 1 }),
-
     Account.findOne({ organizationId , _id: depositAccountId, accountHead: "Asset" }, { _id:1, accountName: 1 }),
 
   ]);
-  return { salesAccountName, salesDiscountAccountName , outputCgstName, outputSgstName, outputIgstName, outputVatName, otherExpenseAcc, freightAcc, depositAcc };
+  return { otherExpenseAcc, freightAcc, depositAcc };
 };
 
 
@@ -106,10 +97,9 @@ exports.addInvoice = async (req, res) => {
       const { organizationId, id: userId, userName } = req.user;
 
       //Clean Data
-      const cleanedData = cleanCustomerData(req.body);
+      const cleanedData = cleanData(req.body);
 
-      const { items, salesOrderId } = cleanedData;
-      const { customerId, customerName, otherExpenseAccountId, freightAccountId, depositAccountId } = cleanedData;
+      const { items, salesOrderId, customerId, customerName, otherExpenseAccountId, freightAccountId, depositAccountId } = cleanedData;
       const itemIds = items.map(item => item.itemId);
 
       // Check for duplicate itemIds
@@ -144,14 +134,11 @@ exports.addInvoice = async (req, res) => {
   
       const { organizationExists, customerExist , settings, existingPrefix, defaultAccount, customerAccount } = await dataExist( organizationId, customerId, customerName );   
       
-      const { itemTable } = await newDataExists( organizationId, items );
+      const { itemTable } = await itemDataExists( organizationId, items );
 
       //Data Exist Validation
       if (!validateOrganizationTaxCurrency( organizationExists, customerExist, existingPrefix, defaultAccount, res )) return;
       
-      //Date & Time
-      const openingDate = generateOpeningDate(organizationExists);
-
       //Validate Inputs  
       if (!validateInputs( cleanedData, customerExist, items, itemTable, organizationExists, defaultAccount, res)) return;
 
@@ -166,7 +153,11 @@ exports.addInvoice = async (req, res) => {
       }
 
       // Calculate Sales 
-      if (!calculateSalesOrder( cleanedData, res )) return;      
+      if (!calculateSalesOrder( cleanedData, res )) return;
+
+      //Sales Journal      
+      if (!salesJournal( cleanedData, res )) return;
+
 
       //Prefix
       await salesPrefix(cleanedData, existingPrefix );
@@ -174,13 +165,14 @@ exports.addInvoice = async (req, res) => {
       if(cleanedData._id){
         cleanedData._id = undefined;
       }
-      const savedInvoice = await createNewInvoice(cleanedData, openingDate, organizationId, userId, userName );
 
-      //Jornal
-      await journal( savedInvoice, defAcc, customerAccount );
+      // const savedInvoice = await createNewInvoice(cleanedData, organizationId, userId, userName );
+
+      //Journal
+      // await journal( savedInvoice, defAcc, customerAccount );
 
       //Item Track
-      await itemTrack( savedInvoice, itemTable );
+      // await itemTrack( savedInvoice, itemTable );
 
       // Delete the associated sale order if salesOrderId is provided
       if (salesOrderId) {
@@ -428,14 +420,7 @@ const validCountries = {
 };
 
   
-//Clean Data 
-function cleanCustomerData(data) {
-  const cleanData = (value) => (value === null || value === undefined || value === "" ? undefined : value);
-  return Object.keys(data).reduce((acc, key) => {
-    acc[key] = cleanData(data[key]);
-    return acc;
-  }, {});
-}
+
 
 // Validate Organization Tax Currency
 function validateOrganizationTaxCurrency( organizationExists, customerExist, existingPrefix, defaultAccount, res ) {
@@ -459,16 +444,7 @@ function validateOrganizationTaxCurrency( organizationExists, customerExist, exi
 }
   
 
-//Return Date and Time 
-function generateOpeningDate(organizationExists) {
-    const date = generateTimeAndDateForDB(
-        organizationExists.timeZoneExp,
-        organizationExists.dateFormatExp,
-        organizationExists.dateSplit
-      )
-    return date.dateTime;
-}
- 
+
 
 
 
@@ -500,8 +476,8 @@ function validateInputs( data, customerExist, items, itemExists, organizationExi
 }
 
 // Create New Invoice
-function createNewInvoice( data, openingDate, organizationId, userId, userName ) {
-    const newInvoice = new Invoice({ ...data, organizationId, status :"Sent", createdDate: openingDate, userId, userName });
+function createNewInvoice( data, organizationId, userId, userName ) {
+    const newInvoice = new Invoice({ ...data, organizationId, status :"Sent", userId, userName });
     return newInvoice.save();
 }
   
@@ -545,27 +521,10 @@ function taxType( cleanedData, customerExist, organizationExists ) {
 async function defaultAccounting( data, defaultAccount, organizationExists ) {
 
   // Fetch data from accDataExists and destructure results
-  const {
-    salesAccountName,
-    salesDiscountAccountName,
-    outputCgstName,
-    outputSgstName,
-    outputIgstName,
-    outputVatName,
-    otherExpenseAcc,
-    freightAcc,
-    depositAcc
-  } = await accDataExists(
-    defaultAccount,
-    organizationExists.organizationId,
-    data.otherExpenseAccountId,
-    data.freightAccountId,
-    data.depositAccountId
-  );
+  const { otherExpenseAcc, freightAcc, depositAcc } = await accDataExists( organizationExists.organizationId, data.otherExpenseAccountId, data.freightAccountId, data.depositAccountId );
   
   
   let errorMessage = '';
-  if (!defaultAccount.salesAccount && typeof data.totalAmount !== 'undefined') errorMessage += "Sales Account not found. ";
   if (!defaultAccount.salesDiscountAccount && (typeof data.totalDiscount !== 'undefined' || data.totalDiscount !== 0 )) errorMessage += "Discount Account not found. ";
  
   if (!defaultAccount.outputCgst && typeof data.cgst !== 'undefined') errorMessage += "CGST Account not found. ";
@@ -583,27 +542,14 @@ async function defaultAccounting( data, defaultAccount, organizationExists ) {
     return { defAcc: null, error: errorMessage.trim() }; // Return error message
   }
   
-  // Update defaultAccount fields
-  defaultAccount.salesAccountName = salesAccountName?.accountName;
-  defaultAccount.salesDiscountAccountName = salesDiscountAccountName?.accountName;
-
-  if (data.taxType !== 'VAT') {
-    defaultAccount.outputCgstName = outputCgstName?.accountName;
-    defaultAccount.outputSgstName = outputSgstName?.accountName;
-    defaultAccount.outputIgstName = outputIgstName?.accountName;
-  } else {
-    defaultAccount.outputVatName = outputVatName?.accountName;
-  }
+ 
   if(data.otherExpenseAmount !=='undefined'){
-    defaultAccount.otherExpenseAccountName = otherExpenseAcc?.accountName;
     defaultAccount.otherExpenseAccountId = otherExpenseAcc?._id;
   }
   if(data.freightAmount !=='undefined'){
-    defaultAccount.freightAccountName = freightAcc?.accountName;
     defaultAccount.freightAccountId = freightAcc?._id;
   }
   if(data.paidAmount !=='undefined'){
-    defaultAccount.depositAccountName = depositAcc?.accountName;
     defaultAccount.depositAccountId = depositAcc?._id;
   }    
   return { defAcc:defaultAccount ,error:null };
@@ -621,41 +567,6 @@ async function defaultAccounting( data, defaultAccount, organizationExists ) {
 
 
   
-// Function to generate time and date for storing in the database
-function generateTimeAndDateForDB(
-    timeZone,
-    dateFormat,
-    dateSplit,
-    baseTime = new Date(),
-    timeFormat = "HH:mm:ss",
-    timeSplit = ":"
-  ) {
-    // Convert the base time to the desired time zone
-    const localDate = moment.tz(baseTime, timeZone);
-  
-    // Format date and time according to the specified formats
-    let formattedDate = localDate.format(dateFormat);
-  
-    // Handle date split if specified
-    if (dateSplit) {
-      // Replace default split characters with specified split characters
-      formattedDate = formattedDate.replace(/[-/]/g, dateSplit); // Adjust regex based on your date format separators
-    }
-  
-    const formattedTime = localDate.format(timeFormat);
-    const timeZoneName = localDate.format("z"); // Get time zone abbreviation
-  
-    // Combine the formatted date and time with the split characters and time zone
-    const dateTime = `${formattedDate} ${formattedTime
-      .split(":")
-      .join(timeSplit)} (${timeZoneName})`;
-  
-    return {
-      date: formattedDate,
-      time: `${formattedTime} (${timeZoneName})`,
-      dateTime: dateTime,
-    };
-}
 
 
 
@@ -723,7 +634,6 @@ validateField( typeof data.roundOffAmount !== 'undefined' && !(data.roundOffAmou
 validateField( typeof data.paidAmount !== 'undefined' && !(data.paidAmount <= data.totalAmount), "Excess payment amount", errors );
 validateField( typeof data.paidAmount !== 'undefined' && !(data.paidAmount >= 0 ), "Negative payment amount", errors );
 
-validateField( typeof defaultAccount.salesAccount === 'undefined', "No Sales Account found", errors  );
 validateField( typeof defaultAccount.salesDiscountAccount === 'undefined', "No Sales Discount Account found", errors  );
 
 validateField( customerExist.taxType === 'GST' && typeof defaultAccount.outputCgst === 'undefined', "No Output Cgst Account found", errors  );
@@ -1090,6 +1000,50 @@ const otherExpense = ( totalAmount, cleanedData ) => {
 
 
 
+function salesJournal(cleanedData, res) {
+  const errors = [];
+  
+
+  // Utility function to round values to two decimal places
+  const roundToTwoDecimals = (value) => Number(value.toFixed(2));
+
+  // Group items by salesAccountId and calculate debit amounts
+  const accountEntries = {};
+
+
+  cleanedData.items.forEach(item => {
+
+    console.log("Item:",item);
+    
+    const accountId = item.salesAccountId;
+    const debitAmount = roundToTwoDecimals(item.sellingPrice * item.quantity);
+
+    if (!accountEntries[accountId]) {
+      // Initialize a new entry for the accountId
+      accountEntries[accountId] = { accountId, debitAmount: 0 };
+    }
+    // Accumulate the debit amount
+    accountEntries[accountId].debitAmount += debitAmount;
+  });
+
+  // Push the grouped entries into cleanedData.journal
+  cleanedData.journal = Object.values(accountEntries);
+
+  console.log("Journal Entries:", cleanedData.journal);
+  
+  // Handle response or further processing
+  if (errors.length > 0) {
+    res.status(400).json({ success: false, errors });
+  } else {
+    res.status(200).json({ success: true, journal: cleanedData.journal });
+  }
+}
+
+
+
+
+
+
 
 
 
@@ -1145,7 +1099,6 @@ async function journal(savedInvoice, defAcc, customerAccount ) {
     transactionId: savedInvoice.salesInvoice,
     date: savedInvoice.createdDate,
     accountId: defAcc.salesDiscountAccount || undefined,
-    accountName: defAcc.salesDiscountAccountName || undefined,
     action: "Sales Invoice",
     debitAmount: savedInvoice.totalDiscount,
     creditAmount: 0,
@@ -1157,7 +1110,6 @@ async function journal(savedInvoice, defAcc, customerAccount ) {
     transactionId: savedInvoice.salesInvoice,
     date: savedInvoice.createdDate,
     accountId: defAcc.salesAccount || undefined,
-    accountName: defAcc.salesAccountName || undefined,
     action: "Sales Invoice",
     debitAmount: 0,
     creditAmount: savedInvoice.saleAmount,
@@ -1169,7 +1121,6 @@ async function journal(savedInvoice, defAcc, customerAccount ) {
     transactionId: savedInvoice.salesInvoice,
     date: savedInvoice.createdDate,
     accountId: defAcc.outputCgst || undefined,
-    accountName: defAcc.outputCgstName || undefined,
     action: "Sales Invoice",
     debitAmount: 0,
     creditAmount: savedInvoice.cgst,
@@ -1181,7 +1132,6 @@ async function journal(savedInvoice, defAcc, customerAccount ) {
     transactionId: savedInvoice.salesInvoice,
     date: savedInvoice.createdDate,
     accountId: defAcc.outputSgst || undefined,
-    accountName: defAcc.outputSgstName || undefined,
     action: "Sales Invoice",
     debitAmount: 0,
     creditAmount: savedInvoice.sgst,
@@ -1193,7 +1143,6 @@ async function journal(savedInvoice, defAcc, customerAccount ) {
     transactionId: savedInvoice.salesInvoice,
     date: savedInvoice.createdDate,
     accountId: defAcc.outputIgst || undefined,
-    accountName: defAcc.outputIgstName || undefined,
     action: "Sales Invoice",
     debitAmount: 0,
     creditAmount: savedInvoice.igst,
@@ -1205,7 +1154,6 @@ async function journal(savedInvoice, defAcc, customerAccount ) {
     transactionId: savedInvoice.salesInvoice,
     date: savedInvoice.createdDate,
     accountId: defAcc.outputVat || undefined,
-    accountName: defAcc.outputVatName || undefined,
     action: "Sales Invoice",
     debitAmount: 0,
     creditAmount: savedInvoice.vat,
@@ -1217,7 +1165,6 @@ async function journal(savedInvoice, defAcc, customerAccount ) {
     transactionId: savedInvoice.salesInvoice,
     date: savedInvoice.createdDate,
     accountId: customerAccount._id || undefined,
-    accountName: customerAccount.accountName || undefined,
     action: "Sales Invoice",
     debitAmount: savedInvoice.totalAmount,
     creditAmount: 0,
@@ -1229,7 +1176,6 @@ async function journal(savedInvoice, defAcc, customerAccount ) {
     transactionId: savedInvoice.salesInvoice,
     date: savedInvoice.createdDate,
     accountId: customerAccount._id || undefined,
-    accountName: customerAccount.accountName || undefined,
     action: "Receipt",
     debitAmount: 0,
     creditAmount: savedInvoice.paidAmount,
@@ -1241,7 +1187,6 @@ async function journal(savedInvoice, defAcc, customerAccount ) {
     transactionId: savedInvoice.salesInvoice,
     date: savedInvoice.createdDate,
     accountId: defAcc.depositAccountId || undefined,
-    accountName: defAcc.depositAccountName || undefined,
     action: "Receipt",
     debitAmount: savedInvoice.paidAmount,
     creditAmount: 0,
@@ -1253,7 +1198,6 @@ async function journal(savedInvoice, defAcc, customerAccount ) {
     transactionId: savedInvoice.salesInvoice,
     date: savedInvoice.createdDate,
     accountId: defAcc.otherExpenseAccountId || undefined,
-    accountName: defAcc.otherExpenseAccountName || undefined,
     action: "Sales Invoice",
     debitAmount: 0,
     creditAmount: savedInvoice.otherExpenseAmount,
@@ -1265,7 +1209,6 @@ async function journal(savedInvoice, defAcc, customerAccount ) {
     transactionId: savedInvoice.salesInvoice,
     date: savedInvoice.createdDate,
     accountId: defAcc.freightAccountId || undefined,
-    accountName: defAcc.freightAccountName || undefined,
     action: "Sales Invoice",
     debitAmount: 0,
     creditAmount: savedInvoice.freightAmount,
@@ -1365,7 +1308,6 @@ async function createTrialEntry( data ) {
       transactionId: data.transactionId,
       date:data.date,
       accountId: data.accountId,
-      accountName: data.accountName,
       action: data.action,
       debitAmount: data.debitAmount,
       creditAmount: data.creditAmount,

@@ -72,7 +72,7 @@ const SalesQuotesSchema = new Schema ({
 
   status: { type: String },
 
-  createdDate: { type: String },
+  createdDateTime: { type: Date, default: () => new Date() },
   userId: { type: String },
   userName: { type: String },
 })

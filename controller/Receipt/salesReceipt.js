@@ -1,10 +1,10 @@
-const Organization = require("../database/model/organization");
-const Customer = require("../database/model/customer");
-const Invoice = require("../database/model/salesInvoice")
+const Organization = require("../../database/model/organization");
+const Customer = require("../../database/model/customer");
+const Invoice = require("../../database/model/salesInvoice")
 const moment = require("moment-timezone");
-const Prefix = require("../database/model/prefix");
+const Prefix = require("../../database/model/prefix");
 const mongoose = require('mongoose');
-const SalesReceipt = require('../database/model/salesReceipt')
+const SalesReceipt = require('../../database/model/salesReceipt')
 
 
 // Fetch existing data

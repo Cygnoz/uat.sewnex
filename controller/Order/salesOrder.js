@@ -1,15 +1,16 @@
 // v1.0
 
-const Organization = require("../database/model/organization");
-const Item = require("../database/model/item");
-const Customer = require("../database/model/customer");
+const Organization = require("../../database/model/organization");
+const Item = require("../../database/model/item");
+const Customer = require("../../database/model/customer");
 const moment = require("moment-timezone");
-const Settings = require("../database/model/settings")
-const Order = require("../database/model/salesOrder")
-const ItemTrack = require("../database/model/itemTrack")
-const Prefix = require("../database/model/prefix");
+const Settings = require("../../database/model/settings")
+const Order = require("../../database/model/salesOrder")
+const ItemTrack = require("../../database/model/itemTrack")
+const Prefix = require("../../database/model/prefix");
 const mongoose = require('mongoose');
 
+const { cleanData } = require("../../services/cleanData");
 
 
 // Fetch existing data
@@ -75,10 +76,9 @@ exports.addOrder = async (req, res) => {
       const { organizationId, id: userId, userName } = req.user;
 
       //Clean Data
-      const cleanedData = cleanCustomerData(req.body);
+      const cleanedData = cleanData(req.body);
 
-      const { items } = cleanedData;
-      const { customerId, customerName } = cleanedData;
+      const { items, customerId, customerName } = cleanedData;
       const itemIds = items.map(item => item.itemId);
 
       // Check for duplicate itemIds
@@ -105,8 +105,6 @@ exports.addOrder = async (req, res) => {
       //Data Exist Validation
       if (!validateOrganizationTaxCurrency( organizationExists, customerExist, existingPrefix, res )) return;
       
-      //Date & Time
-      const openingDate = generateOpeningDate(organizationExists);
 
       //Validate Inputs  
       if (!validateInputs( cleanedData, customerExist, items, itemTable, organizationExists, res)) return;
@@ -120,7 +118,7 @@ exports.addOrder = async (req, res) => {
       //Prefix
       await salesPrefix(cleanedData, existingPrefix );
       
-      const savedOrder = await createNewOrder(cleanedData, openingDate, organizationId, userId, userName );
+      const savedOrder = await createNewOrder(cleanedData, organizationId, userId, userName );
         
       res.status(201).json({ message: "Sale Order created successfully" });
       console.log( "Sale Order created successfully:", savedOrder );
@@ -294,14 +292,7 @@ const validCountries = {
 };
 
   
-//Clean Data 
-function cleanCustomerData(data) {
-  const cleanData = (value) => (value === null || value === undefined || value === "" ? undefined : value);
-  return Object.keys(data).reduce((acc, key) => {
-    acc[key] = cleanData(data[key]);
-    return acc;
-  }, {});
-}
+
 
 // Validate Organization Tax Currency
 function validateOrganizationTaxCurrency( organizationExists, customerExist, existingPrefix, res ) {
@@ -321,16 +312,7 @@ function validateOrganizationTaxCurrency( organizationExists, customerExist, exi
 }
   
 
-//Return Date and Time 
-function generateOpeningDate(organizationExists) {
-    const date = generateTimeAndDateForDB(
-        organizationExists.timeZoneExp,
-        organizationExists.dateFormatExp,
-        organizationExists.dateSplit
-      )
-    return date.dateTime;
-}
- 
+
 
 
 
@@ -362,8 +344,8 @@ function validateInputs( data, customerExist, items, itemExists, organizationExi
 }
 
 // Create New Order
-function createNewOrder( data, openingDate, organizationId, userId, userName ) {
-    const newOrder = new Order({ ...data, organizationId, status :"Sent", createdDate: openingDate, userId, userName });
+function createNewOrder( data, organizationId, userId, userName ) {
+    const newOrder = new Order({ ...data, organizationId, status :"Sent", userId, userName });
     return newOrder.save();
 }
   
@@ -417,41 +399,6 @@ function taxType( cleanedData, customerExist, organizationExists ) {
 
 
   
-// Function to generate time and date for storing in the database
-function generateTimeAndDateForDB(
-    timeZone,
-    dateFormat,
-    dateSplit,
-    baseTime = new Date(),
-    timeFormat = "HH:mm:ss",
-    timeSplit = ":"
-  ) {
-    // Convert the base time to the desired time zone
-    const localDate = moment.tz(baseTime, timeZone);
-  
-    // Format date and time according to the specified formats
-    let formattedDate = localDate.format(dateFormat);
-  
-    // Handle date split if specified
-    if (dateSplit) {
-      // Replace default split characters with specified split characters
-      formattedDate = formattedDate.replace(/[-/]/g, dateSplit); // Adjust regex based on your date format separators
-    }
-  
-    const formattedTime = localDate.format(timeFormat);
-    const timeZoneName = localDate.format("z"); // Get time zone abbreviation
-  
-    // Combine the formatted date and time with the split characters and time zone
-    const dateTime = `${formattedDate} ${formattedTime
-      .split(":")
-      .join(timeSplit)} (${timeZoneName})`;
-  
-    return {
-      date: formattedDate,
-      time: `${formattedTime} (${timeZoneName})`,
-      dateTime: dateTime,
-    };
-}
 
 
 
@@ -470,10 +417,6 @@ function generateTimeAndDateForDB(
 //Validate Data
 function validateQuoteData( data, customerExist, items, itemTable, organizationExists ) {
   const errors = [];
-
-  console.log("Item Request :",items);
-  console.log("Item Fetched :",itemTable);
-  
 
   //Basic Info
   validateReqFields( data, errors );
@@ -846,84 +789,6 @@ const otherExpense = ( totalAmount, cleanedData ) => {
   }
   return totalAmount;  
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
