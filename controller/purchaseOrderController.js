@@ -8,6 +8,8 @@ const Tax = require('../database/model/tax');
 const Prefix = require("../database/model/prefix");
 const moment = require("moment-timezone");
 const mongoose = require('mongoose');
+const { singleCustomDateTime, multiCustomDateTime } = require("../services/timeConverter");
+
 
 
 
@@ -196,7 +198,88 @@ exports.addPurchaseOrder = async (req, res) => {
       console.error("Error fetching purchase order:", error);
       res.status(500).json({ message: "Internal server error." });
     }
-    };
+  };
+
+
+// Update Purchase Order
+exports.updatePurchaseOrder = async (req, res) => {
+  console.log("Update purchase order:", req.body);
+
+  try {
+    const organizationId = req.user.organizationId;
+    const { orderId } = req.params;
+    const cleanedData = cleanPurchaseOrderData(req.body);
+
+    // Fetch existing purchase order
+    const existingPurchaseOrder = await PurchaseOrder.findOne({ _id: orderId, organizationId });
+    if (!existingPurchaseOrder) {
+      console.log("Purchase order not found with ID:", orderId);
+      return res.status(404).json({ message: "Purchase order not found" });
+    }
+
+    const { items, supplierId } = cleanedData;
+
+    // Validate Supplier
+    if (!mongoose.Types.ObjectId.isValid(supplierId) || supplierId.length !== 24) {
+      return res.status(400).json({ message: `Invalid Supplier ID: ${supplierId}` });
+    }
+
+    // Validate ItemIds
+    const itemIds = items.map(item => item.itemId);
+    const invalidItemIds = itemIds.filter(itemId => !mongoose.Types.ObjectId.isValid(itemId) || itemId.length !== 24);
+    if (invalidItemIds.length > 0) {
+      return res.status(400).json({ message: `Invalid item IDs: ${invalidItemIds.join(', ')}` });
+    }
+
+    // Check for duplicate itemIds
+    const uniqueItemIds = new Set(itemIds);
+    if (uniqueItemIds.size !== itemIds.length) {
+      return res.status(400).json({ message: "Duplicate Item found in the list." });
+    }
+
+    // Fetch related data
+    const { organizationExists, supplierExist, itemTable, taxExists, settings, existingPrefix } = await dataExist(organizationId, supplierId, items);
+
+    // Data Exist Validation
+    if (!validateOrganizationSupplierPrefix(organizationExists, supplierExist, existingPrefix, res)) return;
+
+    // Validate Inputs
+    if (!validateInputs(cleanedData, supplierExist, items, itemTable, organizationExists, res)) return;
+
+    // Date & Time
+    const openingDate = generateOpeningDate(organizationExists);
+
+    // Tax Type
+    taxtype(cleanedData, supplierExist);
+
+    // Calculate Purchase Order
+    if (!calculatePurchaseOrder(cleanedData, res)) return;
+
+    // Prefix
+    await purchaseOrderPrefix(cleanedData, existingPrefix);
+
+    // Update purchase order fields
+    Object.assign(existingPurchaseOrder, cleanedData);
+    existingPurchaseOrder.lastModifiedDate = moment().tz(organizationExists.timeZoneExp).format();
+
+    const updatedPurchaseOrder = await existingPurchaseOrder.save();
+
+    if (!updatedPurchaseOrder) {
+      console.error("Purchase order could not be saved.");
+      return res.status(500).json({ message: "Failed to update purchase order" });
+    }
+
+    res.status(200).json({ message: "Purchase order updated successfully", updatedPurchaseOrder });
+    console.log("Purchase order updated successfully:", updatedPurchaseOrder);
+
+  } catch (error) {
+    console.error("Error updating purchase order:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+
+
   
   
 // Get Last Journal Prefix
@@ -596,7 +679,7 @@ function validateInputs( data, supplierExist, items, itemExists, organizationExi
     validateField( item.itemName !== fetchedItem.itemName, `Item Name Mismatch : ${item.itemName}`, errors );
   
     // Validate cost price
-    validateField( item.itemCostPrice !== fetchedItem.costPrice, `Cost price Mismatch for ${item.itemName}:  ${item.itemCostPrice}`, errors );
+    // validateField( item.itemCostPrice !== fetchedItem.costPrice, `Cost price Mismatch for ${item.itemName}:  ${item.itemCostPrice}`, errors );
   
     // Validate CGST
     validateField( item.itemCgst !== fetchedItem.cgst, `CGST Mismatch for ${item.itemName}: ${item.itemCgst}`, errors );

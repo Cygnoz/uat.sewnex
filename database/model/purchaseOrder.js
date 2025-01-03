@@ -87,6 +87,8 @@ const purchaseOrderSchema = new mongoose.Schema({
   status: { type: String }, // Open/Converted to bills
   createdDate: { type: String },
 
+  //Create info
+  // createdDateTime: { type: Date, default: () => new Date() },
 });
 
 const PurchaseOrder = mongoose.model('purchaseOrder',purchaseOrderSchema)
