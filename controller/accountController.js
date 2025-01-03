@@ -151,7 +151,7 @@ exports.getAllAccount = async (req, res) => {
     res.status(200).json(formattedObjects);
   } catch (error) {
     console.error("Error fetching accounts:", error);
-    res.status(500).json({ message: "Internal server error." });
+    res.status(500).json({ message: "Internal server error.", error: error });
   }
 };
 
@@ -273,7 +273,7 @@ exports.getOneTrailBalance = async (req, res) => {
       res.status(200).json(trialBalanceWithCumulativeSum);
   } catch (error) {
       console.error("Error fetching account:", error);
-      res.status(500).json({ message: "Internal server error." });
+      res.status(500).json({ message: "Internal server error.", error: error });
   }
 };
 
