@@ -87,6 +87,10 @@ const trialBalanceExist = async (organizationId,customerId) => {
         await checkDuplicateSupplierFields( duplicateCheck, supplierDisplayName, supplierEmail, mobile, organizationId, errors);  
         if (errors.length) {
         return res.status(409).json({ message: errors }); }
+
+        // if(cleanedData._v){
+        //   cleanedData._v = undefined;
+        // }
   
         const savedSupplier = await createNewSupplier(cleanedData, openingDate, organizationId);
         
@@ -103,6 +107,7 @@ const trialBalanceExist = async (organizationId,customerId) => {
     };
   
   exports.updateSupplier = async (req, res) => {
+    console.log("update supper",req.body);
       try {
         const { organizationId, id: userId, userName } = req.user;
        
@@ -854,8 +859,8 @@ async function updateOpeningBalance(existingTrialBalance, cleanData) {
   
       //OtherDetails
       validateAlphanumericFields(['pan','gstin_uin','vatNumber'], data, errors);
-      validateIntegerFields(['creditDays', 'creditLimits', 'interestPercentage'], data, errors);
-      validateFloatFields(['debitOpeningBalance', 'creditOpeningBalance'], data, errors);
+      validateIntegerFields(['creditDays', 'creditLimits'], data, errors);
+      validateFloatFields(['debitOpeningBalance', 'creditOpeningBalance', 'interestPercentage'], data, errors);
       validateAlphabetsFields(['department', 'designation','billingAttention','shippingAttention'], data, errors);
   
       //Tax Details
