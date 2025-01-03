@@ -1,4 +1,4 @@
-// v1.1
+// v1.2
 
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
@@ -7,12 +7,12 @@ const { Schema } = mongoose;
 const customerHistorySchema = new Schema({
   organizationId: {type:String},
   operationId: { type: String },
-  customerId: { type: String },
-  customerDisplayName: { type: String },
+  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Accounts' },
+  // customerDisplayName
   title: { type: String },
   description: { type: String },
   userId: { type: String },
-  userName: { type: String },
+  // userName
   
   createdDateTime: { type: Date, default: () => new Date() },
 });

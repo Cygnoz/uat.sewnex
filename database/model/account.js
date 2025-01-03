@@ -1,4 +1,4 @@
-// v1.3
+// v1.5
 
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
@@ -14,7 +14,7 @@ const accountSchema = new Schema({
     accountHead: {type:String},
     accountGroup: {type:String},
 
-    parentAccountId: {type:String},
+    parentAccountId: {type: mongoose.Schema.Types.ObjectId, ref: 'Accounts'},
 
     description: {type:String},
 
@@ -22,7 +22,7 @@ const accountSchema = new Schema({
     bankIfsc: {type:String},
     bankCurrency: {type:String},
 
-    delete: { type: Boolean }, // false: non deletable(system accounts/customer/supplier), true: deletable 
+    systemAccounts: { type: Boolean }, // false: edit and deletable(non - system accounts), true: non-edit and non-deletable(system accounts)
 
     createdDateTime: { type: Date, default: () => new Date() },
 
