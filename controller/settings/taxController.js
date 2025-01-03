@@ -255,31 +255,31 @@ const isDuplicateVATTaxName = async (organizationId, vatTaxRate) => {
 // Update GST-related fields
 const updateGSTFields = (taxRecord, cleanedData) => {
   taxRecord.taxType = "GST";
-  if (cleanedData.gstIn) taxRecord.gstIn = gstIn;
-  if (cleanedData.gstBusinessLegalName) taxRecord.gstBusinessLegalName = gstBusinessLegalName;
-  if (cleanedData.gstBusinessTradeName) taxRecord.gstBusinessTradeName = gstBusinessTradeName;
-  if (cleanedData.gstRegisteredDate) taxRecord.gstRegisteredDate = gstRegisteredDate;
-  if (cleanedData.compositionSchema) taxRecord.compositionSchema = compositionSchema;
-  if (cleanedData.reverseCharge) taxRecord.reverseCharge = reverseCharge;
-  if (cleanedData.importExport) taxRecord.importExport = importExport;
-  if (cleanedData.digitalServices) taxRecord.digitalServices = digitalServices;
-  if (cleanedData.compositionPercentage) taxRecord.compositionPercentage = compositionPercentage;
-  if (cleanedData.gstTaxRate) taxRecord.gstTaxRate.push(gstTaxRate);
+  if (cleanedData.gstIn) taxRecord.gstIn = cleanedData.gstIn;
+  if (cleanedData.gstBusinessLegalName) taxRecord.gstBusinessLegalName = cleanedData.gstBusinessLegalName;
+  if (cleanedData.gstBusinessTradeName) taxRecord.gstBusinessTradeName = cleanedData.gstBusinessTradeName;
+  if (cleanedData.gstRegisteredDate) taxRecord.gstRegisteredDate = cleanedData.gstRegisteredDate;
+  if (cleanedData.compositionSchema) taxRecord.compositionSchema = cleanedData.compositionSchema;
+  if (cleanedData.reverseCharge) taxRecord.reverseCharge = cleanedData.reverseCharge;
+  if (cleanedData.importExport) taxRecord.importExport = cleanedData.importExport;
+  if (cleanedData.digitalServices) taxRecord.digitalServices = cleanedData.digitalServices;
+  if (cleanedData.compositionPercentage) taxRecord.compositionPercentage = cleanedData.compositionPercentage;
+  if (cleanedData.gstTaxRate) taxRecord.gstTaxRate.push(cleanedData.gstTaxRate);
 };
 // Update VAT-related fields
 const updateVATFields = (taxRecord, cleanedData) => {
   taxRecord.taxType = "VAT";
-  if (cleanedData.vatNumber) taxRecord.vatNumber = vatNumber;
-  if (cleanedData.vatBusinessLegalName) taxRecord.vatBusinessLegalName = vatBusinessLegalName;
-  if (cleanedData.vatBusinessTradeName) taxRecord.vatBusinessTradeName = vatBusinessTradeName;
-  if (cleanedData.vatRegisteredDate) taxRecord.vatRegisteredDate = vatRegisteredDate;
-  if (cleanedData.tinNumber) taxRecord.tinNumber = tinNumber;
-  if (cleanedData.vatTaxRate) taxRecord.vatTaxRate.push(vatTaxRate);
+  if (cleanedData.vatNumber) taxRecord.vatNumber = cleanedData.vatNumber;
+  if (cleanedData.vatBusinessLegalName) taxRecord.vatBusinessLegalName = cleanedData.vatBusinessLegalName;
+  if (cleanedData.vatBusinessTradeName) taxRecord.vatBusinessTradeName = cleanedData.vatBusinessTradeName;
+  if (cleanedData.vatRegisteredDate) taxRecord.vatRegisteredDate = cleanedData.vatRegisteredDate;
+  if (cleanedData.tinNumber) taxRecord.tinNumber = cleanedData.tinNumber;
+  if (cleanedData.vatTaxRate) taxRecord.vatTaxRate.push(cleanedData.vatTaxRate);
 };
 // Update MSME-related fields
 const updateMSMEFields = (taxRecord, cleanedData) => {
-  if (cleanedData.msmeType) taxRecord.msmeType = msmeType;
-  if (cleanedData.msmeRegistrationNumber) taxRecord.msmeRegistrationNumber = msmeRegistrationNumber;
+  if (cleanedData.msmeType) taxRecord.msmeType = cleanedData.msmeType;
+  if (cleanedData.msmeRegistrationNumber) taxRecord.msmeRegistrationNumber = cleanedData.msmeRegistrationNumber;
 };
 
 
