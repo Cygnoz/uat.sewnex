@@ -386,9 +386,9 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
   function calculatePurchaseOrder(cleanedData, res) {
     const errors = [];
   
-    let otherExpense = (cleanedData.otherExpense || 0);
-    let freightAmount = (cleanedData.freight || 0);
-    let roundOffAmount = (cleanedData.roundOff || 0);
+    let otherExpenseAmount = (cleanedData.otherExpenseAmount || 0);
+    let freightAmount = (cleanedData.freightAmount || 0);
+    let roundOffAmount = (cleanedData.roundOffAmount || 0);
     let subTotal = 0;
     let totalTaxAmount = 0;
     let itemTotalDiscount= 0;
@@ -461,13 +461,13 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
     });
   
     const total = (
-        (subTotal + totalTaxAmount + otherExpense + freightAmount - roundOffAmount) - itemTotalDiscount
+        (subTotal + totalTaxAmount + otherExpenseAmount + freightAmount - roundOffAmount) - itemTotalDiscount
     );
   
     console.log(`Total: ${total} , Provided ${total}`);
     console.log(`subTotal: ${subTotal} , Provided ${cleanedData.subTotal}`);
     console.log(`totalTaxAmount: ${totalTaxAmount} , Provided ${cleanedData.totalTaxAmount}`);
-    console.log(`otherExpense: ${otherExpense} , Provided ${cleanedData.otherExpense}`);
+    console.log(`otherExpenseAmount: ${otherExpenseAmount} , Provided ${cleanedData.otherExpenseAmount}`);
     console.log(`freightAmount: ${freightAmount} , Provided ${cleanedData.freightAmount}`);
     console.log(`roundOffAmount: ${roundOffAmount} , Provided ${cleanedData.roundOffAmount}`);
     console.log(`itemTotalDiscount: ${itemTotalDiscount} , Provided ${cleanedData.itemTotalDiscount}`);

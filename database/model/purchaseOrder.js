@@ -59,9 +59,9 @@ const purchaseOrderSchema = new mongoose.Schema({
   items: [itemsSchema],
 
   // Other details:
-  otherExpense: { type: Number },
+  otherExpenseAmount: { type: Number },
   otherExpenseReason: { type: String },
-  freight: { type: Number },
+  freightAmount: { type: Number },
   vehicleNo: { type: String }, 
   addNotes: { type: String },
   termsAndConditions: { type: String },
@@ -82,7 +82,7 @@ const purchaseOrderSchema = new mongoose.Schema({
   transactionDiscountType: { type: String }, //percentage/rupee
   transactionDiscount: { type: Number },
   transactionDiscountAmount: { type: Number },  // if percentage
-  roundOff: { type: Number },
+  roundOffAmount: { type: Number },
   grandTotal: { type: Number },
   status: { type: String }, // Open/Converted to bills
   createdDate: { type: String },
