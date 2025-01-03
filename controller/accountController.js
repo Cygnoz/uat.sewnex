@@ -19,7 +19,9 @@ const dataExist = async ( organizationId, parentAccountId, accountId ) => {
     Organization.findOne({ organizationId }).lean(),
     Currency.find({ organizationId }, { currencyCode: 1, _id: 0 }).lean(),
     Account.findOne({ organizationId , _id : parentAccountId}).lean(),
-    Account.findOne({ _id: accountId, organizationId: organizationId }).lean(),
+    Account.findOne({ _id: accountId, organizationId: organizationId })
+    .populate('parentAccountId', 'accountName')    
+    .lean(),
     TrialBalance.find({ accountId: accountId, organizationId: organizationId })
     .populate('accountId', 'accountName')
     .lean(),
@@ -167,7 +169,13 @@ exports.getOneAccount = async (req, res) => {
       return res.status(404).json({ message: "Account not found for the provided Organization ID and Account ID." });
     }
 
-    const formattedObjects = singleCustomDateTime(accountExist, existingOrganization.dateFormatExp, existingOrganization.timeZoneExp, existingOrganization.dateSplit );    
+    const data = {
+      ...accountExist,
+      parentAccountId: accountExist.parentAccountId?._id || undefined,
+      parentAccountName: accountExist.parentAccountId?.accountName || undefined,
+    }
+
+    const formattedObjects = singleCustomDateTime(data, existingOrganization.dateFormatExp, existingOrganization.timeZoneExp, existingOrganization.dateSplit );    
     
     res.status(200).json(formattedObjects);
   } catch (error) {
