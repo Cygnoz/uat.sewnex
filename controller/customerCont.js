@@ -16,23 +16,26 @@ const { cleanData } = require("../services/cleanData");
 
 // Fetch existing data
 const dataExist = async ( organizationId, customerId) => {
-    const [organizationExists, taxExists, currencyExists, settings, allCustomer, customer, accountExist, trialBalance, customersHistory ] = await Promise.all([
-      Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }),
-      Tax.findOne({ organizationId },{ taxType: 1 }),
-      Currency.find({ organizationId }, { currencyCode: 1, _id: 1 }),
-      Settings.find({ organizationId },{ duplicateCustomerDisplayName: 1, duplicateCustomerEmail: 1, duplicateCustomerMobile: 1 }),
-      Customer.find({ organizationId }),
-      Customer.findOne({ _id:customerId, organizationId}),
-      Account.findOne({ accountId: customerId, organizationId }),
-      TrialBalance.findOne({ organizationId, operationId: customerId}),
-      CustomerHistory.find({ organizationId, customerId })
+    const [organizationExists, taxExists, currencyExists, settings, allCustomer, existingCustomer, accountExist, trialBalance, customersHistory ] = await Promise.all([
+      Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }).lean(),
+      Tax.findOne({ organizationId },{ taxType: 1 }).lean(),
+      Currency.find({ organizationId },{ currencyCode: 1, _id: 1 }).lean(),
+      Settings.find({ organizationId },{ duplicateCustomerDisplayName: 1, duplicateCustomerEmail: 1, duplicateCustomerMobile: 1 }).lean(),
+      Customer.find({ organizationId },{organizationId:0}).lean(),
+      Customer.findOne({ _id:customerId, organizationId},{organizationId:0}).lean(),
+      Account.findOne({ accountId: customerId, organizationId },{organizationId:0}).lean(),
+      TrialBalance.findOne({ organizationId, operationId: customerId},{organizationId:0}).lean(),
+      CustomerHistory.find({ organizationId, customerId },{organizationId:0})
+      .populate('customerId', 'customerDisplayName')    
+      .populate('userId', 'userName')    
+      .lean()
     ]);    
-    return { organizationExists, taxExists, currencyExists, settings, allCustomer, customer, accountExist, trialBalance, customersHistory };
+    return { organizationExists, taxExists, currencyExists, settings, allCustomer, existingCustomer, accountExist, trialBalance, customersHistory };
 };
 
 
 
-  
+ 
 
 
 // Add Customer
@@ -94,14 +97,13 @@ exports.editCustomer = async (req, res) => {
   
       const { customerDisplayName ,customerEmail ,mobile} = cleanedData;
   
-      const { organizationExists, taxExists, currencyExists ,settings, accountExist, trialBalance} = await dataExist( organizationId, customerId );
+      const { organizationExists, taxExists, currencyExists, existingCustomer, settings, accountExist, trialBalance} = await dataExist( organizationId, customerId );
       
       //Checking values from Customer settings
       const { duplicateCustomerDisplayName , duplicateCustomerEmail , duplicateCustomerMobile } = settings[0]
        
       if (!validateOrganizationTaxCurrency(organizationExists, taxExists, currencyExists, res)) return;
         
-      const existingCustomer = await Customer.findById(customerId);
       if (!existingCustomer) {
         console.log("Customer not found with ID:", customerId);
         return res.status(404).json({ message: "Customer not found" });
@@ -196,26 +198,20 @@ exports.getOneCustomer = async (req, res) => {
     const { customerId } = req.params;
     const organizationId = req.user.organizationId;
 
-    const {organizationExists} = await dataExist( organizationId, null);
+    const { organizationExists, existingCustomer } = await dataExist( organizationId, customerId);
 
     if (!organizationExists) {
       return res.status(404).json({ message: "Organization not found" });
     }
 
-    // Find the Customer by CustomerId and organizationId
-    const customers = await Customer.findOne({ _id: customerId, organizationId: organizationId },{ organizationId : 0 });
-
-    if (!customers) {
+    if (!existingCustomer) {
       return res.status(404).json({ message: "Customer not found" });
     }
 
-    const { createdDate, createdTime } = singleCustomDateTime( customers.createdDateTime, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );
-
-    customers.createdDate = createdDate;
-    customers.createdTime = createdTime;
+    const formattedObjects = singleCustomDateTime(existingCustomer, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
     
+    res.status(200).json(formattedObjects);
 
-    res.status(200).json(customers);
   } catch (error) {
     console.error("Error fetching customer:", error);
     res.status(500).json({ message: "Internal server error." });
@@ -229,13 +225,13 @@ exports.getCustomerTransactions = async (req, res) => {
       const { customerId } = req.params;
       const { organizationId } = req.user; 
 
-      const { organizationExists, customer, accountExist } = await dataExist( organizationId, customerId);
+      const { organizationExists, existingCustomer, accountExist } = await dataExist( organizationId, customerId);
 
       if (!organizationExists) {
         return res.status(404).json({ message: "Organization not found" });
       }
 
-      if (!customer) {
+      if (!existingCustomer) {
           return res.status(404).json({ message: "Customer not found" });
       }
 
@@ -244,25 +240,13 @@ exports.getCustomerTransactions = async (req, res) => {
       }
 
       // Use account _id to find matching transactions in the TrialBalance collection
-      const customerTransactions = await TrialBalance.find({ accountId: accountExist._id , organizationId });
+      const customerTransactions = await TrialBalance.find({ accountId: accountExist._id , organizationId }).lean();
 
-      // Format each customer after converting to plain object
-      const formattedData = customerTransactions.map(customer => {
-      const plainData = customer.toObject();
 
-      if (plainData.createdDateTime) {
+      const formattedData = multiCustomDateTime( customerTransactions, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );
 
-        const { createdDate, createdTime } = singleCustomDateTime( plainData.createdDateTime, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );
-
-        plainData.createdDate = createdDate;
-        plainData.createdTime = createdTime;
-
-      }
-
-      return plainData;
-    });
-    
-    return res.status(200).json({ formattedData });
+       
+    return res.status(200).json({ data: formattedData });
 
   } catch (error) {
       console.error("Error fetching customer transactions:", error);
@@ -280,36 +264,36 @@ exports.updateCustomerStatus = async (req, res) => {
     const {organizationId , userName , userId} = req.user;
     const { status } = req.body; 
 
-    const { organizationExists, customer, accountExist } = await dataExist( organizationId, customerId);
+    const { organizationExists, existingCustomer } = await dataExist( organizationId, customerId);
 
     if (!organizationExists) {
       return res.status(404).json({ message: "Organization not found" });
     }
 
-    if (!customer) {
+    if (!existingCustomer) {
       return res.status(404).json({ message: "Customer not found" });        
     }
 
-    customer.status = status;
+    existingCustomer.status = status;
 
-    await customer.save();
+    await existingCustomer.save();
     // Add entry to Customer History
-    const accountCustomerHistoryEntry = new CustomerHistory({
+    const customerHistoryEntry = new CustomerHistory({
       organizationId,
-      operationId: customer._id,
+      operationId: existingCustomer._id,
       customerId,
-      customerDisplayName: customer.customerDisplayName,
+      customerDisplayName: existingCustomer.customerDisplayName,
       title: "Customer Status Modified",
       description: `Customer status updated to ${status} by ${userName}`,
       userId: userId,
       userName: userName,
     });
   
-    await accountCustomerHistoryEntry.save();
+    await customerHistoryEntry.save();
 
     res.status(200).json({
       message: "Customer status updated successfully.",
-      status: customer.status,
+      status: existingCustomer.status,
     });
     console.log("Customer status updated successfully.");
   } catch (error) {
@@ -389,7 +373,21 @@ exports.getOneCustomerHistory = async (req, res) => {
       return res.status(404).json({ message: "Customer history not found" });
     }
 
-    const formattedObjects = multiCustomDateTime(customersHistory, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit, );    
+    
+    const transformedData = [];
+
+    customersHistory.forEach((entry) => {
+      transformedData.push({
+      ...entry,
+      customerId: entry.customerId?._id, // Extract `_id` from `customerId`
+      customerDisplayName: entry.customerId?.customerDisplayName, // Extract `customerDisplayName` from `customerId`
+      userId: entry.userId?._id, // Extract `_id` from `userId`
+      userName: entry.userId?.userName, // Extract `userName` from `userId`
+      });
+    });
+    
+
+    const formattedObjects = multiCustomDateTime(transformedData, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit, );    
     
     res.status(200).json(formattedObjects);
   } catch (error) {
@@ -669,7 +667,6 @@ function createCustomerHistory(savedCustomer, savedAccount,userId, userName) {
         operationId: savedCustomer._id,
         customerId: savedCustomer._id,
         customerDisplayName: savedCustomer.customerDisplayName,
-        date: savedCustomer.createdDate,
         title: "Customer Added",
         description: taxDescription,
         userId: userId,
@@ -680,7 +677,6 @@ function createCustomerHistory(savedCustomer, savedAccount,userId, userName) {
         operationId: savedAccount._id,
         customerId: savedCustomer._id,
         customerDisplayName: savedCustomer.customerDisplayName,
-        date: savedCustomer.createdDate,
         title: "Customer Account Created",
         description: openingBalanceDescription,
         userId: userId,
