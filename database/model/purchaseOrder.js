@@ -86,6 +86,7 @@ const purchaseOrderSchema = new mongoose.Schema({
   grandTotal: { type: Number },
   status: { type: String }, // Open/Converted to bills
   createdDate: { type: String },
+  lastModifiedDate: { type: String }
 
   //Create info
   // createdDateTime: { type: Date, default: () => new Date() },

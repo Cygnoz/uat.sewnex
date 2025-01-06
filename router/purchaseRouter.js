@@ -20,7 +20,7 @@ router.get('/get-last-purchase-order-prefix', verifyToken, purchaseOrderControll
 
 router.get('/get-all-purchaseOrders',verifyToken, purchaseOrderController.getAllPurchaseOrder);
 router.get('/get-purchaseOrder/:orderId',verifyToken, purchaseOrderController.getOnePurchaseOrder);
-// router.put('/update-purchaseOrder/:id', purchaseOrderController.updatePurchaseOrder);
+router.put('/update-purchaseOrder/:orderId', verifyToken, purchaseOrderController.updatePurchaseOrder);
 // router.delete('/delete-purchaseOrder/:id', purchaseOrderController.deletePurchaseOrder);
 
 
