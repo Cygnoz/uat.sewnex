@@ -418,23 +418,24 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
       totalItem +=  parseInt(item.itemQuantity);
       subTotal += parseFloat(item.itemQuantity * item.itemCostPrice);
   
-      itemAmount = (item.itemCostPrice * item.itemQuantity - itemDiscAmt);
-  
+      const withoutTaxAmount = (item.itemCostPrice * item.itemQuantity - itemDiscAmt);
+      console.log("withoutTaxAmount:",withoutTaxAmount);
+      
       // Handle tax calculation only for taxable items
       if (item.taxPreference === 'Taxable') {
         switch (taxMode) {
           
           case 'Intra':
-            calculatedItemCgstAmount = roundToTwoDecimals((item.itemCgst / 100) * itemAmount);
-            calculatedItemSgstAmount = roundToTwoDecimals((item.itemSgst / 100) * itemAmount);
+            calculatedItemCgstAmount = roundToTwoDecimals((item.itemCgst / 100) * withoutTaxAmount);
+            calculatedItemSgstAmount = roundToTwoDecimals((item.itemSgst / 100) * withoutTaxAmount);
           break;
   
           case 'Inter':
-            calculatedItemIgstAmount = roundToTwoDecimals((item.itemIgst / 100) * itemAmount);
+            calculatedItemIgstAmount = roundToTwoDecimals((item.itemIgst / 100) * withoutTaxAmount);
           break;
           
           case 'VAT':
-            calculatedItemVatAmount = roundToTwoDecimals((item.itemVat / 100) * itemAmount);
+            calculatedItemVatAmount = roundToTwoDecimals((item.itemVat / 100) * withoutTaxAmount);
           break;
   
         }
@@ -451,10 +452,13 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
         totalTaxAmount +=  calculatedItemTaxAmount;
   
       } else {
+
         console.log(`Skipping Tax for Non-Taxable item: ${item.itemName}`);
         console.log(`Item: ${item.itemName}, Calculated Discount: ${itemDiscAmt}`);
       }
-  
+
+      itemAmount = (withoutTaxAmount + totalTaxAmount);
+
       checkAmount(itemAmount, item.itemAmount, item.itemName, 'Item Total',errors);
   
       console.log(`${item.itemName} Item Total: ${itemAmount} , Provided ${item.itemAmount}`);

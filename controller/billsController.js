@@ -661,26 +661,28 @@ function billsPrefix( cleanData, existingPrefix ) {
       purchaseAmount +=(item.itemCostPrice * item.itemQuantity);
       totalDiscount +=  parseFloat(itemDiscAmt);
   
-      itemAmount = (item.itemCostPrice * item.itemQuantity - itemDiscAmt);
+      const withoutTaxAmount = (item.itemCostPrice * item.itemQuantity - itemDiscAmt);
   
       // Handle tax calculation only for taxable items
       if (item.taxPreference === 'Taxable') {
         switch (taxMode) {
           
           case 'Intra':
-            calculatedItemCgstAmount = ((item.itemCgst / 100) * itemAmount);
-            calculatedItemSgstAmount = roundToTwoDecimals((item.itemSgst / 100) * itemAmount);
+            calculatedItemCgstAmount = roundToTwoDecimals((item.itemCgst / 100) * withoutTaxAmount);
+            calculatedItemSgstAmount = roundToTwoDecimals((item.itemSgst / 100) * withoutTaxAmount);
           break;
   
           case 'Inter':
-            calculatedItemIgstAmount = roundToTwoDecimals((item.itemIgst / 100) * itemAmount);
+            calculatedItemIgstAmount = roundToTwoDecimals((item.itemIgst / 100) * withoutTaxAmount);
           break;
           
           case 'VAT':
-            calculatedItemVatAmount = roundToTwoDecimals((item.itemVat / 100) * itemAmount);
+            calculatedItemVatAmount = roundToTwoDecimals((item.itemVat / 100) * withoutTaxAmount);
           break;
   
         }
+
+        itemAmount = (withoutTaxAmount + totalTaxAmount);
   
         calculatedItemTaxAmount =  calculatedItemCgstAmount + calculatedItemSgstAmount + calculatedItemIgstAmount + calculatedItemVatAmount;
         
