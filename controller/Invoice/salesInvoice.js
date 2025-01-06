@@ -80,12 +80,20 @@ const accDataExists = async ( organizationId, otherExpenseAccountId, freightAcco
 //Get one and All
 const salesDataExist = async ( organizationId, invoiceId ) => {    
     
-  const [organizationExists, allInvoice, invoice ] = await Promise.all([
-    Organization.findOne({ organizationId }, { organizationId: 1}),
-    Invoice.find({ organizationId }),
-    Invoice.findOne({ organizationId , _id: invoiceId },)
+  const [organizationExists, allInvoice, invoice, invoiceJournal ] = await Promise.all([
+    Organization.findOne({ organizationId }, { organizationId: 1 }),
+    Invoice.find({ organizationId })
+    .populate('customerId', 'customerDisplayName')    
+    .lean(),
+    Invoice.findOne({ organizationId , _id: invoiceId })
+    .populate('items.itemId', 'itemName')    
+    .populate('customerId', 'customerDisplayName')    
+    .lean(),
+    TrialBalance.find({ organizationId: organizationId, operationId : invoiceId })
+    .populate('accountId', 'accountName')    
+    .lean(),
   ]);
-  return { organizationExists, allInvoice, invoice };
+  return { organizationExists, allInvoice, invoice, invoiceJournal };
 };
 
 
@@ -98,6 +106,12 @@ exports.addInvoice = async (req, res) => {
 
       //Clean Data
       const cleanedData = cleanData(req.body);
+      cleanedData.items = cleanedData.items?.map(data => cleanData(data)) || [];
+
+      cleanedData.items = cleanedData.items
+      ?.map(data => cleanData(data))
+      .filter(item => item.itemId !== undefined && item.itemId !== '') || []; 
+
 
       const { items, salesOrderId, customerId, customerName, otherExpenseAccountId, freightAccountId, depositAccountId } = cleanedData;
       const itemIds = items.map(item => item.itemId);
@@ -156,23 +170,24 @@ exports.addInvoice = async (req, res) => {
       if (!calculateSalesOrder( cleanedData, res )) return;
 
       //Sales Journal      
-      if (!salesJournal( cleanedData, res )) return;
-
-
+      if (!salesJournal( cleanedData, res )) return; 
+      
+      
+      
       //Prefix
       await salesPrefix(cleanedData, existingPrefix );
       
       if(cleanedData._id){
         cleanedData._id = undefined;
       }
-
-      // const savedInvoice = await createNewInvoice(cleanedData, organizationId, userId, userName );
-
+      
+      const savedInvoice = await createNewInvoice(cleanedData, organizationId, userId, userName );      
+      
       //Journal
-      // await journal( savedInvoice, defAcc, customerAccount );
+      await journal( savedInvoice, defAcc, customerAccount );
 
       //Item Track
-      // await itemTrack( savedInvoice, itemTable );
+      await itemTrack( savedInvoice, itemTable );
 
       // Delete the associated sale order if salesOrderId is provided
       if (salesOrderId) {
@@ -181,7 +196,7 @@ exports.addInvoice = async (req, res) => {
 
         
       res.status(201).json({ message: "Sale Invoice created successfully" });
-      // console.log( "Sale Invoice created successfully:", savedInvoice );
+      console.log( "Sale Invoice created successfully:", savedInvoice );
     } catch (error) {
       console.error("Error Creating Sales Invoice:", error);
       res.status(500).json({ message: "Internal server error." });
@@ -223,17 +238,23 @@ exports.invoiceJournal = async (req, res) => {
       const organizationId = req.user.organizationId;
       const { invoiceId } = req.params;
 
-
-      // Find all accounts where organizationId matches
-      const invoiceJournal = await TrialBalance.find({ organizationId : organizationId, operationId : invoiceId });
+      const { invoiceJournal } = await salesDataExist( organizationId, invoiceId );      
 
       if (!invoiceJournal) {
           return res.status(404).json({
               message: "No Journal found for the Invoice.",
           });
       }
+
+      const transformedJournal = invoiceJournal.map(item => {
+        return {
+            ...item,
+            accountId: item.accountId._id,  
+            accountName: item.accountId.accountName,  
+        };
+    });
       
-      res.status(200).json(invoiceJournal);
+      res.status(200).json(transformedJournal);
   } catch (error) {
       console.error("Error fetching journal:", error);
       res.status(500).json({ message: "Internal server error." });
@@ -246,19 +267,15 @@ exports.getAllSalesInvoice = async (req, res) => {
   try {
     const organizationId = req.user.organizationId;
 
-    const { organizationExists, allInvoice } = await salesDataExist(organizationId);
+    const { organizationExists, allInvoice } = await salesDataExist( organizationId, null );
 
     if (!organizationExists) {
-      return res.status(404).json({
-        message: "Organization not found",
-      });
+      return res.status(404).json({ message: "Organization not found" });
     }
 
-    if (!allInvoice.length) {
-      return res.status(404).json({
-        message: "No Invoice found",
-      });
-    }
+    if (!allInvoice) {
+      return res.status(404).json({ message: "No Invoice found" });
+    }  
 
    // Get current date for comparison
    const currentDate = new Date();
@@ -268,7 +285,7 @@ exports.getAllSalesInvoice = async (req, res) => {
 
    // Map through purchase bills and update paidStatus if needed
    for (const invoice of allInvoice) {
-   const { organizationId, balanceAmount, dueDate, paidStatus: currentStatus, ...rest } = invoice.toObject();
+   const { organizationId, balanceAmount, dueDate, paidStatus: currentStatus, ...rest } = invoice;
    
    // Determine the correct paidStatus based on balanceAmount and dueDate
    let newStatus;
@@ -290,7 +307,7 @@ exports.getAllSalesInvoice = async (req, res) => {
    }
   //  allInvoice=updatedInvoices
 
-    res.status(200).json({updatedInvoices});
+    res.status(200).json( allInvoice );
   } catch (error) {
     console.error("Error fetching Invoice:", error);
     res.status(500).json({ message: "Internal server error." });
@@ -623,6 +640,7 @@ validateField( typeof data.customerId === 'undefined' || typeof data.customerNam
 validateField( typeof data.placeOfSupply === 'undefined', "Place of supply required", errors  );
 
 validateField( typeof data.items === 'undefined', "Select an item", errors  );
+validateField( Array.isArray(data.items) && data.items.length === 0, "Select an item", errors );
 
 validateField( typeof data.otherExpenseAmount !== 'undefined' && typeof data.otherExpenseReason === 'undefined', "Please enter other expense reason", errors  );
 
@@ -1012,31 +1030,36 @@ function salesJournal(cleanedData, res) {
 
 
   cleanedData.items.forEach(item => {
+          
+          const accountId = item.salesAccountId;
 
-    console.log("Item:",item);
+          if (!accountId) {
+
+            errors.push({
+              itemIndex: index,
+              message: `Sales Account not found for item ${item.itemName}`,
+            });
+            return; 
+          }
     
-    const accountId = item.salesAccountId;
-    const debitAmount = roundToTwoDecimals(item.sellingPrice * item.quantity);
+          const creditAmount = roundToTwoDecimals(item.sellingPrice * item.quantity);
 
-    if (!accountEntries[accountId]) {
-      // Initialize a new entry for the accountId
-      accountEntries[accountId] = { accountId, debitAmount: 0 };
-    }
-    // Accumulate the debit amount
-    accountEntries[accountId].debitAmount += debitAmount;
+          if (!accountEntries[accountId]) {
+            accountEntries[accountId] = { accountId, creditAmount: 0 };
+          }
+          // Accumulate the debit amount
+          accountEntries[accountId].creditAmount += creditAmount;
   });
 
   // Push the grouped entries into cleanedData.journal
-  cleanedData.journal = Object.values(accountEntries);
-
-  console.log("Journal Entries:", cleanedData.journal);
+  cleanedData.salesJournal = Object.values(accountEntries);  
   
   // Handle response or further processing
   if (errors.length > 0) {
-    res.status(400).json({ success: false, errors });
-  } else {
-    res.status(200).json({ success: true, journal: cleanedData.journal });
+    res.status(400).json({ success: false, message:"Sales journal error", errors });
+    return false;
   }
+  return true;
 }
 
 
@@ -1092,7 +1115,7 @@ function salesJournal(cleanedData, res) {
 
 
 
-async function journal(savedInvoice, defAcc, customerAccount ) {  
+async function journal( savedInvoice, defAcc, customerAccount ) {  
   const discount = {
     organizationId: savedInvoice.organizationId,
     operationId: savedInvoice._id,
@@ -1100,21 +1123,21 @@ async function journal(savedInvoice, defAcc, customerAccount ) {
     date: savedInvoice.createdDate,
     accountId: defAcc.salesDiscountAccount || undefined,
     action: "Sales Invoice",
-    debitAmount: savedInvoice.totalDiscount,
+    debitAmount: savedInvoice.totalDiscount || 0,
     creditAmount: 0,
     remark: savedInvoice.note,
   };
-  const sale = {
-    organizationId: savedInvoice.organizationId,
-    operationId: savedInvoice._id,
-    transactionId: savedInvoice.salesInvoice,
-    date: savedInvoice.createdDate,
-    accountId: defAcc.salesAccount || undefined,
-    action: "Sales Invoice",
-    debitAmount: 0,
-    creditAmount: savedInvoice.saleAmount,
-    remark: savedInvoice.note,
-  };
+  // const sale = {
+  //   organizationId: savedInvoice.organizationId,
+  //   operationId: savedInvoice._id,
+  //   transactionId: savedInvoice.salesInvoice,
+  //   date: savedInvoice.createdDate,
+  //   accountId: defAcc.salesAccount || undefined,
+  //   action: "Sales Invoice",
+  //   debitAmount: 0,
+  //   creditAmount: savedInvoice.saleAmount,
+  //   remark: savedInvoice.note,
+  // };
   const cgst = {
     organizationId: savedInvoice.organizationId,
     operationId: savedInvoice._id,
@@ -1123,7 +1146,7 @@ async function journal(savedInvoice, defAcc, customerAccount ) {
     accountId: defAcc.outputCgst || undefined,
     action: "Sales Invoice",
     debitAmount: 0,
-    creditAmount: savedInvoice.cgst,
+    creditAmount: savedInvoice.cgst || 0,
     remark: savedInvoice.note,
   };
   const sgst = {
@@ -1134,7 +1157,7 @@ async function journal(savedInvoice, defAcc, customerAccount ) {
     accountId: defAcc.outputSgst || undefined,
     action: "Sales Invoice",
     debitAmount: 0,
-    creditAmount: savedInvoice.sgst,
+    creditAmount: savedInvoice.sgst || 0,
     remark: savedInvoice.note,
   };
   const igst = {
@@ -1145,7 +1168,7 @@ async function journal(savedInvoice, defAcc, customerAccount ) {
     accountId: defAcc.outputIgst || undefined,
     action: "Sales Invoice",
     debitAmount: 0,
-    creditAmount: savedInvoice.igst,
+    creditAmount: savedInvoice.igst || 0,
     remark: savedInvoice.note,
   };
   const vat = {
@@ -1156,7 +1179,7 @@ async function journal(savedInvoice, defAcc, customerAccount ) {
     accountId: defAcc.outputVat || undefined,
     action: "Sales Invoice",
     debitAmount: 0,
-    creditAmount: savedInvoice.vat,
+    creditAmount: savedInvoice.vat || 0,
     remark: savedInvoice.note,
   };
   const customer = {
@@ -1166,7 +1189,7 @@ async function journal(savedInvoice, defAcc, customerAccount ) {
     date: savedInvoice.createdDate,
     accountId: customerAccount._id || undefined,
     action: "Sales Invoice",
-    debitAmount: savedInvoice.totalAmount,
+    debitAmount: savedInvoice.totalAmount || 0,
     creditAmount: 0,
     remark: savedInvoice.note,
   };
@@ -1178,7 +1201,7 @@ async function journal(savedInvoice, defAcc, customerAccount ) {
     accountId: customerAccount._id || undefined,
     action: "Receipt",
     debitAmount: 0,
-    creditAmount: savedInvoice.paidAmount,
+    creditAmount: savedInvoice.paidAmount || 0,
     remark: savedInvoice.note,
   };
   const depositAccount = {
@@ -1188,7 +1211,7 @@ async function journal(savedInvoice, defAcc, customerAccount ) {
     date: savedInvoice.createdDate,
     accountId: defAcc.depositAccountId || undefined,
     action: "Receipt",
-    debitAmount: savedInvoice.paidAmount,
+    debitAmount: savedInvoice.paidAmount || 0,
     creditAmount: 0,
     remark: savedInvoice.note,
   };
@@ -1200,7 +1223,7 @@ async function journal(savedInvoice, defAcc, customerAccount ) {
     accountId: defAcc.otherExpenseAccountId || undefined,
     action: "Sales Invoice",
     debitAmount: 0,
-    creditAmount: savedInvoice.otherExpenseAmount,
+    creditAmount: savedInvoice.otherExpenseAmount || 0,
     remark: savedInvoice.note,
   };
   const freight = {
@@ -1211,7 +1234,7 @@ async function journal(savedInvoice, defAcc, customerAccount ) {
     accountId: defAcc.freightAccountId || undefined,
     action: "Sales Invoice",
     debitAmount: 0,
-    creditAmount: savedInvoice.freightAmount,
+    creditAmount: savedInvoice.freightAmount || 0,
     remark: savedInvoice.note,
   };
   const roundOff = {
@@ -1221,17 +1244,37 @@ async function journal(savedInvoice, defAcc, customerAccount ) {
     date: savedInvoice.createdDate,
     accountName: "Round Off",
     action: "Sales Invoice",
-    debitAmount: savedInvoice.roundOffAmount,
+    debitAmount: savedInvoice.roundOffAmount || 0,
     creditAmount: 0,
     remark: savedInvoice.note,
   };
+
+  let salesTotalDebit = 0;
+  let salesTotalCredit = 0;
+
+  if (Array.isArray(savedInvoice.salesJournal)) {
+    savedInvoice.salesJournal.forEach((entry) => {
+
+      console.log( "Account Log",entry.accountId, entry.debitAmount, entry.creditAmount );      
+
+      salesTotalDebit += entry.debitAmount || 0;
+      salesTotalCredit += entry.creditAmount || 0;
+
+    });
+
+    console.log("Total Debit Amount from saleJournal:", salesTotalDebit);
+    console.log("Total Credit Amount from saleJournal:", salesTotalCredit);
+  } else {
+    console.error("SaleJournal is not an array or is undefined.");
+  }
+  
+
 
   console.log("cgst", cgst.debitAmount,  cgst.creditAmount);
   console.log("sgst", sgst.debitAmount,  sgst.creditAmount);
   console.log("igst", igst.debitAmount,  igst.creditAmount);
   console.log("vat", vat.debitAmount,  vat.creditAmount);
 
-  console.log("sale", sale.debitAmount,  sale.creditAmount);
   console.log("customer", customer.debitAmount,  customer.creditAmount);
   console.log("discount", discount.debitAmount,  discount.creditAmount);
 
@@ -1243,8 +1286,8 @@ async function journal(savedInvoice, defAcc, customerAccount ) {
   console.log("customerPaid", customerPaid.debitAmount,  customerPaid.creditAmount);
   console.log("depositAccount", depositAccount.debitAmount,  depositAccount.creditAmount);
 
-  const  debitAmount = cgst.debitAmount  + sgst.debitAmount + igst.debitAmount +  vat.debitAmount + sale.debitAmount + customer.debitAmount + discount.debitAmount + otherExpense.debitAmount + freight.debitAmount + roundOff.debitAmount + customerPaid.debitAmount + depositAccount.debitAmount ;
-  const  creditAmount = cgst.creditAmount  + sgst.creditAmount + igst.creditAmount +  vat.creditAmount + sale.creditAmount + customer.creditAmount + discount.creditAmount + otherExpense.creditAmount + freight.creditAmount + roundOff.creditAmount + customerPaid.creditAmount + depositAccount.creditAmount ;
+  const  debitAmount = salesTotalDebit + cgst.debitAmount  + sgst.debitAmount + igst.debitAmount +  vat.debitAmount + customer.debitAmount + discount.debitAmount + otherExpense.debitAmount + freight.debitAmount + roundOff.debitAmount + customerPaid.debitAmount + depositAccount.debitAmount ;
+  const  creditAmount = salesTotalCredit + cgst.creditAmount  + sgst.creditAmount + igst.creditAmount +  vat.creditAmount + customer.creditAmount + discount.creditAmount + otherExpense.creditAmount + freight.creditAmount + roundOff.creditAmount + customerPaid.creditAmount + depositAccount.creditAmount ;
 
   console.log("Total Debit Amount: ", debitAmount );
   console.log("Total Credit Amount: ", creditAmount );
@@ -1252,7 +1295,29 @@ async function journal(savedInvoice, defAcc, customerAccount ) {
   // console.log( discount, sale, cgst, sgst, igst, vat, customer, otherExpense, freight, roundOff );
 
 
-  createTrialEntry( sale )
+  //Sales
+    savedInvoice.salesJournal.forEach((entry) => {
+
+      const data = {
+        organizationId: savedInvoice.organizationId,
+        operationId: savedInvoice._id,
+        transactionId: savedInvoice.salesInvoice,
+        date: savedInvoice.createdDateTime,
+        accountId: entry.accountId || undefined,
+        action: "Sales Invoice",
+        debitAmount: 0,
+        creditAmount: entry.creditAmount || 0,
+        remark: savedInvoice.note,
+      };
+      
+      createTrialEntry( data )
+
+    });
+
+    
+ 
+
+
 
   //Tax
   if(savedInvoice.cgst){
@@ -1301,6 +1366,7 @@ async function journal(savedInvoice, defAcc, customerAccount ) {
 
 
 
+
 async function createTrialEntry( data ) {
   const newTrialEntry = new TrialBalance({
       organizationId:data.organizationId,
@@ -1313,6 +1379,8 @@ async function createTrialEntry( data ) {
       creditAmount: data.creditAmount,
       remark: data.remark
 });
+
+
 
 await newTrialEntry.save();
 

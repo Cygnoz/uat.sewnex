@@ -105,7 +105,7 @@ const SalesInvoiceSchema = new Schema ({
 
   salesOrderId: { type: String },
 
-  journal:[ journalSchema ], 
+  salesJournal:[ journalSchema ], 
 
   createdDateTime: { type: Date, default: () => new Date() },
   userId: { type: String },
