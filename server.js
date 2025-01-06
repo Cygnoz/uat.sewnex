@@ -27,7 +27,7 @@ server.use(purchaseRouter)
 PORT = 5005
 
 server.get('/',(req,res)=>{
-    res.status(200).json("Dev Bill BIZZ server started - Purchase(v 0.1)")
+    res.status(200).json("Dev Bill BIZZ server started - Purchase(v 0.2)")
 })
 
 server.listen(PORT,()=>{
