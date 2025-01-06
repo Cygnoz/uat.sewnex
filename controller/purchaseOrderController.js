@@ -203,7 +203,7 @@ exports.addPurchaseOrder = async (req, res) => {
   };
 
 
-// Update Purchase Order
+// Update Purchase Order 
 exports.updatePurchaseOrder = async (req, res) => {
   console.log("Update purchase order:", req.body);
 
@@ -457,8 +457,9 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
         console.log(`Item: ${item.itemName}, Calculated Discount: ${itemDiscAmt}`);
       }
 
-      itemAmount = (withoutTaxAmount + totalTaxAmount);
-
+      itemAmount = (withoutTaxAmount + calculatedItemTaxAmount);
+      console.log(`withoutTaxAmount: ${withoutTaxAmount}, totalTaxAmount: ${totalTaxAmount}, itemAmount: ${itemAmount}`);
+      
       checkAmount(itemAmount, item.itemAmount, item.itemName, 'Item Total',errors);
   
       console.log(`${item.itemName} Item Total: ${itemAmount} , Provided ${item.itemAmount}`);
