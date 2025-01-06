@@ -937,7 +937,6 @@ function validateInputs( data, supplierExist, purchaseOrderExist, items, itemExi
   validateField( typeof data.paidAmount !== 'undefined' && !(data.paidAmount <= data.grandTotal), "Excess payment amount", errors );
   validateField( typeof data.paidAmount !== 'undefined' && !(data.paidAmount >= 0 ), "Negative payment amount", errors );
 
-  validateField( typeof defaultAccount.purchaseAccount === 'undefined', "No Purchase Account found", errors  );
   validateField( typeof defaultAccount.purchaseDiscountAccount === 'undefined', "No Purchase Discount Account found", errors  );
 
   validateField( supplierExist.taxType === 'GST' && typeof defaultAccount.inputCgst === 'undefined', "No Input Cgst Account found", errors  );
