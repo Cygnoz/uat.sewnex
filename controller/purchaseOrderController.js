@@ -249,7 +249,7 @@ exports.updatePurchaseOrder = async (req, res) => {
     if (!validateInputs(cleanedData, supplierExist, items, itemTable, organizationExists, res)) return;
 
     // Date & Time
-    const openingDate = generateOpeningDate(organizationExists);
+    // const openingDate = generateOpeningDate(organizationExists);
 
     // Tax Type
     taxtype(cleanedData, supplierExist);
@@ -262,7 +262,7 @@ exports.updatePurchaseOrder = async (req, res) => {
 
     // Update purchase order fields
     Object.assign(existingPurchaseOrder, cleanedData);
-    existingPurchaseOrder.lastModifiedDate = moment().tz(organizationExists.timeZoneExp).format();
+    existingPurchaseOrder.lastModifiedDate = generateOpeningDate(organizationExists);
 
     const updatedPurchaseOrder = await existingPurchaseOrder.save();
 

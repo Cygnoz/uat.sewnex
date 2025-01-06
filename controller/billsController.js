@@ -946,7 +946,6 @@ function validateInputs( data, supplierExist, purchaseOrderExist, items, itemExi
 
 }
   
-  
   // Function to Validate Item Table 
   function validateItemTable(items, itemTable, errors) {
   // Check for item count mismatch
@@ -1033,7 +1032,7 @@ function validateInputs( data, supplierExist, purchaseOrderExist, items, itemExi
 
 
 // Validate source Of Supply
-function validateSourceOfSupply(sourceOfSupply, organization, errors) {
+function validateSourceOfSupply(sourceOfSupply, organization, errors) { 
     validateField(
       sourceOfSupply && !validCountries[organization.organizationCountry]?.includes(sourceOfSupply),
       "Invalid Source of Supply: " + sourceOfSupply, errors );
