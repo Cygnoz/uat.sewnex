@@ -662,6 +662,7 @@ function billsPrefix( cleanData, existingPrefix ) {
       totalDiscount +=  parseFloat(itemDiscAmt);
   
       const withoutTaxAmount = (item.itemCostPrice * item.itemQuantity - itemDiscAmt);
+      console.log("withoutTaxAmount",withoutTaxAmount);
   
       // Handle tax calculation only for taxable items
       if (item.taxPreference === 'Taxable') {
@@ -681,8 +682,6 @@ function billsPrefix( cleanData, existingPrefix ) {
           break;
   
         }
-
-        itemAmount = (withoutTaxAmount + totalTaxAmount);
   
         calculatedItemTaxAmount =  calculatedItemCgstAmount + calculatedItemSgstAmount + calculatedItemIgstAmount + calculatedItemVatAmount;
         
@@ -699,6 +698,9 @@ function billsPrefix( cleanData, existingPrefix ) {
         console.log(`Skipping Tax for Non-Taxable item: ${item.itemName}`);
         console.log(`Item: ${item.itemName}, Calculated Discount: ${itemDiscAmt}`);
       }
+
+      itemAmount = (withoutTaxAmount + totalTaxAmount);
+      console.log("withoutTaxAmount11",withoutTaxAmount,totalTaxAmount,itemAmount);
   
       checkAmount(itemAmount, item.itemAmount, item.itemName, 'Item Total',errors);
   
