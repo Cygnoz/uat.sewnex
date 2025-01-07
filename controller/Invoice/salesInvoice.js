@@ -83,7 +83,7 @@ const accDataExists = async ( organizationId, otherExpenseAccountId, freightAcco
 const salesDataExist = async ( organizationId, invoiceId ) => {    
     
   const [organizationExists, allInvoice, invoice, invoiceJournal ] = await Promise.all([
-    Organization.findOne({ organizationId }, { organizationId: 1 }),
+    Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }).lean(),
     Invoice.find({ organizationId })
     .populate('customerId', 'customerDisplayName')    
     .lean(),
@@ -314,11 +314,13 @@ exports.getAllSalesInvoice = async (req, res) => {
    // Push the bill object with the updated status to the result array
    updatedInvoices.push({ ...rest, balanceAmount , dueDate , paidStatus: newStatus });
    }
+   console.log("updatedInvoices",updatedInvoices);
+   
   
-  //  const formattedObjects = multiCustomDateTime(transformedInvoice, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
+   const formattedObjects = multiCustomDateTime(transformedInvoice, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
 
 
-    res.status(200).json( updatedInvoices );
+    res.status(200).json( formattedObjects );
   } catch (error) {
     console.error("Error fetching Invoice:", error);
     res.status(500).json({ message: "Internal server error." });
