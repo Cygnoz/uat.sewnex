@@ -190,7 +190,7 @@ exports.addBills = async (req, res) => {
       if (!calculateBills( cleanedData, itemTable, res )) return;      
 
       //Prefix
-      // await billsPrefix(cleanedData, existingPrefix );
+      await billsPrefix(cleanedData, existingPrefix );
   
       const savedBills = await createNewBills(cleanedData, organizationId, openingDate, userId, userName );
   
@@ -661,26 +661,28 @@ function billsPrefix( cleanData, existingPrefix ) {
       purchaseAmount +=(item.itemCostPrice * item.itemQuantity);
       totalDiscount +=  parseFloat(itemDiscAmt);
   
-      itemAmount = (item.itemCostPrice * item.itemQuantity - itemDiscAmt);
+      const withoutTaxAmount = (item.itemCostPrice * item.itemQuantity - itemDiscAmt);
   
       // Handle tax calculation only for taxable items
       if (item.taxPreference === 'Taxable') {
         switch (taxMode) {
           
           case 'Intra':
-            calculatedItemCgstAmount = ((item.itemCgst / 100) * itemAmount);
-            calculatedItemSgstAmount = roundToTwoDecimals((item.itemSgst / 100) * itemAmount);
+            calculatedItemCgstAmount = roundToTwoDecimals((item.itemCgst / 100) * withoutTaxAmount);
+            calculatedItemSgstAmount = roundToTwoDecimals((item.itemSgst / 100) * withoutTaxAmount);
           break;
   
           case 'Inter':
-            calculatedItemIgstAmount = roundToTwoDecimals((item.itemIgst / 100) * itemAmount);
+            calculatedItemIgstAmount = roundToTwoDecimals((item.itemIgst / 100) * withoutTaxAmount);
           break;
           
           case 'VAT':
-            calculatedItemVatAmount = roundToTwoDecimals((item.itemVat / 100) * itemAmount);
+            calculatedItemVatAmount = roundToTwoDecimals((item.itemVat / 100) * withoutTaxAmount);
           break;
   
         }
+
+        itemAmount = (withoutTaxAmount + totalTaxAmount);
   
         calculatedItemTaxAmount =  calculatedItemCgstAmount + calculatedItemSgstAmount + calculatedItemIgstAmount + calculatedItemVatAmount;
         
@@ -937,7 +939,6 @@ function validateInputs( data, supplierExist, purchaseOrderExist, items, itemExi
   validateField( typeof data.paidAmount !== 'undefined' && !(data.paidAmount <= data.grandTotal), "Excess payment amount", errors );
   validateField( typeof data.paidAmount !== 'undefined' && !(data.paidAmount >= 0 ), "Negative payment amount", errors );
 
-  validateField( typeof defaultAccount.purchaseAccount === 'undefined', "No Purchase Account found", errors  );
   validateField( typeof defaultAccount.purchaseDiscountAccount === 'undefined', "No Purchase Discount Account found", errors  );
 
   validateField( supplierExist.taxType === 'GST' && typeof defaultAccount.inputCgst === 'undefined', "No Input Cgst Account found", errors  );
@@ -946,7 +947,6 @@ function validateInputs( data, supplierExist, purchaseOrderExist, items, itemExi
   validateField( supplierExist.taxType === 'VAT' && typeof defaultAccount.inputVat === 'undefined', "No Input Vat Account found", errors  );
 
 }
-  
   
   // Function to Validate Item Table 
   function validateItemTable(items, itemTable, errors) {
@@ -965,7 +965,7 @@ function validateInputs( data, supplierExist, purchaseOrderExist, items, itemExi
     validateField( item.itemName !== fetchedItem.itemName, `Item Name Mismatch : ${item.itemName}`, errors );
   
     // Validate cost price
-    validateField( item.itemCostPrice !== fetchedItem.costPrice, `Cost price Mismatch for ${item.itemName}:  ${item.itemCostPrice}`, errors );
+    // validateField( item.itemCostPrice !== fetchedItem.costPrice, `Cost price Mismatch for ${item.itemName}:  ${item.itemCostPrice}`, errors );
   
     // Validate CGST
     validateField( item.itemCgst !== fetchedItem.cgst, `CGST Mismatch for ${item.itemName}: ${item.itemCgst}`, errors );
@@ -1034,7 +1034,7 @@ function validateInputs( data, supplierExist, purchaseOrderExist, items, itemExi
 
 
 // Validate source Of Supply
-function validateSourceOfSupply(sourceOfSupply, organization, errors) {
+function validateSourceOfSupply(sourceOfSupply, organization, errors) { 
     validateField(
       sourceOfSupply && !validCountries[organization.organizationCountry]?.includes(sourceOfSupply),
       "Invalid Source of Supply: " + sourceOfSupply, errors );
