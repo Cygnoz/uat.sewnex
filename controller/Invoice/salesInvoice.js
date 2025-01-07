@@ -15,6 +15,8 @@ const TrialBalance = require("../../database/model/trialBalance");
 const Account = require("../../database/model/account");
 
 const { cleanData } = require("../../services/cleanData");
+const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
+
 
 
 // Fetch existing data
@@ -252,7 +254,7 @@ exports.invoiceJournal = async (req, res) => {
             accountId: item.accountId._id,  
             accountName: item.accountId.accountName,  
         };
-    });
+    });    
       
       res.status(200).json(transformedJournal);
   } catch (error) {
@@ -275,7 +277,14 @@ exports.getAllSalesInvoice = async (req, res) => {
 
     if (!allInvoice) {
       return res.status(404).json({ message: "No Invoice found" });
-    }  
+    }
+
+    const transformedInvoice = allInvoice.map(data => {
+      return {
+          ...data,
+          customerId: data.customerId._id,  
+          customerDisplayName: data.customerId.customerDisplayName,  
+      };});     
 
    // Get current date for comparison
    const currentDate = new Date();
@@ -284,7 +293,7 @@ exports.getAllSalesInvoice = async (req, res) => {
    const updatedInvoices = [];
 
    // Map through purchase bills and update paidStatus if needed
-   for (const invoice of allInvoice) {
+   for (const invoice of transformedInvoice) {
    const { organizationId, balanceAmount, dueDate, paidStatus: currentStatus, ...rest } = invoice;
    
    // Determine the correct paidStatus based on balanceAmount and dueDate
@@ -305,9 +314,11 @@ exports.getAllSalesInvoice = async (req, res) => {
    // Push the bill object with the updated status to the result array
    updatedInvoices.push({ ...rest, balanceAmount , dueDate , paidStatus: newStatus });
    }
-  //  allInvoice=updatedInvoices
+  
+  //  const formattedObjects = multiCustomDateTime(transformedInvoice, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
 
-    res.status(200).json( allInvoice );
+
+    res.status(200).json( updatedInvoices );
   } catch (error) {
     console.error("Error fetching Invoice:", error);
     res.status(500).json({ message: "Internal server error." });
@@ -1036,7 +1047,6 @@ function salesJournal(cleanedData, res) {
           if (!accountId) {
 
             errors.push({
-              itemIndex: index,
               message: `Sales Account not found for item ${item.itemName}`,
             });
             return; 
