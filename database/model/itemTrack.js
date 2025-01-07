@@ -1,4 +1,4 @@
-// v1.1
+// v1.2
 
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
@@ -10,7 +10,9 @@ const itemTrackSchema = new Schema({
     transactionId: {type:String}, //Prefix
     action: {type:String}, //Sale, Sale return, Purchase, Purchase Return,Opening Stock, Inventory Adjustment
  
-    itemId: {type:String},
+    itemId: {type: mongoose.Schema.Types.ObjectId, ref: 'Item'},
+    //itemName
+
     sellingPrice:{ type:Number },
     costPrice: { type: Number },
 
