@@ -106,11 +106,11 @@ exports.addCreditNote = async (req, res) => {
 
     const { organizationExists, customerExist, invoiceExist, settings, existingPrefix } = await dataExist( organizationId, customerId, invoiceId );
 
-    const { itemTable } = await newDataExists( organizationId, items );
-
     //Data Exist Validation
     if (!validateOCIP( organizationExists, customerExist, invoiceExist, existingPrefix, res )) return;
 
+    const { itemTable } = await newDataExists( organizationId, items );   
+ 
     //Validate Inputs  
     if (!validateInputs( cleanedData, customerExist, invoiceExist, items, itemTable, organizationExists, res)) return;
 
@@ -372,23 +372,23 @@ function calculateCreditNote(cleanedData, res) {
     totalItem +=  parseInt(item.quantity);
     subTotal += parseFloat(item.quantity * item.sellingPrice);
 
-    itemAmount = (item.sellingPrice * item.quantity);
+    withoutTaxAmount = (item.sellingPrice * item.quantity);
 
     // Handle tax calculation only for taxable items
     if (item.taxPreference === 'Taxable') {
       switch (taxType) {
         
         case 'Intra':
-          calculatedCgstAmount = roundToTwoDecimals((item.cgst / 100) * itemAmount);
-          calculatedSgstAmount = roundToTwoDecimals((item.sgst / 100) * itemAmount);
+          calculatedCgstAmount = roundToTwoDecimals((item.cgst / 100) * withoutTaxAmount);
+          calculatedSgstAmount = roundToTwoDecimals((item.sgst / 100) * withoutTaxAmount);
         break;
 
         case 'Inter':
-          calculatedIgstAmount = roundToTwoDecimals((item.igst / 100) * itemAmount);
+          calculatedIgstAmount = roundToTwoDecimals((item.igst / 100) * withoutTaxAmount);
         break;
         
         case 'VAT':
-          calculatedVatAmount = roundToTwoDecimals((item.vat / 100) * itemAmount);
+          calculatedVatAmount = roundToTwoDecimals((item.vat / 100) * withoutTaxAmount);
         break;
 
       }
@@ -407,6 +407,8 @@ function calculateCreditNote(cleanedData, res) {
     } else {
       console.log(`Skipping Tax for Non-Taxable item: ${item.itemName}`);
     }
+
+    itemAmount = (withoutTaxAmount + calculatedTaxAmount);
 
     checkAmount(itemAmount, item.itemAmount, item.itemName, 'Item Total',errors);
 
@@ -523,6 +525,7 @@ function generateTimeAndDateForDB(
 
 //Validate inputs
 function validateInputs( data, customerExist, invoiceExist, items, itemExists, organizationExists, res) {
+
   const validationErrors = validateCreditNoteData(data, customerExist, invoiceExist, items, itemExists, organizationExists);  
 
   if (validationErrors.length > 0) {
@@ -534,6 +537,7 @@ function validateInputs( data, customerExist, invoiceExist, items, itemExists, o
 
 //Validate Data
 function validateCreditNoteData( data, customerExist, invoiceExist, items, itemTable, organizationExists ) {
+  
   const errors = [];
 
   // console.log("Item Request :",items);
@@ -575,11 +579,11 @@ function validateField(condition, errorMsg, errors) {
 
 //Valid Req Fields
 function validateReqFields( data, customerExist, errors ) {
-validateField( typeof data.customerId === 'undefined' || typeof data.customerDisplayName === 'undefined', "Please select a customer", errors  );
-validateField( customerExist.taxtype == 'GST' && typeof data.placeOfSupply === 'undefined', "Place of supply is required", errors  );
-validateField( typeof data.items === 'undefined', "Select an item", errors  );
-validateField( typeof data.invoiceNumber === 'undefined', "Select an invoice number", errors  );
-validateField( typeof data.invoiceType === 'undefined', "Select an invoice type", errors  );
+  validateField( typeof data.customerId === 'undefined' || typeof data.customerDisplayName === 'undefined', "Please select a customer", errors  );
+  validateField( customerExist.taxtype == 'GST' && typeof data.placeOfSupply === 'undefined', "Place of supply is required", errors  );
+  validateField( typeof data.items === 'undefined', "Select an item", errors  );
+  validateField( typeof data.invoiceNumber === 'undefined', "Select an invoice number", errors  );
+  validateField( typeof data.invoiceType === 'undefined', "Select an invoice type", errors  );
 }
 
 
@@ -600,7 +604,7 @@ function validateItemTable(items, itemTable, errors) {
     if (!fetchedItem) return; 
   
     // Validate item name
-    validateField( item.itemName !== fetchedItem.itemName, `Item Name Mismatch : ${item.itemName}`, errors );
+    // validateField( item.itemName !== fetchedItem.itemName, `Item Name Mismatch : ${item.itemName}`, errors );
   
     // Validate selling price
     // validateField( item.sellingPrice !== fetchedItem.sellingPrice, `Cost price Mismatch for ${item.itemName}:  ${item.sellingPrice}`, errors );
@@ -635,20 +639,25 @@ function validateInvoiceData(data, items, invoiceExist, errors) {
 
    // Initialize `invoiceExist.items` to an empty array if undefined
    invoiceExist.items = Array.isArray(invoiceExist.items) ? invoiceExist.items : [];
+      //  console.log("invoiceExist.items......",invoiceExist.items);
+
 
   // Validate basic fields
-  validateField( invoiceExist.salesInvoiceDate !== data.invoiceDate, `Bill Date mismatch for ${invoiceExist.salesInvoiceDate}`, errors  );
+  validateField( invoiceExist.salesInvoiceDate !== data.invoiceDate, `Invoice Date mismatch for ${invoiceExist.salesInvoiceDate}`, errors  );
   validateField( invoiceExist.salesOrderNumber !== data.orderNumber, `Order Number mismatch for ${invoiceExist.salesOrderNumber}`, errors  );
 
   // Validate only the items included in the credit note
   items.forEach(CNItem => {
-    const invoiceItem = invoiceExist.items.find(item => item.itemId === CNItem.itemId);
+    const invoiceItem = invoiceExist.items.find(item => item.itemId.toString() === CNItem.itemId);
+    console.log("invoiceItem......",invoiceItem);
+    console.log("CNItem.itemId......",CNItem.itemId);
+    console.log("invoiceExist......",invoiceExist.items[0].itemId.toString());
 
-    // console.log("invoiceItem:",invoiceItem);
-    // console.log("CNItem:",CNItem);
+    // console.log("invoiceExist.......",invoiceExist);
+    // console.log("CNItem.......",CNItem);
 
     if (!invoiceItem) {
-      errors.push(`Item ID ${CNItem.itemId} not found in the invoice.`);
+      errors.push(`Item ID ${CNItem.itemId} not found in the invoice.`); 
     } else {
       validateField(CNItem.itemName !== invoiceItem.itemName, 
                     `Item Name mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.itemName}, got ${CNItem.itemName}`, 
