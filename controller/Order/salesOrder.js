@@ -67,7 +67,7 @@ const salesDataExist = async ( organizationId, orderId ) => {
     .populate('customerId', 'customerDisplayName')    
     .lean(),
     Order.findOne({ organizationId , _id: orderId })
-    .populate('items.itemId', 'itemName')    
+    .populate('items.itemId', 'itemName cgst sgst igst vat salesAccountId')    
     .populate('customerId', 'customerDisplayName')    
     .lean(),
   ]);
@@ -222,12 +222,17 @@ try {
       ...item,
       itemId: item.itemId._id,
       itemName: item.itemId.itemName,
+      cgst: item.itemId.cgst,
+      sgst: item.itemId.sgst,
+      igst: item.itemId.igst,
+      vat: item.itemId.vat,      
+      salesAccountId: item.itemId.salesAccountId,
     })),  
 };
 
   res.status(200).json(transformedInvoice);
 } catch (error) {
-  console.error("Error fetching Order:", error);
+  console.error("Error fetching Order1:", error);
   res.status(500).json({ message: "Internal server error." });
 }
 };
