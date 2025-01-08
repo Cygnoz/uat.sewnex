@@ -314,7 +314,6 @@ exports.getAllSalesInvoice = async (req, res) => {
    // Push the bill object with the updated status to the result array
    updatedInvoices.push({ ...rest, balanceAmount , dueDate , paidStatus: newStatus });
    }
-   console.log("updatedInvoices",updatedInvoices);
    
   
    const formattedObjects = multiCustomDateTime(transformedInvoice, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
@@ -348,8 +347,18 @@ try {
       message: "No Invoice found",
     });
   }
+  const transformedInvoice = {
+        ...invoice,
+        customerId: invoice.customerId._id,  
+        customerDisplayName: invoice.customerId.customerDisplayName,
+        items: invoice.items.map(item => ({
+          ...item,
+          itemId: item.itemId._id,
+          itemName: item.itemId.itemName,
+        })),  
+    };    
 
-  res.status(200).json(invoice);
+  res.status(200).json(transformedInvoice);
 } catch (error) {
   console.error("Error fetching Invoice:", error);
   res.status(500).json({ message: "Internal server error." });
