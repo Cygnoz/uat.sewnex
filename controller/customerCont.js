@@ -131,8 +131,10 @@ exports.editCustomer = async (req, res) => {
       cleanedData.lastModifiedDate = new Date();
 
       // Update customer fields
-      Object.assign(existingCustomer, cleanedData);
-      const savedCustomer = await existingCustomer.save();
+      const mongooseDocument = Customer.hydrate(existingCustomer);
+
+      Object.assign(mongooseDocument, cleanedData);
+      const savedCustomer = await mongooseDocument.save();
   
       if (!savedCustomer) {
         console.error("Customer could not be saved.");
@@ -794,8 +796,10 @@ async function updateOpeningBalance(existingTrialBalance, cleanData) {
       };
     }
 
-    Object.assign(existingTrialBalance, trialEntry);
-    const savedTrialBalance = await existingTrialBalance.save();
+    const mongooseDocument = TrialBalance.hydrate(existingTrialBalance);
+
+    Object.assign(mongooseDocument, trialEntry);
+    const savedTrialBalance = await mongooseDocument.save();
 
     return savedTrialBalance;
   } catch (error) {
