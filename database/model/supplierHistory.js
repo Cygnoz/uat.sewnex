@@ -5,13 +5,13 @@ const { Schema } = mongoose;
 const supplierHistorySchema = new Schema({
   organizationId: {type:String},
   operationId: { type: String },
-  supplierId: { type: String },
-  supplierDisplayName: { type: String },
+  supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier' },
+  // supplierDisplayName: { type: String },
   date: { type: String },
   title: { type: String },
   description: { type: String },
-  userId: { type: String },
-  userName: { type: String },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  // userName: { type: String },
 });
 
 const supplierHistory = mongoose.model("Supplier History", supplierHistorySchema);

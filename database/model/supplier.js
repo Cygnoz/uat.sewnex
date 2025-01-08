@@ -40,7 +40,7 @@ const supplierSchema = new Schema({
     tds: {type:String},
     creditDays :{type:Number},
     creditLimit :{type:Number},
-    InterestPercentage :{type:Number},
+    interestPercentage :{type:Number},
     documents: {type:String},
     websiteURL: {type:String},
     department: {type:String},
@@ -93,7 +93,7 @@ const supplierSchema = new Schema({
     //Remark
     remarks: {type:String},
 
-    createdDate: {type:String},
+    createdDateTime: { type: Date, default: () => new Date() },
     lastModifiedDate:{type:String}, 
         
     //Status

@@ -7,7 +7,8 @@ const server = express()
 const supplierRouter = require("./router/supplierRouter")
 require('./database/connection/connection')
 
-server.use(cors())
+// server.use(cors())
+server.use(cors({ origin: "*", methods: "GET,POST,PUT,DELETE,OPTIONS" }));
 server.use(express.json())
 server.use(supplierRouter)
 

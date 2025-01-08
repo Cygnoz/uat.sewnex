@@ -8,24 +8,237 @@ const TrialBalance = require("../database/model/trialBalance");
 const SupplierHistory = require("../database/model/supplierHistory");
 const Settings = require("../database/model/settings")
 
+const { singleCustomDateTime, multiCustomDateTime } = require("../services/timeConverter");
+const { cleanData } = require("../services/cleanData");
+
+
+const dataExist = async ( organizationId, supplierId ) => {
+    const [organizationExists, taxExists, currencyExists, allSupplier ,settings, existingSupplier, accountExist, trialBalance, supplierHistory ] = await Promise.all([
+      Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }).lean(),
+      Tax.findOne({ organizationId },{ taxType: 1 }).lean(),
+      Currency.find({ organizationId }, { currencyCode: 1, _id: 0 }).lean(),
+      Supplier.find({ organizationId },{ organizationId:0 }).lean(),
+      Settings.find({ organizationId },{ duplicateSupplierDisplayName: 1, duplicateSupplierEmail: 1, duplicateSupplierMobile: 1 }).lean(),
+      Supplier.findOne({ _id:supplierId, organizationId},{ organizationId:0 }).lean(),
+      Account.findOne({ accountId: supplierId, organizationId },{ organizationId:0 }).lean(),
+      TrialBalance.findOne({ organizationId, operationId: supplierId},{ organizationId:0 }).lean(),
+      SupplierHistory.find({ organizationId, supplierId },{ organizationId:0 }).lean()
+
+    ]);
+    return { organizationExists, taxExists, currencyExists, allSupplier , settings, existingSupplier, accountExist, trialBalance, supplierHistory};
+  };
+
+
+
+//Add Supplier
+exports.addSupplier = async (req, res) => {
+  console.log("Add Supplier:", req.body);
+
+  try {
+    const { organizationId, id: userId, userName } = req.user;
+    //Clean Data
+    const cleanedData = cleanData(req.body)
+    cleanedData.contactPersons = cleanedData.contactPersons?.map(person => cleanData(person)) || [];
+    cleanedData.bankDetails = cleanedData.bankDetails?.map(bankDetail => cleanData(bankDetail)) || []
+    const { supplierEmail, debitOpeningBalance, creditOpeningBalance, supplierDisplayName, mobile } = cleanedData;
+
+    const { organizationExists, taxExists, currencyExists , allSupplier, settings} = await dataExist( organizationId, null);
+    cleanedData.taxType = taxExists.taxType
+    // checking values from supplier settings
+    const { duplicateSupplierDisplayName , duplicateSupplierEmail , duplicateSupplierMobile } = settings[0]
+    
+    //Data Exist Validation
+    if (!validateOrganizationTaxCurrency(organizationExists, taxExists, currencyExists, res)) return;     
+
+    //Validate Inputs  
+    if (!validateInputs(cleanedData, currencyExists, taxExists, organizationExists, res)) return;
+    
+    //Duplication Check
+    const errors = [];
+    const duplicateCheck = { duplicateSupplierDisplayName, duplicateSupplierEmail, duplicateSupplierMobile }
+    
+    await checkDuplicateSupplierFields( duplicateCheck, supplierDisplayName, supplierEmail, mobile, organizationId, errors);  
+    if (errors.length) {
+    return res.status(409).json({ message: errors }); }
+    
+    const savedSupplier = await createNewSupplier( cleanedData, organizationId );
+     
+    const savedAccount = await createNewAccount( supplierDisplayName, organizationId, allSupplier , savedSupplier );
+
+    await saveTrialBalanceAndHistory(savedSupplier, savedAccount, debitOpeningBalance, creditOpeningBalance, userId, userName );
+
+    console.log("Supplier & Account created successfully");
+    res.status(201).json({ message: "Supplier created successfully." });
+  } catch (error) {
+    console.error("Error creating Supplier:", error);
+    res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+//Edit Supplier
+exports.updateSupplier = async (req, res) => {
+  console.log("Edit supper",req.body);
+    try {
+      const { organizationId, id: userId, userName } = req.user;
+     
+      const cleanedData = cleanData(req.body);
+      cleanedData.contactPersons = cleanedData.contactPersons?.map(person => cleanData(person)) || [];
+      cleanedData.bankDetails = cleanedData.bankDetails?.map(bankDetail => cleanData(bankDetail)) || [];
+      const { supplierId } = req.params;
+  
+      const { supplierDisplayName, supplierEmail, mobile } = cleanedData;
+  
+      const { organizationExists, taxExists, currencyExists , settings, existingSupplier, accountExist, trialBalance } = await dataExist( organizationId, supplierId );
+      
+       // checking values from supplier settings
+      const { duplicateSupplierDisplayName , duplicateSupplierEmail , duplicateSupplierMobile } = settings[0]
+      
+      
+      if (!validateOrganizationTaxCurrency(organizationExists, taxExists, currencyExists, res)) return;
+          
+      if (!existingSupplier) {
+        return res.status(404).json({ message: "Supplier not found" });
+      }
+  
+      if (!validateInputs(cleanedData, currencyExists, taxExists, organizationExists, res)) return;
+      
+      //Duplication Check
+      const errors = [];
+      const duplicateCheck = { duplicateSupplierDisplayName, duplicateSupplierEmail, duplicateSupplierMobile };
+      
+      await checkDuplicateSupplierFieldsEdit( duplicateCheck, supplierDisplayName, supplierEmail, mobile, organizationId,supplierId, errors);  
+      if (errors.length) {
+        return res.status(409).json({ message: errors }); }
+      
+      //Opening balance
+      editOpeningBalance(existingSupplier, cleanedData);
+      await updateOpeningBalance(trialBalance, cleanedData);
+      
+      //Account Name
+      const oldSupplierDisplayName = existingSupplier.supplierDisplayName;
+      if(oldCustomerDisplayName !== supplierDisplayName){
+        await updateAccount(cleanedData,accountExist);
+      }
+      cleanedData.lastModifiedDate = new Date();
+      // Update customer fields
+      Object.assign(existingSupplier, cleanedData);
+      const savedSupplier = await existingSupplier.save();
+  
+      if (!savedSupplier) {
+        console.error("Supplier could not be saved.");
+        return res.status(500).json({ message: "Failed to Update Supplier." });
+      }
+  
+      // Add entry to Customer History
+      const supplierHistoryEntry = new SupplierHistory({
+        organizationId,
+        operationId: savedSupplier._id,
+        supplierId,
+        supplierDisplayName: savedSupplier.supplierDisplayName,
+        date: openingDate,
+        title: "Supplier Data Modified",
+        description: `${savedSupplier.supplierDisplayName} Supplier data  Modified by ${userName}`,  
+        userId: userId,
+        userName: userName,
+      });
+  
+      await supplierHistoryEntry.save();
+  
+      res.status(200).json({
+        message: "supplier updated successfully.",
+      });
+    } catch (error) {
+      console.error("Error updating supplier:", error);
+      res.status(500).json({ message: "Internal server error." });
+    }
+};
+
+exports.getAllSuppliers = async (req, res) => {
+    try {
+      const organizationId = req.user.organizationId;
+  
+      const { organizationExists, allSupplier } = await dataExist( organizationId, null );
+  
+      if (!organizationExists) {
+        return res.status(404).json({ message: "Organization not found" });
+      }
+  
+      if (!allSupplier.length) {
+        return res.status(404).json({ message: "No Suppliers found" });
+      }
+
+      const formattedObjects = multiCustomDateTime(allSupplier, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
+  
+      res.status(200).json(formattedObjects);
+    } catch (error) {
+      console.error("Error fetching Suppliers:", error);
+      res.status(500).json({ message: "Internal server error." });
+    }
+  };
+  
+exports.getOneSupplier = async (req, res) => {
+  try {
+    const { supplierId } = req.params;
+    const organizationId = req.user.organizationId;
+
+    const { organizationExists, existingSupplier } = await dataExist( organizationId , supplierId );
+
+    if (!organizationExists) {
+      return res.status(404).json({ message: "Organization not found" });
+    }
+  
+
+    if (!existingSupplier) {
+      return res.status(404).json({ message: "Supplier not found" });
+    }
+
+    const formattedObjects = singleCustomDateTime(existingSupplier, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
+
+
+    res.status(200).json(formattedObjects);
+  } catch (error) {
+    console.error("Error fetching customer:", error);
+    res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+
 exports.getSupplierTransactions = async (req, res) => {
   try {
       const { supplierId } = req.params;
-      const { organizationId, id: userId, userName } = req.user; 
+      const { organizationId } = req.user;
+      
+      const { organizationExists, existingSupplier, accountExist } = await dataExist( organizationId, supplierId);
 
-      const supplier = await Supplier.findOne({ _id:supplierId, organizationId});
-      if (!supplier) {
+
+      if (!organizationExists) {
+        return res.status(404).json({ message: "Organization not found" });
+      }
+
+      if (!existingSupplier) {
           return res.status(404).json({ message: "Supplier not found" });
       }
 
-      const account = await Account.findOne({ accountId: supplierId , organizationId });
-      if (!account) {
-          return res.status(404).json({ message: "Account not found for this Supplier" });
+      if (!accountExist) {
+          return res.status(404).json({ message: "Account not found for this supplier" });
       }
 
       const supplierTransactions = await TrialBalance.find({ accountId: account._id , organizationId });
 
-      return res.status(200).json({ supplierTransactions });
+      // Format each customer after converting to plain object
+      const formattedData = supplierTransactions.map(customer => {
+        const plainData = customer.toObject();
+  
+        if (plainData.createdDateTime) {
+  
+        const formattedObjects = singleCustomDateTime(existingCustomer, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
+
+        }
+  
+        return formattedObjects;
+      });
+
+      return res.status(200).json({ formattedData });
   } catch (error) {
       console.error("Error fetching customer transactions:", error);
       return res.status(500).json({ message: "Internal server error" });
@@ -33,383 +246,142 @@ exports.getSupplierTransactions = async (req, res) => {
 };
 
 
+// Status update
+exports.updateSupplierStatus = async (req, res) => {
+  try {
+    const { supplierId } = req.params;
+    const {organizationId , userName , userId} = req.user;
+    const { status } = req.body; 
+    const { organizationExists, existingSupplier } = await dataExist( organizationId, customerId);
+    if (!organizationExists) {
+      return res.status(404).json({
+        message: "Organization not found",
+      });
+    }
 
-const dataExist = async (organizationId) => {
-    const [organizationExists, taxExists, currencyExists, allSupplier ,settings] = await Promise.all([
-      Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }),
-      Tax.findOne({ organizationId },{ taxType: 1 }),
-      Currency.find({ organizationId }, { currencyCode: 1, _id: 0 }),
-      Supplier.find({ organizationId }),
-      Settings.find({ organizationId },{ duplicateSupplierDisplayName: 1, duplicateSupplierEmail: 1, duplicateSupplierMobile: 1 })
-    ]);
-    return { organizationExists, taxExists, currencyExists, allSupplier , settings };
-  };
+    if (!existingSupplier) {
+      return res.status(404).json({
+        message: "supplier not found",
+      });
+    }
+    existingSupplier.status = status;
 
-  // Fetch Trial Balance
-const trialBalanceExist = async (organizationId,customerId) => {
-  const [trailbalance ] = await Promise.all([
-    TrialBalance.findOne({ organizationId, operationId: customerId}),
-  ]);
-  return { trailbalance };
+    await existingSupplier.save();
+     const supplierHistoryEntry = new SupplierHistory({
+      organizationId,
+      operationId: existingSupplier._id,
+      supplierId,
+      supplierDisplayName: existingSupplier.supplierDisplayName,
+      date: openingDate,
+      title: "supplier Status Modified",
+      description: `Supplier status updated to ${status} by ${userName}`,
+      userId: userId,
+      userName: userName,
+    });
+
+    await supplierHistoryEntry.save();
+    res.status(200).json({
+      message: "Supplier status updated successfully.",
+      status: existingSupplier.status,
+    });
+    console.log("supplier status updated successfully.");
+  } catch (error) {
+    console.error("Error updating supplier status:", error);
+    res.status(500).json({ message: "Internal server error." });
+  }
+};
+  
+
+
+exports.getSupplierAdditionalData = async (req, res) => {
+  const  organizationId  = req.user.organizationId;
+  try {
+
+    const { organizationExists, taxExists } = await dataExist( organizationId, null);
+
+    if (!organizationExists) {
+      return res.status(404).json({ message: "Organization not found" });
+    }
+
+    if (!taxExists) {
+      return res.status(404).json({ message: "Tax data not found" })
+    }
+    
+    const response = {
+      taxType: taxData.taxType,
+      gstTreatment: [
+        "Registered Business - Regular",
+        "Registered Business - Composition",
+        "Unregistered Business",
+        "Overseas",
+        "Special Economic Zone",
+        "Deemed Export",
+        "Tax Deductor",
+        "SEZ Developer",
+      ],
+      msmeType: [
+        "Micro",
+        "Small",
+        "Medium"
+      ],
+   tds :
+  [
+    { "name": "Commission or Brokerage", "value": "5" },
+    { "name": "Commission or Brokerage (Reduced)", "value": "3.75" },
+    { "name": "Dividend", "value": "10" },
+    { "name": "Dividend (Reduced)", "value": "7.5" },
+    { "name": "Other Interest than securities", "value": "10" },
+    { "name": "Other Interest than securities (Reduced)", "value": "7.5" },
+    { "name": "Payment of contractors for Others", "value": "2" },
+    { "name": "Payment of contractors for Others (Reduced)", "value": "1.5" },
+    { "name": "Payment of contractors HUF/Indiv", "value": "1" },
+    { "name": "Payment of contractors HUF/Indiv (Reduced)", "value": "0.75" },
+    { "name": "Professional Fees", "value": "10" },
+    { "name": "Professional Fees (Reduced)", "value": "7.5" },
+    { "name": "Rent on land or furniture etc", "value": "10" },
+    { "name": "Rent on land or furniture etc (Reduced)", "value": "7.5" },
+    { "name": "Technical Fees (2%)", "value": "2" }
+  ]
+    };
+
+    // Return the combined response data
+    return res.status(200).json(response);
+  } catch (error) {
+    console.error("Error fetching supplier additional data:", error);
+    res.status(500).json({ message: "Internal server error." });
+  }
+};
+  
+
+
+exports.getOneSupplierHistory = async (req, res) => {
+  try {
+    const { supplierId } = req.params;
+    
+    const  organizationId  = req.user.organizationId;
+
+    const { organizationExists, supplierHistory } = await dataExist( organizationId, supplierId );
+
+    if (!organizationExists) {
+      return res.status(404).json({ message: "Organization not found" });
+    }
+
+    if (!supplierHistory) {
+      return res.status(404).json({
+        message: "Supplier History not found",
+      });
+    }
+
+    const formattedObjects = multiCustomDateTime(supplierHistory, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit, );    
+
+
+    res.status(200).json(formattedObjects);
+  } catch (error) {
+    console.error("Error fetching Supplier:", error);
+    res.status(500).json({ message: "Internal server error." });
+  }
 };
 
-    exports.addSupplier = async (req, res) => {
-      try {
-        const { organizationId, id: userId, userName } = req.user;
-  
-        //Clean Data
-        const cleanedData = cleanSupplierData(req.body);
-
-        cleanedData.contactPersons = cleanedData.contactPersons?.map(person => cleanSupplierData(person)) || [];
-        cleanedData.bankDetails = cleanedData.bankDetails?.map(bankDetail => cleanSupplierData(bankDetail)) || [];
-
-  
-        const { supplierEmail, debitOpeningBalance, creditOpeningBalance, supplierDisplayName, mobile } = cleanedData;
-    
-        const { organizationExists, taxExists, currencyExists , allSupplier, settings} = await dataExist(organizationId);
-        cleanedData.taxType = taxExists.taxType
-        // checking values from supplier settings
-        const { duplicateSupplierDisplayName , duplicateSupplierEmail , duplicateSupplierMobile } = settings[0]
-        
-        //Data Exist Validation
-        if (!validateOrganizationTaxCurrency(organizationExists, taxExists, currencyExists, res)) return;     
-    
-        //Date & Time
-        const openingDate = generateOpeningDate(organizationExists);
-  
-        //Validate Inputs  
-        if (!validateInputs(cleanedData, currencyExists, taxExists, organizationExists, res)) return;
-  
-        //Duplication Check
-        const errors = [];
-        const duplicateCheck = { duplicateSupplierDisplayName, duplicateSupplierEmail, duplicateSupplierMobile };
-
-        await checkDuplicateSupplierFields( duplicateCheck, supplierDisplayName, supplierEmail, mobile, organizationId, errors);  
-        if (errors.length) {
-        return res.status(409).json({ message: errors }); }
-
-        // if(cleanedData._v){
-        //   cleanedData._v = undefined;
-        // }
-  
-        const savedSupplier = await createNewSupplier(cleanedData, openingDate, organizationId);
-        
-        const savedAccount = await createNewAccount(supplierDisplayName, openingDate, organizationId, allSupplier , savedSupplier);
-    
-        await saveTrialBalanceAndHistory(savedSupplier, savedAccount, debitOpeningBalance, creditOpeningBalance, userId, userName );
-    
-        console.log("Supplier & Account created successfully");
-        res.status(201).json({ message: "Supplier created successfully." });
-      } catch (error) {
-        console.error("Error creating Supplier:", error);
-        res.status(500).json({ message: "Internal server error." });
-      }
-    };
-  
-  exports.updateSupplier = async (req, res) => {
-    console.log("update supper",req.body);
-      try {
-        const { organizationId, id: userId, userName } = req.user;
-       
-        const cleanedData = cleanSupplierData(req.body);
-        cleanedData.contactPersons = cleanedData.contactPersons?.map(person => cleanSupplierData(person)) || [];
-        cleanedData.bankDetails = cleanedData.bankDetails?.map(bankDetail => cleanSupplierData(bankDetail)) || [];
-
-        const {   supplierId } = req.params;
-    
-        const { supplierDisplayName, supplierEmail, mobile } = cleanedData;
-    
-        const { organizationExists, taxExists, currencyExists , settings} = await dataExist(organizationId);
-        
-        const { trailbalance } = await trialBalanceExist(organizationId,supplierId);
-
-         // checking values from supplier settings
-        const { duplicateSupplierDisplayName , duplicateSupplierEmail , duplicateSupplierMobile } = settings[0]
-        
-        
-        if (!validateOrganizationTaxCurrency(organizationExists, taxExists, currencyExists, res)) return;
-        
-        const openingDate = generateOpeningDate(organizationExists);
-    
-        const existingSupplier = await Supplier.findById(  supplierId);
-        if (!existingSupplier) {
-          return res.status(404).json({ message: "Supplier not found" });
-        }
-    
-        const oldsupplierDisplayName = existingSupplier.supplierDisplayName;
-  
-        if (!validateInputs(cleanedData, currencyExists, taxExists, organizationExists, res)) return;
-  
-        //Duplication Check
-        const errors = [];
-        const duplicateCheck = { duplicateSupplierDisplayName, duplicateSupplierEmail, duplicateSupplierMobile };
-
-        await checkDuplicateSupplierFieldsEdit( duplicateCheck, supplierDisplayName, supplierEmail, mobile, organizationId,supplierId, errors);  
-        if (errors.length) {
-        return res.status(409).json({ message: errors }); }
-
-        editOpeningBalance(existingSupplier, cleanedData);
-        await updateOpeningBalance(trailbalance, cleanedData);
-
-        // Update customer fields
-        Object.assign(existingSupplier, cleanedData);
-        const savedSupplier = await existingSupplier.save();
-    
-        if (!savedSupplier) {
-          console.error("Supplier could not be saved.");
-          return res.status(500).json({ message: "Failed to Update Supplier." });
-        }
-    
-        // Update supplierDisplayName in associated Account documents
-        if (supplierDisplayName && supplierDisplayName !== oldsupplierDisplayName) {
-          const updatedAccount = await Account.updateMany(
-            {
-              accountName: oldsupplierDisplayName,
-              organizationId: organizationId,
-            },
-            { $set: { accountName: supplierDisplayName } }
-          );
-          console.log(
-            `${updatedAccount.modifiedCount} account(s) associated with the accountName have been updated with the new supplierDisplayName.`
-          );
-        }
-    
-        // Add entry to Customer History
-        const accountSupplierHistoryEntry = new SupplierHistory({
-          organizationId,
-          operationId: savedSupplier._id,
-          supplierId,
-          supplierDisplayName: savedSupplier.supplierDisplayName,
-          date: openingDate,
-          title: "supplier Data Modified",
-          description: `${savedSupplier.supplierDisplayName} Supplier data  Modified by ${userName}`,
-  
-          userId: userId,
-          userName: userName,
-        });
-    
-        await accountSupplierHistoryEntry.save();
-    
-        res.status(200).json({
-          message: "supplier updated successfully.",
-        });
-      } catch (error) {
-        console.error("Error updating supplier:", error);
-        res.status(500).json({ message: "Internal server error." });
-      }
-    };
-
-  exports.getAllSuppliers = async (req, res) => {
-    try {
-      const organizationId = req.user.organizationId;
-  
-      const { organizationExists, allSupplier } = await dataExist(organizationId);
-  
-      if (!organizationExists) {
-        return res.status(404).json({
-          message: "Organization not found",
-        });
-      }
-  
-      if (!allSupplier.length) {
-        return res.status(404).json({
-          message: "No Suppliers found",
-        });
-      }
-      const AllSupplier = allSupplier.map((history) => {
-        const { organizationId, ...rest } = history.toObject(); // Convert to plain object and omit organizationId
-        return rest;
-      });
-  
-      res.status(200).json(AllSupplier);
-    } catch (error) {
-      console.error("Error fetching Suppliers:", error);
-      res.status(500).json({ message: "Internal server error." });
-    }
-  };
-  
-  exports.getOneSupplier = async (req, res) => {
-    try {
-      const {   supplierId } = req.params;
-      const organizationId = req.user.organizationId;
-  
-      const {organizationExists} = await dataExist(organizationId);
-  
-      if (!organizationExists) {
-        return res.status(404).json({
-          message: "Organization not found",
-        });
-      }
-  
-      // Find the Customer by   supplierId and organizationId
-      const supplier = await Supplier.findOne({
-        _id:   supplierId,
-        organizationId: organizationId,
-      });
-  
-      if (!supplier) {
-        return res.status(404).json({
-          message: "supplier not found",
-        });
-      }
-      supplier.organizationId = undefined;
-      res.status(200).json(supplier);
-    } catch (error) {
-      console.error("Error fetching customer:", error);
-      res.status(500).json({ message: "Internal server error." });
-    }
-  };
-  
-  exports.updateSupplierStatus = async (req, res) => {
-    try {
-      const {   supplierId } = req.params;
-      const {organizationId , userName , userId} = req.user;
-      const { status } = req.body; 
-  
-      const organizationExists = await Organization.findOne({
-        organizationId: organizationId,
-      });
-      if (!organizationExists) {
-        return res.status(404).json({
-          message: "Organization not found",
-        });
-      }
-  
-      const supplier = await Supplier.findOne({
-        _id:   supplierId,
-        organizationId: organizationId,
-      });
-      if (!supplier) {
-        return res.status(404).json({
-          message: "supplier not found",
-        });
-      }
-      const openingDate = generateOpeningDate(organizationExists);
-      supplier.status = status;
-  
-      await supplier.save();
-       const accountSupplierHistoryEntry = new SupplierHistory({
-        organizationId,
-        operationId: supplier._id,
-        supplierId,
-        supplierDisplayName: supplier.supplierDisplayName,
-        date: openingDate,
-        title: "supplier Status Modified",
-        description: `Supplier status updated to ${status} by ${userName}`,
-
-        userId: userId,
-        userName: userName,
-      });
-  
-      await accountSupplierHistoryEntry.save();
-      res.status(200).json({
-        message: "Supplier status updated successfully.",
-        status: supplier.status,
-      });
-      console.log("supplier status updated successfully.");
-    } catch (error) {
-      console.error("Error updating supplier status:", error);
-      res.status(500).json({ message: "Internal server error." });
-    }
-  };
-  
-  exports.getSupplierAdditionalData = async (req, res) => {
-    const  organizationId  = req.user.organizationId;
-    try {
-      const organization = await Organization.findOne({ organizationId });
-      if (!organization) {
-        return res.status(404).json({
-          message: "No Organization Found.",
-        });
-      }
-  
-      const taxData = await Tax.findOne({ organizationId });
-      if (!taxData) {
-        return res.status(404).json({
-          message: "No tax data found for the organization.",
-        });
-      }
-      
-      const response = {
-        taxType: taxData.taxType,
-        gstTreatment: [
-          "Registered Business - Regular",
-          "Registered Business - Composition",
-          "Unregistered Business",
-          "Overseas",
-          "Special Economic Zone",
-          "Deemed Export",
-          "Tax Deductor",
-          "SEZ Developer",
-        ],
-        msmeType: [
-          "Micro",
-          "Small",
-          "Medium"
-        ],
-     tds :
-    [
-      { "name": "Commission or Brokerage", "value": "5" },
-      { "name": "Commission or Brokerage (Reduced)", "value": "3.75" },
-      { "name": "Dividend", "value": "10" },
-      { "name": "Dividend (Reduced)", "value": "7.5" },
-      { "name": "Other Interest than securities", "value": "10" },
-      { "name": "Other Interest than securities (Reduced)", "value": "7.5" },
-      { "name": "Payment of contractors for Others", "value": "2" },
-      { "name": "Payment of contractors for Others (Reduced)", "value": "1.5" },
-      { "name": "Payment of contractors HUF/Indiv", "value": "1" },
-      { "name": "Payment of contractors HUF/Indiv (Reduced)", "value": "0.75" },
-      { "name": "Professional Fees", "value": "10" },
-      { "name": "Professional Fees (Reduced)", "value": "7.5" },
-      { "name": "Rent on land or furniture etc", "value": "10" },
-      { "name": "Rent on land or furniture etc (Reduced)", "value": "7.5" },
-      { "name": "Technical Fees (2%)", "value": "2" }
-    ]
-      };
-  
-      // Return the combined response data
-      return res.status(200).json(response);
-    } catch (error) {
-      console.error("Error fetching supplier additional data:", error);
-      res.status(500).json({ message: "Internal server error." });
-    }
-  };
-  
-  exports.getOneSupplierHistory = async (req, res) => {
-    try {
-      const { supplierId } = req.params;
-      
-      const  organizationId  = req.user.organizationId;
-  
-      const {organizationExists} = await dataExist(organizationId);
-  
-      if (!organizationExists) {
-        return res.status(404).json({
-          message: "Organization not found",
-        });
-      }
-  
-      const supplierHistory = await SupplierHistory.find({
-        supplierId,
-        organizationId,
-      });
-      const sanitizedHistory = supplierHistory.map((history) => {
-        const { organizationId, ...rest } = history.toObject(); 
-        return rest;
-      });
-      if (!supplierHistory) {
-        return res.status(404).json({
-          message: "Supplier History not found",
-        });
-      }
-  
-      res.status(200).json(sanitizedHistory);
-    } catch (error) {
-      console.error("Error fetching Supplier:", error);
-      res.status(500).json({ message: "Internal server error." });
-    }
-  };
-  
   
     // Utility Functions
     const validSalutations = ["Mr.", "Mrs.", "Ms.", "Miss.", "Dr."];
@@ -491,14 +463,7 @@ const trialBalanceExist = async (organizationId,customerId) => {
       "SEZ Developer",
     ];
     
-    //Clean Data 
-    function cleanSupplierData(data) {
-      const cleanData = (value) => (value === null || value === undefined || value === "" || value === 0 ? undefined : value);
-      return Object.keys(data).reduce((acc, key) => {
-        acc[key] = cleanData(data[key]);
-        return acc;
-      }, {});
-    }
+    
     
     // Validate Organization Tax Currency
     function validateOrganizationTaxCurrency(organizationExists, taxExists, currencyExists, res) {
@@ -517,15 +482,7 @@ const trialBalanceExist = async (organizationId,customerId) => {
       return true;
     }
     
-    //Return Date and Time 
-    function generateOpeningDate(organizationExists) {
-      const date = generateTimeAndDateForDB(
-          organizationExists.timeZoneExp,
-          organizationExists.dateFormatExp,
-          organizationExists.dateSplit
-        )
-      return date.dateTime;
-    }
+   
     
   //Duplication check for add item 
   async function checkDuplicateSupplierFields( duplicateCheck, supplierDisplayName, supplierEmail, mobile, organizationId, errors ) {
@@ -643,7 +600,6 @@ const trialBalanceExist = async (organizationId,customerId) => {
         accountSubhead: "Sundry Creditors",
         accountHead: "Liabilities",
         accountGroup: "Liability",
-        openingDate,
         description: "Suppliers",
       });
       return newAccount.save();
@@ -654,7 +610,6 @@ const trialBalanceExist = async (organizationId,customerId) => {
       const trialEntry = new TrialBalance({
         organizationId: savedSupplier.organizationId,
         operationId: savedSupplier._id,
-        date: savedSupplier.openingDate,
         accountId: savedAccount._id,
         accountName: savedAccount.accountName,
         action: "Opening Balance",
@@ -677,7 +632,7 @@ const trialBalanceExist = async (organizationId,customerId) => {
         {
           organizationId: savedSupplier.organizationId,
           operationId: savedSupplier._id,
-            supplierId: savedSupplier._id,
+          supplierId: savedSupplier._id,
           supplierDisplayName: savedSupplier.supplierDisplayName,
           date: savedSupplier.openingDate,
           title: "Supplier Added",
@@ -761,41 +716,7 @@ function createTaxExemptionDescription() {
     return `${data.supplierDisplayName || 'Unknown Supplier'} Account created with ${balanceType}, Created by ${userName || 'Unknown User'}`;
   } 
     
-  // Function to generate time and date for storing in the database
-  function generateTimeAndDateForDB(
-      timeZone,
-      dateFormat,
-      dateSplit,
-      baseTime = new Date(),
-      timeFormat = "HH:mm:ss",
-      timeSplit = ":"
-    ) {
-      // Convert the base time to the desired time zone
-      const localDate = moment.tz(baseTime, timeZone);
-    
-      // Format date and time according to the specified formats
-      let formattedDate = localDate.format(dateFormat);
-    
-      // Handle date split if specified
-      if (dateSplit) {
-        // Replace default split characters with specified split characters
-        formattedDate = formattedDate.replace(/[-/]/g, dateSplit); // Adjust regex based on your date format separators
-      }
-    
-      const formattedTime = localDate.format(timeFormat);
-      const timeZoneName = localDate.format("z"); // Get time zone abbreviation
-    
-      // Combine the formatted date and time with the split characters and time zone
-      const dateTime = `${formattedDate} ${formattedTime
-        .split(":")
-        .join(timeSplit)} (${timeZoneName})`;
-    
-      return {
-        date: formattedDate,
-        time: `${formattedTime} (${timeZoneName})`,
-        dateTime: dateTime,
-      };
-    }
+ 
 
 //Edit Opening Balance
 function editOpeningBalance(existingSupplier, cleanedData) {
@@ -837,6 +758,30 @@ async function updateOpeningBalance(existingTrialBalance, cleanData) {
   }
 }
 
+// Update Account Name
+async function updateAccount(cleanedData, accountExist) {
+  try {
+    console.log("Account name update:", accountExist);
+    
+    let accountName = { accountName: cleanedData.supplierDisplayName };
+
+    Object.assign(accountExist, accountName);
+    const savedAccount = await accountExist.save();
+    console.log("Account name updated successfully:", savedAccount);
+    
+
+    return savedAccount;
+  } catch (error) {
+    console.error("Error updating account name:", error);
+    throw error;
+  }
+}
+
+
+
+
+
+
 
 
 
@@ -865,7 +810,7 @@ async function updateOpeningBalance(existingTrialBalance, cleanData) {
   
       //Tax Details
       validateTaxType(data.taxType, validTaxTypes, errors);
-      validatesourceOfSupply(data.sourceOfSupply, organization, errors);
+      validateSourceOfSupply(data.sourceOfSupply, organization, errors);
       validateGSTorVAT(data, errors);
   
       //Currency
@@ -957,7 +902,7 @@ async function updateOpeningBalance(existingTrialBalance, cleanData) {
         "Invalid Tax Type: " + taxType, errors);
     }
   // Validate Place Of Supply
-    function validatesourceOfSupply(sourceOfSupply, organization, errors) {
+    function validateSourceOfSupply(sourceOfSupply, organization, errors) {
       if (sourceOfSupply && !validCountries[organization.organizationCountry]?.includes(sourceOfSupply)) {
         errors.push("Invalid Source of Supply: " + sourceOfSupply);
       }
