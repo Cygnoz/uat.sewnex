@@ -12,12 +12,13 @@ const { singleCustomDateTime, multiCustomDateTime } = require("../services/timeC
 const { cleanData } = require("../services/cleanData");
 
 
+
 const dataExist = async ( organizationId, supplierId ) => {
     const [organizationExists, taxExists, currencyExists, allSupplier ,settings, existingSupplier, accountExist, trialBalance, supplierHistory ] = await Promise.all([
       Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }).lean(),
       Tax.findOne({ organizationId },{ taxType: 1 }).lean(),
       Currency.find({ organizationId }, { currencyCode: 1, _id: 0 }).lean(),
-      Supplier.find({ organizationId },{ organizationId:0 }).lean(),
+      Supplier.find({ organizationId : organizationId },{ organizationId:0 }).lean(),
       Settings.find({ organizationId },{ duplicateSupplierDisplayName: 1, duplicateSupplierEmail: 1, duplicateSupplierMobile: 1 }).lean(),
       Supplier.findOne({ _id:supplierId, organizationId},{ organizationId:0 }).lean(),
       Account.findOne({ accountId: supplierId, organizationId },{ organizationId:0 }).lean(),
@@ -32,7 +33,7 @@ const dataExist = async ( organizationId, supplierId ) => {
 
 //Add Supplier
 exports.addSupplier = async (req, res) => {
-  console.log("Add Supplier:", req.body);
+  console.log("Add Supplier:", req.body);  
 
   try {
     const { organizationId, id: userId, userName } = req.user;
@@ -116,13 +117,15 @@ exports.updateSupplier = async (req, res) => {
       
       //Account Name
       const oldSupplierDisplayName = existingSupplier.supplierDisplayName;
-      if(oldCustomerDisplayName !== supplierDisplayName){
+      if(oldSupplierDisplayName !== supplierDisplayName){
         await updateAccount(cleanedData,accountExist);
       }
       cleanedData.lastModifiedDate = new Date();
+
       // Update customer fields
-      Object.assign(existingSupplier, cleanedData);
-      const savedSupplier = await existingSupplier.save();
+      const mongooseDocument = Supplier.hydrate(existingSupplier);
+      Object.assign(mongooseDocument, cleanedData);
+      const savedSupplier = await mongooseDocument.save();
   
       if (!savedSupplier) {
         console.error("Supplier could not be saved.");
@@ -135,7 +138,6 @@ exports.updateSupplier = async (req, res) => {
         operationId: savedSupplier._id,
         supplierId,
         supplierDisplayName: savedSupplier.supplierDisplayName,
-        date: openingDate,
         title: "Supplier Data Modified",
         description: `${savedSupplier.supplierDisplayName} Supplier data  Modified by ${userName}`,  
         userId: userId,
@@ -161,7 +163,7 @@ exports.getAllSuppliers = async (req, res) => {
   
       if (!organizationExists) {
         return res.status(404).json({ message: "Organization not found" });
-      }
+      }      
   
       if (!allSupplier.length) {
         return res.status(404).json({ message: "No Suppliers found" });
@@ -272,7 +274,6 @@ exports.updateSupplierStatus = async (req, res) => {
       operationId: existingSupplier._id,
       supplierId,
       supplierDisplayName: existingSupplier.supplierDisplayName,
-      date: openingDate,
       title: "supplier Status Modified",
       description: `Supplier status updated to ${status} by ${userName}`,
       userId: userId,
@@ -305,10 +306,10 @@ exports.getSupplierAdditionalData = async (req, res) => {
 
     if (!taxExists) {
       return res.status(404).json({ message: "Tax data not found" })
-    }
+    }    
     
     const response = {
-      taxType: taxData.taxType,
+      taxType: taxExists.taxType,
       gstTreatment: [
         "Registered Business - Regular",
         "Registered Business - Composition",
@@ -579,15 +580,18 @@ exports.getOneSupplierHistory = async (req, res) => {
     }
   
   // Create New Customer
-    function createNewSupplier(data, openingDate,organizationId) {
-      const newSupplier = new Supplier({ ...data, organizationId, status: "Active", createdDate: openingDate, lastModifiedDate: openingDate });
+    function createNewSupplier(data, organizationId) {
+      const newSupplier = new Supplier({ ...data, organizationId, status: "Active" });
       return newSupplier.save();
     }
     
     
   // Create New Account
-    function createNewAccount(supplierDisplayName, openingDate, organizationId,   allSupplier , savedSupplier) {
+    function createNewAccount(supplierDisplayName, organizationId,   allSupplier , savedSupplier) {
       // Count existing organizations to generate the next organizationId
+
+      console.log("savedSupplier",savedSupplier);
+      
 
       const nextIdNumber = allSupplier.length + 1;    
       const count = `SU${nextIdNumber.toString().padStart(4, '0')}`;
@@ -634,7 +638,6 @@ exports.getOneSupplierHistory = async (req, res) => {
           operationId: savedSupplier._id,
           supplierId: savedSupplier._id,
           supplierDisplayName: savedSupplier.supplierDisplayName,
-          date: savedSupplier.openingDate,
           title: "Supplier Added",
           description,
           userId: userId,
@@ -643,9 +646,8 @@ exports.getOneSupplierHistory = async (req, res) => {
         {
           organizationId: savedSupplier.organizationId,
           operationId: savedAccount._id,
-            supplierId: savedSupplier._id,
+          supplierId: savedSupplier._id,
           supplierDisplayName: savedSupplier.supplierDisplayName,
-          date: savedSupplier.openingDate,
           title: "Supplier Account Created",
           description: description1,
           userId: userId,
@@ -748,8 +750,9 @@ async function updateOpeningBalance(existingTrialBalance, cleanData) {
       };
     }
 
-    Object.assign(existingTrialBalance, trialEntry);
-    const savedTrialBalance = await existingTrialBalance.save();
+    const mongooseDocument = TrialBalance.hydrate(existingTrialBalance);
+    Object.assign(mongooseDocument, trialEntry);
+    const savedTrialBalance = await mongooseDocument.save();
 
     return savedTrialBalance;
   } catch (error) {
@@ -765,8 +768,10 @@ async function updateAccount(cleanedData, accountExist) {
     
     let accountName = { accountName: cleanedData.supplierDisplayName };
 
-    Object.assign(accountExist, accountName);
-    const savedAccount = await accountExist.save();
+    const mongooseDocument = Account.hydrate(accountExist);
+
+    Object.assign(mongooseDocument, accountName);
+    const savedAccount = await mongooseDocument.save();
     console.log("Account name updated successfully:", savedAccount);
     
 

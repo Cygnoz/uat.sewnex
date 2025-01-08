@@ -12,6 +12,8 @@ const supplierHistorySchema = new Schema({
   description: { type: String },
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   // userName: { type: String },
+  createdDateTime: { type: Date, default: () => new Date() },
+
 });
 
 const supplierHistory = mongoose.model("Supplier History", supplierHistorySchema);
