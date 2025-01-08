@@ -388,20 +388,20 @@ function validatePaymentTable(invoice, paymentTable, errors) {
     validateField( !fetchedInvoices, `Invoice with ID ${invoices.invoiceId} was not found.`, errors );
     if (!fetchedInvoices) return; 
 
-     // Validate bill number
-     validateField( invoices.salesInvoice !== fetchedInvoices.salesInvoice, `Bill Number Mismatch Bill Number: ${invoices.salesInvoice}`, errors );
+     // Validate invoice number
+     validateField( invoices.salesInvoice !== fetchedInvoices.salesInvoice, `Invoice Number Mismatch Invoice Number: ${invoices.salesInvoice}`, errors );
 
     // Validate bill date
-    validateField( invoices.salesInvoiceDate !== fetchedInvoices.salesInvoiceDate, `Bill Date Mismatch Bill Number: ${invoices.salesInvoice} : ${invoices.salesInvoiceDate}` , errors );
+    validateField( invoices.salesInvoiceDate !== fetchedInvoices.salesInvoiceDate, `Invoice Date Mismatch Invoice Number: ${invoices.salesInvoice} : ${invoices.salesInvoiceDate}` , errors );
 
     // Validate duedate
-    validateField( invoices.dueDate !== fetchedInvoices.dueDate, `Due Date Mismatch for Bill Number${invoices.salesInvoice}:  ${invoices.dueDate}`, errors );
+    validateField( invoices.dueDate !== fetchedInvoices.dueDate, `Due Date Mismatch for Invoice Number${invoices.salesInvoice}:  ${invoices.dueDate}`, errors );
 
     // Validate billamount
-    validateField( invoices.totalAmount !== fetchedInvoices.totalAmount, `Grand Total for Bill Number${invoices.salesInvoice}: ${invoices.totalAmount}`, errors );
+    validateField( invoices.totalAmount !== fetchedInvoices.totalAmount, `Grand Total for Invoice Number${invoices.salesInvoice}: ${invoices.totalAmount}`, errors );
 
     // Validate amountDue
-    validateField( invoices.balanceAmount !== fetchedInvoices.balanceAmount, `Amount Due for bill number ${invoices.salesInvoice}: ${invoices.balanceAmount}`, errors );
+    validateField( invoices.balanceAmount !== fetchedInvoices.balanceAmount, `Amount Due for Invoice number ${invoices.salesInvoice}: ${invoices.balanceAmount}`, errors );
 
 
   // Validate float fields
