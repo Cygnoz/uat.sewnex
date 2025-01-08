@@ -3,7 +3,6 @@
 const Organization = require("../../database/model/organization");
 const Item = require("../../database/model/item");
 const Customer = require("../../database/model/customer");
-const moment = require("moment-timezone");
 const Settings = require("../../database/model/settings")
 const Order = require("../../database/model/salesOrder")
 const ItemTrack = require("../../database/model/itemTrack")
@@ -11,6 +10,8 @@ const Prefix = require("../../database/model/prefix");
 const mongoose = require('mongoose');
 
 const { cleanData } = require("../../services/cleanData");
+const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
+
 
 
 // Fetch existing data
@@ -62,8 +63,13 @@ const salesDataExist = async ( organizationId, orderId ) => {
     
   const [organizationExists, allOrder, order ] = await Promise.all([
     Organization.findOne({ organizationId }, { organizationId: 1}),
-    Order.find({ organizationId }),
-    Order.findOne({ organizationId , _id: orderId },)
+    Order.find({ organizationId })
+    .populate('customerId', 'customerDisplayName')    
+    .lean(),
+    Order.findOne({ organizationId , _id: orderId })
+    .populate('items.itemId', 'itemName')    
+    .populate('customerId', 'customerDisplayName')    
+    .lean(),
   ]);
   return { organizationExists, allOrder, order };
 };
@@ -163,21 +169,24 @@ exports.getAllSalesOrder = async (req, res) => {
   try {
     const organizationId = req.user.organizationId;
 
-    const { organizationExists, allOrder } = await salesDataExist(organizationId);
+    const { organizationExists, allOrder } = await salesDataExist( organizationId, null );
 
     if (!organizationExists) {
-      return res.status(404).json({
-        message: "Organization not found",
-      });
+      return res.status(404).json({ message: "Organization not found" });
     }
 
-    if (!allOrder.length) {
-      return res.status(404).json({
-        message: "No Order found",
-      });
+    if (!allOrder) {
+      return res.status(404).json({ message: "No Order found" });
     }
 
-    res.status(200).json(allOrder);
+    const transformedInvoice = allOrder.map(data => {
+      return {
+          ...data,
+          customerId: data.customerId._id,  
+          customerDisplayName: data.customerId.customerDisplayName,  
+      };}); 
+
+    res.status(200).json(transformedInvoice);
   } catch (error) {
     console.error("Error fetching Order:", error);
     res.status(500).json({ message: "Internal server error." });
@@ -192,7 +201,7 @@ try {
   const organizationId = req.user.organizationId;
   const  orderId = req.params.orderId;
 
-  const { organizationExists, order } = await salesDataExist(organizationId,orderId);
+  const { organizationExists, order } = await salesDataExist( organizationId, orderId );
 
   if (!organizationExists) {
     return res.status(404).json({
@@ -205,8 +214,18 @@ try {
       message: "No Quotes found",
     });
   }
+  const transformedInvoice = {
+    ...order,
+    customerId: order.customerId._id,  
+    customerDisplayName: order.customerId.customerDisplayName,
+    items: order.items.map(item => ({
+      ...item,
+      itemId: item.itemId._id,
+      itemName: item.itemId.itemName,
+    })),  
+};
 
-  res.status(200).json(order);
+  res.status(200).json(transformedInvoice);
 } catch (error) {
   console.error("Error fetching Order:", error);
   res.status(500).json({ message: "Internal server error." });
