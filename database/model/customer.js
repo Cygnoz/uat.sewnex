@@ -1,4 +1,4 @@
-// v1.0
+// v1.2
 
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
@@ -17,7 +17,7 @@ const customerSchema = new Schema({
     //Basic Info
     organizationId: {type:String},
     customerType: {type:String},
-
+    customerProfile: {type:String},
     salutation: {type:String},
     firstName: {type:String},
     lastName: {type:String},
@@ -31,13 +31,18 @@ const customerSchema = new Schema({
 
     dob : {type:String},
     cardNumber: {type:String},
+
+    //Opening Balance
+    debitOpeningBalance: {type:Number},
+    creditOpeningBalance: {type:Number},
+
     
     //Other Details
     pan: {type:String},
     currency: {type:String},
-    creditDays: {type:String},
-    creditLimits: {type:String},
-    interestPercentage: {type:String},
+    creditDays: {type:Number},
+    creditLimits: {type:Number},
+    interestPercentage: {type:Number},
     paymentTerms: {type:String},
     enablePortal:{type:Boolean},
     documents: {type:String},
@@ -47,6 +52,7 @@ const customerSchema = new Schema({
 
 
     //Taxes
+    taxPreference: {type:String},
     taxReason: {type:String},
     taxType: {type:String},
     gstTreatment: {type:String},
@@ -55,6 +61,7 @@ const customerSchema = new Schema({
     businessLegalName: {type:String},
     businessTradeName: {type:String},
     vatNumber: {type:String},
+    vatTreatment: {type:String},
     
 
     //Billing Address
@@ -87,7 +94,7 @@ const customerSchema = new Schema({
     status : {type:String},
 
     //Create info
-    createdDate: {type:String},
+    createdDateTime: { type: Date, default: () => new Date() },
 
     //lastModifiedDate
     lastModifiedDate:{type:String},
