@@ -1,9 +1,12 @@
+//v1.2
+
 const mongoose = require('mongoose')
 const { Schema } = mongoose
 
 const itemsSchema = new Schema({
 
   itemId: {type: mongoose.Schema.Types.ObjectId, ref: 'Item'},
+  //itemName
 
   quantity: {type:Number},
   returnQuantity: { type: Number},
@@ -42,6 +45,7 @@ const SalesInvoiceSchema = new Schema ({
   organizationId: { type: String, index: true },
   
   customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
+  //customerName
   placeOfSupply: { type: String },  
   reference: { type: String },
 

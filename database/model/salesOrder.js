@@ -1,10 +1,12 @@
+//v1.2
+
 const mongoose = require('mongoose')
 const { Schema } = mongoose
 
 const itemsSchema = new Schema({
 
-    itemId: {type:String},
-    itemName: {type:String},
+    itemId: {type: mongoose.Schema.Types.ObjectId, ref: 'Item'},
+    //itemName
 
     quantity: {type:Number},
     sellingPrice: {type:Number},
@@ -33,8 +35,8 @@ const SalesOrderSchema = new Schema ({
 
   organizationId: { type: String, index: true },
   
-  customerId: { type: String },
-  customerName: { type: String },
+  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
+  //customerName
   placeOfSupply: { type: String },  
   reference: { type: String },
 
@@ -62,8 +64,11 @@ const SalesOrderSchema = new Schema ({
   //new
   otherExpenseAmount: { type: Number },
   otherExpenseReason: { type: String },
+  
   vehicleNumber: { type: String },
+  
   freightAmount: { type: Number },
+  
   roundOffAmount: { type: Number },
 
 
