@@ -817,8 +817,10 @@ async function updateAccount(cleanedData, accountExist) {
     
     let accountName = { accountName: cleanedData.customerDisplayName };
 
-    Object.assign(accountExist, accountName);
-    const savedAccount = await accountExist.save();
+    const mongooseDocument = Account.hydrate(accountExist);
+
+    Object.assign(mongooseDocument, accountName);
+    const savedAccount = await mongooseDocument.save();
     console.log("Account name updated successfully:", savedAccount);
     
 
