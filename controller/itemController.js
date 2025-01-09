@@ -318,7 +318,7 @@ exports.getAItem = async (req, res) => {
       const singleItem = await Item.findById(itemId)
       .populate('salesAccountId', 'accountName') 
       .populate('purchaseAccountId', 'accountName')
-      .populate('preferredVendorId', 'supplierDisplayName')
+      .populate('preferredVendorId', 'supplierDisplayName  mobile billingAddressStreet1 billingAddressStreet2 billingCity billingState billingCountry billingPinCode')
       .lean();
 
       if (!singleItem) {
@@ -335,6 +335,14 @@ exports.getAItem = async (req, res) => {
 
         preferredVendorId: singleItem.preferredVendorId?._id || undefined,
         preferredVendorName: singleItem.preferredVendorId?.supplierDisplayName || undefined,
+        preferredVendorMobile: singleItem.preferredVendorId?.mobile || undefined,
+        preferredVendorBillingAddressStreet1: singleItem.preferredVendorId?.billingAddressStreet1 || undefined,
+        preferredVendorBillingAddressStreet2: singleItem.preferredVendorId?.billingAddressStreet2 || undefined,
+        preferredVendorBillingCity: singleItem.preferredVendorId?.billingCity || undefined,
+        preferredVendorBillingState: singleItem.preferredVendorId?.billingState || undefined,
+        preferredVendorBillingCountry: singleItem.preferredVendorId?.billingCountry || undefined,
+        preferredVendorBillingPinCode: singleItem.preferredVendorId?.billingPinCode || undefined,
+
       };
 
       res.status(200).json(transformedItems);
