@@ -19,14 +19,14 @@ const { singleCustomDateTime, multiCustomDateTime } = require("../../services/ti
 
 
 // Fetch existing data
-const dataExist = async ( organizationId, customerId, customerName ) => {
+const dataExist = async ( organizationId, customerId ) => {
     const [organizationExists, customerExist , settings, existingPrefix, defaultAccount, customerAccount ] = await Promise.all([
       Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
-      Customer.findOne({ organizationId , _id:customerId, customerDisplayName: customerName}, { _id: 1, customerDisplayName: 1, taxType: 1 }),
+      Customer.findOne({ organizationId , _id:customerId }, { _id: 1, customerDisplayName: 1, taxType: 1 }),
       Settings.findOne({ organizationId },{ salesOrderAddress: 1, salesOrderCustomerNote: 1, salesOrderTermsCondition: 1, salesOrderClose: 1, restrictSalesOrderClose: 1, termCondition: 1 ,customerNote: 1 }),
       Prefix.findOne({ organizationId }),
       DefAcc.findOne({ organizationId },{ salesAccount: 1, salesDiscountAccount: 1, outputCgst: 1, outputSgst: 1, outputIgst: 1 ,outputVat: 1 }),
-      Account.findOne({ organizationId , accountName:customerName },{ _id:1, accountName:1 })
+      Account.findOne({ organizationId , accountId:customerId },{ _id:1, accountName:1 })
     ]);
     return { organizationExists, customerExist , settings, existingPrefix, defaultAccount, customerAccount };
 };
@@ -117,6 +117,9 @@ exports.addInvoice = async (req, res) => {
       const { items, salesOrderId, customerId, customerName, otherExpenseAccountId, freightAccountId, depositAccountId } = cleanedData;
       const itemIds = items.map(item => item.itemId);
 
+      console.log(customerId);
+      
+
       // Check for duplicate itemIds
       const uniqueItemIds = new Set(itemIds);
       if (uniqueItemIds.size !== itemIds.length) {
@@ -147,8 +150,8 @@ exports.addInvoice = async (req, res) => {
         return res.status(400).json({ message: `Invalid item IDs: ${invalidItemIds.join(', ')}` });
       }   
   
-      const { organizationExists, customerExist , settings, existingPrefix, defaultAccount, customerAccount } = await dataExist( organizationId, customerId, customerName );   
-      
+      const { organizationExists, customerExist , settings, existingPrefix, defaultAccount, customerAccount } = await dataExist( organizationId, customerId );   
+            
       const { itemTable } = await itemDataExists( organizationId, items );
 
       //Data Exist Validation
@@ -657,7 +660,7 @@ function validateField(condition, errorMsg, errors) {
 //Valid Req Fields
 function validateReqFields( data, customerExist, defaultAccount, errors ) {
 
-validateField( typeof data.customerId === 'undefined' || typeof data.customerName === 'undefined', "Please select a Customer", errors  );
+validateField( typeof data.customerId === 'undefined', "Please select a Customer", errors  );
 validateField( typeof data.placeOfSupply === 'undefined', "Place of supply required", errors  );
 
 validateField( typeof data.items === 'undefined', "Select an item", errors  );
