@@ -1,12 +1,12 @@
-const DebitNote = require('../database/model/debitNote');
-const Organization = require('../database/model/organization');
-const Bills = require('../database/model/bills');
-const Supplier = require('../database/model/supplier');
-const Item = require('../database/model/item');
-const Settings = require("../database/model/settings");
-const ItemTrack = require("../database/model/itemTrack");
-const Tax = require('../database/model/tax');  
-const Prefix = require("../database/model/prefix");
+const DebitNote = require('../../database/model/debitNote');
+const Organization = require('../../database/model/organization');
+const Bills = require('../../database/model/bills');
+const Supplier = require('../../database/model/supplier');
+const Item = require('../../database/model/item');
+const Settings = require("../../database/model/settings");
+const ItemTrack = require("../../database/model/itemTrack");
+const Tax = require('../../database/model/tax');  
+const Prefix = require("../../database/model/prefix");
 const mongoose = require('mongoose');
 const moment = require("moment-timezone");
 
@@ -418,7 +418,7 @@ function calculateDebitNote(cleanedData, itemTable, res) {
       // console.log(`Item: ${item.itemName}, Calculated Discount: ${itemDiscAmt}`);
     }
 
-    itemAmount = (withoutTaxAmount + totalTaxAmount);
+    itemAmount = (withoutTaxAmount + calculatedItemTaxAmount);
 
     checkAmount(itemAmount, item.itemAmount, item.itemName, 'Item Total',errors);
 

@@ -85,11 +85,15 @@ const purchaseOrderSchema = new mongoose.Schema({
   roundOffAmount: { type: Number },
   grandTotal: { type: Number },
   status: { type: String }, // Open/Converted to bills
-  createdDate: { type: String },
-  lastModifiedDate: { type: String }
+  // createdDate: { type: String },
+  // lastModifiedDate: { type: String }
 
   //Create info
-  // createdDateTime: { type: Date, default: () => new Date() },
+//Create info
+createdDateTime: { type: Date, default: () => new Date() },
+
+//lastModifiedDate
+lastModifiedDate:{type:String},
 });
 
 const PurchaseOrder = mongoose.model('purchaseOrder',purchaseOrderSchema)

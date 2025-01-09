@@ -1,10 +1,10 @@
-const Organization = require("../database/model/organization");
-const Supplier = require('../database/model/supplier');
-const PurchasePayment = require('../database/model/paymentMade');
-const PurchaseBill = require('../database/model/bills')
+const Organization = require("../../database/model/organization");
+const Supplier = require('../../database/model/supplier');
+const PurchasePayment = require('../../database/model/paymentMade');
+const PurchaseBill = require('../../database/model/bills')
 const mongoose = require('mongoose');
 const moment = require("moment-timezone");
-const Prefix = require("../database/model/prefix");``
+const Prefix = require("../../database/model/prefix");``
 
 // Fetch existing data
 const dataExist = async (organizationId, unpaidBills ,supplierId, supplierDisplayName) => {
@@ -212,7 +212,7 @@ function vendorPaymentPrefix( cleanData, existingPrefix ) {
   if (!activeSeries) {
       return res.status(404).json({ message: "No active series found for the organization." });
   }
-  cleanData.payment = `${activeSeries.payment}${activeSeries.paymentNum}`;
+  cleanData.paymentMade = `${activeSeries.payment}${activeSeries.paymentNum}`;
 
   activeSeries.paymentNum += 1;
 

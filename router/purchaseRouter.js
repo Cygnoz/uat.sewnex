@@ -2,11 +2,12 @@ const express = require("express")
 
 const router = new express.Router()
 
-const purchaseOrderController = require('../controller/purchaseOrderController');
-const debitNoteController = require('../controller/debitNoteController'); 
-const PaymentMadeController = require('../controller/paymentMadeController');
+const purchaseOrderController = require('../controller/Purchase Order/purchaseOrderController');
+const updateOrderController = require('../controller/Purchase Order/updateOrder');
+const debitNoteController = require('../controller/Debit Note/debitNoteController'); 
+const PaymentMadeController = require('../controller/Payment Made/paymentMadeController');
 const purchaseSettingsController = require('../controller/purchaseSettingsController')
-const billsController = require('../controller/billsController')
+const billsController = require('../controller/Bills/billsController')
 const SupplierController = require('../controller/supplierController')
  
 
@@ -20,7 +21,7 @@ router.get('/get-last-purchase-order-prefix', verifyToken, purchaseOrderControll
 
 router.get('/get-all-purchaseOrders',verifyToken, purchaseOrderController.getAllPurchaseOrder);
 router.get('/get-purchaseOrder/:orderId',verifyToken, purchaseOrderController.getOnePurchaseOrder);
-router.put('/update-purchaseOrder/:orderId', verifyToken, purchaseOrderController.updatePurchaseOrder);
+router.put('/update-purchaseOrder/:orderId', verifyToken, updateOrderController.updatePurchaseOrder);
 // router.delete('/delete-purchaseOrder/:id', purchaseOrderController.deletePurchaseOrder);
 
 

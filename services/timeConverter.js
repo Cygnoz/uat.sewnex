@@ -1,7 +1,6 @@
 const moment = require("moment-timezone");
 
 
-
 // Single function to format date and time
 function singleCustomDateTime(dateTime, dateFormat, timeZone, dateSplit) {
   const dateTimeMoment = moment(dateTime).tz(timeZone);

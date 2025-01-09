@@ -1,17 +1,17 @@
 //v1
 
-const PurchaseOrder = require('../database/model/purchaseOrder');
-const Organization = require('../database/model/organization');
-const Item = require('../database/model/item');
-const Supplier = require('../database/model/supplier');
-const Customer = require('../database/model/customer');
-const Settings = require("../database/model/settings")
-const Tax = require('../database/model/tax');
-const Prefix = require("../database/model/prefix");
+const PurchaseOrder = require('../../database/model/purchaseOrder');
+const Organization = require('../../database/model/organization');
+const Item = require('../../database/model/item');
+const Supplier = require('../../database/model/supplier');
+const Customer = require('../../database/model/customer');
+const Settings = require("../../database/model/settings")
+const Tax = require('../../database/model/tax');
+const Prefix = require("../../database/model/prefix");
 const moment = require("moment-timezone");
 const mongoose = require('mongoose');
-const { singleCustomDateTime, multiCustomDateTime } = require("../services/timeConverter");
-
+const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
+const { cleanData } = require("../../services/cleanData");
 
 
 
@@ -51,7 +51,7 @@ exports.addPurchaseOrder = async (req, res) => {
       const { organizationId, id: userId, userName } = req.user;
   
       //Clean Data
-      const cleanedData = cleanPurchaseOrderData(req.body);
+      const cleanedData = cleanData(req.body);
   
       const { items, supplierId } = cleanedData;
       
@@ -203,82 +203,86 @@ exports.addPurchaseOrder = async (req, res) => {
   };
 
 
-// Update Purchase Order 
-exports.updatePurchaseOrder = async (req, res) => {
-  console.log("Update purchase order:", req.body);
+// // Update Purchase Order 
+// exports.updatePurchaseOrder = async (req, res) => {
+//   console.log("Update purchase order:", req.body);
 
-  try {
-    const organizationId = req.user.organizationId;
-    const { orderId } = req.params;
-    const cleanedData = cleanPurchaseOrderData(req.body);
+//   try {
+//     const organizationId = req.user.organizationId;
+//     const { orderId } = req.params;
+//     const cleanedData = cleanPurchaseOrderData(req.body);
 
-    // Fetch existing purchase order
-    const existingPurchaseOrder = await PurchaseOrder.findOne({ _id: orderId, organizationId });
-    if (!existingPurchaseOrder) {
-      console.log("Purchase order not found with ID:", orderId);
-      return res.status(404).json({ message: "Purchase order not found" });
-    }
+//     // Fetch existing purchase order
+//     const existingPurchaseOrder = await PurchaseOrder.findOne({ _id: orderId, organizationId });
+//     if (!existingPurchaseOrder) {
+//       console.log("Purchase order not found with ID:", orderId);
+//       return res.status(404).json({ message: "Purchase order not found" });
+//     }
 
-    const { items, supplierId } = cleanedData;
+//     const { items, supplierId } = cleanedData;
 
-    // Validate Supplier
-    if (!mongoose.Types.ObjectId.isValid(supplierId) || supplierId.length !== 24) {
-      return res.status(400).json({ message: `Invalid Supplier ID: ${supplierId}` });
-    }
+//     // Validate Supplier
+//     if (!mongoose.Types.ObjectId.isValid(supplierId) || supplierId.length !== 24) {
+//       return res.status(400).json({ message: `Invalid Supplier ID: ${supplierId}` });
+//     }
 
-    // Validate ItemIds
-    const itemIds = items.map(item => item.itemId);
-    const invalidItemIds = itemIds.filter(itemId => !mongoose.Types.ObjectId.isValid(itemId) || itemId.length !== 24);
-    if (invalidItemIds.length > 0) {
-      return res.status(400).json({ message: `Invalid item IDs: ${invalidItemIds.join(', ')}` });
-    }
+//     // Validate ItemIds
+//     const itemIds = items.map(item => item.itemId);
+//     const invalidItemIds = itemIds.filter(itemId => !mongoose.Types.ObjectId.isValid(itemId) || itemId.length !== 24);
+//     if (invalidItemIds.length > 0) {
+//       return res.status(400).json({ message: `Invalid item IDs: ${invalidItemIds.join(', ')}` });
+//     }
 
-    // Check for duplicate itemIds
-    const uniqueItemIds = new Set(itemIds);
-    if (uniqueItemIds.size !== itemIds.length) {
-      return res.status(400).json({ message: "Duplicate Item found in the list." });
-    }
+//     // Check for duplicate itemIds
+//     const uniqueItemIds = new Set(itemIds);
+//     if (uniqueItemIds.size !== itemIds.length) {
+//       return res.status(400).json({ message: "Duplicate Item found in the list." });
+//     }
 
-    // Fetch related data
-    const { organizationExists, supplierExist, itemTable, taxExists, settings, existingPrefix } = await dataExist(organizationId, supplierId, items);
+//     // Fetch related data
+//     const { organizationExists, supplierExist, itemTable, taxExists, settings, existingPrefix } = await dataExist(organizationId, supplierId, items);
 
-    // Data Exist Validation
-    if (!validateOrganizationSupplierPrefix(organizationExists, supplierExist, existingPrefix, res)) return;
+//     // Data Exist Validation
+//     if (!validateOrganizationSupplierPrefix(organizationExists, supplierExist, existingPrefix, res)) return;
 
-    // Validate Inputs
-    if (!validateInputs(cleanedData, supplierExist, items, itemTable, organizationExists, res)) return;
+//     // Validate Inputs
+//     if (!validateInputs(cleanedData, supplierExist, items, itemTable, organizationExists, res)) return;
 
-    // Date & Time
-    // const openingDate = generateOpeningDate(organizationExists);
+//     // Date & Time
+//     // const openingDate = generateOpeningDate(organizationExists);
 
-    // Tax Type
-    taxtype(cleanedData, supplierExist);
+//     // Tax Type 
+//     taxtype(cleanedData, supplierExist);
 
-    // Calculate Purchase Order
-    if (!calculatePurchaseOrder(cleanedData, res)) return;
+//     // Calculate Purchase Order
+//     if (!calculatePurchaseOrder(cleanedData, res)) return;
 
-    // Prefix
-    await purchaseOrderPrefix(cleanedData, existingPrefix);
+//     // Prefix
+//     // await purchaseOrderPrefix(cleanedData, existingPrefix);
 
-    // Update purchase order fields
-    Object.assign(existingPurchaseOrder, cleanedData);
-    existingPurchaseOrder.lastModifiedDate = generateOpeningDate(organizationExists);
+//     // Preserve Purchase Order ID and Prefix
+//     cleanedData._id = existingPurchaseOrder._id;
+//     cleanedData.purchaseOrder = existingPurchaseOrder.purchaseOrder;
 
-    const updatedPurchaseOrder = await existingPurchaseOrder.save();
+//     // Update purchase order fields
+//     Object.assign(existingPurchaseOrder, cleanedData);
+//     existingPurchaseOrder.lastModifiedDate = generateOpeningDate(organizationExists);
 
-    if (!updatedPurchaseOrder) {
-      console.error("Purchase order could not be saved.");
-      return res.status(500).json({ message: "Failed to update purchase order" });
-    }
+//     const updatedPurchaseOrder = await existingPurchaseOrder.save();
 
-    res.status(200).json({ message: "Purchase order updated successfully", updatedPurchaseOrder });
-    console.log("Purchase order updated successfully:", updatedPurchaseOrder);
+//     if (!updatedPurchaseOrder) {
+//       console.error("Purchase order could not be saved.");
+//       return res.status(500).json({ message: "Failed to update purchase order" });
+//     }
 
-  } catch (error) {
-    console.error("Error updating purchase order:", error);
-    res.status(500).json({ message: "Internal server error" });
-  }
-};
+//     res.status(200).json({ message: "Purchase order updated successfully", updatedPurchaseOrder });
+//     console.log("Purchase order updated successfully:", updatedPurchaseOrder);
+
+//   } catch (error) {
+//     console.error("Error updating purchase order:", error);
+//     res.status(500).json({ message: "Internal server error" });
+//   }
+// };
 
 
 
@@ -338,14 +342,14 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
   }
   
   
-  //Clean Data 
-  function cleanPurchaseOrderData(data) {
-    const cleanData = (value) => (value === null || value === undefined || value === "" ? undefined : value);
-    return Object.keys(data).reduce((acc, key) => {
-      acc[key] = cleanData(data[key]);
-      return acc;
-    }, {});
-  }
+  // //Clean Data 
+  // function cleanPurchaseOrderData(data) {
+  //   const cleanData = (value) => (value === null || value === undefined || value === "" ? undefined : value);
+  //   return Object.keys(data).reduce((acc, key) => {
+  //     acc[key] = cleanData(data[key]);
+  //     return acc;
+  //   }, {});
+  // }
   
   
   // Validate Organization Supplier Prefix
@@ -906,4 +910,24 @@ function validateSourceOfSupply(sourceOfSupply, organization, errors) {
     ],
   };
   
-  
+
+
+
+
+exports.dataExist = {
+    dataExist,
+    purchaseOrderDataExist
+};
+exports.purchaseOrder = {
+    purchaseOrderPrefix, 
+    createNewPurchaseOrder, 
+    generateOpeningDate
+};
+exports.validation = {
+    validateOrganizationSupplierPrefix, 
+    validateInputs
+};
+exports.calculations = { 
+    taxtype,
+    calculatePurchaseOrder
+};

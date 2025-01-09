@@ -15,10 +15,10 @@ const paymentSchema = new Schema({
   organizationId: { type: String },
   supplierId: { type: String },
   supplierDisplayName: { type: String },
-  payment:{type:String},// input field for payment
-  // paymentMade :  { type: Number },
+  // payment:{type:String},// input field for payment
+  paymentMade :  { type: Number },  //prefix
   paymentDate: { type: String },
-  paymentId: { type: String }, //prefix
+  // paymentId: { type: String }, //prefix
   paymentMode: { type: String },// cash, bank
   paidThrough: { type: String },//accounts
   reference: { type: String },
