@@ -650,7 +650,8 @@ function validateInvoiceData(data, items, invoiceExist, errors) {
   items.forEach(CNItem => {
     const invoiceItem = invoiceExist.items.find(item => item.itemId.toString() === CNItem.itemId);
     console.log("invoiceItem......",invoiceItem);
-    console.log("CNItem.itemId......",CNItem.itemId);
+    console.log("invoiceExist.itemId......",invoiceExist.items.map(item => item.itemId));
+    console.log("CNItem.itemId......",CNItem.itemId); 
     console.log("invoiceExist......",invoiceExist.items[0].itemId.toString());
 
     // console.log("invoiceExist.......",invoiceExist);
