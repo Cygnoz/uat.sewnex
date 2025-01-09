@@ -145,7 +145,6 @@ exports.addPurchaseOrder = async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
       const {orderId} = cleanPurchaseOrderData(req.params);      
-      console.log("orderId",orderId);
 
       if(orderId){
     
@@ -714,7 +713,7 @@ function validateInputs( data, supplierExist, items, itemExists, organizationExi
     validateField( item.itemQuantity > fetchedItem.currentStock, `Insufficient Stock for ${item.itemName}: Requested quantity ${item.itemQuantity}, Available stock ${fetchedItem.currentStock}`, errors );
   
     // Validate float fields
-    validateFloatFields(['itemCostPrice', 'itemTotaltax', 'itemAmount'], item, errors);
+    validateFloatFields(['itemCostPrice', 'itemTotalTax', 'itemAmount'], item, errors);
   });
   }
 
