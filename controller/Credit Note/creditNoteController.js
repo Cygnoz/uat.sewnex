@@ -638,65 +638,109 @@ function validateInvoiceData(data, items, invoiceExist, errors) {
   // console.log("items:", items);
 
    // Initialize `invoiceExist.items` to an empty array if undefined
-   invoiceExist.items = Array.isArray(invoiceExist.items) ? invoiceExist.items : [];
+  //  invoiceExist.items = Array.isArray(invoiceExist.items) ? invoiceExist.items : [];
       //  console.log("invoiceExist.items......",invoiceExist.items);
 
 
   // Validate basic fields
   validateField( invoiceExist.salesInvoiceDate !== data.invoiceDate, `Invoice Date mismatch for ${invoiceExist.salesInvoiceDate}`, errors  );
   validateField( invoiceExist.salesOrderNumber !== data.orderNumber, `Order Number mismatch for ${invoiceExist.salesOrderNumber}`, errors  );
+  validateField( invoiceExist.salesInvoice !== data.invoiceNumber, `Order Number mismatch for ${invoiceExist.salesInvoice}`, errors  );
+
 
   // Validate only the items included in the credit note
   items.forEach(CNItem => {
-    const invoiceExistItem = invoiceExist.items.find(item => item);
-    const invoiceItem = invoiceExistItem.itemId.toString();
+    const invoiceItem = invoiceExist.items.find((item) => item.itemId.toString() === CNItem.itemId);
 
-    console.log("invoiceItem......",invoiceItem);
-    // console.log("invoiceExist.itemId......",invoiceExist.items.find(item => item.itemId));
-    console.log("CNItem.itemId......",CNItem.itemId); 
-    // console.log("invoiceExist......",invoiceExist.items[0].itemId.toString());
+    // // const invoiceExistItem = invoiceExist.items.find(item => item);
+    // // const invoiceItem = invoiceExistItem.itemId.toString();
 
-    // console.log("invoiceExist.......",invoiceExist);
+    // console.log("invoiceExistItem......",invoiceExistItem);
     // console.log("CNItem.......",CNItem);
 
-    if (invoiceItem === CNItem.itemId) {
+    // console.log("invoiceItem.......",invoiceItem);
+
+    // console.log("invoiceItem.itemId......",invoiceItem.itemId.toString());
+    // console.log("CNItem.itemId......",CNItem.itemId); 
+    // // console.log("invoiceExist......",invoiceExist.items[0].itemId.toString());
+
+    if (invoiceItem) {
       validateField(CNItem.itemName !== invoiceItem.itemName, 
-          `Item Name mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.itemName}, got ${CNItem.itemName}`, 
-          errors);
+              `Item Name mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.itemName}, got ${CNItem.itemName}`, 
+              errors);
       validateField(CNItem.sellingPrice !== invoiceItem.sellingPrice, 
-          `Item selling price mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.sellingPrice}, got ${CNItem.sellingPrice}`, 
-          errors);
+              `Item selling price mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.sellingPrice}, got ${CNItem.sellingPrice}`, 
+              errors);
       validateField(CNItem.cgst !== invoiceItem.cgst, 
-          `Item CGST mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.cgst}, got ${CNItem.cgst}`, 
-          errors);
+              `Item CGST mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.cgst}, got ${CNItem.cgst}`, 
+              errors);
       validateField(CNItem.sgst !== invoiceItem.sgst, 
-          `Item SGST mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.sgst}, got ${CNItem.sgst}`, 
-          errors);
+              `Item SGST mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.sgst}, got ${CNItem.sgst}`, 
+              errors);
       validateField(CNItem.igst !== invoiceItem.igst, 
-          `Item IGST mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.igst}, got ${CNItem.igst}`, 
-          errors);
+              `Item IGST mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.igst}, got ${CNItem.igst}`, 
+              errors);
       if (!invoiceItem.returnQuantity) {
-        validateField(CNItem.stock !== invoiceItem.quantity, 
-            `Stock mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.quantity}, got ${CNItem.stock}`, 
-            errors);
+      validateField(CNItem.stock !== invoiceItem.quantity, 
+              `Stock mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.quantity}, got ${CNItem.stock}`, 
+              errors);
       } else {
-        const expectedReturnQuantity = invoiceItem.quantity - invoiceItem.returnQuantity;
-        validateField(CNItem.stock !== expectedReturnQuantity, 
-            `Stock mismatch for ${invoiceItem.itemId}: Expected ${expectedReturnQuantity}, got ${CNItem.stock}`, 
-            errors);
+      const expectedReturnQuantity = invoiceItem.quantity - invoiceItem.returnQuantity;
+      validateField(CNItem.stock !== expectedReturnQuantity, 
+              `Stock mismatch for ${invoiceItem.itemId}: Expected ${expectedReturnQuantity}, got ${CNItem.stock}`, 
+              errors);
       }
       validateField(CNItem.quantity > invoiceItem.quantity, 
-          `Provided quantity (${CNItem.quantity}) cannot exceed invoice quantity (${invoiceItem.quantity}).`, 
-          errors);
+              `Provided quantity (${CNItem.quantity}) cannot exceed invoice quantity (${invoiceItem.quantity}).`, 
+              errors);
       validateField(CNItem.quantity <= 0, 
-          `Quantity must be greater than 0 for item ${CNItem.itemId}.`, 
-          errors);
+              `Quantity must be greater than 0 for item ${CNItem.itemId}.`, 
+              errors);
       validateField(CNItem.quantity > CNItem.stock, 
-          `Provided quantity (${CNItem.quantity}) cannot exceed stock available (${CNItem.stock}) for item ${CNItem.itemId}.`, 
-          errors);
+              `Provided quantity (${CNItem.quantity}) cannot exceed stock available (${CNItem.stock}) for item ${CNItem.itemId}.`, 
+              errors);
     } else {
       errors.push(`Item ID ${CNItem.itemId} not found in the invoice.`); 
     }
+
+    // if (!invoiceItem) {
+    //   errors.push(`Item ID ${CNItem.itemId} not found in the invoice.`); 
+    // } else {
+    //   validateField(CNItem.itemName !== invoiceItem.itemName, 
+    //                 `Item Name mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.itemName}, got ${CNItem.itemName}`, 
+    //                 errors);
+    //   validateField(CNItem.sellingPrice !== invoiceItem.sellingPrice, 
+    //                 `Item selling price mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.sellingPrice}, got ${CNItem.sellingPrice}`, 
+    //                 errors);
+    //   validateField(CNItem.cgst !== invoiceItem.cgst, 
+    //                 `Item CGST mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.cgst}, got ${CNItem.cgst}`, 
+    //                 errors);
+    //   validateField(CNItem.sgst !== invoiceItem.sgst, 
+    //                 `Item SGST mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.sgst}, got ${CNItem.sgst}`, 
+    //                 errors);
+    //   validateField(CNItem.igst !== invoiceItem.igst, 
+    //                 `Item IGST mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.igst}, got ${CNItem.igst}`, 
+    //                 errors);
+    //   if (!invoiceItem.returnQuantity) {
+    //     validateField(CNItem.stock !== invoiceItem.quantity, 
+    //                 `Stock mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.quantity}, got ${CNItem.stock}`, 
+    //                 errors);
+    //   } else {
+    //     const expectedReturnQuantity = invoiceItem.quantity - invoiceItem.returnQuantity;
+    //     validateField(CNItem.stock !== expectedReturnQuantity, 
+    //                 `Stock mismatch for ${invoiceItem.itemId}: Expected ${expectedReturnQuantity}, got ${CNItem.stock}`, 
+    //                 errors);
+    //   }
+    //   validateField(CNItem.quantity > invoiceItem.quantity, 
+    //                 `Provided quantity (${CNItem.quantity}) cannot exceed invoice quantity (${invoiceItem.quantity}).`, 
+    //                 errors);
+    //   validateField(CNItem.quantity <= 0, 
+    //                 `Quantity must be greater than 0 for item ${CNItem.itemId}.`, 
+    //                 errors);
+    //   validateField(CNItem.quantity > CNItem.stock, 
+    //                 `Provided quantity (${CNItem.quantity}) cannot exceed stock available (${CNItem.stock}) for item ${CNItem.itemId}.`, 
+    //                 errors);
+    // }
   });
 
 }
