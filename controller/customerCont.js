@@ -264,7 +264,7 @@ exports.updateCustomerStatus = async (req, res) => {
   try {
     const { customerId } = req.params;
     const {organizationId , userName , userId} = req.user;
-    const { status } = req.body; 
+    const cleanedData = cleanData(req.body); 
 
     const { organizationExists, existingCustomer } = await dataExist( organizationId, customerId);
 
@@ -276,9 +276,16 @@ exports.updateCustomerStatus = async (req, res) => {
       return res.status(404).json({ message: "Customer not found" });        
     }
 
-    existingCustomer.status = status;
+    const mongooseDocument = Customer.hydrate(existingCustomer);
+    Object.assign(mongooseDocument, cleanedData);
+    const savedCustomer = await mongooseDocument.save();
+  
+    if (!savedCustomer) {
+      console.error("Customer could not change status.");
+      return res.status(500).json({ message: "Failed to Change Status." });
+    }
 
-    await existingCustomer.save();
+
     // Add entry to Customer History
     const customerHistoryEntry = new CustomerHistory({
       organizationId,
@@ -286,7 +293,7 @@ exports.updateCustomerStatus = async (req, res) => {
       customerId,
       customerDisplayName: existingCustomer.customerDisplayName,
       title: "Customer Status Modified",
-      description: `Customer status updated to ${status} by ${userName}`,
+      description: `Customer status updated to ${cleanedData.status} by ${userName}`,
       userId: userId,
       userName: userName,
     });
