@@ -2,8 +2,8 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const itemsSchema = new Schema({
-  itemId: { type: String },
-  itemName: { type: String },
+  itemId: {type: mongoose.Schema.Types.ObjectId, ref: 'Item'},
+  //itemName
 
   quantity: {type:Number},
   stock: {type:Number},
@@ -22,20 +22,19 @@ const itemsSchema = new Schema({
   igstAmount: { type: Number },
   vatAmount: { type: Number },
 
-  itemTotaltax: {type:Number},
-
+  itemTotalTax: {type:Number},
   itemAmount: { type: Number },
 
 },{ _id: false });
 
 const creditNoteSchema = new mongoose.Schema({
   organizationId: {type:String},
-  customerId: { type: String},
-  customerDisplayName: { type: String },
+  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
+  //customerName
 
   placeOfSupply: { type: String },
 
-  taxtype: { type: String },//Intra, Inter, Non-tax, VAT 
+  taxType: { type: String },//Intra, Inter, Non-tax, VAT 
 
   invoiceId: { type: String },
   invoiceNumber: { type: String },
@@ -70,8 +69,8 @@ const creditNoteSchema = new mongoose.Schema({
 
   createdDate: { type: String },
 
-  userId: { type: String },
-  userName: { type: String },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  //userName
 
   // status: { type: String }, // Open/Closed
 

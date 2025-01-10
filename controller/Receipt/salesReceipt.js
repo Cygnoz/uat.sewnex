@@ -1,85 +1,120 @@
 const Organization = require("../../database/model/organization");
 const Customer = require("../../database/model/customer");
 const Invoice = require("../../database/model/salesInvoice")
-const moment = require("moment-timezone");
 const Prefix = require("../../database/model/prefix");
 const mongoose = require('mongoose');
-const SalesReceipt = require('../../database/model/salesReceipt')
+const SalesReceipt = require('../../database/model/salesReceipt');
+const Account = require("../../database/model/account");
+const TrialBalance = require("../../database/model/trialBalance");
+
+
+
+const { cleanData } = require("../../services/cleanData");
+const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
 
 
 // Fetch existing data
 const dataExist = async (organizationId, invoice ,customerId, customerDisplayName) => {
-    const invoiceIds = invoice.map(invoices => invoices.invoiceId);
-    
+    const invoiceIds = invoice.map(invoices => invoices.invoiceId);    
     const [organizationExists, customerExists , paymentTable , existingPrefix ] = await Promise.all([
       Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
       Customer.findOne({ organizationId, _id: customerId, customerDisplayName  }, { _id: 1, customerDisplayName: 1 }),
       Invoice.find({ organizationId , _id : { $in: invoiceIds}},{ _id: 1, salesInvoice: 1 , salesInvoiceDate: 1 , dueDate:1 , totalAmount: 1 , balanceAmount : 1}),
-      Prefix.findOne({ organizationId })
-  
-    ]);
-    
+      Prefix.findOne({ organizationId })  
+    ]);    
     return { organizationExists, customerExists, paymentTable , existingPrefix };
-  };
+};
 
 
 
-  const paymentDataExist = async ( organizationId, PaymentId ) => {    
-    
-    const [organizationExists, allPayments, payments ] = await Promise.all([
-      Organization.findOne({ organizationId }, { organizationId: 1}),
-      SalesReceipt.find({ organizationId }),
-      SalesReceipt.findOne({ organizationId , _id: PaymentId },)
+const receiptDataExist = async ( organizationId, receiptId ) => {    
+    const [organizationExists, allReceipt, receipt ] = await Promise.all([
+      Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }).lean(),
+      SalesReceipt.find({ organizationId })
+      .populate('customerId', 'customerDisplayName')    
+      .lean(),
+      SalesReceipt.findOne({ organizationId , _id: receiptId })
+      .populate('customerId', 'customerDisplayName')    
+      .lean(),
     ]);
-    return { organizationExists, allPayments, payments };
-  };
+    return { organizationExists, allReceipt, receipt };
+};
+
+// Fetch Acc existing data
+const accDataExists = async ( organizationId, depositAccountId, customerId ) => {
+  const [ depositAcc, customerAccount ] = await Promise.all([
+    Account.findOne({ organizationId , _id: depositAccountId, accountHead: "Asset" }, { _id:1, accountName: 1 }),
+    Account.findOne({ organizationId , accountId:customerId },{ _id:1, accountName:1 })
+  ]);
+  return { depositAcc, customerAccount };
+};
+
+
+//Get one and All
+const salesDataExist = async ( organizationId, receiptId ) => {        
+  const [organizationExists, allInvoice, invoice, receiptJournal ] = await Promise.all([
+    Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }).lean(),
+    Invoice.find({ organizationId })
+    .populate('customerId', 'customerDisplayName')    
+    .lean(),
+    Invoice.findOne({ organizationId , _id: receiptId })
+    .populate('items.itemId', 'itemName')    
+    .populate('customerId', 'customerDisplayName')    
+    .lean(),
+    TrialBalance.find({ organizationId: organizationId, operationId : receiptId })
+    .populate('accountId', 'accountName')    
+    .lean(),
+  ]);
+  return { organizationExists, allInvoice, invoice, receiptJournal };
+};
 
 
 
 
-  exports.addReceipt = async (req, res) => {
-    try {
-      const { organizationId, id: userId, userName } = req.user; // Assuming user contains organization info
-      const cleanedData = cleanCustomerData(req.body);
 
-      const { invoice, amountReceived } = cleanedData; // Extract paymentMade from cleanedData
-      const { customerId, customerDisplayName } = cleanedData;
-      const invoiceIds = invoice.map(invoices => invoices.invoiceId);
+//Add Receipt
+exports.addReceipt = async (req, res) => {
+  console.log("Add Receipt",req.body);
+  try {    
+    const { organizationId, id: userId, userName } = req.user; 
+    const cleanedData = cleanData(req.body);
+    cleanedData.invoice = cleanedData.invoice.filter(invoice => invoice.paymentAmount > 0);
+    
+    console.log("cleanedData",cleanedData);
+    
+    const { invoice, amountReceived, customerId, customerDisplayName } = cleanedData;
+    const invoiceIds = invoice.map(invoices => invoices.invoiceId);
+
+    // Check for duplicate billIds
+  const uniqueInvoices = new Set(invoiceIds);
+  if (uniqueInvoices.size !== invoiceIds.length) {
+    return res.status(400).json({ message: "Duplicate invoice found" });
+  }
+
+  // Validate customerId
+  if (!mongoose.Types.ObjectId.isValid(customerId) || customerId.length !== 24) {
+    return res.status(400).json({ message:"Please select a customer" });
+  }
+
+  // Validate Bill IDs
+  const invalidInvoices = invoiceIds.filter(invoiceId => !mongoose.Types.ObjectId.isValid(invoiceId) || invoiceId.length !== 24);
+  if (invalidInvoices.length > 0) {
+    return res.status(400).json({ message: `Invalid invoice IDs: ${invalidInvoices.join(', ')}` });
+  }
+
+  // Check if organization and customer exist
+  const { organizationExists, customerExists, paymentTable, existingPrefix } = await dataExist(organizationId, invoice, customerId, customerDisplayName);
+  
+  const { depositAcc, customerAccount } = await accDataExists( organizationId, cleanedData.depositAccountId, cleanedData.customerId );
+  
+  // Validate customer and organization
+  if (!validateCustomerAndOrganization(organizationExists, customerExists, existingPrefix, res)) return; 
+  
+  // Validate input values, unpaidBills, and paymentTable
+  if (!validateInputs(cleanedData, customerExists, invoice, paymentTable, organizationExists, depositAcc, customerAccount, res)) return; 
   
 
-      // Check for duplicate billIds
-    const uniqueInvoices = new Set(invoiceIds);
-    if (uniqueInvoices.size !== invoiceIds.length) {
-      return res.status(400).json({ message: "Duplicate invoice found" });
-    }
-
-    // Validate customerId
-    if (!mongoose.Types.ObjectId.isValid(customerId) || customerId.length !== 24) {
-      return res.status(400).json({ message: `Invalid Customer ID: ${customerId}` });
-    }
-
-    // Validate Bill IDs
-    const invalidInvoices = invoiceIds.filter(invoiceId => !mongoose.Types.ObjectId.isValid(invoiceId) || invoiceId.length !== 24);
-    if (invalidInvoices.length > 0) {
-      return res.status(400).json({ message: `Invalid invoice IDs: ${invalidInvoices.join(', ')}` });
-    }
-
-    // Check if organization and customer exist
-    const { organizationExists, customerExists, paymentTable, existingPrefix } = await dataExist(organizationId, invoice, customerId, customerDisplayName);
-
-    // Validate customer and organization
-    if (!validateCustomerAndOrganization(organizationExists, customerExists, existingPrefix, res)) {
-      return; // Stops execution if validation fails
-    }
-
-
-    // Validate input values, unpaidBills, and paymentTable
-    if (!validateInputs(cleanedData, customerExists, invoice, paymentTable, organizationExists, res)) {
-      return; // Stops execution if validation fails
-    }
-
-
-    const updatedData = await calculateTotalPaymentMade(cleanedData, amountReceived );
+  const updatedData = await calculateTotalPaymentMade(cleanedData, amountReceived );
 
   // Validate invoices
   const validatedInvoices = validateInvoices(updatedData.invoice);
@@ -89,58 +124,83 @@ const dataExist = async (organizationId, invoice ,customerId, customerDisplayNam
 
   console.log('Invoice processing complete:', paymentResults);
 
-    //Prefix
-    await salesReceiptPrefix(cleanedData, existingPrefix );
+  //Prefix
+  await salesReceiptPrefix(cleanedData, existingPrefix );
 
-    // Re-fetch the updated bills to get the latest `amountDue` and `balanceAmount`
-    const updatedInvoice = await SalesReceipt.find({ _id: { $in: updatedData.invoice.map(receipt => receipt.invoiceId) } });
+  // Re-fetch the updated bills to get the latest `amountDue` and `balanceAmount`
+  const updatedInvoice = await SalesReceipt.find({ _id: { $in: updatedData.invoice.map(receipt => receipt.invoiceId) } });
+    
+  const savedReceipt = await createNewPayment( updatedData, organizationId, userId, userName );  
+     
+  //Journal
+  await journal( savedReceipt, depositAcc, customerAccount );
 
-
-    const openingDate = generateOpeningDate({ timeZoneExp: organizationId.timeZoneExp, dateFormatExp: organizationId.dateFormatExp, dateSplit: organizationId.dateSplit });
-
-
-    const payment = await createNewPayment(updatedData , openingDate, organizationId, userId, userName);
-
-
-       //Response with the updated bills and the success message
-       return res.status(200).json({
-        message: 'Payment added successfully',  payment , updatedInvoice,
-  
-      });
-      
+  //Response with the updated bills and the success message     
+  return res.status(200).json({ message: 'Receipt added successfully' });
+    
 } catch (error) {
-  console.error('Error adding payment:', error);
+  console.error('Error adding receipt:', error);
   return res.status(500).json({ message: 'Internal server error' });
 }
 };
 
 
+// Get receipt Journal
+exports.receiptJournal = async (req, res) => {
+  try {
+      const organizationId = req.user.organizationId;
+      const { receiptId } = req.params;
+
+      const { receiptJournal } = await salesDataExist( organizationId, receiptId );      
+
+      if (!receiptJournal) {
+          return res.status(404).json({
+              message: "No Journal found for the Invoice.",
+          });
+      }
+
+      const transformedJournal = invoiceJournal.map(item => {
+        return {
+            ...item,
+            accountId: item.accountId._id,  
+            accountName: item.accountId.accountName,  
+        };
+    });    
+      
+      res.status(200).json(transformedJournal);
+  } catch (error) {
+      console.error("Error fetching journal:", error);
+      res.status(500).json({ message: "Internal server error." });
+  }
+};
 
 
-
-
+//Get all
 exports.getAllSalesReceipt = async (req, res) => {
-  // const { organizationId } = req.body;
   try {
 
     const organizationId  = req.user.organizationId;
 
-    // Check if an Organization already exists
-    const { organizationExists , allPayments} = await paymentDataExist(organizationId);
+    const { organizationExists , allReceipt } = await receiptDataExist( organizationId, null );
 
     if (!organizationExists) {
-      return res.status(404).json({
-        message: "Organization not found",
-      });
+      return res.status(404).json({ message: "Organization not found" });
     }
 
-    
-    if (!allPayments.length) {
-      return res.status(404).json({
-        message: "No Payments found",
-      });
+    if (!allReceipt) {
+      return res.status(404).json({ message: "No Payments found" });
     }
-    res.status(200).json(allPayments);
+    
+    const transformedInvoice = allReceipt.map(data => {
+      return {
+        ...data,
+        customerId: data.customerId._id,  
+        customerDisplayName: data.customerId.customerDisplayName,  
+      };}); 
+      
+    const formattedObjects = multiCustomDateTime(transformedInvoice, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
+      
+    res.status(200).json(formattedObjects);
 
   } catch (error) {
     console.error("Error fetching purchase paymentMade:", error);
@@ -154,25 +214,24 @@ exports.getAllSalesReceipt = async (req, res) => {
 exports.getSalesReceipt = async (req, res) => {
   try {
     const organizationId = req.user.organizationId;
-    const  PaymentId = req.params.PaymentId;
+    const  receiptId = req.params.receiptId;
 
-    const { organizationExists , payments } = await paymentDataExist(organizationId , PaymentId);
+    const { organizationExists , receipt } = await receiptDataExist( organizationId , receiptId );
 
     if (!organizationExists) {
-      return res.status(404).json({
-        message: "Organization not found",
-      });
+      return res.status(404).json({ message: "Organization not found" });
     }
 
-    if (!payments) {
-      return res.status(404).json({
-        message: "No payment found",
-      });
+    if (!receipt) {
+      return res.status(404).json({ message: "No receipt found" });
     }
 
-    res.status(200).json(payments);
+    console.log(receipt);
+    
+
+    res.status(200).json(receipt);
   } catch (error) {
-    console.error("Error fetching Payments:", error);
+    console.error("Error fetching receipt:", error);
     res.status(500).json({ message: "Internal server error." });
   }
 };
@@ -210,7 +269,7 @@ function salesReceiptPrefix( cleanData, existingPrefix ) {
   if (!activeSeries) {
       return res.status(404).json({ message: "No active series found for the organization." });
   }
-  cleanData.customerPayment = `${activeSeries.receipt}${activeSeries.receiptNum}`;
+  cleanData.payment = `${activeSeries.receipt}${activeSeries.receiptNum}`;
 
   activeSeries.receiptNum += 1;
 
@@ -220,71 +279,6 @@ function salesReceiptPrefix( cleanData, existingPrefix ) {
 }
 
 
-
-
-
-
-
-
-function cleanCustomerData(data) {
-  const cleanData = (value) => (value === null || value === undefined || value === "" ? undefined : value);
-  return Object.keys(data).reduce((acc, key) => {
-    acc[key] = cleanData(data[key]);
-    return acc;
-  }, {});
-}
-
-
-//Return Date and Time 
-function generateOpeningDate(organizationExists) {
-  const date = generateTimeAndDateForDB(
-      organizationExists.timeZoneExp,
-      organizationExists.dateFormatExp,
-      organizationExists.dateSplit
-    )
-  return date.dateTime;
-}
-
-
-
-
-
-
-// Function to generate time and date for storing in the database
-function generateTimeAndDateForDB(
-    timeZone,
-    dateFormat,
-    dateSplit,
-    baseTime = new Date(),
-    timeFormat = "HH:mm:ss",
-    timeSplit = ":"
-  ) {
-    // Convert the base time to the desired time zone
-    const localDate = moment.tz(baseTime, timeZone);
-  
-    // Format date and time according to the specified formats
-    let formattedDate = localDate.format(dateFormat);
-  
-    // Handle date split if specified
-    if (dateSplit) {
-      // Replace default split characters with specified split characters
-      formattedDate = formattedDate.replace(/[-/]/g, dateSplit); // Adjust regex based on your date format separators
-    }
-  
-    const formattedTime = localDate.format(timeFormat);
-    const timeZoneName = localDate.format("z"); // Get time zone abbreviation
-  
-    // Combine the formatted date and time with the split characters and time zone
-    const dateTime = `${formattedDate} ${formattedTime
-      .split(":")
-      .join(timeSplit)} (${timeZoneName})`;
-  
-    return {
-      date: formattedDate,
-      time: `${formattedTime} (${timeZoneName})`,
-      dateTime: dateTime,
-    };
-  }
 
 
 
@@ -313,8 +307,8 @@ function generateTimeAndDateForDB(
 
 
 //Validate inputs
-function validateInputs( data, customerExists, invoice , organizationExists, paymentTableExist ,  res) {
-  const validationErrors = validatePaymentData(data, customerExists, invoice, organizationExists , paymentTableExist);
+function validateInputs( data, customerExists, invoice, paymentTable, organizationExists, depositAcc, customerAccount, res) {
+  const validationErrors = validatePaymentData(data, customerExists, invoice, paymentTable, organizationExists, depositAcc, customerAccount);
 
   if (validationErrors.length > 0) {
     res.status(400).json({ message: validationErrors.join(", ") });
@@ -327,11 +321,10 @@ function validateInputs( data, customerExists, invoice , organizationExists, pay
 
 
 // Function to create a new payment record
-function createNewPayment(data, openingDate, organizationId, userId, userName) {
+function createNewPayment(data, organizationId, userId, userName) {
   const newPayment = new SalesReceipt({
     ...data,
     organizationId,
-    createdDate: openingDate,
     userId,
     userName
   });
@@ -342,15 +335,15 @@ function createNewPayment(data, openingDate, organizationId, userId, userName) {
 
 
 //Validate Data
-function validatePaymentData( data, customerExists, invoice, paymentTable ) {
+function validatePaymentData( data, customerExists, invoice, paymentTable, organizationExists, depositAcc, customerAccount ) {
   const errors = [];
 
-  console.log("invoice Request :",invoice);
-  console.log("invoice Fetched :",paymentTable);
+  // console.log("invoice Request :",invoice);
+  // console.log("invoice Fetched :",paymentTable);
   
 
   //Basic Info
-  validateReqFields( data, customerExists, errors );
+  validateReqFields( data, depositAcc, customerAccount, errors );
   validatePaymentTable(invoice, paymentTable, errors);
   validateFloatFields([ 'amountReceived','amountUsedForPayments','total'], data, errors);
 
@@ -368,15 +361,24 @@ function validateField(condition, errorMsg, errors) {
 }
 
 //Valid Req Fields
-function validateReqFields( data, errors ) {
+function validateReqFields( data, depositAcc, customerAccount, errors ) {
   validateField( typeof data.customerId === 'undefined' || typeof data.customerDisplayName === 'undefined', "Please select a customer", errors  );
-  validateField( typeof data.invoice === 'undefined', "Select an invoice", errors  );
+  validateField( typeof data.invoice === 'undefined' || (Array.isArray(data.invoice) && data.invoice.length === 0), "Select an invoice", errors  );
+  validateField( typeof data.amountReceived === 'undefined' || data.amountReceived === 0 || typeof data.amountUsedForPayments === 'undefined' || data.amountUsedForPayments === 0, "Enter amount received", errors  );
+  validateField( typeof data.depositAccountId === 'undefined' , "Select deposit account", errors  );
+  validateField( typeof data.paymentMode === 'undefined' , "Select payment mode", errors  );
+  validateField( typeof data.paymentDate === 'undefined' , "Select payment date", errors  );
+
+  validateField( !depositAcc && typeof data.amountReceived !== 'undefined' , "Deposit Account not found", errors  );
+  validateField( !customerAccount && typeof data.amountReceived !== 'undefined' , "Customer Account not found", errors  );
+
+
 }
 
 
 // Function to Validate Item Table 
 function validatePaymentTable(invoice, paymentTable, errors) {
-  console.log("validate:",invoice , paymentTable)
+  // console.log("validate:",invoice , paymentTable)
   // Check for bill count mismatch
   validateField( invoice.length !== paymentTable.length, "Mismatch in invoice count between request and database.", errors  );
 
@@ -394,20 +396,17 @@ function validatePaymentTable(invoice, paymentTable, errors) {
     // Validate bill date
     validateField( invoices.salesInvoiceDate !== fetchedInvoices.salesInvoiceDate, `Invoice Date Mismatch Invoice Number: ${invoices.salesInvoice} : ${invoices.salesInvoiceDate}` , errors );
 
-    // Validate duedate
+    // Validate dueDate
     validateField( invoices.dueDate !== fetchedInvoices.dueDate, `Due Date Mismatch for Invoice Number${invoices.salesInvoice}:  ${invoices.dueDate}`, errors );
 
-    // Validate billamount
+    // Validate billAmount
     validateField( invoices.totalAmount !== fetchedInvoices.totalAmount, `Grand Total for Invoice Number${invoices.salesInvoice}: ${invoices.totalAmount}`, errors );
 
     // Validate amountDue
     validateField( invoices.balanceAmount !== fetchedInvoices.balanceAmount, `Amount Due for Invoice number ${invoices.salesInvoice}: ${invoices.balanceAmount}`, errors );
 
-
-  // Validate float fields
-  validateFloatFields(['balanceAmount', 'totalAmount', 'paymentAmount'], invoices, errors);
-
-
+    // Validate float fields
+    validateFloatFields(['balanceAmount', 'totalAmount', 'paymentAmount'], invoices, errors);
   });
 }
 
@@ -557,3 +556,67 @@ async function processInvoices(invoices) {
 }
 
 
+
+
+
+
+
+
+
+
+async function journal( savedReceipt, depositAcc, customerAccount ) {    
+  const customerPaid = {
+    organizationId: savedReceipt.organizationId,
+    operationId: savedReceipt._id,
+    transactionId: savedReceipt.payment,
+    accountId: customerAccount._id || undefined,
+    action: "Receipt",
+    debitAmount: 0,
+    creditAmount: savedReceipt.amountReceived || 0,
+    remark: savedReceipt.note,
+  };
+  const depositAccount = {
+    organizationId: savedReceipt.organizationId,
+    operationId: savedReceipt._id,
+    transactionId: savedReceipt.payment,
+    accountId: depositAcc._id || undefined,
+    action: "Receipt",
+    debitAmount: savedReceipt.amountReceived || 0,
+    creditAmount: 0,
+    remark: savedReceipt.note,
+  };
+  
+
+  console.log("customerPaid", customerPaid.debitAmount,  customerPaid.creditAmount);
+  console.log("depositAccount", depositAccount.debitAmount,  depositAccount.creditAmount);
+
+  const  debitAmount = customerPaid.debitAmount + depositAccount.debitAmount ;
+  const  creditAmount = customerPaid.creditAmount + depositAccount.creditAmount ;
+
+  console.log("Total Debit Amount: ", debitAmount );
+  console.log("Total Credit Amount: ", creditAmount );
+  
+  createTrialEntry( customerPaid )
+  createTrialEntry( depositAccount )
+}
+
+
+
+
+
+
+async function createTrialEntry( data ) {
+  const newTrialEntry = new TrialBalance({
+      organizationId:data.organizationId,
+      operationId:data.operationId,
+      transactionId: data.transactionId,
+      accountId: data.accountId,
+      action: data.action,
+      debitAmount: data.debitAmount,
+      creditAmount: data.creditAmount,
+      remark: data.remark
+});
+
+await newTrialEntry.save();
+
+}
