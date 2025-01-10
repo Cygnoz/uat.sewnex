@@ -187,15 +187,15 @@ exports.addItem = async (req, res) => {
       const savedItem = await newItem.save();
 
       
-        const trackEntry = new ItemTrack({
-          organizationId,
-          operationId: savedItem._id,
-          action: "Opening Stock", 
-          itemId: savedItem._id,
-          sellingPrice:savedItem.sellingPrice,
-          costPrice:savedItem.costPrice,
-          debitQuantity: openingStock || 0 ,
-          currentStock: openingStock || 0,
+      const trackEntry = new ItemTrack({
+        organizationId,
+        operationId: savedItem._id,
+        action: "Opening Stock", 
+        itemId: savedItem._id,
+        sellingPrice:savedItem.sellingPrice,
+        costPrice:savedItem.openingStockRatePerUnit,
+        debitQuantity: openingStock || 0 ,
+        currentStock: openingStock || 0,
       });  
       await trackEntry.save();
       console.log( "Item Track Added", trackEntry );      
@@ -378,7 +378,7 @@ exports.updateItem = async (req, res) => {
     Object.assign( existingItem, cleanedData );
     const savedItem = await existingItem.save();
 
-    await updateOpeningBalanceInItemTrack(openingStock, itemTrackAll, prevStock);
+    await updateOpeningBalanceInItemTrack(openingStock, itemTrackAll, prevStock, cleanedData.openingStockRatePerUnit);
  
     if (!savedItem) {
       console.error("Item could not be saved.");
@@ -429,7 +429,7 @@ exports.deleteItem = async (req, res) => {
 
 
 // Function to update the opening balance in item tracking
-const updateOpeningBalanceInItemTrack = async (openingStock, itemTrackAll, prevStock) => {
+const updateOpeningBalanceInItemTrack = async (openingStock, itemTrackAll, prevStock, openingStockRatePerUnit) => {
   // Ensure openingStock, prevStock, and the difference are non-negative
   if (openingStock < 0 || prevStock < 0) {
     console.error("Opening stock and previous stock must be non-negative");
@@ -441,10 +441,10 @@ const updateOpeningBalanceInItemTrack = async (openingStock, itemTrackAll, prevS
   
 
   // If no change in stock, return without updating
-  if (diff === 0) {
-    console.log("No change in opening stock, no update needed.");
-    return;
-  }
+  // if (diff === 0) {
+  //   console.log("No change in opening stock, no update needed.");
+  //   return;
+  // }
 
   // Iterate through each item track and update the current stock
   itemTrackAll.forEach(itemTrack => {
@@ -468,6 +468,7 @@ const updateOpeningBalanceInItemTrack = async (openingStock, itemTrackAll, prevS
         return;
       }
       itemTrack.creditQuantity = newCreditQuantity;
+      itemTrack.costPrice = openingStockRatePerUnit;
     }    
   });
 
@@ -556,7 +557,8 @@ function validateOrganizationTaxCurrency(organizationExists, taxExists, allItem,
   if (!allItem) {
     res.status(404).json({ message: "Currency not found" });
     return false;
-  }if (!settingsExist) {
+  }
+  if (!settingsExist) {
     res.status(404).json({ message: "Settings not found" });
     return false;
   }
@@ -681,6 +683,8 @@ function validateReqFields( data, errors ) {
   
   validateField(typeof data.sellingPrice !== 'undefined' && typeof data.salesAccountId === 'undefined',"Sales Account required", errors);
   validateField(typeof data.costPrice !== 'undefined' && typeof data.purchaseAccountId === 'undefined',"Purchase Account required", errors);
+
+  validateField(typeof data.openingStock !== 'undefined' && typeof data.openingStockRatePerUnit === 'undefined',"Opening Stock Rate Per Unit required", errors);
 }
 
 // Validation function for account structure
