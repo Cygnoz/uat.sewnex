@@ -4,7 +4,7 @@ const { Schema } = mongoose
 
 const invoiceSchema = new Schema({
 
-    invoiceId: {type:String},
+    invoiceId: {type: mongoose.Schema.Types.ObjectId, ref: 'SalesInvoice'},
     salesInvoice: {type:String}, //prefix
     salesInvoiceDate: { type: String },  
     dueDate: { type: String },
