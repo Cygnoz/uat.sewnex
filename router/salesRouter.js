@@ -81,7 +81,7 @@ router.post('/sales-receipt',verifyToken,salesReceipt.addReceipt)
 
 router.get('/get-all-receipt',verifyToken,salesReceipt.getAllSalesReceipt)
 
-router.get('/get-receipt/:PaymentId',verifyToken,salesReceipt.getSalesReceipt)
+router.get('/get-receipt/:receiptId',verifyToken,salesReceipt.getSalesReceipt)
 
 router.get('/get-last-salesReceipt-prefix', verifyToken, salesReceipt.getLastSalesReceiptPrefix);
 

@@ -27,13 +27,17 @@ const dataExist = async (organizationId, invoice ,customerId, customerDisplayNam
 
 
 
-const paymentDataExist = async ( organizationId, PaymentId ) => {    
-    const [organizationExists, allPayments, payments ] = await Promise.all([
-      Organization.findOne({ organizationId }, { organizationId: 1}),
-      SalesReceipt.find({ organizationId }),
-      SalesReceipt.findOne({ organizationId , _id: PaymentId },)
+const receiptDataExist = async ( organizationId, receiptId ) => {    
+    const [organizationExists, allReceipt, receipt ] = await Promise.all([
+      Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }).lean(),
+      SalesReceipt.find({ organizationId })
+      .populate('customerId', 'customerDisplayName')    
+      .lean(),
+      SalesReceipt.findOne({ organizationId , _id: receiptId })
+      .populate('customerId', 'customerDisplayName')    
+      .lean(),
     ]);
-    return { organizationExists, allPayments, payments };
+    return { organizationExists, allReceipt, receipt };
 };
 
 // Fetch Acc existing data
@@ -126,7 +130,7 @@ exports.addReceipt = async (req, res) => {
   // Re-fetch the updated bills to get the latest `amountDue` and `balanceAmount`
   const updatedInvoice = await SalesReceipt.find({ _id: { $in: updatedData.invoice.map(receipt => receipt.invoiceId) } });
     
-  const savedReceipt = await createNewPayment( updatedData, organizationId, userId, userName );
+  const savedReceipt = await createNewPayment( updatedData, organizationId, userId, userName );  
      
   //Journal
   await journal( savedReceipt, depositAcc, customerAccount );
@@ -177,17 +181,26 @@ exports.getAllSalesReceipt = async (req, res) => {
 
     const organizationId  = req.user.organizationId;
 
-    // Check if an Organization already exists
-    const { organizationExists , allPayments} = await paymentDataExist(organizationId);
+    const { organizationExists , allReceipt } = await receiptDataExist( organizationId, null );
 
     if (!organizationExists) {
       return res.status(404).json({ message: "Organization not found" });
     }
 
-    if (!allPayments) {
+    if (!allReceipt) {
       return res.status(404).json({ message: "No Payments found" });
     }
-    res.status(200).json(allPayments);
+    
+    const transformedInvoice = allReceipt.map(data => {
+      return {
+        ...data,
+        customerId: data.customerId._id,  
+        customerDisplayName: data.customerId.customerDisplayName,  
+      };}); 
+      
+    const formattedObjects = multiCustomDateTime(transformedInvoice, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
+      
+    res.status(200).json(formattedObjects);
 
   } catch (error) {
     console.error("Error fetching purchase paymentMade:", error);
@@ -201,21 +214,24 @@ exports.getAllSalesReceipt = async (req, res) => {
 exports.getSalesReceipt = async (req, res) => {
   try {
     const organizationId = req.user.organizationId;
-    const  PaymentId = req.params.PaymentId;
+    const  receiptId = req.params.receiptId;
 
-    const { organizationExists , payments } = await paymentDataExist(organizationId , PaymentId);
+    const { organizationExists , receipt } = await receiptDataExist( organizationId , receiptId );
 
     if (!organizationExists) {
       return res.status(404).json({ message: "Organization not found" });
     }
 
-    if (!payments) {
-      return res.status(404).json({ message: "No payment found" });
+    if (!receipt) {
+      return res.status(404).json({ message: "No receipt found" });
     }
 
-    res.status(200).json(payments);
+    console.log(receipt);
+    
+
+    res.status(200).json(receipt);
   } catch (error) {
-    console.error("Error fetching Payments:", error);
+    console.error("Error fetching receipt:", error);
     res.status(500).json({ message: "Internal server error." });
   }
 };
