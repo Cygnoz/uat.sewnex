@@ -200,7 +200,7 @@ exports.addInvoice = async (req, res) => {
       }
 
         
-      res.status(201).json({ message: "Sale Invoice created successfully" });
+      res.status(201).json({ message: "Sale Invoice created successfully", data:savedInvoice });
       console.log( "Sale Invoice created successfully:", savedInvoice );
     } catch (error) {
       console.error("Error Creating Sales Invoice:", error);
