@@ -10,6 +10,7 @@ const Account = require("../database/model/account")
 const { cleanData } = require("../services/cleanData");
 const Supplier = require("../database/model/supplier");
 
+const mongoose = require('mongoose');
 
 
 
@@ -30,7 +31,6 @@ const dataExist = async ( organizationId, salesAccountId = null , purchaseAccoun
 
 //Xs Item Exist
 const xsItemDataExists = async (organizationId) => {
-                // Retrieve items with specified fields
                 const [newItems] = await Promise.all([
                   Item.find( { organizationId }, { _id: 1, itemName: 1, itemImage: 1, taxPreference: 1, sellingPrice: 1, salesAccountId:1, purchaseAccountId:1, costPrice:1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 } )
                   .populate('salesAccountId', 'accountName') 
@@ -49,27 +49,24 @@ const xsItemDataExists = async (organizationId) => {
                 }));
 
                 // Extract itemIds from newItems
-                const itemIds = transformedItems.map(item => item._id.toString());
+                const itemIds = transformedItems.map(item => new mongoose.Types.ObjectId(item._id));
               
 
-                // Aggregate ItemTrack to get the latest entry for each itemId
                 const itemTracks = await ItemTrack.aggregate([
                   { $match: { itemId: { $in: itemIds } } },
                   { $sort: { _id: -1 } },
-                  { $group: { _id: "$itemId", lastEntry: { $first: "$$ROOT" } } }
+                  { $group: { _id: "$itemId", lastEntry: { $first: "$$ROOT" } } },
                 ]);
                 
 
-                // Map itemTracks by itemId for easier lookup
                 const itemTrackMap = itemTracks.reduce((acc, itemTrack) => {
-                  acc[itemTrack._id] = itemTrack.lastEntry;
+                  acc[itemTrack._id.toString()] = itemTrack.lastEntry;
                   return acc;
                 }, {});
 
-                // Attach the last entry from ItemTrack to each item in newItems
                 const enrichedItems = transformedItems.map(item => ({
-                  ...item, // Copy item fields
-                  currentStock: itemTrackMap[item._id.toString()] ? itemTrackMap[item._id.toString()].currentStock : null
+                  ...item,
+                  currentStock: itemTrackMap[item._id.toString()]?.currentStock || null,
                 }));
 
                 return { enrichedItems };
@@ -78,9 +75,7 @@ const xsItemDataExists = async (organizationId) => {
 
 //M Item Exist
 const mItemDataExists = async (organizationId) => {
-          // Retrieve items with specified fields
           const [newItems] = await Promise.all([
-            // Item.find( { organizationId },{ itemName :1, sku:1, costPrice:1, sellingPrice:1, reorderPoint:1 } ),
             Item.find( { organizationId },{ organizationId :0, itemImage: 0 } )
             .populate('salesAccountId', 'accountName') 
             .populate('purchaseAccountId', 'accountName')
@@ -103,32 +98,26 @@ const mItemDataExists = async (organizationId) => {
 
 
           // Extract itemIds from newItems
-          const itemIds = transformedItems.map(item => item._id.toString());
+          const itemIds = transformedItems.map(item => new mongoose.Types.ObjectId(item._id));
 
-
-          // Aggregate ItemTrack to get the latest entry for each itemId
           const itemTracks = await ItemTrack.aggregate([
             { $match: { itemId: { $in: itemIds } } },
             { $sort: { _id: -1 } },
-            { $group: { _id: "$itemId", lastEntry: { $first: "$$ROOT" } } }
+            { $group: { _id: "$itemId", lastEntry: { $first: "$$ROOT" } } },
           ]);
-          
 
-          // Map itemTracks by itemId for easier lookup
           const itemTrackMap = itemTracks.reduce((acc, itemTrack) => {
-            acc[itemTrack._id] = itemTrack.lastEntry;
+            acc[itemTrack._id.toString()] = itemTrack.lastEntry;
             return acc;
           }, {});
-
-          // Attach the last entry from ItemTrack to each item in newItems
-          const enrichedItems = transformedItems.map(item => ({
-            ...item, // Copy item fields
-            currentStock: itemTrackMap[item._id.toString()] ? itemTrackMap[item._id.toString()].currentStock : null
-          }));
-          
           
 
-          return { enrichedItems };
+        const enrichedItems = transformedItems.map(item => ({
+          ...item,
+          currentStock: itemTrackMap[item._id.toString()]?.currentStock || null,
+        }));
+
+        return { enrichedItems };
 };
 
 
@@ -275,17 +264,11 @@ exports.getAllItemM = async (req, res) => {
   try {
     const organizationId = req.user.organizationId;
 
-
-    // Check if an Organization already exists
     const existingOrganization = await Organization.findOne({ organizationId });
     
-    if (!existingOrganization) {
-      return res.status(404).json({
-        message: "No Organization Found.",
-      });
-    }
+    if (!existingOrganization) return res.status(404).json({ message: "No Organization Found." });
 
-    const { enrichedItems  } = await mItemDataExists(organizationId);
+    const { enrichedItems  } = await mItemDataExists(organizationId);        
 
     if ( enrichedItems ) {
       res.status(200).json(enrichedItems);            
