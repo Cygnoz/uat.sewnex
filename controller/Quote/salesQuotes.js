@@ -11,6 +11,8 @@ const Prefix = require("../../database/model/prefix");
 const mongoose = require('mongoose');
 
 const { cleanData } = require("../../services/cleanData");
+const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
+
 
 
 // Fetch existing data
@@ -35,9 +37,14 @@ const dataExist = async ( organizationId, items, customerId, customerName ) => {
   const salesDataExist = async ( organizationId, quoteId ) => {    
     
       const [organizationExists, allQuotes, quotes ] = await Promise.all([
-        Organization.findOne({ organizationId }, { organizationId: 1}),
-        Quotes.find({ organizationId }),
-        Quotes.findOne({ organizationId , _id: quoteId },)
+        Organization.findOne({ organizationId }, { timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1}),
+        Quotes.find({ organizationId })
+        .populate('customerId', 'customerDisplayName')    
+        .lean(),
+        Quotes.findOne({ organizationId , _id: quoteId })
+        .populate('items.itemId', 'itemName')    
+        .populate('customerId', 'customerDisplayName')    
+        .lean()
       ]);
       return { organizationExists, allQuotes, quotes };
     };
@@ -132,19 +139,25 @@ exports.getAllSalesQuote = async (req, res) => {
       const { organizationExists, allQuotes } = await salesDataExist(organizationId);
   
       if (!organizationExists) {
-        return res.status(404).json({
-          message: "Organization not found",
-        });
+        return res.status(404).json({ message: "Organization not found" });
       }
-  
 
-      if (!allQuotes.length) {
-        return res.status(404).json({
-          message: "No Quotes found",
-        });
+      if (!allQuotes) {
+        return res.status(404).json({ message: "No Quotes found" });
       }
+
+      const transformedInvoice = allQuotes.map(data => {
+        return {
+            ...data,
+            customerId: data.customerId._id,  
+            customerDisplayName: data.customerId.customerDisplayName,  
+      };});
+
+
+      const formattedObjects = multiCustomDateTime(transformedInvoice, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
+
   
-      res.status(200).json(allQuotes);
+      res.status(200).json(formattedObjects);
       
     } catch (error) {
       console.error("Error fetching Quotes:", error);
@@ -160,7 +173,7 @@ exports.getOneSalesQuote = async (req, res) => {
     const organizationId = req.user.organizationId;
     const  quoteId = req.params.quoteId;
 
-    const { organizationExists, quotes } = await salesDataExist(organizationId,quoteId);
+    const { organizationExists, quotes } = await salesDataExist( organizationId, quoteId );
 
     if (!organizationExists) {
       return res.status(404).json({ message: "Organization not found" });
@@ -170,7 +183,18 @@ exports.getOneSalesQuote = async (req, res) => {
       return res.status(404).json({ message: "No Quotes found" });
     }
 
-    res.status(200).json(quotes);
+    const transformedInvoice = {
+      ...quotes,
+      customerId: quotes.customerId._id,  
+      customerDisplayName: quotes.customerId.customerDisplayName,
+      items: quotes.items.map(item => ({
+        ...item,
+        itemId: item.itemId._id,
+        itemName: item.itemId.itemName,
+      })),  
+  }; 
+
+    res.status(200).json(transformedInvoice);
   } catch (error) {
     console.error("Error fetching Quotes:", error);
     res.status(500).json({ message: "Internal server error." });

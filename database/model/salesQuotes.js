@@ -75,8 +75,8 @@ const SalesQuotesSchema = new Schema ({
   status: { type: String },
 
   createdDateTime: { type: Date, default: () => new Date() },
-  userId: { type: String },
-  userName: { type: String },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  //userName
 })
 
 
