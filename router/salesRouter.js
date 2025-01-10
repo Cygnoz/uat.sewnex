@@ -85,6 +85,9 @@ router.get('/get-receipt/:PaymentId',verifyToken,salesReceipt.getSalesReceipt)
 
 router.get('/get-last-salesReceipt-prefix', verifyToken, salesReceipt.getLastSalesReceiptPrefix);
 
+router.get('/receipt-journal/:receiptId',verifyToken,salesReceipt.receiptJournal)
+
+
 
 
 

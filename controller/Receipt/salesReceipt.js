@@ -1,10 +1,13 @@
 const Organization = require("../../database/model/organization");
 const Customer = require("../../database/model/customer");
 const Invoice = require("../../database/model/salesInvoice")
-const moment = require("moment-timezone");
 const Prefix = require("../../database/model/prefix");
 const mongoose = require('mongoose');
-const SalesReceipt = require('../../database/model/salesReceipt')
+const SalesReceipt = require('../../database/model/salesReceipt');
+const Account = require("../../database/model/account");
+const TrialBalance = require("../../database/model/trialBalance");
+
+
 
 const { cleanData } = require("../../services/cleanData");
 const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
@@ -33,6 +36,36 @@ const paymentDataExist = async ( organizationId, PaymentId ) => {
     return { organizationExists, allPayments, payments };
 };
 
+// Fetch Acc existing data
+const accDataExists = async ( organizationId, depositAccountId, customerId ) => {
+  const [ depositAcc, customerAccount ] = await Promise.all([
+    Account.findOne({ organizationId , _id: depositAccountId, accountHead: "Asset" }, { _id:1, accountName: 1 }),
+    Account.findOne({ organizationId , accountId:customerId },{ _id:1, accountName:1 })
+  ]);
+  return { depositAcc, customerAccount };
+};
+
+
+//Get one and All
+const salesDataExist = async ( organizationId, receiptId ) => {        
+  const [organizationExists, allInvoice, invoice, receiptJournal ] = await Promise.all([
+    Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }).lean(),
+    Invoice.find({ organizationId })
+    .populate('customerId', 'customerDisplayName')    
+    .lean(),
+    Invoice.findOne({ organizationId , _id: receiptId })
+    .populate('items.itemId', 'itemName')    
+    .populate('customerId', 'customerDisplayName')    
+    .lean(),
+    TrialBalance.find({ organizationId: organizationId, operationId : receiptId })
+    .populate('accountId', 'accountName')    
+    .lean(),
+  ]);
+  return { organizationExists, allInvoice, invoice, receiptJournal };
+};
+
+
+
 
 
 //Add Receipt
@@ -41,6 +74,10 @@ exports.addReceipt = async (req, res) => {
   try {    
     const { organizationId, id: userId, userName } = req.user; 
     const cleanedData = cleanData(req.body);
+    cleanedData.invoice = cleanedData.invoice.filter(invoice => invoice.paymentAmount > 0);
+    
+    console.log("cleanedData",cleanedData);
+    
     const { invoice, amountReceived, customerId, customerDisplayName } = cleanedData;
     const invoiceIds = invoice.map(invoices => invoices.invoiceId);
 
@@ -64,12 +101,15 @@ exports.addReceipt = async (req, res) => {
   // Check if organization and customer exist
   const { organizationExists, customerExists, paymentTable, existingPrefix } = await dataExist(organizationId, invoice, customerId, customerDisplayName);
   
+  const { depositAcc, customerAccount } = await accDataExists( organizationId, cleanedData.depositAccountId, cleanedData.customerId );
+  
   // Validate customer and organization
   if (!validateCustomerAndOrganization(organizationExists, customerExists, existingPrefix, res)) return; 
   
   // Validate input values, unpaidBills, and paymentTable
-  if (!validateInputs(cleanedData, customerExists, invoice, paymentTable, organizationExists, res)) return; 
+  if (!validateInputs(cleanedData, customerExists, invoice, paymentTable, organizationExists, depositAcc, customerAccount, res)) return; 
   
+
   const updatedData = await calculateTotalPaymentMade(cleanedData, amountReceived );
 
   // Validate invoices
@@ -86,10 +126,13 @@ exports.addReceipt = async (req, res) => {
   // Re-fetch the updated bills to get the latest `amountDue` and `balanceAmount`
   const updatedInvoice = await SalesReceipt.find({ _id: { $in: updatedData.invoice.map(receipt => receipt.invoiceId) } });
     
-  const payment = await createNewPayment(updatedData , organizationId, userId, userName);
+  const savedReceipt = await createNewPayment( updatedData, organizationId, userId, userName );
      
+  //Journal
+  await journal( savedReceipt, depositAcc, customerAccount );
+
   //Response with the updated bills and the success message     
-  return res.status(200).json({ message: 'Receipt added successfully',  payment , updatedInvoice });
+  return res.status(200).json({ message: 'Receipt added successfully' });
     
 } catch (error) {
   console.error('Error adding receipt:', error);
@@ -98,7 +141,34 @@ exports.addReceipt = async (req, res) => {
 };
 
 
+// Get receipt Journal
+exports.receiptJournal = async (req, res) => {
+  try {
+      const organizationId = req.user.organizationId;
+      const { receiptId } = req.params;
 
+      const { receiptJournal } = await salesDataExist( organizationId, receiptId );      
+
+      if (!receiptJournal) {
+          return res.status(404).json({
+              message: "No Journal found for the Invoice.",
+          });
+      }
+
+      const transformedJournal = invoiceJournal.map(item => {
+        return {
+            ...item,
+            accountId: item.accountId._id,  
+            accountName: item.accountId.accountName,  
+        };
+    });    
+      
+      res.status(200).json(transformedJournal);
+  } catch (error) {
+      console.error("Error fetching journal:", error);
+      res.status(500).json({ message: "Internal server error." });
+  }
+};
 
 
 //Get all
@@ -183,7 +253,7 @@ function salesReceiptPrefix( cleanData, existingPrefix ) {
   if (!activeSeries) {
       return res.status(404).json({ message: "No active series found for the organization." });
   }
-  cleanData.customerPayment = `${activeSeries.receipt}${activeSeries.receiptNum}`;
+  cleanData.payment = `${activeSeries.receipt}${activeSeries.receiptNum}`;
 
   activeSeries.receiptNum += 1;
 
@@ -221,8 +291,8 @@ function salesReceiptPrefix( cleanData, existingPrefix ) {
 
 
 //Validate inputs
-function validateInputs( data, customerExists, invoice , organizationExists, paymentTableExist ,  res) {
-  const validationErrors = validatePaymentData(data, customerExists, invoice, organizationExists , paymentTableExist);
+function validateInputs( data, customerExists, invoice, paymentTable, organizationExists, depositAcc, customerAccount, res) {
+  const validationErrors = validatePaymentData(data, customerExists, invoice, paymentTable, organizationExists, depositAcc, customerAccount);
 
   if (validationErrors.length > 0) {
     res.status(400).json({ message: validationErrors.join(", ") });
@@ -249,7 +319,7 @@ function createNewPayment(data, organizationId, userId, userName) {
 
 
 //Validate Data
-function validatePaymentData( data, customerExists, invoice, paymentTable ) {
+function validatePaymentData( data, customerExists, invoice, paymentTable, organizationExists, depositAcc, customerAccount ) {
   const errors = [];
 
   // console.log("invoice Request :",invoice);
@@ -257,7 +327,7 @@ function validatePaymentData( data, customerExists, invoice, paymentTable ) {
   
 
   //Basic Info
-  validateReqFields( data, errors );
+  validateReqFields( data, depositAcc, customerAccount, errors );
   validatePaymentTable(invoice, paymentTable, errors);
   validateFloatFields([ 'amountReceived','amountUsedForPayments','total'], data, errors);
 
@@ -275,17 +345,24 @@ function validateField(condition, errorMsg, errors) {
 }
 
 //Valid Req Fields
-function validateReqFields( data, errors ) {
+function validateReqFields( data, depositAcc, customerAccount, errors ) {
   validateField( typeof data.customerId === 'undefined' || typeof data.customerDisplayName === 'undefined', "Please select a customer", errors  );
   validateField( typeof data.invoice === 'undefined' || (Array.isArray(data.invoice) && data.invoice.length === 0), "Select an invoice", errors  );
-  validateField( typeof data.amountReceived === 'undefined' || data.amountReceived === 0, "Enter amount received", errors  );
-  validateField( typeof data.amountUsedForPayments === 'undefined' || data.amountUsedForPayments === 0, "Enter amount used for payments", errors  );
+  validateField( typeof data.amountReceived === 'undefined' || data.amountReceived === 0 || typeof data.amountUsedForPayments === 'undefined' || data.amountUsedForPayments === 0, "Enter amount received", errors  );
+  validateField( typeof data.depositAccountId === 'undefined' , "Select deposit account", errors  );
+  validateField( typeof data.paymentMode === 'undefined' , "Select payment mode", errors  );
+  validateField( typeof data.paymentDate === 'undefined' , "Select payment date", errors  );
+
+  validateField( !depositAcc && typeof data.amountReceived !== 'undefined' , "Deposit Account not found", errors  );
+  validateField( !customerAccount && typeof data.amountReceived !== 'undefined' , "Customer Account not found", errors  );
+
+
 }
 
 
 // Function to Validate Item Table 
 function validatePaymentTable(invoice, paymentTable, errors) {
-  console.log("validate:",invoice , paymentTable)
+  // console.log("validate:",invoice , paymentTable)
   // Check for bill count mismatch
   validateField( invoice.length !== paymentTable.length, "Mismatch in invoice count between request and database.", errors  );
 
@@ -463,3 +540,67 @@ async function processInvoices(invoices) {
 }
 
 
+
+
+
+
+
+
+
+
+async function journal( savedReceipt, depositAcc, customerAccount ) {    
+  const customerPaid = {
+    organizationId: savedReceipt.organizationId,
+    operationId: savedReceipt._id,
+    transactionId: savedReceipt.payment,
+    accountId: customerAccount._id || undefined,
+    action: "Receipt",
+    debitAmount: 0,
+    creditAmount: savedReceipt.amountReceived || 0,
+    remark: savedReceipt.note,
+  };
+  const depositAccount = {
+    organizationId: savedReceipt.organizationId,
+    operationId: savedReceipt._id,
+    transactionId: savedReceipt.payment,
+    accountId: depositAcc._id || undefined,
+    action: "Receipt",
+    debitAmount: savedReceipt.amountReceived || 0,
+    creditAmount: 0,
+    remark: savedReceipt.note,
+  };
+  
+
+  console.log("customerPaid", customerPaid.debitAmount,  customerPaid.creditAmount);
+  console.log("depositAccount", depositAccount.debitAmount,  depositAccount.creditAmount);
+
+  const  debitAmount = customerPaid.debitAmount + depositAccount.debitAmount ;
+  const  creditAmount = customerPaid.creditAmount + depositAccount.creditAmount ;
+
+  console.log("Total Debit Amount: ", debitAmount );
+  console.log("Total Credit Amount: ", creditAmount );
+  
+  createTrialEntry( customerPaid )
+  createTrialEntry( depositAccount )
+}
+
+
+
+
+
+
+async function createTrialEntry( data ) {
+  const newTrialEntry = new TrialBalance({
+      organizationId:data.organizationId,
+      operationId:data.operationId,
+      transactionId: data.transactionId,
+      accountId: data.accountId,
+      action: data.action,
+      debitAmount: data.debitAmount,
+      creditAmount: data.creditAmount,
+      remark: data.remark
+});
+
+await newTrialEntry.save();
+
+}

@@ -116,8 +116,6 @@ exports.addInvoice = async (req, res) => {
 
       const { items, salesOrderId, customerId, customerName, otherExpenseAccountId, freightAccountId, depositAccountId } = cleanedData;
       const itemIds = items.map(item => item.itemId);
-
-      console.log(customerId);
       
 
       // Check for duplicate itemIds
@@ -132,9 +130,9 @@ exports.addInvoice = async (req, res) => {
         return res.status(400).json({ message: `Select a customer` });
       }      
 
-      // if ((!mongoose.Types.ObjectId.isValid(otherExpenseAccountId) || otherExpenseAccountId.length !== 24) && cleanedData.otherExpenseAmount !== undefined ) {
-      //   return res.status(400).json({ message: `Select other expense account` });
-      // }
+      if ((!mongoose.Types.ObjectId.isValid(otherExpenseAccountId) || otherExpenseAccountId.length !== 24) && cleanedData.otherExpenseAmount !== undefined ) {
+        return res.status(400).json({ message: `Select other expense account` });
+      }
 
       if ((!mongoose.Types.ObjectId.isValid(freightAccountId) || freightAccountId.length !== 24) && cleanedData.freightAmount !== undefined ) {
         return res.status(400).json({ message: `Select freight account` });
