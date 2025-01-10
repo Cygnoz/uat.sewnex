@@ -667,9 +667,9 @@ function validateInvoiceData(data, items, invoiceExist, errors) {
     if (!invoiceItem) {
       errors.push(`Item ID ${CNItem.itemId} not found in the invoice.`); 
     } else {
-      validateField(CNItem.itemName !== invoiceItem.itemName, 
-                    `Item Name mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.itemName}, got ${CNItem.itemName}`, 
-                    errors);
+      // validateField(CNItem.itemName !== invoiceItem.itemName, 
+      //               `Item Name mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.itemName}, got ${CNItem.itemName}`, 
+      //               errors);
       validateField(CNItem.sellingPrice !== invoiceItem.sellingPrice, 
                     `Item selling price mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.sellingPrice}, got ${CNItem.sellingPrice}`, 
                     errors);
