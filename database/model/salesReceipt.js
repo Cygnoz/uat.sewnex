@@ -23,7 +23,7 @@ const SalesReceiptSchema = new Schema ({
   bankCharge: { type: String },  
   paymentDate: { type: String },
 
-  payment: { type: String }, //prefix
+  receipt: { type: String }, //prefix
   paymentMode: { type: String },   
 
   depositAccountId: { type: String },  
