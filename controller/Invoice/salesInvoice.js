@@ -279,12 +279,22 @@ exports.getAllSalesInvoice = async (req, res) => {
       return res.status(404).json({ message: "No Invoice found" });
     }
 
-    const transformedInvoice = allInvoice.map(data => {
+    const transformedInvoice = await Promise.all(allInvoice.map(async (data) => {
+      // Populate itemId to get itemName
+      const populatedItems = await Promise.all(data.items.map(async (item) => {
+        const itemData = await Item.findById(item.itemId).select('itemName');
+        return {
+          ...item,
+          itemName: itemData ? itemData.itemName : null, // Add itemName to each item
+        };
+      }));
       return {
           ...data,
           customerId: data.customerId._id,  
           customerDisplayName: data.customerId.customerDisplayName,  
-      };});     
+          items: populatedItems, // Include populated item names
+      };
+    }));     
 
    // Get current date for comparison
    const currentDate = new Date();
