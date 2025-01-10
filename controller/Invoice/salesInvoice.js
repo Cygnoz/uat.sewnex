@@ -16,6 +16,8 @@ const Account = require("../../database/model/account");
 const { cleanData } = require("../../services/cleanData");
 const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
 
+const { ObjectId } = require('mongodb');
+
 
 
 // Fetch existing data
@@ -35,10 +37,12 @@ const dataExist = async ( organizationId, customerId ) => {
 //Fetch Item Data
 const itemDataExists = async (organizationId,items) => {
                 // Retrieve items with specified fields
-                const itemIds = items.map(item => item.itemId);
+                const itemIds = items.map(item => new mongoose.Types.ObjectId(item.itemId));
 
                 const [newItems] = await Promise.all([
-                  Item.find({ organizationId, _id: { $in: itemIds } }, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, costPrice:1,  taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }),
+                  Item.find( { organizationId, _id: { $in: itemIds } },
+                  { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, costPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }
+                  ).lean()
                 ]);
 
                 // Aggregate ItemTrack to get the latest entry for each itemId
@@ -49,17 +53,16 @@ const itemDataExists = async (organizationId,items) => {
                 ]);
                 
 
-                // Map itemTracks by itemId for easier lookup
+                // Create a map of itemTracks by itemId for easier lookup
                 const itemTrackMap = itemTracks.reduce((acc, itemTrack) => {
-                  acc[itemTrack._id] = itemTrack.lastEntry;
+                  acc[itemTrack._id.toString()] = itemTrack.lastEntry;
                   return acc;
                 }, {});
 
-                // Attach the last entry from ItemTrack to each item in newItems
+                // Enrich items with current stock data from itemTrackMap
                 const itemTable = newItems.map(item => ({
-                  ...item._doc, // Copy item fields
-                  // lastEntry: itemTrackMap[item._id] || null, // Attach lastEntry if found
-                  currentStock: itemTrackMap[item._id.toString()] ? itemTrackMap[item._id.toString()].currentStock : null
+                  ...item,
+                  currentStock: itemTrackMap[item._id.toString()]?.currentStock || null
                 }));
 
                 return { itemTable };
@@ -1440,43 +1443,36 @@ async function itemTrack(savedInvoice, itemTable) {
   const { items } = savedInvoice;
 
   for (const item of items) {
-    // Find the matching item in itemTable by itemId
-    const matchingItem = itemTable.find((entry) => entry._id.toString() === item.itemId);
+
+    const itemIdAsObjectId = new ObjectId(item.itemId);
+
+    // Find the matching item
+    const matchingItem = itemTable.find((entry) => entry._id.equals(itemIdAsObjectId));
 
     if (!matchingItem) {
       console.error(`Item with ID ${item.itemId} not found in itemTable`);
-      continue; // Skip this entry if not found
+      continue; 
     }
 
-    // Calculate the new stock level after the sale
     const newStock = matchingItem.currentStock - item.quantity;
     if (newStock < 0) {
       console.error(`Insufficient stock for item ${item.itemName}`);
-      continue; // Skip this entry if stock is insufficient
+      continue; 
     }
 
-    // Create a new entry for item tracking
-    const newTrialEntry = new ItemTrack({
+    const newItemTrack = new ItemTrack({
       organizationId: savedInvoice.organizationId,
       operationId: savedInvoice._id,
       transactionId: savedInvoice.salesInvoice,
       action: "Sale",
-      date: savedInvoice.salesInvoiceDate,
       itemId: matchingItem._id,
-      itemName: matchingItem.itemName,
       sellingPrice: matchingItem.sellingPrice,
-      costPrice: matchingItem.costPrice || 0, // Assuming cost price is in itemTable
-      creditQuantity: item.quantity, // Quantity sold
-      currentStock: newStock,
-      remark: `Sold to ${savedInvoice.customerName}`,
+      costPrice: matchingItem.costPrice || 0, 
+      creditQuantity: item.quantity, 
+      currentStock: newStock
     });
 
-    // Save the tracking entry and update the item's stock in the item table
-    await newTrialEntry.save();
-
-    console.log(newTrialEntry);
-    
-    
-
+    const savedItemTrack = await newItemTrack.save();
+    console.log("savedItemTrack",savedItemTrack);
   }
 }
