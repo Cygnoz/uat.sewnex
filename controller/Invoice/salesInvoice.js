@@ -114,7 +114,7 @@ exports.addInvoice = async (req, res) => {
       .filter(item => item.itemId !== undefined && item.itemId !== '') || []; 
 
 
-      const { items, salesOrderId, customerId, customerName, otherExpenseAccountId, freightAccountId, depositAccountId } = cleanedData;
+      const { items, salesOrderId, customerId, otherExpenseAccountId, freightAccountId, depositAccountId } = cleanedData;
       const itemIds = items.map(item => item.itemId);
       
 
@@ -148,7 +148,7 @@ exports.addInvoice = async (req, res) => {
         return res.status(400).json({ message: `Invalid item IDs: ${invalidItemIds.join(', ')}` });
       }   
   
-      const { organizationExists, customerExist , settings, existingPrefix, defaultAccount, customerAccount } = await dataExist( organizationId, customerId );   
+      const { organizationExists, customerExist ,existingPrefix, defaultAccount, customerAccount } = await dataExist( organizationId, customerId );   
             
       const { itemTable } = await itemDataExists( organizationId, items );
 
@@ -541,9 +541,7 @@ function salesPrefix( cleanData, existingPrefix ) {
 
   activeSeries.invoiceNum += 1;
 
-  existingPrefix.save()
-
-  return 
+  existingPrefix.save() 
 }
 
   
@@ -562,8 +560,7 @@ function taxType( cleanedData, customerExist, organizationExists ) {
   }
   if(customerExist.taxType === 'Non-Tax' ){
     cleanedData.taxType ='Non-Tax';
-  }  
-  return  
+  }    
 }
 
 //Default Account
@@ -681,8 +678,8 @@ validateField( typeof data.freightAmount !== 'undefined' && typeof data.freightA
 
 validateField( typeof data.roundOffAmount !== 'undefined' && !(data.roundOffAmount >= 0 && data.roundOffAmount <= 1), "Round Off Amount must be between 0 and 1", errors );
 
-validateField( typeof data.paidAmount !== 'undefined' && !(data.paidAmount <= data.totalAmount), "Excess payment amount", errors );
-validateField( typeof data.paidAmount !== 'undefined' && !(data.paidAmount >= 0 ), "Negative payment amount", errors );
+validateField( typeof data.paidAmount !== 'undefined' && !(data.paidAmount > data.totalAmount), "Excess payment amount", errors );
+validateField( typeof data.paidAmount !== 'undefined' && !(data.paidAmount < 0 ), "Negative payment amount", errors );
 
 validateField( typeof defaultAccount.salesDiscountAccount === 'undefined', "No Sales Discount Account found", errors  );
 
@@ -1475,9 +1472,9 @@ async function itemTrack(savedInvoice, itemTable) {
     });
 
     // Save the tracking entry and update the item's stock in the item table
-    //await newTrialEntry.save();
+    await newTrialEntry.save();
 
-    // console.log(newTrialEntry);
+    console.log(newTrialEntry);
     
     
 

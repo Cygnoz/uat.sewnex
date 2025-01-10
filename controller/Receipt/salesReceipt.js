@@ -30,10 +30,10 @@ const dataExist = async (organizationId, invoice ,customerId, customerDisplayNam
 const receiptDataExist = async ( organizationId, receiptId ) => {    
     const [organizationExists, allReceipt, receipt ] = await Promise.all([
       Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }).lean(),
-      SalesReceipt.find({ organizationId })
+      SalesReceipt.find({ organizationId },{ customerId:1, paymentDate:1, paymentMode:1, amountReceived:1, createdDateTime:1})
       .populate('customerId', 'customerDisplayName')    
       .lean(),
-      SalesReceipt.findOne({ organizationId , _id: receiptId })
+      SalesReceipt.findOne({ organizationId , _id: receiptId },{ organizationId:0 })
       .populate('customerId', 'customerDisplayName')    
       .lean(),
     ]);
@@ -128,7 +128,7 @@ exports.addReceipt = async (req, res) => {
   await salesReceiptPrefix(cleanedData, existingPrefix );
 
   // Re-fetch the updated bills to get the latest `amountDue` and `balanceAmount`
-  const updatedInvoice = await SalesReceipt.find({ _id: { $in: updatedData.invoice.map(receipt => receipt.invoiceId) } });
+  await SalesReceipt.find({ _id: { $in: updatedData.invoice.map(receipt => receipt.invoiceId) } });
     
   const savedReceipt = await createNewPayment( updatedData, organizationId, userId, userName );  
      
@@ -159,7 +159,7 @@ exports.receiptJournal = async (req, res) => {
           });
       }
 
-      const transformedJournal = invoiceJournal.map(item => {
+      const transformedJournal = receiptJournal.map(item => {
         return {
             ...item,
             accountId: item.accountId._id,  
@@ -226,10 +226,15 @@ exports.getSalesReceipt = async (req, res) => {
       return res.status(404).json({ message: "No receipt found" });
     }
 
-    console.log(receipt);
+    const transformedInvoice = {
+      ...receipt,
+      customerId: receipt.customerId._id,  
+      customerDisplayName: receipt.customerId.customerDisplayName,
+        
+  };  
     
 
-    res.status(200).json(receipt);
+    res.status(200).json(transformedInvoice);
   } catch (error) {
     console.error("Error fetching receipt:", error);
     res.status(500).json({ message: "Internal server error." });
@@ -273,9 +278,7 @@ function salesReceiptPrefix( cleanData, existingPrefix ) {
 
   activeSeries.receiptNum += 1;
 
-  existingPrefix.save()
-
-  return 
+  existingPrefix.save() 
 }
 
 
@@ -390,8 +393,8 @@ function validatePaymentTable(invoice, paymentTable, errors) {
     validateField( !fetchedInvoices, `Invoice with ID ${invoices.invoiceId} was not found.`, errors );
     if (!fetchedInvoices) return; 
 
-     // Validate invoice number
-     validateField( invoices.salesInvoice !== fetchedInvoices.salesInvoice, `Invoice Number Mismatch Invoice Number: ${invoices.salesInvoice}`, errors );
+    // Validate invoice number
+    validateField( invoices.salesInvoice !== fetchedInvoices.salesInvoice, `Invoice Number Mismatch Invoice Number: ${invoices.salesInvoice}`, errors );
 
     // Validate bill date
     validateField( invoices.salesInvoiceDate !== fetchedInvoices.salesInvoiceDate, `Invoice Date Mismatch Invoice Number: ${invoices.salesInvoice} : ${invoices.salesInvoiceDate}` , errors );
@@ -509,7 +512,7 @@ const calculateAmountDue = async (invoiceId, { amount }) => {
 
 
 
-const calculateTotalPaymentMade = async (cleanedData) => {
+const calculateTotalPaymentMade = async (cleanedData, amountReceived) => {
   let totalPayment = 0;
 
   // Sum the `payment` amounts from each unpaid bill in the array
@@ -522,7 +525,7 @@ const calculateTotalPaymentMade = async (cleanedData) => {
   cleanedData.amountReceived = totalPayment;
 
   // Calculate amountUsedForPayments and amountInExcess
-  const amountReceived = cleanedData.amountReceived || 0;
+  amountReceived = cleanedData.amountReceived || 0;
   cleanedData.amountUsedForPayments = amountReceived - totalPayment;
 
   return cleanedData;
