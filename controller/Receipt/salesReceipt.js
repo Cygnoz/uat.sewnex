@@ -30,7 +30,7 @@ const dataExist = async (organizationId, invoice ,customerId, customerDisplayNam
 const receiptDataExist = async ( organizationId, receiptId ) => {    
     const [organizationExists, allReceipt, receipt ] = await Promise.all([
       Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }).lean(),
-      SalesReceipt.find({ organizationId },{ customerId:1, paymentDate:1, paymentMode:1, amountReceived:1, createdDateTime:1})
+      SalesReceipt.find({ organizationId },{ customerId:1, paymentDate:1, paymentMode:1, amountReceived:1, receipt:1, createdDateTime:1})
       .populate('customerId', 'customerDisplayName')    
       .lean(),
       SalesReceipt.findOne({ organizationId , _id: receiptId },{ organizationId:0 })
@@ -50,22 +50,16 @@ const accDataExists = async ( organizationId, depositAccountId, customerId ) => 
 };
 
 
-//Get one and All
-const salesDataExist = async ( organizationId, receiptId ) => {        
-  const [organizationExists, allInvoice, invoice, receiptJournal ] = await Promise.all([
-    Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }).lean(),
-    Invoice.find({ organizationId })
-    .populate('customerId', 'customerDisplayName')    
-    .lean(),
-    Invoice.findOne({ organizationId , _id: receiptId })
-    .populate('items.itemId', 'itemName')    
-    .populate('customerId', 'customerDisplayName')    
+//Get journal data
+const journalDataExist = async ( organizationId, receiptId ) => {        
+  const [organizationExists, receiptJournal ] = await Promise.all([
+    Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 })
     .lean(),
     TrialBalance.find({ organizationId: organizationId, operationId : receiptId })
     .populate('accountId', 'accountName')    
     .lean(),
   ]);
-  return { organizationExists, allInvoice, invoice, receiptJournal };
+  return { organizationExists, receiptJournal };
 };
 
 
@@ -111,8 +105,7 @@ exports.addReceipt = async (req, res) => {
   if (!validateCustomerAndOrganization(organizationExists, customerExists, existingPrefix, res)) return; 
   
   // Validate input values, unpaidBills, and paymentTable
-  if (!validateInputs(cleanedData, customerExists, invoice, paymentTable, organizationExists, depositAcc, customerAccount, res)) return; 
-  
+  if (!validateInputs(cleanedData, invoice, paymentTable, organizationExists, depositAcc, customerAccount, res)) return; 
 
   const updatedData = await calculateTotalPaymentMade(cleanedData, amountReceived );
 
@@ -130,7 +123,7 @@ exports.addReceipt = async (req, res) => {
   // Re-fetch the updated bills to get the latest `amountDue` and `balanceAmount`
   await SalesReceipt.find({ _id: { $in: updatedData.invoice.map(receipt => receipt.invoiceId) } });
     
-  const savedReceipt = await createNewPayment( updatedData, organizationId, userId, userName );  
+  const savedReceipt = await createNewReceipt( updatedData, organizationId, userId, userName );  
      
   //Journal
   await journal( savedReceipt, depositAcc, customerAccount );
@@ -151,7 +144,7 @@ exports.receiptJournal = async (req, res) => {
       const organizationId = req.user.organizationId;
       const { receiptId } = req.params;
 
-      const { receiptJournal } = await salesDataExist( organizationId, receiptId );      
+      const { receiptJournal } = await journalDataExist( organizationId, receiptId );      
 
       if (!receiptJournal) {
           return res.status(404).json({
@@ -226,15 +219,15 @@ exports.getSalesReceipt = async (req, res) => {
       return res.status(404).json({ message: "No receipt found" });
     }
 
-    const transformedInvoice = {
+    const transformedData = {
       ...receipt,
       customerId: receipt.customerId._id,  
       customerDisplayName: receipt.customerId.customerDisplayName,
-        
-  };  
-    
+      };  
 
-    res.status(200).json(transformedInvoice);
+    const formattedObjects = singleCustomDateTime(transformedData, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );        
+
+    res.status(200).json(formattedObjects);
   } catch (error) {
     console.error("Error fetching receipt:", error);
     res.status(500).json({ message: "Internal server error." });
@@ -274,7 +267,7 @@ function salesReceiptPrefix( cleanData, existingPrefix ) {
   if (!activeSeries) {
       return res.status(404).json({ message: "No active series found for the organization." });
   }
-  cleanData.payment = `${activeSeries.receipt}${activeSeries.receiptNum}`;
+  cleanData.receipt = `${activeSeries.receipt}${activeSeries.receiptNum}`;
 
   activeSeries.receiptNum += 1;
 
@@ -310,8 +303,8 @@ function salesReceiptPrefix( cleanData, existingPrefix ) {
 
 
 //Validate inputs
-function validateInputs( data, customerExists, invoice, paymentTable, organizationExists, depositAcc, customerAccount, res) {
-  const validationErrors = validatePaymentData(data, customerExists, invoice, paymentTable, organizationExists, depositAcc, customerAccount);
+function validateInputs( data, invoice, paymentTable, organizationExists, depositAcc, customerAccount, res) {
+  const validationErrors = validatePaymentData(data, invoice, paymentTable, organizationExists, depositAcc, customerAccount);
 
   if (validationErrors.length > 0) {
     res.status(400).json({ message: validationErrors.join(", ") });
@@ -324,7 +317,7 @@ function validateInputs( data, customerExists, invoice, paymentTable, organizati
 
 
 // Function to create a new payment record
-function createNewPayment(data, organizationId, userId, userName) {
+function createNewReceipt(data, organizationId, userId, userName) {
   const newPayment = new SalesReceipt({
     ...data,
     organizationId,
@@ -338,7 +331,7 @@ function createNewPayment(data, organizationId, userId, userName) {
 
 
 //Validate Data
-function validatePaymentData( data, customerExists, invoice, paymentTable, organizationExists, depositAcc, customerAccount ) {
+function validatePaymentData( data, invoice, paymentTable, organizationExists, depositAcc, customerAccount ) {
   const errors = [];
 
   // console.log("invoice Request :",invoice);

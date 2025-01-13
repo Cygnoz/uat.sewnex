@@ -199,21 +199,16 @@ exports.getAllSalesOrder = async (req, res) => {
 exports.getOneSalesOrder = async (req, res) => {
 try {
   const organizationId = req.user.organizationId;
-  const  orderId = req.params.orderId;
+  const  {orderId} = cleanData(req.params.orderId);
 
+  if ( !orderId ) return res.status(404).json({ message: "No Quotes found" });
+  
   const { organizationExists, order } = await salesDataExist( organizationId, orderId );
 
-  if (!organizationExists) {
-    return res.status(404).json({
-      message: "Organization not found",
-    });
-  }
+  if (!organizationExists) return res.status(404).json({ message: "Organization not found" });
 
-  if (!order) {
-    return res.status(404).json({
-      message: "No Quotes found",
-    });
-  }
+  if (!order) return res.status(404).json({ message: "No Quotes found" });
+  
   const transformedInvoice = {
     ...order,
     customerId: order.customerId._id,  
@@ -232,7 +227,7 @@ try {
 
   res.status(200).json(transformedInvoice);
 } catch (error) {
-  console.error("Error fetching Order1:", error);
+  console.error("Error fetching Order:", error);
   res.status(500).json({ message: "Internal server error." });
 }
 };
