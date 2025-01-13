@@ -756,7 +756,7 @@ function validateInvoiceData(data, items, invoiceExist, errors) {
 
     // console.log("invoiceItem.itemId......",invoiceItem.itemId.toString());
     // console.log("CNItem.itemId......",CNItem.itemId); 
-    // console.log("invoiceExist......",invoiceExist.items[0].itemId.toString());
+    // console.log("invoiceExist......",invoiceExist.items[0].itemId.toString()); 
 
     if (!invoiceItem) {
       errors.push(`Item ID ${CNItem.itemId} not found in the invoice.`); 

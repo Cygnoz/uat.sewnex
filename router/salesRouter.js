@@ -3,7 +3,9 @@ const express = require("express")
 const router = new express.Router()
 
 const salesQuotes = require('../controller/Quote/salesQuotes')
+const updateSalesQuotes = require('../controller/Quote/updateQuotes')
 const salesOrder = require('../controller/Order/salesOrder')
+const updateSalesOrder = require('../controller/Order/updateSalesOrder')
 const salesInvoice = require('../controller/Invoice/salesInvoice')
 const salesReceipt = require('../controller/Receipt/salesReceipt')
 const creditNote = require('../controller/Credit Note/creditNoteController')
@@ -31,6 +33,8 @@ router.get('/get-all-sales-quotes',verifyToken,salesQuotes.getAllSalesQuote)
 
 router.get('/get-one-sales-quotes/:quoteId',verifyToken,salesQuotes.getOneSalesQuote)
 
+router.put('/update-sales-quotes/:quoteId',verifyToken,updateSalesQuotes.updateSalesQuote)
+
 
 
 //Sales Order
@@ -41,6 +45,8 @@ router.get('/get-last-sales-order-prefix',verifyToken,salesOrder.getLastOrderPre
 router.get('/get-all-sales-order',verifyToken,salesOrder.getAllSalesOrder)
 
 router.get('/get-one-sales-order/:orderId',verifyToken,salesOrder.getOneSalesOrder)
+
+router.put('/update-sales-order/:orderId',verifyToken,updateSalesOrder.updateSalesOrder) 
 
 
 

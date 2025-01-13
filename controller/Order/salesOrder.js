@@ -203,15 +203,15 @@ exports.getAllSalesOrder = async (req, res) => {
 exports.getOneSalesOrder = async (req, res) => {
 try {
   const organizationId = req.user.organizationId;
-  const  { orderId } = cleanData(req.params.orderId);
+  const orderId  = req.params.orderId;
 
-  if ( !orderId ) return res.status(404).json({ message: "No Quotes found" });
+  if ( !orderId || orderId.length !== 24 ) return res.status(404).json({ message: "No Order found1" });
   
   const { organizationExists, order } = await salesDataExist( organizationId, orderId );
 
   if (!organizationExists) return res.status(404).json({ message: "Organization not found" });
 
-  if (!order) return res.status(404).json({ message: "No Quotes found" });
+  if (!order) return res.status(404).json({ message: "No Order found" });
   
   const transformedInvoice = {
     ...order,
@@ -235,7 +235,7 @@ const formattedObjects = singleCustomDateTime(transformedInvoice, organizationEx
 
   res.status(200).json(formattedObjects);
 } catch (error) {
-  console.error("Error fetching Order1:", error);
+  console.error("Error fetching Order:", error);
   res.status(500).json({ message: "Internal server error." });
 }
 };
@@ -819,3 +819,23 @@ const otherExpense = ( totalAmount, cleanedData ) => {
 
 
 
+
+
+
+exports.dataExist = {
+  dataExist,
+  newDataExists,
+  salesDataExist
+};
+exports.salesOrder = {
+  salesPrefix, 
+  createNewOrder, 
+};
+exports.validation = {
+  validateOrganizationTaxCurrency, 
+  validateInputs
+};
+exports.calculations = { 
+  taxType,
+  calculateSalesOrder
+};
