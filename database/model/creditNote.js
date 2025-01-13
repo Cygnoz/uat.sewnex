@@ -27,6 +27,15 @@ const itemsSchema = new Schema({
 
 },{ _id: false });
 
+
+const journalSchema = new Schema({
+  accountId: {type: mongoose.Schema.Types.ObjectId, ref: 'Accounts'},
+  debitAmount: {type:Number},
+  creditAmount: {type:Number},
+}, { _id: false });
+
+
+
 const creditNoteSchema = new mongoose.Schema({
   organizationId: {type:String},
   customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
@@ -36,15 +45,21 @@ const creditNoteSchema = new mongoose.Schema({
 
   taxType: { type: String },//Intra, Inter, Non-tax, VAT 
 
-  invoiceId: { type: String },
-  invoiceNumber: { type: String },
-  invoiceDate: { type: String },
+  invoiceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
+  //salesInvoice -invoice prefix
+  //salesInvoiceDate
+  
+  // invoiceNumber: { type: String }, //invoice prefix
+  // invoiceDate: { type: String },
+  
   invoiceType: { type: String },
   creditNote: { type: String },  //prefix
-  orderNumber: { type: String },
+  // orderNumber: { type: String },
   customerCreditDate: { type: String },
+  
   paymentMode: { type: String },  // cash/credit
-  depositTo: { type: String },
+  paidThroughAccountId: {type: mongoose.Schema.Types.ObjectId, ref: 'Accounts'},
+  //paidThroughAccountName
   subject: { type: String }, 
 
   // Item table
@@ -67,7 +82,9 @@ const creditNoteSchema = new mongoose.Schema({
   totalTax: { type: Number },   // sgst + cgst
   totalAmount: { type: Number },
 
-  createdDate: { type: String },
+  salesJournal:[ journalSchema ], 
+
+  createdDateTime: { type: Date, default: () => new Date() },
 
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   //userName
@@ -78,4 +95,3 @@ const creditNoteSchema = new mongoose.Schema({
 
 const CreditNote = mongoose.model('CreditNote', creditNoteSchema);
 module.exports = CreditNote;
-

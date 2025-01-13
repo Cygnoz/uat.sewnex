@@ -16,12 +16,12 @@ const { singleCustomDateTime, multiCustomDateTime } = require("../../services/ti
 
 
 // Fetch existing data
-const dataExist = async ( organizationId, items, customerId, customerName ) => {
+const dataExist = async ( organizationId, items, customerId ) => {
   const itemIds = items.map(item => item.itemId);
   
     const [organizationExists, customerExist , settings, itemTable, itemTrack, existingPrefix  ] = await Promise.all([
       Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
-      Customer.findOne({ organizationId , _id:customerId, customerDisplayName: customerName}, { _id: 1, customerDisplayName: 1, taxType: 1 }),
+      Customer.findOne({ organizationId , _id:customerId }, { _id: 1, customerDisplayName: 1, taxType: 1 }),
       Settings.findOne({ organizationId },{ salesOrderAddress: 1, salesOrderCustomerNote: 1, salesOrderTermsCondition: 1, salesOrderClose: 1, restrictSalesOrderClose: 1, termCondition: 1 ,customerNote: 1 }),
       Item.find({ organizationId, _id: { $in: itemIds } }, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }),
       ItemTrack.aggregate([
@@ -58,7 +58,7 @@ exports.addQuotes = async (req, res) => {
       //Clean Data
       const cleanedData = cleanData(req.body);      
 
-      const { items, customerId, customerName } = cleanedData;
+      const { items, customerId } = cleanedData;
       const itemIds = items.map(item => item.itemId);
       
       // Check for duplicate itemIds
@@ -77,7 +77,7 @@ exports.addQuotes = async (req, res) => {
         return res.status(400).json({ message: `Invalid item IDs: ${invalidItemIds.join(', ')}` });
       }   
   
-      const { organizationExists, customerExist , itemTable, itemTrack, existingPrefix } = await dataExist( organizationId, items, customerId, customerName );      
+      const { organizationExists, customerExist , itemTable, existingPrefix } = await dataExist( organizationId, items, customerId );      
             
       //Data Exist Validation
       if (!validateOrganizationTaxCurrency( organizationExists, customerExist, existingPrefix, res )) return;
@@ -192,9 +192,12 @@ exports.getOneSalesQuote = async (req, res) => {
         itemId: item.itemId._id,
         itemName: item.itemId.itemName,
       })),  
-  }; 
+  };
+  
+  const formattedObjects = singleCustomDateTime(transformedInvoice, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
 
-    res.status(200).json(transformedInvoice);
+
+    res.status(200).json(formattedObjects);
   } catch (error) {
     console.error("Error fetching Quotes:", error);
     res.status(500).json({ message: "Internal server error." });
@@ -343,9 +346,7 @@ function salesPrefix( cleanData, existingPrefix ) {
 
   activeSeries.quoteNum += 1;
 
-  existingPrefix.save()
-
-  return 
+  existingPrefix.save() 
 }
 
 
@@ -366,8 +367,7 @@ function taxType( cleanedData, customerExist, organizationExists ) {
       }
     } else {
       cleanedData.taxType ='Non-Taxable';
-    }
-  return  
+    }  
 }
 
   
@@ -429,7 +429,7 @@ function validateField(condition, errorMsg, errors) {
 }
 //Valid Req Fields
 function validateReqFields( data, customerExist, errors ) {
-  validateField( typeof data.customerId === 'undefined' || typeof data.customerName === 'undefined', "Please select a Customer", errors  );
+  validateField( typeof data.customerId === 'undefined', "Please select a Customer", errors  );
   validateField( customerExist.taxType == 'GST' && typeof data.placeOfSupply === 'undefined', "Place of supply required", errors  );
   validateField( typeof data.items === 'undefined', "Select an item", errors  );
 }
