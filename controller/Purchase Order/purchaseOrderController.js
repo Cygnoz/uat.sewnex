@@ -920,7 +920,7 @@ exports.dataExist = {
 exports.purchaseOrder = {
     purchaseOrderPrefix, 
     createNewPurchaseOrder, 
-    generateOpeningDate
+    // generateOpeningDate
 };
 exports.validation = {
     validateOrganizationSupplierPrefix, 
