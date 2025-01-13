@@ -90,6 +90,10 @@ const SalesOrderSchema = new Schema ({
   status: { type: String },
 
   createdDateTime: { type: Date, default: () => new Date() },
+
+  //lastModifiedDate
+  lastModifiedDate:{type: Date},
+  
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   //userName
 })

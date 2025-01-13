@@ -811,3 +811,23 @@ const otherExpense = ( totalAmount, cleanedData ) => {
 
 
 
+
+
+
+exports.dataExist = {
+  dataExist,
+  newDataExists,
+  salesDataExist
+};
+exports.salesOrder = {
+  salesPrefix, 
+  createNewOrder, 
+};
+exports.validation = {
+  validateOrganizationTaxCurrency, 
+  validateInputs
+};
+exports.calculations = { 
+  taxType,
+  calculateSalesOrder
+};

@@ -767,6 +767,22 @@ const validateAmount = ( calculatedValue, cleanedValue, label, errors ) => {
 
 
 
+exports.dataExist = {
+  dataExist,
+  salesDataExist
+};
+exports.salesQuote = {
+  salesPrefix, 
+  createNewQuote, 
+};
+exports.validation = {
+  validateOrganizationTaxCurrency, 
+  validateInputs
+};
+exports.calculations = { 
+  taxType,
+  calculateSalesOrder
+};
 
 
 
