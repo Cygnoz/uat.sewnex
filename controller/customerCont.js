@@ -388,10 +388,10 @@ exports.getOneCustomerHistory = async (req, res) => {
     customersHistory.forEach((entry) => {
       transformedData.push({
       ...entry,
-      customerId: entry.customerId?._id, // Extract `_id` from `customerId`
-      customerDisplayName: entry.customerId?.customerDisplayName, // Extract `customerDisplayName` from `customerId`
-      userId: entry.userId?._id, // Extract `_id` from `userId`
-      userName: entry.userId?.userName, // Extract `userName` from `userId`
+      customerId: entry.customerId?._id, 
+      customerDisplayName: entry.customerId?.customerDisplayName, 
+      userId: entry.userId?._id, 
+      userName: entry.userId?.userName, 
       });
     });
     
@@ -675,7 +675,6 @@ function createCustomerHistory(savedCustomer, savedAccount,userId, userName) {
         organizationId: savedCustomer.organizationId,
         operationId: savedCustomer._id,
         customerId: savedCustomer._id,
-        customerDisplayName: savedCustomer.customerDisplayName,
         title: "Customer Added",
         description: taxDescription,
         userId: userId,
@@ -685,7 +684,6 @@ function createCustomerHistory(savedCustomer, savedAccount,userId, userName) {
         organizationId: savedCustomer.organizationId,
         operationId: savedAccount._id,
         customerId: savedCustomer._id,
-        customerDisplayName: savedCustomer.customerDisplayName,
         title: "Customer Account Created",
         description: openingBalanceDescription,
         userId: userId,
