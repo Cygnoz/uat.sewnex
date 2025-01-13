@@ -9,12 +9,15 @@ const { cleanData } = require("../../services/cleanData");
 // Update Purchase Order 
 exports.updatePurchaseOrder = async (req, res) => {
     console.log("Update purchase order:", req.body);
-    // console.log("purchaseOrder exports", purchaseOrder);
   
     try {
-      const organizationId = req.user.organizationId;
+      const { organizationId, id: userId, userName } = req.user;
       const { orderId } = req.params;
+
+      // Clean input data
       const cleanedData = cleanData(req.body);
+
+      const { items, supplierId } = cleanedData;
   
       // Fetch existing purchase order
       const existingPurchaseOrder = await PurchaseOrder.findOne({ _id: orderId, organizationId });
@@ -22,9 +25,7 @@ exports.updatePurchaseOrder = async (req, res) => {
         console.log("Purchase order not found with ID:", orderId);
         return res.status(404).json({ message: "Purchase order not found" });
       }
-  
-      const { items, supplierId } = cleanedData;
-  
+    
       // Validate Supplier
       if (!mongoose.Types.ObjectId.isValid(supplierId) || supplierId.length !== 24) {
         return res.status(400).json({ message: `Invalid Supplier ID: ${supplierId}` });
@@ -44,9 +45,9 @@ exports.updatePurchaseOrder = async (req, res) => {
       }
   
       // Fetch related data
-      const { organizationExists, supplierExist, itemTable, taxExists, settings, existingPrefix } = await dataExist.dataExist(organizationId, supplierId, items);
+      const { organizationExists, supplierExist, itemTable, existingPrefix } = await dataExist.dataExist(organizationId, supplierId, items);
   
-      // Data Exist Validation
+      // Organization, Supplier, and Prefix Validation
       if (!validation.validateOrganizationSupplierPrefix(organizationExists, supplierExist, existingPrefix, res)) return;
   
       // Validate Inputs
@@ -58,23 +59,30 @@ exports.updatePurchaseOrder = async (req, res) => {
       // Calculate Purchase Order
       if (!calculations.calculatePurchaseOrder(cleanedData, res)) return;
   
-      // Preserve Purchase Order ID and Prefix
-      cleanedData._id = existingPurchaseOrder._id;
-      cleanedData.purchaseOrder = existingPurchaseOrder.purchaseOrder;
+      // Ensure `purchaseOrder` field matches the existing order
+      const purchaseOrder = cleanedData.purchaseOrder;
+      if (purchaseOrder !== existingPurchaseOrder.purchaseOrder) {
+        console.error("Mismatched purchaseOrder values.");
+        return res.status(400).json({
+            message: `The provided purchaseOrder does not match the existing record. Expected: ${existingPurchaseOrder.purchaseOrder}`
+        });
+    }
+
+      // Update Purchase Order Fields (Ensure system-managed fields are untouched)
+      existingPurchaseOrder.set({
+        ...cleanedData,
+        lastModifiedDate: new Date(),
+      });
   
-      // Update purchase order fields
-      Object.assign(existingPurchaseOrder, cleanedData);
-      existingPurchaseOrder.lastModifiedDate = purchaseOrder.generateOpeningDate(organizationExists);
-  
-      const updatedPurchaseOrder = await existingPurchaseOrder.save();
-  
-      if (!updatedPurchaseOrder) {
-        console.error("Purchase order could not be saved.");
-        return res.status(500).json({ message: "Failed to update purchase order" });
+      // Save Updated Purchase Order
+      const savedPurchaseOrder = await existingPurchaseOrder.save();
+      if (!savedPurchaseOrder) {
+          console.error("Failed to save updated purchase order.");
+          return res.status(500).json({ message: "Failed to update purchase order" });
       }
   
-      res.status(200).json({ message: "Purchase order updated successfully", updatedPurchaseOrder });
-      console.log("Purchase order updated successfully:", updatedPurchaseOrder);
+      res.status(200).json({ message: "Purchase order updated successfully", savedPurchaseOrder });
+      console.log("Purchase order updated successfully:", savedPurchaseOrder);
   
     } catch (error) {
       console.error("Error updating purchase order:", error);
