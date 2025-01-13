@@ -901,7 +901,16 @@ function validateField(condition, errorMsg, errors) {
 //Valid Req Fields
 function validateReqFields( data, taxType, organization, errors ) {
   validateField( typeof data.customerDisplayName === 'undefined', `Customer Display Name required`, errors );  
-  validateField( typeof taxType === 'undefined' || taxType === '' , `Please setup tax`, errors );  
+
+  validateField( typeof taxType === 'undefined' || taxType === '' , `Please setup tax`, errors );
+  validateField( typeof data.taxType === 'undefined' || data.taxType === '' , `Select tax type`, errors );
+  validateField( typeof data.taxPreference === 'undefined' || data.taxPreference === '' , `Select tax preference`, errors );
+  validateField( typeof data.gstTreatment === 'undefined' || data.gstTreatment === '' , `Select GST Treatment`, errors );
+
+  validateField( typeof data.placeOfSupply === 'undefined' || data.placeOfSupply === '' , `Select place of supply`, errors );
+
+
+
   validateField( data.billingCountry !== organization.organizationCountry , `Invalid Billing Country`, errors );    
 }
 //Valid Opening Balance
