@@ -66,6 +66,7 @@ const itemSchema = new Schema({
 
 
     openingStock:{type:Number},
+    openingStockRatePerUnit:{type:Number},
     reorderPoint: { type: Number },
     
     createdDateTime: { type: Date, default: () => new Date() },
