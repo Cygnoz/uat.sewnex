@@ -781,7 +781,6 @@ function editOpeningBalance(existingCustomer, cleanedData) {
   } else if (existingCustomer.creditOpeningBalance && cleanedData.debitOpeningBalance) {
     cleanedData.creditOpeningBalance = undefined;
   }
-  return
 }
 
 
