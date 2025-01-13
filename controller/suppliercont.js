@@ -23,7 +23,10 @@ const dataExist = async ( organizationId, supplierId ) => {
       Supplier.findOne({ _id:supplierId, organizationId},{ organizationId:0 }).lean(),
       Account.findOne({ accountId: supplierId, organizationId },{ organizationId:0 }).lean(),
       TrialBalance.findOne({ organizationId, operationId: supplierId},{ organizationId:0 }).lean(),
-      SupplierHistory.find({ organizationId, supplierId },{ organizationId:0 }).lean()
+      SupplierHistory.find({ organizationId, supplierId },{ organizationId:0 })
+      .populate('supplierId', 'supplierDisplayName')    
+      .populate('userId', 'userName')
+      .lean()
 
     ]);
     return { organizationExists, taxExists, currencyExists, allSupplier , settings, existingSupplier, accountExist, trialBalance, supplierHistory};
@@ -39,7 +42,7 @@ exports.addSupplier = async (req, res) => {
     const { organizationId, id: userId, userName } = req.user;
     //Clean Data
     const cleanedData = cleanData(req.body)
-    cleanedData.contactPersons = cleanedData.contactPersons?.map(person => cleanData(person)) || [];
+    cleanedData.contactPerson = cleanedData.contactPerson?.map(person => cleanData(person)) || [];
     cleanedData.bankDetails = cleanedData.bankDetails?.map(bankDetail => cleanData(bankDetail)) || []
     const { supplierEmail, debitOpeningBalance, creditOpeningBalance, supplierDisplayName, mobile } = cleanedData;
 
@@ -137,7 +140,6 @@ exports.updateSupplier = async (req, res) => {
         organizationId,
         operationId: savedSupplier._id,
         supplierId,
-        supplierDisplayName: savedSupplier.supplierDisplayName,
         title: "Supplier Data Modified",
         description: `${savedSupplier.supplierDisplayName} Supplier data  Modified by ${userName}`,  
         userId: userId,
@@ -225,22 +227,12 @@ exports.getSupplierTransactions = async (req, res) => {
           return res.status(404).json({ message: "Account not found for this supplier" });
       }
 
-      const supplierTransactions = await TrialBalance.find({ accountId: account._id , organizationId });
+      const supplierTransactions = await TrialBalance.find({ accountId: accountExist._id , organizationId });
 
-      // Format each customer after converting to plain object
-      const formattedData = supplierTransactions.map(customer => {
-        const plainData = customer.toObject();
-  
-        if (plainData.createdDateTime) {
-  
-        const formattedObjects = singleCustomDateTime(existingCustomer, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
+      const formattedData = multiCustomDateTime( supplierTransactions, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );
 
-        }
-  
-        return formattedObjects;
-      });
-
-      return res.status(200).json({ formattedData });
+       
+      return res.status(200).json({ data: formattedData });
   } catch (error) {
       console.error("Error fetching customer transactions:", error);
       return res.status(500).json({ message: "Internal server error" });
@@ -373,9 +365,21 @@ exports.getOneSupplierHistory = async (req, res) => {
       });
     }
 
-    const formattedObjects = multiCustomDateTime(supplierHistory, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit, );    
+    const transformedData = [];
 
+    supplierHistory.forEach((entry) => {
+      transformedData.push({
+      ...entry,
+      supplierId: entry.supplierId?._id, 
+      supplierDisplayName: entry.supplierId?.supplierDisplayName, 
+      userId: entry.userId?._id, 
+      userName: entry.userId?.userName, 
+      });
+    });
+    
 
+    const formattedObjects = multiCustomDateTime(transformedData, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit, );    
+    
     res.status(200).json(formattedObjects);
   } catch (error) {
     console.error("Error fetching Supplier:", error);
@@ -589,8 +593,6 @@ exports.getOneSupplierHistory = async (req, res) => {
   // Create New Account
     function createNewAccount(supplierDisplayName, organizationId,   allSupplier , savedSupplier) {
       // Count existing organizations to generate the next organizationId
-
-      console.log("savedSupplier",savedSupplier);
       
 
       const nextIdNumber = allSupplier.length + 1;    
@@ -700,7 +702,6 @@ function createTaxExemptionDescription() {
   // Opening Balance Description
   function getOpeningBalanceDescription(data, userName) {
     let balanceType = "";
-    console.log(data)
     // Check for debit opening balance
     if (data && data.debitOpeningBalance) {
       balanceType = `Opening Balance (Debit): ${data.debitOpeningBalance}. `;
@@ -764,7 +765,6 @@ async function updateOpeningBalance(existingTrialBalance, cleanData) {
 // Update Account Name
 async function updateAccount(cleanedData, accountExist) {
   try {
-    console.log("Account name update:", accountExist);
     
     let accountName = { accountName: cleanedData.supplierDisplayName };
 
@@ -802,7 +802,7 @@ async function updateAccount(cleanedData, accountExist) {
       validateNames(['firstName', 'lastName'], data, errors);
       validateEmail(data.supplierEmail, errors);
       validateWebsite(data.websiteURL, errors);
-      validateContactPerson(data.contactPersons, errors);
+      validateContactPerson(data.contactPerson, errors);
       validateBankDetails(data.bankDetails, errors);
 
       validatePhones(['workPhone', 'mobile'], data, errors);
@@ -829,13 +829,13 @@ async function updateAccount(cleanedData, accountExist) {
     
 
     function validateReqFields( data, errors ) {
-      if (typeof data.supplierDisplayName === 'undefined' ) {
-        errors.push("Supplier Display Name required");
-      }
       const interestPercentage = parseFloat(data.interestPercentage);
-      if ( interestPercentage > 100 ) {
-        errors.push("Interest Percentage cannot exceed 100%");
-      }
+      
+      validateField( typeof data.supplierDisplayName === 'undefined', `Supplier Display Name required`, errors );
+      validateField( typeof data.taxType === 'undefined' || data.taxType === '' , `Select tax type`, errors );
+      validateField(  interestPercentage > 100, `Interest Percentage cannot exceed 100%`, errors );
+      validateField( typeof data.sourceOfSupply === 'undefined' || data.sourceOfSupply === '' , `Select source of supply`, errors );
+
     }
 
     // Field validation utility
@@ -874,7 +874,6 @@ async function updateAccount(cleanedData, accountExist) {
   //Valid Alphanumeric Fields
     function validateAlphanumericFields(fields, data, errors) {
       fields.forEach((field) => {
-        console.log(data)
         validateField(data[field] && !isAlphanumeric(data[field]), "Invalid " + field + ": " + data[field], errors);
       });
     }
@@ -987,16 +986,16 @@ async function updateAccount(cleanedData, accountExist) {
         `Invalid ${capitalize(type)} ${formatCamelCase(field)}: ${value}`, errors);
     });
   }
-  function validateContactPerson(contactPersons, errors) {
+  function validateContactPerson(contactPerson, errors) {
  
     // Iterate through each item to validate individual fields
-    contactPersons.forEach((contactPerson) => {
+    contactPerson.forEach((contactPerson) => {
   
-      validateSalutation(contactPerson.salutation, errors);
+      // validateSalutation(contactPerson.salutation, errors);
   
       validateAlphabetsFields(['firstName','lastName'], contactPerson, errors);
   
-      validateEmail(contactPerson.email, errors);
+      validateEmail(contactPerson.emailAddress, errors);
   
       validatePhones(['mobile','workPhone'], contactPerson, errors);
   

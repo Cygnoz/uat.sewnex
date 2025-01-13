@@ -85,7 +85,7 @@ const supplierSchema = new Schema({
     shippingFaxNum: {type:String},
     
     // Contact Person
-    contactPersons: [contactPersonsSchema],
+    contactPerson: [contactPersonsSchema],
 
     //Bank Details
     bankDetails: [bankDetailsSchema],
