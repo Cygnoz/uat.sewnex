@@ -1,10 +1,11 @@
-require('dotenv').config()
+require('dotenv').config();
 
-const express = require('express')
-const cors = require('cors')
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
 
-const server = express()
-const supplierRouter = require("./router/supplierRouter")
+const server = express();
+const supplierRouter = require("./router/supplierRouter");
 require('./database/connection/connection')
 
 server.use(cors({
@@ -20,6 +21,7 @@ server.options('*', (req, res) => {
     res.sendStatus(200);
 });
 
+server.use(helmet()); 
 server.use(express.json())
 server.use(supplierRouter)
 
