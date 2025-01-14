@@ -50,7 +50,7 @@ exports.updateSalesOrder = async (req, res) => {
       const { itemTable } = await dataExist.newDataExists( organizationId, items );
   
      //Data Exist Validation
-     if (!validateOrganizationTaxCurrency( organizationExists, customerExist, existingPrefix, res )) return;
+     if (!validation.validateOrganizationTaxCurrency( organizationExists, customerExist, existingPrefix, res )) return;
       
       // Validate Inputs
       if (!validation.validateInputs(cleanedData, customerExist, items, itemTable, organizationExists, res)) return;

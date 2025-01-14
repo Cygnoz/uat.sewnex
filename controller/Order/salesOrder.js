@@ -40,7 +40,6 @@ const newDataExists = async (organizationId,items) => {
     { $sort: { _id: -1 } },
     { $group: { _id: "$itemId", lastEntry: { $first: "$$ROOT" } } }
   ]);
-  
 
   // Map itemTracks by itemId for easier lookup
   const itemTrackMap = itemTracks.reduce((acc, itemTrack) => {
@@ -54,6 +53,8 @@ const newDataExists = async (organizationId,items) => {
     // lastEntry: itemTrackMap[item._id] || null, // Attach lastEntry if found
     currentStock: itemTrackMap[item._id.toString()] ? itemTrackMap[item._id.toString()].currentStock : null
   }));
+  console.log("itemTable..........:",itemTable);
+
 
   return { itemTable };
 };
@@ -477,6 +478,8 @@ validateField( items.length !== itemTable.length, "Mismatch in item count betwee
 // Iterate through each item to validate individual fields
 items.forEach((item) => {
   const fetchedItem = itemTable.find(it => it._id.toString() === item.itemId);
+  // console.log("itemTable..........:",itemTable);
+  
 
   // Check if item exists in the item table
   validateField( !fetchedItem, `Item with ID ${item.itemId} was not found.`, errors );
