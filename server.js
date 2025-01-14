@@ -2,6 +2,8 @@ require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+
 
 const server = express();
 const organizationRouter = require('./router/organizationRouter');
@@ -24,7 +26,7 @@ server.options('*', (req, res) => {
     res.sendStatus(200);
 });
 
-
+server.use(helmet()); 
 server.use(express.json());
 server.use(organizationRouter);
 
