@@ -301,7 +301,7 @@ exports.getAllSalesInvoice = async (req, res) => {
    const currentDate = new Date();
 
    // Process and update statuses, storing results in updatedInvoices
-   await Promise.all(transformedInvoice.map(async (invoice) => {
+   await Promise.all(allInvoice.map(async (invoice) => {
     const { organizationId, balanceAmount, dueDate, paidStatus: currentStatus, ...rest } = invoice;
     
     let newStatus;

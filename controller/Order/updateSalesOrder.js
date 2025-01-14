@@ -1,6 +1,7 @@
 
 const mongoose = require('mongoose');
 const SalesOrder = require('../../database/model/salesOrder');
+const SalesInvoice = require('../../database/model/salesInvoice');
 const { dataExist, salesOrder, validation, calculation } = require("../Order/salesOrder");
 const { cleanData } = require("../../services/cleanData");
 
