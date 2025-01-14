@@ -17,7 +17,7 @@ const { singleCustomDateTime, multiCustomDateTime } = require("../../services/ti
 // Fetch existing data
 const dataExist = async ( organizationId, customerId, customerName ) => { 
     const [organizationExists, customerExist , settings, existingPrefix  ] = await Promise.all([
-      Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
+      Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1, }),
       Customer.findOne({ organizationId , _id:customerId, customerDisplayName: customerName}, { _id: 1, customerDisplayName: 1, taxType: 1 }),
       Settings.findOne({ organizationId },{ salesOrderAddress: 1, salesOrderCustomerNote: 1, salesOrderTermsCondition: 1, salesOrderClose: 1, restrictSalesOrderClose: 1, termCondition: 1 ,customerNote: 1 }),
       Prefix.findOne({ organizationId }),
@@ -27,43 +27,43 @@ const dataExist = async ( organizationId, customerId, customerName ) => {
 
 //Fetch Item Data
 const newDataExists = async (organizationId,items) => {
-  // Retrieve items with specified fields
-  const itemIds = items.map(item => item.itemId);
+          // Retrieve items with specified fields
+          const itemIds = items.map(item => new mongoose.Types.ObjectId(item.itemId));
 
-  const [newItems] = await Promise.all([
-    Item.find({ organizationId, _id: { $in: itemIds } }, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }),
-  ]);
+          const [newItems] = await Promise.all([
+            Item.find( { organizationId, _id: { $in: itemIds } },
+            { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, costPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }
+            ).lean()
+          ]);
+        
+          // Aggregate ItemTrack to get the latest entry for each itemId
+          const itemTracks = await ItemTrack.aggregate([
+            { $match: { itemId: { $in: itemIds } } },
+            { $sort: { _id: -1 } },
+            { $group: { _id: "$itemId", lastEntry: { $first: "$$ROOT" } } }
+          ]);
 
-  // Aggregate ItemTrack to get the latest entry for each itemId
-  const itemTracks = await ItemTrack.aggregate([
-    { $match: { itemId: { $in: itemIds } } },
-    { $sort: { _id: -1 } },
-    { $group: { _id: "$itemId", lastEntry: { $first: "$$ROOT" } } }
-  ]);
-
-  // Map itemTracks by itemId for easier lookup
-  const itemTrackMap = itemTracks.reduce((acc, itemTrack) => {
-    acc[itemTrack._id] = itemTrack.lastEntry;
-    return acc;
-  }, {});
-
-  // Attach the last entry from ItemTrack to each item in newItems
-  const itemTable = newItems.map(item => ({
-    ...item._doc, // Copy item fields
-    // lastEntry: itemTrackMap[item._id] || null, // Attach lastEntry if found
-    currentStock: itemTrackMap[item._id.toString()] ? itemTrackMap[item._id.toString()].currentStock : null
-  }));
-  console.log("itemTable..........:",itemTable);
-
-
-  return { itemTable };
+        
+          // Create a map of itemTracks by itemId for easier lookup
+          const itemTrackMap = itemTracks.reduce((acc, itemTrack) => {
+            acc[itemTrack._id.toString()] = itemTrack.lastEntry;
+            return acc;
+          }, {});
+        
+          // Enrich items with current stock data from itemTrackMap
+          const itemTable = newItems.map(item => ({
+            ...item,
+            currentStock: itemTrackMap[item._id.toString()]?.currentStock || null
+          }));
+        
+          return { itemTable };
 };
 
 
 const salesDataExist = async ( organizationId, orderId ) => {    
     
   const [organizationExists, allOrder, order ] = await Promise.all([
-    Organization.findOne({ organizationId }, { organizationId: 1}),
+    Organization.findOne({ organizationId }, { organizationId: 1,timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1}),
     Order.find({ organizationId })
     .populate('customerId', 'customerDisplayName')    
     .lean(),
@@ -185,9 +185,12 @@ exports.getAllSalesOrder = async (req, res) => {
           ...data,
           customerId: data.customerId._id,  
           customerDisplayName: data.customerId.customerDisplayName,  
-      };}); 
+      };});
+      
+    const formattedObjects = multiCustomDateTime(transformedInvoice, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
 
-    res.status(200).json(transformedInvoice);
+
+    res.status(200).json(formattedObjects);
   } catch (error) {
     console.error("Error fetching Order:", error);
     res.status(500).json({ message: "Internal server error." });
@@ -200,15 +203,15 @@ exports.getAllSalesOrder = async (req, res) => {
 exports.getOneSalesOrder = async (req, res) => {
 try {
   const organizationId = req.user.organizationId;
-  const  {orderId} = cleanData(req.params.orderId);
+  const orderId  = req.params.orderId;
 
-  if ( !orderId ) return res.status(404).json({ message: "No Quotes found" });
+  if ( !orderId || orderId.length !== 24 ) return res.status(404).json({ message: "No Order found1" });
   
   const { organizationExists, order } = await salesDataExist( organizationId, orderId );
 
   if (!organizationExists) return res.status(404).json({ message: "Organization not found" });
 
-  if (!order) return res.status(404).json({ message: "No Quotes found" });
+  if (!order) return res.status(404).json({ message: "No Order found" });
   
   const transformedInvoice = {
     ...order,
@@ -226,7 +229,11 @@ try {
     })),  
 };
 
-  res.status(200).json(transformedInvoice);
+
+const formattedObjects = singleCustomDateTime(transformedInvoice, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
+
+
+  res.status(200).json(formattedObjects);
 } catch (error) {
   console.error("Error fetching Order:", error);
   res.status(500).json({ message: "Internal server error." });
@@ -830,7 +837,7 @@ exports.validation = {
   validateOrganizationTaxCurrency, 
   validateInputs
 };
-exports.calculations = { 
+exports.calculation = { 
   taxType,
   calculateSalesOrder
 };

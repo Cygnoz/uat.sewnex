@@ -26,7 +26,7 @@ const SalesReceiptSchema = new Schema ({
   receipt: { type: String }, //prefix
   paymentMode: { type: String },   
 
-  depositAccountId: { type: String },  
+  depositAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'Accounts' },
   reference: { type: String }, 
   
   invoice: [invoiceSchema],  

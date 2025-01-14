@@ -302,32 +302,25 @@ exports.getAllSalesInvoice = async (req, res) => {
    // Get current date for comparison
    const currentDate = new Date();
 
-   // Array to store purchase bills with updated status
-   const updatedInvoices = [];
+   // Process and update statuses, storing results in updatedInvoices
+   await Promise.all(transformedInvoice.map(async (invoice) => {
+    const { organizationId, balanceAmount, dueDate, paidStatus: currentStatus, ...rest } = invoice;
+    
+    let newStatus;
+    if (balanceAmount === 0) {
+      newStatus = 'Completed';
+    } else if (dueDate && new Date(dueDate) < currentDate) {
+      newStatus = 'Overdue';
+    } else {
+      newStatus = 'Pending';
+    }
 
-   // Map through purchase bills and update paidStatus if needed
-   for (const invoice of transformedInvoice) {
-   const { organizationId, balanceAmount, dueDate, paidStatus: currentStatus, ...rest } = invoice;
-   
-   // Determine the correct paidStatus based on balanceAmount and dueDate
-   let newStatus;
-   if (balanceAmount === 0) {
-       newStatus = 'Completed';
-   } else if (dueDate && new Date(dueDate) < currentDate) {
-       newStatus = 'Overdue';
-   } else {
-       newStatus = 'Pending';
-   }
+    if (newStatus !== currentStatus) {
+      await Invoice.updateOne({ _id: invoice._id }, { paidStatus: newStatus });
+    }
 
-   // Update the bill's status only if it differs from the current status in the database
-   if (newStatus !== currentStatus) {
-       await Invoice.updateOne({ _id: invoice._id }, { paidStatus: newStatus });
-   }
-
-   // Push the bill object with the updated status to the result array
-   updatedInvoices.push({ ...rest, balanceAmount , dueDate , paidStatus: newStatus });
-   }
-   
+    return { ...rest, balanceAmount, dueDate, paidStatus: newStatus };
+  }));   
   
    const formattedObjects = multiCustomDateTime(transformedInvoice, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
 
@@ -369,9 +362,12 @@ try {
           itemId: item.itemId._id,
           itemName: item.itemId.itemName,
         })),  
-    };    
+    };
+  
+  const formattedObjects = singleCustomDateTime(transformedInvoice, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
 
-  res.status(200).json(transformedInvoice);
+
+  res.status(200).json(formattedObjects);
 } catch (error) {
   console.error("Error fetching Invoice:", error);
   res.status(500).json({ message: "Internal server error." });
@@ -518,7 +514,7 @@ function validateOrganizationTaxCurrency( organizationExists, customerExist, exi
 
 //Validate inputs
 function validateInputs( data, customerExist, items, itemExists, organizationExists, defaultAccount, res) {
-  const validationErrors = validateQuoteData(data, customerExist, items, itemExists, organizationExists, defaultAccount );
+  const validationErrors = validateInvoiceData(data, customerExist, items, itemExists, organizationExists, defaultAccount );
 
   if (validationErrors.length > 0) {
     res.status(400).json({ message: validationErrors.join(", ") });
@@ -563,76 +559,71 @@ function taxType( cleanedData, customerExist, organizationExists ) {
   }
   if(customerExist.taxType === 'Non-Tax' ){
     cleanedData.taxType ='Non-Tax';
-  }    
+  }
 }
 
 //Default Account
-async function defaultAccounting( data, defaultAccount, organizationExists ) {
-
-  // Fetch data from accDataExists and destructure results
-  const { otherExpenseAcc, freightAcc, depositAcc } = await accDataExists( organizationExists.organizationId, data.otherExpenseAccountId, data.freightAccountId, data.depositAccountId );
+async function defaultAccounting(data, defaultAccount, organizationExists) {
+  // 1. Fetch required accounts
+  const accounts = await accDataExists(
+    organizationExists.organizationId, 
+    data.otherExpenseAccountId, 
+    data.freightAccountId, 
+    data.depositAccountId
+  );
   
-  
-  let errorMessage = '';
-  if (!defaultAccount.salesDiscountAccount && (typeof data.totalDiscount !== 'undefined' || data.totalDiscount !== 0 )) errorMessage += "Discount Account not found. ";
- 
-  if (!defaultAccount.outputCgst && typeof data.cgst !== 'undefined') errorMessage += "CGST Account not found. ";
-  if (!defaultAccount.outputSgst && typeof data.sgst !== 'undefined') errorMessage += "SGST Account not found. ";
-  if (!defaultAccount.outputIgst && typeof data.igst !== 'undefined') errorMessage += "IGST Account not found. ";
-  if (!defaultAccount.outputVat && typeof data.vat !== 'undefined') errorMessage += "VAT Account not found. ";
-   
-  if (!otherExpenseAcc && typeof data.otherExpenseAmount !== 'undefined') errorMessage += "Other Expense Account not found. ";
-  if (!freightAcc && typeof data.freightAmount !== 'undefined') errorMessage += "Freight Account not found. ";
-  if (!depositAcc && typeof data.paidAmount !== 'undefined') errorMessage += "Deposit Account not found. ";
-
-
-  // If there is an error message, return it as a response
+  // 2. Check for missing required accounts
+  const errorMessage = getMissingAccountsError(data, defaultAccount, accounts);
   if (errorMessage) {
-    return { defAcc: null, error: errorMessage.trim() }; // Return error message
+    return { defAcc: null, error: errorMessage };
   }
+
+  // 3. Update account references
+  assignAccountReferences(data, defaultAccount, accounts);
   
- 
-  if(data.otherExpenseAmount !=='undefined'){
-    defaultAccount.otherExpenseAccountId = otherExpenseAcc?._id;
-  }
-  if(data.freightAmount !=='undefined'){
-    defaultAccount.freightAccountId = freightAcc?._id;
-  }
-  if(data.paidAmount !=='undefined'){
-    defaultAccount.depositAccountId = depositAcc?._id;
-  }    
-  return { defAcc:defaultAccount ,error:null };
+  return { defAcc: defaultAccount, error: null };
 }
-  
 
+function getMissingAccountsError(data, defaultAccount, accounts) {
+  const accountChecks = [
+    // Tax account checks
+    { condition: data.cgst, account: defaultAccount.outputCgst, message: "CGST Account" },
+    { condition: data.sgst, account: defaultAccount.outputSgst, message: "SGST Account" },
+    { condition: data.igst, account: defaultAccount.outputIgst, message: "IGST Account" },
+    { condition: data.vat, account: defaultAccount.outputVat, message: "VAT Account" },
+    
+    // Transaction account checks
+    { condition: data.totalDiscount, account: defaultAccount.salesDiscountAccount, message: "Discount Account" },
+    { condition: data.otherExpenseAmount, account: accounts.otherExpenseAcc, message: "Other Expense Account" },
+    { condition: data.freightAmount, account: accounts.freightAcc, message: "Freight Account" },
+    { condition: data.paidAmount, account: accounts.depositAcc, message: "Deposit Account" }
+  ];
 
-  
+  const missingAccounts = accountChecks
+    .filter(({ condition, account }) => condition && !account)
+    .map(({ message }) => `${message} not found`);
 
+  return missingAccounts.length ? missingAccounts.join(". ") : null;
+}
 
-  
-  
-
-
-
-
-  
-
-
-
-  
-
-
-
-
-
-  
+function assignAccountReferences(data, defaultAccount, accounts) {
+  if (data.otherExpenseAmount) {
+    defaultAccount.otherExpenseAccountId = accounts.otherExpenseAcc?._id;
+  }
+  if (data.freightAmount) {
+    defaultAccount.freightAccountId = accounts.freightAcc?._id;
+  }
+  if (data.paidAmount) {
+    defaultAccount.depositAccountId = accounts.depositAcc?._id;
+  }
+}
 
 
 
 
 
 //Validate Data
-function validateQuoteData( data, customerExist, items, itemTable, organizationExists, defaultAccount ) {
+function validateInvoiceData( data, customerExist, items, itemTable, organizationExists, defaultAccount ) {
   const errors = [];
 
   // console.log("Item Request :",items);
@@ -1092,6 +1083,53 @@ function salesJournal(cleanedData, res) {
   }
   return true;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

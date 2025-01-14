@@ -1,7 +1,7 @@
 
 const mongoose = require('mongoose');
 const SalesOrder = require('../../database/model/salesOrder');
-const { dataExist, salesOrder, validation, calculations } = require("../Order/salesOrder");
+const { dataExist, salesOrder, validation, calculation } = require("../Order/salesOrder");
 const { cleanData } = require("../../services/cleanData");
 
 
@@ -17,7 +17,7 @@ exports.updateSalesOrder = async (req, res) => {
       // Clean input data
       const cleanedData = cleanData(req.body);
 
-      const { items, customerId } = cleanedData;
+      const { items, customerId, customerName } = cleanedData;
   
       // Fetch existing sales order
       const existingSalesOrder = await SalesOrder.findOne({ _id: orderId, organizationId });
@@ -45,7 +45,7 @@ exports.updateSalesOrder = async (req, res) => {
       }
   
       // Fetch related data
-      const { organizationExists, customerExist, existingPrefix } = await dataExist.dataExist(organizationId, customerId);
+      const { organizationExists, customerExist, existingPrefix } = await dataExist.dataExist(organizationId, customerId, customerName);
 
       const { itemTable } = await dataExist.newDataExists( organizationId, items );
   
@@ -56,10 +56,10 @@ exports.updateSalesOrder = async (req, res) => {
       if (!validation.validateInputs(cleanedData, customerExist, items, itemTable, organizationExists, res)) return;
   
       // Tax Type 
-      calculations.taxType(cleanedData, customerExist, organizationExists);
+      calculation.taxType(cleanedData, customerExist, organizationExists);
   
       // Calculate Sales Order
-      if (!calculations.calculateSalesOrder(cleanedData, res)) return;
+      if (!calculation.calculateSalesOrder(cleanedData, res)) return;
   
       // Ensure `salesOrder` field matches the existing order
       const salesOrder = cleanedData.salesOrder;

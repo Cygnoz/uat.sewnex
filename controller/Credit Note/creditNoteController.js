@@ -5,29 +5,46 @@ const Customer = require('../../database/model/customer');
 const Item = require('../../database/model/item');
 const Settings = require("../../database/model/settings");
 const ItemTrack = require("../../database/model/itemTrack");
-const Tax = require('../../database/model/tax');  
 const Prefix = require("../../database/model/prefix");
-const mongoose = require('mongoose');
-const moment = require("moment-timezone");
+const DefAcc  = require("../../database/model/defaultAccount");
+const Account = require("../../database/model/account");
+const TrialBalance = require("../../database/model/trialBalance");
 
+
+const mongoose = require('mongoose');
+
+const { cleanData } = require("../../services/cleanData");
+const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
 
 // Fetch existing data
 const dataExist = async ( organizationId, customerId, invoiceId ) => {
-    const [organizationExists, customerExist, invoiceExist, settings, existingPrefix  ] = await Promise.all([
+    const [organizationExists, customerExist, invoiceExist, settings, existingPrefix, defaultAccount, customerAccount ] = await Promise.all([
       Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
       Customer.findOne({ organizationId , _id:customerId}, { _id: 1, customerDisplayName: 1, taxType: 1 }),
       Invoice.findOne({ organizationId, _id:invoiceId }, { _id: 1, salesInvoice: 1, salesInvoiceDate: 1, salesOrderNumber: 1, customerId: 1, placeOfSupply: 1, items: 1 }),
       Settings.findOne({ organizationId }),
-      Prefix.findOne({ organizationId })
+      Prefix.findOne({ organizationId }),
+      DefAcc.findOne({ organizationId },{ outputCgst: 1, outputSgst: 1, outputIgst: 1 ,outputVat: 1 }),
+      Account.findOne({ organizationId , accountId:customerId },{ _id:1, accountName:1 })
     ]);    
-  return { organizationExists, customerExist, invoiceExist, settings, existingPrefix };
+  return { organizationExists, customerExist, invoiceExist, settings, existingPrefix, defaultAccount, customerAccount };
 };
 
 
+
+// Fetch Acc existing data
+const accDataExists = async ( organizationId, paidThroughAccountId ) => {
+  const [ paidAccount ] = await Promise.all([
+    Account.findOne({ organizationId , _id: paidThroughAccountId, accountHead: "Asset" }, { _id:1, accountName: 1 }),
+  ]);
+  return { paidAccount };};
+
+
+
 //Fetch Item Data
-const newDataExists = async (organizationId, items) => {
+const itemDataExists = async (organizationId, items) => {
   // Retrieve items with specified fields
-  const itemIds = items.map(item => item.itemId);
+  const itemIds = items.map(item => new mongoose.Types.ObjectId(item.itemId));
 
   const [newItems] = await Promise.all([
     Item.find({ organizationId, _id: { $in: itemIds } }, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, costPrice: 1, returnableItem: 1,  taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }),
@@ -48,9 +65,8 @@ const newDataExists = async (organizationId, items) => {
 
   // Attach the last entry from ItemTrack to each item in newItems
   const itemTable = newItems.map(item => ({
-    ...item._doc, // Copy item fields
-    lastEntry: itemTrackMap[item._id] || null, // Attach lastEntry if found
-    currentStock: itemTrackMap[item._id.toString()] ? itemTrackMap[item._id.toString()].currentStock : null
+    ...item._doc,
+    currentStock: itemTrackMap[item._id.toString()]?.currentStock || null
   }));
 
   return { itemTable };
@@ -71,15 +87,19 @@ const creditDataExist = async ( organizationId, creditId ) => {
 // Add credit note
 exports.addCreditNote = async (req, res) => {
   console.log("Add credit note:", req.body);
-
   try {
     const { organizationId, id: userId, userName } = req.user;
 
     //Clean Data
-    const cleanedData = cleanCreditNoteData(req.body);
+    const cleanedData = cleanData(req.body);
+    cleanedData.items = cleanedData.items?.map(data => cleanData(data)) || [];
 
-    const { items, customerId, invoiceId } = cleanedData;
-    
+    cleanedData.items = cleanedData.items
+      ?.map(data => cleanData(data))
+      .filter(item => item.itemId !== undefined && item.itemId !== '') || []; 
+
+
+    const { items, customerId, invoiceId } = cleanedData;    
     const itemIds = items.map(item => item.itemId);
     
     // Check for duplicate itemIds
@@ -104,30 +124,42 @@ exports.addCreditNote = async (req, res) => {
       return res.status(400).json({ message: `Invalid item IDs: ${invalidItemIds.join(', ')}` });
     }   
 
-    const { organizationExists, customerExist, invoiceExist, settings, existingPrefix } = await dataExist( organizationId, customerId, invoiceId );
+    const { organizationExists, customerExist, invoiceExist, existingPrefix, defaultAccount, customerAccount } = await dataExist( organizationId, customerId, invoiceId );
 
+
+    console.log("customerAccount", customerAccount,customerId);
     //Data Exist Validation
-    if (!validateOCIP( organizationExists, customerExist, invoiceExist, existingPrefix, res )) return;
+    if (!validateOrganizationTaxCurrency( organizationExists, customerExist, invoiceExist, existingPrefix, res )) return;
 
-    const { itemTable } = await newDataExists( organizationId, items );   
+    const { itemTable } = await itemDataExists( organizationId, items );   
  
     //Validate Inputs  
     if (!validateInputs( cleanedData, customerExist, invoiceExist, items, itemTable, organizationExists, res)) return;
 
-    //Date & Time
-    const openingDate = generateOpeningDate(organizationExists);
 
     //Tax Type
-    taxtype(cleanedData, customerExist, organizationExists );
-    
+    taxType(cleanedData, customerExist, organizationExists );
+
+    //Default Account
+    const { defAcc, error } = await defaultAccounting( cleanedData, defaultAccount, organizationExists );
+    if (error) { 
+      res.status(400).json({ message: error }); 
+      return false; 
+    }
     
     // Calculate Credit Note 
     if (!calculateCreditNote( cleanedData, res )) return;
 
+    //Sales Journal      
+    if (!salesJournal( cleanedData, res )) return; 
+
     //Prefix
     await creditNotePrefix(cleanedData, existingPrefix );
 
-    const savedCreditNote = await createNewCreditNote(cleanedData, organizationId, openingDate, userId, userName );
+    const savedCreditNote = await createNewCreditNote(cleanedData, organizationId, userId, userName );
+
+    //Journal
+    await journal( savedCreditNote, defAcc, customerAccount );
 
     //Item Track
     await itemTrack( savedCreditNote, itemTable );
@@ -136,7 +168,7 @@ exports.addCreditNote = async (req, res) => {
     await updateSalesInvoiceWithCreditNote(invoiceId, items);
       
     res.status(201).json({ message: "Credit Note created successfully",savedCreditNote });
-    // console.log( "Debit Note created successfully:", savedCreditNote );
+    // console.log( "Credit Note created successfully:", savedCreditNote );
   } catch (error) {
     console.error("Error Creating Credit Note:", error);
     res.status(500).json({ message: "Internal server error." });
@@ -153,15 +185,11 @@ exports.getAllCreditNote = async (req, res) => {
     const { organizationExists, allCreditNote } = await creditDataExist(organizationId);
 
     if (!organizationExists) {
-      return res.status(404).json({
-        message: "Organization not found",
-      });
+      return res.status(404).json({ message: "Organization not found" });
     }
 
     if (!allCreditNote.length) {
-      return res.status(404).json({
-        message: "No Debit Note found",
-      });
+      return res.status(404).json({ message: "No Debit Note found" });
     }
 
     // Process and filter credit notes using the helper function
@@ -278,33 +306,24 @@ function creditNotePrefix( cleanData, existingPrefix ) {
   activeSeries.creditNoteNum += 1;
 
   existingPrefix.save()
-
-  return 
 }
 
 
 
 
 // Create New Credit Note
-function createNewCreditNote( data, organizationId, openingDate, userId, userName ) {
-  const newCreditNote = new CreditNote({ ...data, organizationId, createdDate: openingDate, userId, userName });
+function createNewCreditNote( data, organizationId, userId, userName ) {
+  const newCreditNote = new CreditNote({ ...data, organizationId, userId, userName });
   return newCreditNote.save();
 }
 
 
 
-//Clean Data 
-function cleanCreditNoteData(data) {
-  const cleanData = (value) => (value === null || value === undefined || value === "" ? undefined : value);
-  return Object.keys(data).reduce((acc, key) => {
-    acc[key] = cleanData(data[key]);
-    return acc;
-  }, {});
-}
+
 
 
 // Validate Organization Customer Invoice Prefix
-function validateOCIP( organizationExists, customerExist, invoiceExist, existingPrefix, res ) {
+function validateOrganizationTaxCurrency( organizationExists, customerExist, invoiceExist, existingPrefix, res ) {
   if (!organizationExists) {
     res.status(404).json({ message: "Organization not found" });
     return false;
@@ -327,7 +346,7 @@ function validateOCIP( organizationExists, customerExist, invoiceExist, existing
 
 
 // Tax Type
-function taxtype( cleanedData, customerExist, organizationExists ) {
+function taxType( cleanedData, customerExist, organizationExists ) {
   if(customerExist.taxType === 'GST' ){
     if(cleanedData.placeOfSupply === organizationExists.state){
       cleanedData.taxType ='Intra';
@@ -342,8 +361,132 @@ function taxtype( cleanedData, customerExist, organizationExists ) {
   if(customerExist.taxType === 'Non-Tax' ){
     cleanedData.taxType ='Non-Tax';
   }  
-  return  
 }
+
+
+//Default Account
+async function defaultAccounting(data, defaultAccount, organizationExists) {
+  // 1. Fetch required accounts
+  const accounts = await accDataExists(
+    organizationExists.organizationId, 
+    data.paidThroughAccountId
+  );
+  
+  // 2. Check for missing required accounts
+  const errorMessage = getMissingAccountsError(data, defaultAccount, accounts);
+  if (errorMessage) {
+    return { defAcc: null, error: errorMessage };
+  }
+
+  // 3. Update account references
+  assignAccountReferences(data, defaultAccount, accounts);
+  
+  return { defAcc: defaultAccount, error: null };
+}
+
+function getMissingAccountsError(data, defaultAccount, accounts) {
+  const accountChecks = [
+    // Tax account checks
+    { condition: data.cgst, account: defaultAccount.outputCgst, message: "CGST Account" },
+    { condition: data.sgst, account: defaultAccount.outputSgst, message: "SGST Account" },
+    { condition: data.igst, account: defaultAccount.outputIgst, message: "IGST Account" },
+    { condition: data.vat, account: defaultAccount.outputVat, message: "VAT Account" },
+    
+    // Transaction account checks
+    { condition: data.paidAmount, account: accounts.paidAccount, message: "Paid Through Account" }
+  ];
+
+  const missingAccounts = accountChecks
+    .filter(({ condition, account }) => condition && !account)
+    .map(({ message }) => `${message} not found`);
+
+  return missingAccounts.length ? missingAccounts.join(". ") : null;
+}
+
+function assignAccountReferences(data, defaultAccount, accounts) {
+  if (data.paidAmount) {
+    defaultAccount.paidThroughAccountId = accounts.paidAccount?._id;
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function salesJournal(cleanedData, res) {
+  const errors = [];
+  
+
+  // Utility function to round values to two decimal places
+  const roundToTwoDecimals = (value) => Number(value.toFixed(2));
+
+  // Group items by salesAccountId and calculate debit amounts
+  const accountEntries = {};
+
+
+  cleanedData.items.forEach(item => {
+          
+          const accountId = item.salesAccountId;
+
+          if (!accountId) {
+
+            errors.push({
+              message: `Sales Account not found for item ${item.itemName}`,
+            });
+            return; 
+          }
+    
+          const debitAmount = roundToTwoDecimals(item.sellingPrice * item.quantity);
+
+          if (!accountEntries[accountId]) {
+            accountEntries[accountId] = { accountId, debitAmount: 0 };
+          }
+          // Accumulate the debit amount
+          accountEntries[accountId].debitAmount += debitAmount;
+  });
+
+  // Push the grouped entries into cleanedData.journal
+  cleanedData.salesJournal = Object.values(accountEntries);
+    
+  // Handle response or further processing
+  if (errors.length > 0) {
+    res.status(400).json({ success: false, message:"Sales journal error", errors });
+    return false;
+  }
+  return true;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -372,7 +515,7 @@ function calculateCreditNote(cleanedData, res) {
     totalItem +=  parseInt(item.quantity);
     subTotal += parseFloat(item.quantity * item.sellingPrice);
 
-    withoutTaxAmount = (item.sellingPrice * item.quantity);
+    let withoutTaxAmount = (item.sellingPrice * item.quantity);
 
     // Handle tax calculation only for taxable items
     if (item.taxPreference === 'Taxable') {
@@ -400,7 +543,7 @@ function calculateCreditNote(cleanedData, res) {
       checkAmount(calculatedSgstAmount, item.sgstAmount, item.itemName, 'SGST',errors);
       checkAmount(calculatedIgstAmount, item.igstAmount, item.itemName, 'IGST',errors);
       checkAmount(calculatedVatAmount, item.vatAmount, item.itemName, 'VAT',errors);
-      checkAmount(calculatedTaxAmount, item.itemTotaltax, item.itemName, 'Item tax',errors);
+      checkAmount(calculatedTaxAmount, item.itemTotalTax, item.itemName, 'Item tax',errors);
 
       totalTax += calculatedTaxAmount;     
 
@@ -413,7 +556,7 @@ function calculateCreditNote(cleanedData, res) {
     checkAmount(itemAmount, item.itemAmount, item.itemName, 'Item Total',errors);
 
     console.log(`${item.itemName} Item Total: ${itemAmount} , Provided ${item.itemAmount}`);
-    console.log(`${item.itemName} Total Tax: ${calculatedTaxAmount} , Provided ${item.itemTotaltax || 0 }`);
+    console.log(`${item.itemName} Total Tax: ${calculatedTaxAmount} , Provided ${item.itemTotalTax || 0 }`);
     console.log("");
   });
 
@@ -472,53 +615,7 @@ const validateAmount = ( calculatedValue, cleanedValue, label, errors ) => {
 };
 
 
-//Return Date and Time 
-function generateOpeningDate(organizationExists) {
-  const date = generateTimeAndDateForDB(
-      organizationExists.timeZoneExp,
-      organizationExists.dateFormatExp,
-      organizationExists.dateSplit
-    )
-  return date.dateTime;
-}
 
-
-
-// Function to generate time and date for storing in the database
-function generateTimeAndDateForDB(
-  timeZone,
-  dateFormat,
-  dateSplit,
-  baseTime = new Date(),
-  timeFormat = "HH:mm:ss",
-  timeSplit = ":"
-) {
-  // Convert the base time to the desired time zone
-  const localDate = moment.tz(baseTime, timeZone);
-
-  // Format date and time according to the specified formats
-  let formattedDate = localDate.format(dateFormat);
-
-  // Handle date split if specified
-  if (dateSplit) {
-    // Replace default split characters with specified split characters
-    formattedDate = formattedDate.replace(/[-/]/g, dateSplit); // Adjust regex based on your date format separators
-  }
-
-  const formattedTime = localDate.format(timeFormat);
-  const timeZoneName = localDate.format("z"); // Get time zone abbreviation
-
-  // Combine the formatted date and time with the split characters and time zone
-  const dateTime = `${formattedDate} ${formattedTime
-    .split(":")
-    .join(timeSplit)} (${timeZoneName})`;
-
-  return {
-    date: formattedDate,
-    time: `${formattedTime} (${timeZoneName})`,
-    dateTime: dateTime,
-  };
-}
 
 
 
@@ -560,12 +657,6 @@ function validateCreditNoteData( data, customerExist, invoiceExist, items, itemT
   validatePaymentMode(data.paymentMode, errors);
   //validateGSTorVAT(data, errors);
 
-  //Currency
-  //validateCurrency(data.currency, validCurrencies, errors);
-
-  //Address
-  //validateBillingAddress(data, errors);
-  //validateShippingAddress(data, errors);  
   return errors;
 }
 
@@ -579,9 +670,12 @@ function validateField(condition, errorMsg, errors) {
 
 //Valid Req Fields
 function validateReqFields( data, customerExist, errors ) {
-  validateField( typeof data.customerId === 'undefined' || typeof data.customerDisplayName === 'undefined', "Please select a customer", errors  );
-  validateField( customerExist.taxtype == 'GST' && typeof data.placeOfSupply === 'undefined', "Place of supply is required", errors  );
+  validateField( typeof data.customerId === 'undefined' , "Please select a customer", errors  );
+  validateField( customerExist.taxType == 'GST' && typeof data.placeOfSupply === 'undefined', "Place of supply is required", errors  );
+  
   validateField( typeof data.items === 'undefined', "Select an item", errors  );
+  validateField( Array.isArray(data.items) && data.items.length === 0, "Select an item", errors );
+  
   validateField( typeof data.invoiceNumber === 'undefined', "Select an invoice number", errors  );
   validateField( typeof data.invoiceType === 'undefined', "Select an invoice type", errors  );
 }
@@ -625,13 +719,13 @@ function validateItemTable(items, itemTable, errors) {
     validateIntegerFields(['itemQuantity'], item, errors);
     
     // Validate float fields
-    validateFloatFields(['sellingPrice', 'itemTotaltax', 'itemAmount'], item, errors);
+    validateFloatFields(['sellingPrice', 'itemTotalTax', 'itemAmount'], item, errors);
   });
   }
 
 
 
-  // valiadate invoice data
+  // validate invoice data
 function validateInvoiceData(data, items, invoiceExist, errors) {  
   // console.log("data:", data);
   // console.log("invoiceExist:", invoiceExist);
@@ -830,9 +924,9 @@ function capitalize(word) {
       });
   
       // Save the tracking entry and update the item's stock in the item table
-      // await newTrialEntry.save();
+      await newTrialEntry.save();
   
-      // console.log("1",newTrialEntry);
+      console.log("1",newTrialEntry);
     }
   }
 
@@ -1001,3 +1095,207 @@ const validCountries = {
     "Tabuk",
   ],
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+async function journal( savedCreditNote, defAcc, customerAccount ) {  
+  const cgst = {
+    organizationId: savedCreditNote.organizationId,
+    operationId: savedCreditNote._id,
+    transactionId: savedCreditNote.salesInvoice,
+    date: savedCreditNote.createdDate,
+    accountId: defAcc.outputCgst || undefined,
+    action: "Sales Return",
+    debitAmount: savedCreditNote.cgst || 0,
+    creditAmount:  0,
+    remark: savedCreditNote.note,
+  };
+  const sgst = {
+    organizationId: savedCreditNote.organizationId,
+    operationId: savedCreditNote._id,
+    transactionId: savedCreditNote.salesInvoice,
+    date: savedCreditNote.createdDate,
+    accountId: defAcc.outputSgst || undefined,
+    action: "Sales Return",
+    debitAmount: savedCreditNote.sgst || 0,
+    creditAmount: 0,
+    remark: savedCreditNote.note,
+  };
+  const igst = {
+    organizationId: savedCreditNote.organizationId,
+    operationId: savedCreditNote._id,
+    transactionId: savedCreditNote.salesInvoice,
+    date: savedCreditNote.createdDate,
+    accountId: defAcc.outputIgst || undefined,
+    action: "Sales Return",
+    debitAmount: savedCreditNote.igst || 0,
+    creditAmount: 0,
+    remark: savedCreditNote.note,
+  };
+  const vat = {
+    organizationId: savedCreditNote.organizationId,
+    operationId: savedCreditNote._id,
+    transactionId: savedCreditNote.salesInvoice,
+    date: savedCreditNote.createdDate,
+    accountId: defAcc.outputVat || undefined,
+    action: "Sales Return",
+    debitAmount: savedCreditNote.vat || 0,
+    creditAmount: 0,
+    remark: savedCreditNote.note,
+  };
+  
+  const customerReceived = {
+    organizationId: savedCreditNote.organizationId,
+    operationId: savedCreditNote._id,
+    transactionId: savedCreditNote.salesInvoice,
+    date: savedCreditNote.createdDate,
+    accountId: customerAccount._id || undefined,
+    action: "Credit Note",
+    debitAmount: 0,
+    creditAmount: savedCreditNote.totalAmount || 0,
+    remark: savedCreditNote.note,
+  };
+  const paidThroughAccount = {
+    organizationId: savedCreditNote.organizationId,
+    operationId: savedCreditNote._id,
+    transactionId: savedCreditNote.salesInvoice,
+    date: savedCreditNote.createdDate,
+    accountId: defAcc.paidThroughAccountId || undefined,
+    action: "Credit Note",
+    debitAmount: savedCreditNote.totalAmount || 0,
+    creditAmount: 0,
+    remark: savedCreditNote.note,
+  };
+
+  let salesTotalDebit = 0;
+  let salesTotalCredit = 0;
+
+  if (Array.isArray(savedCreditNote.salesJournal)) {
+    savedCreditNote.salesJournal.forEach((entry) => {
+
+      console.log( "Account Log",entry.accountId, entry.debitAmount, entry.creditAmount );      
+
+      salesTotalDebit += entry.debitAmount || 0;
+      salesTotalCredit += entry.creditAmount || 0;
+
+    });
+
+    console.log("Total Debit Amount from saleJournal:", salesTotalDebit);
+    console.log("Total Credit Amount from saleJournal:", salesTotalCredit);
+  } else {
+    console.error("SaleJournal is not an array or is undefined.");
+  }
+  
+
+
+  console.log("cgst", cgst.debitAmount,  cgst.creditAmount);
+  console.log("sgst", sgst.debitAmount,  sgst.creditAmount);
+  console.log("igst", igst.debitAmount,  igst.creditAmount);
+  console.log("vat", vat.debitAmount,  vat.creditAmount);  
+
+  console.log("customerReceived", customerReceived.debitAmount,  customerReceived.creditAmount);
+  console.log("paidThroughAccount", paidThroughAccount.debitAmount,  paidThroughAccount.creditAmount);
+
+  const  debitAmount = salesTotalDebit + cgst.debitAmount  + sgst.debitAmount + igst.debitAmount +  vat.debitAmount + customerReceived.debitAmount + paidThroughAccount.debitAmount ;
+  const  creditAmount = salesTotalCredit + cgst.creditAmount  + sgst.creditAmount + igst.creditAmount +  vat.creditAmount + customerReceived.creditAmount + paidThroughAccount.creditAmount ;
+
+  console.log("Total Debit Amount: ", debitAmount );
+  console.log("Total Credit Amount: ", creditAmount );
+
+  // console.log( discount, sale, cgst, sgst, igst, vat, customer, otherExpense, freight, roundOff );
+
+
+  //Sales
+    savedCreditNote.salesJournal.forEach((entry) => {
+
+      const data = {
+        organizationId: savedCreditNote.organizationId,
+        operationId: savedCreditNote._id,
+        transactionId: savedCreditNote.salesInvoice,
+        date: savedCreditNote.createdDateTime,
+        accountId: entry.accountId || undefined,
+        action: "Sales Return",
+        debitAmount: 0,
+        creditAmount: entry.creditAmount || 0,
+        remark: savedCreditNote.note,
+      };
+      
+      createTrialEntry( data )
+
+    });
+
+    
+ 
+
+
+
+  //Tax
+  if(savedCreditNote.cgst){
+    createTrialEntry( cgst )
+  }
+  if(savedCreditNote.sgst){
+    createTrialEntry( sgst )
+  }
+  if(savedCreditNote.igst){
+    createTrialEntry( igst )
+  }
+  if(savedCreditNote.vat){
+    createTrialEntry( vat )
+  }
+ 
+  
+  //Paid
+  if(savedCreditNote.totalAmount){
+    createTrialEntry( customerReceived )
+    createTrialEntry( paidThroughAccount )
+  }
+}
+
+
+
+async function createTrialEntry( data ) {
+  const newTrialEntry = new TrialBalance({
+      organizationId:data.organizationId,
+      operationId:data.operationId,
+      transactionId: data.transactionId,
+      date:data.date,
+      accountId: data.accountId,
+      action: data.action,
+      debitAmount: data.debitAmount,
+      creditAmount: data.creditAmount,
+      remark: data.remark
+});
+
+
+
+await newTrialEntry.save();
+
+}
