@@ -74,12 +74,20 @@ const itemDataExists = async (organizationId, items) => {
 
 
 const creditDataExist = async ( organizationId, creditId ) => {    
-  const [organizationExists, allCreditNote, creditNote ] = await Promise.all([
-    Organization.findOne({ organizationId }, { organizationId: 1}),
-    CreditNote.find({ organizationId }),
+  const [organizationExists, allCreditNote, creditNote, creditJournal ] = await Promise.all([
+    Organization.findOne({ organizationId }, { timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }),
+    CreditNote.find({ organizationId },{ organizationId: 0,})
+    .populate('customerId', 'customerDisplayName')
+    .lean(),
     CreditNote.findOne({ organizationId , _id: creditId })
+    .populate('items.itemId', 'itemName')
+    .populate('customerId', 'customerDisplayName')
+    .lean(),
+    TrialBalance.find({ organizationId: organizationId, operationId : creditId })
+    .populate('accountId', 'accountName')    
+    .lean(),
   ]);
-  return { organizationExists, allCreditNote, creditNote };
+  return { organizationExists, allCreditNote, creditNote, creditJournal };
 };
 
 
@@ -126,8 +134,6 @@ exports.addCreditNote = async (req, res) => {
 
     const { organizationExists, customerExist, invoiceExist, existingPrefix, defaultAccount, customerAccount } = await dataExist( organizationId, customerId, invoiceId );
 
-
-    console.log("customerAccount", customerAccount,customerId);
     //Data Exist Validation
     if (!validateOrganizationTaxCurrency( organizationExists, customerExist, invoiceExist, existingPrefix, res )) return;
 
@@ -141,7 +147,7 @@ exports.addCreditNote = async (req, res) => {
     taxType(cleanedData, customerExist, organizationExists );
 
     //Default Account
-    const { defAcc, error } = await defaultAccounting( cleanedData, defaultAccount, organizationExists );
+    const { defAcc, paidThroughAccount, error } = await defaultAccounting( cleanedData, defaultAccount, organizationExists );
     if (error) { 
       res.status(400).json({ message: error }); 
       return false; 
@@ -159,7 +165,7 @@ exports.addCreditNote = async (req, res) => {
     const savedCreditNote = await createNewCreditNote(cleanedData, organizationId, userId, userName );
 
     //Journal
-    await journal( savedCreditNote, defAcc, customerAccount );
+    await journal( savedCreditNote, defAcc, customerAccount, paidThroughAccount );
 
     //Item Track
     await itemTrack( savedCreditNote, itemTable );
@@ -182,19 +188,25 @@ exports.getAllCreditNote = async (req, res) => {
   try {
     const organizationId = req.user.organizationId;
 
-    const { organizationExists, allCreditNote } = await creditDataExist(organizationId);
+    const { organizationExists, allCreditNote } = await creditDataExist( organizationId, null );
 
-    if (!organizationExists) {
-      return res.status(404).json({ message: "Organization not found" });
-    }
+    if (!organizationExists) return res.status(404).json({ message: "Organization not found" });
+    
 
-    if (!allCreditNote.length) {
-      return res.status(404).json({ message: "No Debit Note found" });
-    }
+    if (!allCreditNote) return res.status(404).json({ message: "No Debit Note found" });
+    
+
+    const transformedInvoice = allCreditNote.map(data => {
+      return {
+          ...data,
+          customerId: data.customerId._id,  
+          customerDisplayName: data.customerId.customerDisplayName,  
+      };});
+
 
     // Process and filter credit notes using the helper function
     const updatedCreditNotes = (
-      await Promise.all(allCreditNote.map((creditNote) => calculateStock(creditNote)))
+      await Promise.all(transformedInvoice.map((creditNote) => calculateStock(creditNote)))
     ).filter((creditNote) =>
       creditNote.items.some((item) => item.stock > 0)
     );
@@ -205,7 +217,10 @@ exports.getAllCreditNote = async (req, res) => {
       });
     }
 
-    res.status(200).json(updatedCreditNotes);
+    const formattedObjects = multiCustomDateTime(updatedCreditNotes, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
+
+
+    res.status(200).json(formattedObjects);
   } catch (error) {
     console.error("Error fetching credit note:", error);
     res.status(500).json({ message: "Internal server error." });
@@ -221,51 +236,64 @@ try {
 
   const { organizationExists, creditNote } = await creditDataExist(organizationId, creditId);
 
-  if (!organizationExists) {
-    return res.status(404).json({
-      message: "Organization not found",
-    });
-  }
+  if (!organizationExists) return res.status(404).json({ message: "Organization not found" });
 
-  if (!creditNote) {
-    return res.status(404).json({
-      message: "No Debit Note found",
-    });
-  }
+  if (!creditNote) return res.status(404).json({ message: "No Debit Note found" });
 
-  // Fetch item details associated with the creditNote
-  const itemIds = creditNote.items.map(item => item.itemId);
+  const transformedData = {
+    ...creditNote,
+    customerId: creditNote.customerId._id,  
+    customerDisplayName: creditNote.customerId.customerDisplayName,
+    items: creditNote.items.map(item => ({
+      ...item,
+      itemId: item.itemId._id,
+      itemName: item.itemId.itemName,
+    })),  
+};
 
-  // Retrieve items including itemImage
-  const itemsWithImages = await Item.find(
-    { _id: { $in: itemIds }, organizationId },
-    { _id: 1, itemName: 1, itemImage: 1 } 
-  );
+const formattedObjects = singleCustomDateTime(transformedData, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
 
-  // Map the items to include item details
-  const updatedItems = creditNote.items.map(creditNoteItem => {
-    const itemDetails = itemsWithImages.find(item => item._id.toString() === creditNoteItem.itemId.toString());
-    return {
-      ...creditNoteItem.toObject(),
-      itemName: itemDetails ? itemDetails.itemName : null,
-      itemImage: itemDetails ? itemDetails.itemImage : null,
-    };
-  });
-
-  // Attach updated items back to the creditNote
-  const updatedCreditNote = {
-    ...creditNote.toObject(),
-    items: updatedItems,
-  };
-
-  updatedCreditNote.organizationId = undefined;
-
-  res.status(200).json(updatedCreditNote);
+  
+  res.status(200).json(formattedObjects);
 } catch (error) {
   console.error("Error fetching credit note:", error);
-  res.status(500).json({ message: "Internal server error." });
+  res.status(500).json({ message: "Internal server error."});
 }
 };
+
+
+
+
+// Get Credit Note Journal
+exports.creditNoteJournal = async (req, res) => {
+  try {
+      const organizationId = req.user.organizationId;
+      const { creditId } = req.params;
+
+      const { creditJournal } = await creditDataExist( organizationId, creditId );      
+
+      if (!creditJournal) {
+          return res.status(404).json({
+              message: "No Journal found for the Invoice.",
+          });
+      }
+
+      const transformedJournal = creditJournal.map(item => {
+        return {
+            ...item,
+            accountId: item.accountId._id,  
+            accountName: item.accountId.accountName,  
+        };
+    });    
+      
+      res.status(200).json(transformedJournal);
+  } catch (error) {
+      console.error("Error fetching journal:", error);
+      res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+
 
 
 
@@ -294,6 +322,13 @@ exports.getLastCreditNotePrefix = async (req, res) => {
       res.status(500).json({ message: "Internal server error." });
   }
 };
+
+
+
+
+
+
+
 
 // Credit Note Prefix
 function creditNotePrefix( cleanData, existingPrefix ) {
@@ -345,6 +380,8 @@ function validateOrganizationTaxCurrency( organizationExists, customerExist, inv
 
 
 
+
+
 // Tax Type
 function taxType( cleanedData, customerExist, organizationExists ) {
   if(customerExist.taxType === 'GST' ){
@@ -364,24 +401,21 @@ function taxType( cleanedData, customerExist, organizationExists ) {
 }
 
 
+
+
 //Default Account
 async function defaultAccounting(data, defaultAccount, organizationExists) {
+
   // 1. Fetch required accounts
-  const accounts = await accDataExists(
-    organizationExists.organizationId, 
-    data.paidThroughAccountId
-  );
+  const accounts = await accDataExists( organizationExists.organizationId, data.paidThroughAccountId );
   
   // 2. Check for missing required accounts
   const errorMessage = getMissingAccountsError(data, defaultAccount, accounts);
   if (errorMessage) {
     return { defAcc: null, error: errorMessage };
-  }
-
-  // 3. Update account references
-  assignAccountReferences(data, defaultAccount, accounts);
+  }  
   
-  return { defAcc: defaultAccount, error: null };
+  return { defAcc: defaultAccount, paidThroughAccount: accounts, error: null };
 }
 
 function getMissingAccountsError(data, defaultAccount, accounts) {
@@ -403,11 +437,7 @@ function getMissingAccountsError(data, defaultAccount, accounts) {
   return missingAccounts.length ? missingAccounts.join(". ") : null;
 }
 
-function assignAccountReferences(data, defaultAccount, accounts) {
-  if (data.paidAmount) {
-    defaultAccount.paidThroughAccountId = accounts.paidAccount?._id;
-  }
-}
+
 
 
 
@@ -424,12 +454,7 @@ function assignAccountReferences(data, defaultAccount, accounts) {
 
 function salesJournal(cleanedData, res) {
   const errors = [];
-  
-
-  // Utility function to round values to two decimal places
   const roundToTwoDecimals = (value) => Number(value.toFixed(2));
-
-  // Group items by salesAccountId and calculate debit amounts
   const accountEntries = {};
 
 
@@ -677,7 +702,9 @@ function validateReqFields( data, customerExist, errors ) {
   validateField( Array.isArray(data.items) && data.items.length === 0, "Select an item", errors );
   
   validateField( typeof data.invoiceNumber === 'undefined', "Select an invoice number", errors  );
-  validateField( typeof data.invoiceType === 'undefined', "Select an invoice type", errors  );
+  validateField( typeof data.paymentMode === 'undefined', "Select payment mode", errors  );
+  validateField( data.paymentMode === 'Cash' && typeof data.totalAmount === 'undefined', "Enter the amount paid", errors  );
+  validateField( data.paymentMode === 'Cash' && typeof data.paidThroughAccountId === 'undefined', "Select an paid through account", errors  );  
 }
 
 
@@ -893,18 +920,22 @@ function capitalize(word) {
   // Item Track Function
   async function itemTrack(savedCreditNote, itemTable) {
     const { items } = savedCreditNote;
+
+    console.log("items......",items);
+    console.log("itemTable......",itemTable);
   
     for (const item of items) {
-      // Find the matching item in itemTable by itemId
-      const matchingItem = itemTable.find((entry) => entry._id.toString() === item.itemId);
+      const matchingItem = itemTable.find((entry) => 
+        entry._id.toString() === item.itemId.toString() 
+      );
   
       if (!matchingItem) {
         console.error(`Item with ID ${item.itemId} not found in itemTable`);
-        continue; // Skip this entry if not found
+        continue; 
       }
   
       // Calculate the new stock level after the purchase
-      const newStock = matchingItem.currentStock + item.itemQuantity;
+      const newStock = matchingItem.currentStock + item.quantity;
   
   
       // Create a new entry for item tracking
@@ -913,20 +944,15 @@ function capitalize(word) {
         operationId: savedCreditNote._id,
         transactionId: savedCreditNote.creditNote,
         action: "Credit Note",
-        date: savedCreditNote.billDate,
         itemId: matchingItem._id,
-        itemName: matchingItem.itemName,
         sellingPrice: matchingItem.sellingPrice,
-        costPrice: matchingItem.costPrice || 0, // Assuming cost price is in itemTable
-        creditQuantity: item.quantity, // Quantity sold
+        costPrice: matchingItem.costPrice || 0, 
+        debitQuantity: item.quantity, 
         currentStock: newStock,
-        remark: `Sold to ${savedCreditNote.customerDisplayName}`,
-      });
-  
-      // Save the tracking entry and update the item's stock in the item table
+      });  
+
       await newTrialEntry.save();
   
-      console.log("1",newTrialEntry);
     }
   }
 
@@ -939,7 +965,7 @@ const updateSalesInvoiceWithCreditNote = async (invoiceId, items) => {
       await Invoice.findOneAndUpdate(
         { _id: invoiceId, 'items.itemId': item.itemId },
         {
-          $inc: { 'items.$.returnQuantity': item.quantity } // Increment returnQuantity for the matched itemId
+          $inc: { 'items.$.returnQuantity': item.quantity } 
         }
       );
 
@@ -969,7 +995,6 @@ const calculateStock = async (creditNote) => {
   try {
     const { invoiceId, items } = creditNote;
 
-    // Fetch corresponding salesInvoice
     const salesInvoice = await Invoice.findById(invoiceId);
 
     if (salesInvoice) {
@@ -1002,9 +1027,7 @@ const calculateStock = async (creditNote) => {
       { new: true }
     );
 
-    // Remove organizationId before returning
-    const { organizationId, ...rest } = creditNote.toObject();
-    return rest;
+    return creditNote;
     
   } catch (error) {
     console.error("Error in calculateStock:", error);
@@ -1126,11 +1149,11 @@ const validCountries = {
 
 
 
-async function journal( savedCreditNote, defAcc, customerAccount ) {  
+async function journal( savedCreditNote, defAcc, customerAccount, paidThroughAccount ) {  
   const cgst = {
     organizationId: savedCreditNote.organizationId,
     operationId: savedCreditNote._id,
-    transactionId: savedCreditNote.salesInvoice,
+    transactionId: savedCreditNote.creditNote,
     date: savedCreditNote.createdDate,
     accountId: defAcc.outputCgst || undefined,
     action: "Sales Return",
@@ -1141,7 +1164,7 @@ async function journal( savedCreditNote, defAcc, customerAccount ) {
   const sgst = {
     organizationId: savedCreditNote.organizationId,
     operationId: savedCreditNote._id,
-    transactionId: savedCreditNote.salesInvoice,
+    transactionId: savedCreditNote.creditNote,
     date: savedCreditNote.createdDate,
     accountId: defAcc.outputSgst || undefined,
     action: "Sales Return",
@@ -1152,7 +1175,7 @@ async function journal( savedCreditNote, defAcc, customerAccount ) {
   const igst = {
     organizationId: savedCreditNote.organizationId,
     operationId: savedCreditNote._id,
-    transactionId: savedCreditNote.salesInvoice,
+    transactionId: savedCreditNote.creditNote,
     date: savedCreditNote.createdDate,
     accountId: defAcc.outputIgst || undefined,
     action: "Sales Return",
@@ -1163,7 +1186,7 @@ async function journal( savedCreditNote, defAcc, customerAccount ) {
   const vat = {
     organizationId: savedCreditNote.organizationId,
     operationId: savedCreditNote._id,
-    transactionId: savedCreditNote.salesInvoice,
+    transactionId: savedCreditNote.creditNote,
     date: savedCreditNote.createdDate,
     accountId: defAcc.outputVat || undefined,
     action: "Sales Return",
@@ -1171,27 +1194,38 @@ async function journal( savedCreditNote, defAcc, customerAccount ) {
     creditAmount: 0,
     remark: savedCreditNote.note,
   };
-  
-  const customerReceived = {
+  const customerCredit = {
     organizationId: savedCreditNote.organizationId,
     operationId: savedCreditNote._id,
-    transactionId: savedCreditNote.salesInvoice,
+    transactionId: savedCreditNote.creditNote,
     date: savedCreditNote.createdDate,
     accountId: customerAccount._id || undefined,
-    action: "Credit Note",
+    action: "Sales Return",
     debitAmount: 0,
     creditAmount: savedCreditNote.totalAmount || 0,
     remark: savedCreditNote.note,
   };
-  const paidThroughAccount = {
+  
+  const customerReceived = {
     organizationId: savedCreditNote.organizationId,
     operationId: savedCreditNote._id,
-    transactionId: savedCreditNote.salesInvoice,
+    transactionId: savedCreditNote.creditNote,
     date: savedCreditNote.createdDate,
-    accountId: defAcc.paidThroughAccountId || undefined,
+    accountId: customerAccount._id || undefined,
     action: "Credit Note",
     debitAmount: savedCreditNote.totalAmount || 0,
     creditAmount: 0,
+    remark: savedCreditNote.note,
+  };
+  const paidThroughAccounts = {
+    organizationId: savedCreditNote.organizationId,
+    operationId: savedCreditNote._id,
+    transactionId: savedCreditNote.creditNote,
+    date: savedCreditNote.createdDate,
+    accountId: paidThroughAccount.paidAccount._id || undefined,
+    action: "Credit Note",
+    debitAmount: 0,
+    creditAmount: savedCreditNote.totalAmount || 0,
     remark: savedCreditNote.note,
   };
 
@@ -1219,18 +1253,20 @@ async function journal( savedCreditNote, defAcc, customerAccount ) {
   console.log("cgst", cgst.debitAmount,  cgst.creditAmount);
   console.log("sgst", sgst.debitAmount,  sgst.creditAmount);
   console.log("igst", igst.debitAmount,  igst.creditAmount);
-  console.log("vat", vat.debitAmount,  vat.creditAmount);  
+  console.log("vat", vat.debitAmount,  vat.creditAmount);
+
+  console.log("customerCredit", customerCredit.debitAmount,  customerCredit.creditAmount);
 
   console.log("customerReceived", customerReceived.debitAmount,  customerReceived.creditAmount);
-  console.log("paidThroughAccount", paidThroughAccount.debitAmount,  paidThroughAccount.creditAmount);
+  console.log("paidThroughAccount", paidThroughAccounts.debitAmount,  paidThroughAccounts.creditAmount);
 
-  const  debitAmount = salesTotalDebit + cgst.debitAmount  + sgst.debitAmount + igst.debitAmount +  vat.debitAmount + customerReceived.debitAmount + paidThroughAccount.debitAmount ;
-  const  creditAmount = salesTotalCredit + cgst.creditAmount  + sgst.creditAmount + igst.creditAmount +  vat.creditAmount + customerReceived.creditAmount + paidThroughAccount.creditAmount ;
+  const  debitAmount = customerCredit.debitAmount + salesTotalDebit + cgst.debitAmount  + sgst.debitAmount + igst.debitAmount +  vat.debitAmount + customerReceived.debitAmount + paidThroughAccounts.debitAmount ;
+  const  creditAmount = customerCredit.creditAmount + salesTotalCredit + cgst.creditAmount  + sgst.creditAmount + igst.creditAmount +  vat.creditAmount + customerReceived.creditAmount + paidThroughAccounts.creditAmount ;
 
   console.log("Total Debit Amount: ", debitAmount );
   console.log("Total Credit Amount: ", creditAmount );
 
-  // console.log( discount, sale, cgst, sgst, igst, vat, customer, otherExpense, freight, roundOff );
+  // console.log( cgst, sgst, igst, vat, customerCredit, customerReceived, paidThroughAccount );
 
 
   //Sales
@@ -1239,11 +1275,11 @@ async function journal( savedCreditNote, defAcc, customerAccount ) {
       const data = {
         organizationId: savedCreditNote.organizationId,
         operationId: savedCreditNote._id,
-        transactionId: savedCreditNote.salesInvoice,
+        transactionId: savedCreditNote.creditNote,
         date: savedCreditNote.createdDateTime,
         accountId: entry.accountId || undefined,
         action: "Sales Return",
-        debitAmount: 0,
+        debitAmount: entry.debitAmount || 0,
         creditAmount: entry.creditAmount || 0,
         remark: savedCreditNote.note,
       };
@@ -1270,12 +1306,16 @@ async function journal( savedCreditNote, defAcc, customerAccount ) {
   if(savedCreditNote.vat){
     createTrialEntry( vat )
   }
+
+  if(savedCreditNote.paymentMode === 'Credit'){
+    createTrialEntry( customerCredit )
+  }
  
   
   //Paid
-  if(savedCreditNote.totalAmount){
+  if(savedCreditNote.paymentMode === 'Cash'){
     createTrialEntry( customerReceived )
-    createTrialEntry( paidThroughAccount )
+    createTrialEntry( paidThroughAccounts )
   }
 }
 
