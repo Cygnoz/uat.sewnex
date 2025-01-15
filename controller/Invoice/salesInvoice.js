@@ -255,10 +255,11 @@ exports.invoiceJournal = async (req, res) => {
       const transformedJournal = invoiceJournal.map(item => {
         return {
             ...item,
-            accountId: item.accountId._id,  
-            accountName: item.accountId.accountName,  
+            accountId: item.accountId?._id,  
+            accountName: item.accountId?.accountName,  
         };
-    });    
+    });
+    
       
       res.status(200).json(transformedJournal);
   } catch (error) {
