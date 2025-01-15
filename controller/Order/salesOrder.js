@@ -388,8 +388,7 @@ function salesPrefix( cleanData, existingPrefix ) {
   activeSeries.salesOrderNum += 1;
 
   existingPrefix.save()
-
-  return 
+ 
 }
 
   
@@ -408,8 +407,7 @@ function taxType( cleanedData, customerExist, organizationExists ) {
   }
   if(customerExist.taxType === 'Non-Tax' ){
     cleanedData.taxType ='Non-Tax';
-  }  
-  return  
+  }    
 }
 
 
@@ -545,10 +543,10 @@ function validateDeliveryMethod(deliveryMethod, errors) {
     "Invalid Delivery Method : " + deliveryMethod, errors);
 }
 //Validate Payment Mode
-function validatePaymentMode(paymentMode, errors) {
-  validateField(paymentMode && !validPaymentMode.includes(paymentMode),
-    "Invalid Payment Mode : " + paymentMode, errors);
-}
+// function validatePaymentMode(paymentMode, errors) {
+//   validateField(paymentMode && !validPaymentMode.includes(paymentMode),
+//     "Invalid Payment Mode : " + paymentMode, errors);
+// }
 //Valid Alphanumeric Fields
 function validateAlphanumericFields(fields, data, errors) {
   fields.forEach((field) => {

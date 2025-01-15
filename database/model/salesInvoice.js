@@ -112,6 +112,7 @@ const SalesInvoiceSchema = new Schema ({
   salesJournal:[ journalSchema ], 
 
   createdDateTime: { type: Date, default: () => new Date() },
+  
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   //userName
 
