@@ -42,34 +42,47 @@ const accDataExists = async ( organizationId, paidThroughAccountId ) => {
 
 
 //Fetch Item Data
-const itemDataExists = async (organizationId, items) => {
+const itemDataExists = async (organizationId,items) => {
   // Retrieve items with specified fields
   const itemIds = items.map(item => new mongoose.Types.ObjectId(item.itemId));
 
+
   const [newItems] = await Promise.all([
-    Item.find({ organizationId, _id: { $in: itemIds } }, { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, costPrice: 1, returnableItem: 1,  taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }),
+    Item.find( { organizationId, _id: { $in: itemIds } },
+    { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, costPrice: 1, returnableItem: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }
+    ).lean()
   ]);
 
-  // Aggregate ItemTrack to get the latest entry for each itemId
+  // Aggregate ItemTrack data to calculate current stock
   const itemTracks = await ItemTrack.aggregate([
     { $match: { itemId: { $in: itemIds } } },
-    { $sort: { _id: -1 } },
-    { $group: { _id: "$itemId", lastEntry: { $first: "$$ROOT" } } }
+    {
+        $group: {
+            _id: "$itemId",
+            totalCredit: { $sum: "$creditQuantity" },
+            totalDebit: { $sum: "$debitQuantity" },
+            lastEntry: { $max: "$createdDateTime" } // Capture the latest entry time for each item
+        }
+    }
   ]);
 
-  // Map itemTracks by itemId for easier lookup
+  // Map itemTracks for easier lookup
   const itemTrackMap = itemTracks.reduce((acc, itemTrack) => {
-    acc[itemTrack._id] = itemTrack.lastEntry;
-    return acc;
-  }, {});
+      acc[itemTrack._id.toString()] = {
+          currentStock: itemTrack.totalDebit - itemTrack.totalCredit, // Calculate stock as debit - credit
+          lastEntry: itemTrack.lastEntry
+      };
+      return acc;
+    }, {});
 
-  // Attach the last entry from ItemTrack to each item in newItems
+  // Enrich newItems with currentStock data
   const itemTable = newItems.map(item => ({
-    ...item._doc,
-    currentStock: itemTrackMap[item._id.toString()]?.currentStock || null
+      ...item,
+      currentStock: itemTrackMap[item._id.toString()]?.currentStock ?? 0, // Use 0 if no track data
+      // lastEntry: itemTrackMap[item._id.toString()]?.lastEntry || null // Include the latest entry timestamp
   }));
 
-  return { itemTable };
+return { itemTable };
 };
 
 
@@ -141,7 +154,6 @@ exports.addCreditNote = async (req, res) => {
  
     //Validate Inputs  
     if (!validateInputs( cleanedData, customerExist, invoiceExist, items, itemTable, organizationExists, res)) return;
-
 
     //Tax Type
     taxType(cleanedData, customerExist, organizationExists );
@@ -935,7 +947,7 @@ function capitalize(word) {
       }
   
       // Calculate the new stock level after the purchase
-      const newStock = matchingItem.currentStock + item.quantity;
+      // const newStock = matchingItem.currentStock + item.quantity;
   
   
       // Create a new entry for item tracking
@@ -945,10 +957,9 @@ function capitalize(word) {
         transactionId: savedCreditNote.creditNote,
         action: "Credit Note",
         itemId: matchingItem._id,
-        sellingPrice: matchingItem.sellingPrice,
+        sellingPrice: matchingItem.sellingPrice || 0,
         costPrice: matchingItem.costPrice || 0, 
         debitQuantity: item.quantity, 
-        currentStock: newStock,
       });  
 
       await newTrialEntry.save();

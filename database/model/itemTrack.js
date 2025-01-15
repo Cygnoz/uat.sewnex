@@ -1,12 +1,12 @@
-// v1.2
+// v1.3
 
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
 
 
 const itemTrackSchema = new Schema({
-    organizationId: {type:String},
-    operationId: {type:String},
+    organizationId: {type:String}, 
+    operationId: {type:String}, //Sales, Purchase ... id
     transactionId: {type:String}, //Prefix
     action: {type:String}, //Sale, Sale return, Purchase, Purchase Return,Opening Stock, Inventory Adjustment
  
@@ -18,11 +18,7 @@ const itemTrackSchema = new Schema({
 
     creditQuantity: {type:Number},
     debitQuantity: {type:Number},
-    
-    currentStock: {type:Number},
-    
-    remark: {type:String},
-
+        
     createdDateTime: { type: Date, default: () => new Date() },
 
 }); 
