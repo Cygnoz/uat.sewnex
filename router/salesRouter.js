@@ -7,6 +7,7 @@ const updateSalesQuotes = require('../controller/Quote/updateQuotes')
 const salesOrder = require('../controller/Order/salesOrder')
 const updateSalesOrder = require('../controller/Order/updateSalesOrder')
 const salesInvoice = require('../controller/Invoice/salesInvoice')
+const updateSalesInvoice = require('../controller/Invoice/updateInvoice')
 const salesReceipt = require('../controller/Receipt/salesReceipt')
 const creditNote = require('../controller/Credit Note/creditNoteController')
 
@@ -73,6 +74,7 @@ router.get('/sales-invoice',verifyToken,salesInvoice.getAllSalesInvoice)
 
 router.get('/sales-order/:invoiceId',verifyToken,salesInvoice.getOneSalesInvoice)
 
+router.put('/update-sales-invoice/:invoiceId',verifyToken,updateSalesInvoice.updateInvoice)
 
 
 

@@ -87,6 +87,7 @@ const salesDataExist = async ( organizationId, invoiceId ) => {
   const [organizationExists, allInvoice, invoice, invoiceJournal ] = await Promise.all([
     Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }).lean(),
     Invoice.find({ organizationId })
+    .populate('items.itemId', 'itemName') 
     .populate('customerId', 'customerDisplayName')    
     .lean(),
     Invoice.findOne({ organizationId , _id: invoiceId })
@@ -280,13 +281,26 @@ exports.getAllSalesInvoice = async (req, res) => {
 
     if (!allInvoice) {
       return res.status(404).json({ message: "No Invoice found" });
-    }    
+    }
+
+    
+    const transformedInvoice = allInvoice.map(data => {
+      return {
+          ...data,
+          customerId: data.customerId._id,  
+          customerDisplayName: data.customerId.customerDisplayName,
+          items: data.items.map(item => ({
+            ...item,
+            itemId: item.itemId._id,
+            itemName: item.itemId.itemName,
+          })),  
+      };});
 
    // Get current date for comparison
    const currentDate = new Date();
 
    // Process and update statuses, storing results in updatedInvoices
-   await Promise.all(allInvoice.map(async (invoice) => {
+   await Promise.all(transformedInvoice.map(async (invoice) => {
     const { organizationId, balanceAmount, dueDate, paidStatus: currentStatus, ...rest } = invoice;
     
     let newStatus;
@@ -305,7 +319,7 @@ exports.getAllSalesInvoice = async (req, res) => {
     return { ...rest, balanceAmount, dueDate, paidStatus: newStatus };
   }));   
   
-   const formattedObjects = multiCustomDateTime(allInvoice, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
+   const formattedObjects = multiCustomDateTime(transformedInvoice, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
 
 
     res.status(200).json( formattedObjects );
@@ -1497,3 +1511,31 @@ async function itemTrack(savedInvoice, itemTable) {
     console.log("savedItemTrack",savedItemTrack);
   }
 }
+
+
+
+
+exports.dataExist = {
+  dataExist,
+  itemDataExists,
+  accDataExists,
+  salesDataExist
+};
+exports.saleInvoice = {
+  salesPrefix, 
+  createNewInvoice, 
+  itemTrack
+};
+exports.validation = {
+  validateOrganizationTaxCurrency, 
+  validateInputs
+};
+exports.calculation = { 
+  taxType,
+  calculateSalesOrder
+};
+exports.accounts = { 
+  defaultAccounting,
+  salesJournal,
+  journal
+};
