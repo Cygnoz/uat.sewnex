@@ -52,22 +52,48 @@ const xsItemDataExists = async (organizationId) => {
                 const itemIds = transformedItems.map(item => new mongoose.Types.ObjectId(item._id));
               
 
+                // Aggregate data from ItemTrack
                 const itemTracks = await ItemTrack.aggregate([
                   { $match: { itemId: { $in: itemIds } } },
-                  { $sort: { _id: -1 } },
-                  { $group: { _id: "$itemId", lastEntry: { $first: "$$ROOT" } } },
+                  { $sort: { itemId: 1, createdDateTime: 1 } }, // Sort by itemId and createdDateTime
+                  {
+                      $group: {
+                          _id: "$itemId",
+                          totalCredit: { $sum: "$creditQuantity" },
+                          totalDebit: { $sum: "$debitQuantity" },
+                          lastEntry: { $max: "$createdDateTime" }, // Identify the last date explicitly
+                          data: { $push: "$$ROOT" }, // Push all records to process individually if needed
+                      },
+                  },
                 ]);
                 
 
                 const itemTrackMap = itemTracks.reduce((acc, itemTrack) => {
-                  acc[itemTrack._id.toString()] = itemTrack.lastEntry;
+                  const sortedEntries = itemTrack.data.sort((a, b) =>
+                      new Date(a.createdDateTime) - new Date(b.createdDateTime)
+                  );
+            
+                  acc[itemTrack._id.toString()] = {
+                      currentStock: itemTrack.totalDebit - itemTrack.totalCredit,
+                      lastEntry: sortedEntries[sortedEntries.length - 1], // Explicitly take the last entry based on sorted data
+                  };
                   return acc;
                 }, {});
 
-                const enrichedItems = transformedItems.map(item => ({
-                  ...item,
-                  currentStock: itemTrackMap[item._id.toString()]?.currentStock || null,
-                }));
+                // Enrich items with currentStock and other data
+                const enrichedItems = transformedItems.map(item => {
+                  const itemIdStr = item._id.toString();
+                  const itemTrackData = itemTrackMap[itemIdStr];
+                
+                  if (!itemTrackData) {
+                      console.warn(`No ItemTrack data found for itemId: ${itemIdStr}`);
+                  }
+                
+                  return {
+                      ...item,
+                      currentStock: itemTrackData?.currentStock ?? 0, 
+                  };
+                });
 
                 return { enrichedItems };
 };
@@ -75,50 +101,121 @@ const xsItemDataExists = async (organizationId) => {
 
 //M Item Exist
 const mItemDataExists = async (organizationId) => {
-          const [newItems] = await Promise.all([
-            Item.find( { organizationId },{ organizationId :0, itemImage: 0 } )
-            .populate('salesAccountId', 'accountName') 
-            .populate('purchaseAccountId', 'accountName')
-            .populate('preferredVendorId', 'supplierDisplayName')  
-            .lean(),
+  const [newItems] = await Promise.all([
+      Item.find({ organizationId }, { organizationId: 0, itemImage: 0 })
+          .populate('salesAccountId', 'accountName')
+          .populate('purchaseAccountId', 'accountName')
+          .populate('preferredVendorId', 'supplierDisplayName')
+          .lean(),
+  ]);
 
-          ]);
+  const transformedItems = newItems.map(item => ({
+      ...item,
+      salesAccountId: item.salesAccountId?._id || undefined,
+      salesAccountName: item.salesAccountId?.accountName || undefined,
 
-          const transformedItems = newItems.map(item => ({
-            ...item,
-            salesAccountId: item.salesAccountId?._id || undefined,
-            salesAccountName: item.salesAccountId?.accountName || undefined,
+      purchaseAccountId: item.purchaseAccountId?._id || undefined,
+      purchaseAccountName: item.purchaseAccountId?.accountName || undefined,
 
-            purchaseAccountId: item.purchaseAccountId?._id || undefined,
-            purchaseAccountName: item.purchaseAccountId?.accountName || undefined,
+      preferredVendorId: item.preferredVendorId?._id || undefined,
+      preferredVendorName: item.preferredVendorId?.supplierDisplayName || undefined,
+  }));
 
-            preferredVendorId: item.preferredVendorId?._id || undefined,
-            preferredVendorName: item.preferredVendorId?.supplierDisplayName || undefined,
-          }));
+  // Extract itemIds from newItems
+  const itemIds = transformedItems.map(item => new mongoose.Types.ObjectId(item._id));
+
+  // Aggregate data from ItemTrack
+  const itemTracks = await ItemTrack.aggregate([
+      { $match: { itemId: { $in: itemIds } } },
+      { $sort: { itemId: 1, createdDateTime: 1 } }, // Sort by itemId and createdDateTime
+      {
+          $group: {
+              _id: "$itemId",
+              totalCredit: { $sum: "$creditQuantity" },
+              totalDebit: { $sum: "$debitQuantity" },
+              lastEntry: { $max: "$createdDateTime" }, // Identify the last date explicitly
+              data: { $push: "$$ROOT" }, // Push all records to process individually if needed
+          },
+      },
+  ]);
+
+  const itemTrackMap = itemTracks.reduce((acc, itemTrack) => {
+      const sortedEntries = itemTrack.data.sort((a, b) =>
+          new Date(a.createdDateTime) - new Date(b.createdDateTime)
+      );
+
+      acc[itemTrack._id.toString()] = {
+          currentStock: itemTrack.totalDebit - itemTrack.totalCredit,
+          lastEntry: sortedEntries[sortedEntries.length - 1], // Explicitly take the last entry based on sorted data
+      };
+      return acc;
+  }, {});
+
+  // Enrich items with currentStock and other data
+  const enrichedItems = transformedItems.map(item => {
+    const itemIdStr = item._id.toString();
+    const itemTrackData = itemTrackMap[itemIdStr];
+
+    if (!itemTrackData) {
+        console.warn(`No ItemTrack data found for itemId: ${itemIdStr}`);
+    }
+
+    return {
+        ...item,
+        currentStock: itemTrackData?.currentStock ?? 1, 
+    };
+  });
+
+  return { enrichedItems };
+};
 
 
-          // Extract itemIds from newItems
-          const itemIds = transformedItems.map(item => new mongoose.Types.ObjectId(item._id));
 
-          const itemTracks = await ItemTrack.aggregate([
-            { $match: { itemId: { $in: itemIds } } },
-            { $sort: { _id: -1 } },
-            { $group: { _id: "$itemId", lastEntry: { $first: "$$ROOT" } } },
-          ]);
+// const mItemDataExists = async (organizationId) => {
+//           const [newItems] = await Promise.all([
+//             Item.find( { organizationId },{ organizationId :0, itemImage: 0 } )
+//             .populate('salesAccountId', 'accountName') 
+//             .populate('purchaseAccountId', 'accountName')
+//             .populate('preferredVendorId', 'supplierDisplayName')  
+//             .lean(),
 
-          const itemTrackMap = itemTracks.reduce((acc, itemTrack) => {
-            acc[itemTrack._id.toString()] = itemTrack.lastEntry;
-            return acc;
-          }, {});
+//           ]);
+
+//           const transformedItems = newItems.map(item => ({
+//             ...item,
+//             salesAccountId: item.salesAccountId?._id || undefined,
+//             salesAccountName: item.salesAccountId?.accountName || undefined,
+
+//             purchaseAccountId: item.purchaseAccountId?._id || undefined,
+//             purchaseAccountName: item.purchaseAccountId?.accountName || undefined,
+
+//             preferredVendorId: item.preferredVendorId?._id || undefined,
+//             preferredVendorName: item.preferredVendorId?.supplierDisplayName || undefined,
+//           }));
+
+
+//           // Extract itemIds from newItems
+//           const itemIds = transformedItems.map(item => new mongoose.Types.ObjectId(item._id));
+
+//           const itemTracks = await ItemTrack.aggregate([
+//             { $match: { itemId: { $in: itemIds } } },
+//             { $sort: { _id: -1 } },
+//             { $group: { _id: "$itemId", lastEntry: { $first: "$$ROOT" } } },
+//           ]);
+
+//           const itemTrackMap = itemTracks.reduce((acc, itemTrack) => {
+//             acc[itemTrack._id.toString()] = itemTrack.lastEntry;
+//             return acc;
+//           }, {});
           
 
-        const enrichedItems = transformedItems.map(item => ({
-          ...item,
-          currentStock: itemTrackMap[item._id.toString()]?.currentStock || null,
-        }));
+//         const enrichedItems = transformedItems.map(item => ({
+//           ...item,
+//           currentStock: itemTrackMap[item._id.toString()]?.currentStock || null,
+//         }));
 
-        return { enrichedItems };
-};
+//         return { enrichedItems };
+// };
 
 
 
@@ -138,10 +235,21 @@ const bmcrDataExist = async (organizationId) => {
 
 // Fetch Item existing data
 const itemDataExist = async (organizationId, itemId) => {
-  const [ itemTrackAll ] = await Promise.all([
-    ItemTrack.find({ itemId: { $in: [itemId] } }) 
+  const [ organizationExists, itemTrackAll, allItem, item] = await Promise.all([
+    Organization.findOne({ organizationId }, { organizationId: 1,timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1}),
+    ItemTrack.find({ itemId: { $in: [itemId] } }),
+    Item.find({ organizationId },{ organizationId :0, itemImage: 0 } )
+    .populate('salesAccountId', 'accountName') 
+    .populate('purchaseAccountId', 'accountName')
+    .populate('preferredVendorId', 'supplierDisplayName')  
+    .lean(),
+    Item.findById(itemId)
+    .populate('salesAccountId', 'accountName') 
+    .populate('purchaseAccountId', 'accountName')
+    .populate('preferredVendorId', 'supplierDisplayName  mobile billingAddressStreet1 billingAddressStreet2 billingCity billingState billingCountry billingPinCode')
+    .lean()
   ]);
-  return { itemTrackAll };
+  return { organizationExists, itemTrackAll, allItem, item };
 };
 
 
@@ -170,7 +278,7 @@ exports.addItem = async (req, res) => {
 
        // Check for duplicate item name
        if (!settingsExist.itemDuplicateName && await isDuplicateItemName(itemName, organizationId, res)) return;
-
+    
        // Check for duplicate SKU
        if (cleanedData.sku !== undefined && await isDuplicateSKU(sku, organizationId, res)) return;
 
@@ -192,10 +300,9 @@ exports.addItem = async (req, res) => {
         operationId: savedItem._id,
         action: "Opening Stock", 
         itemId: savedItem._id,
-        sellingPrice:savedItem.sellingPrice,
-        costPrice:savedItem.openingStockRatePerUnit,
+        sellingPrice:savedItem.sellingPrice || 0 ,
+        costPrice:savedItem.costPrice || 0 ,
         debitQuantity: openingStock || 0 ,
-        currentStock: openingStock || 0,
       });  
       await trackEntry.save();
       console.log( "Item Track Added", trackEntry );      
@@ -214,16 +321,10 @@ exports.getAllItem = async (req, res) => {
   try {
     const organizationId = req.user.organizationId;
 
-    // Check if an Organization already exists
-    const existingOrganization = await Organization.findOne({ organizationId });
+    const { organizationExists, allItem } = await itemDataExist( organizationId, null );
     
-    if (!existingOrganization) {
-      return res.status(404).json({
-        message: "No Organization Found.",
-      });
-    }
-
-    const allItem = await Item.find({ organizationId },{ organizationId :0, itemImage: 0 }).lean();
+    if (!organizationExists) return res.status(404).json({ message: "No Organization Found." });
+    
     if (allItem) res.status(200).json(allItem);
     else return res.status(404).json("No Items found.");
     
@@ -238,14 +339,10 @@ exports.getAllItemXS = async (req, res) => {
   try {
     const organizationId = req.user.organizationId;
 
-    // Check if an Organization already exists
-    const existingOrganization = await Organization.findOne({ organizationId });
+    const { organizationExists } = await itemDataExist( organizationId, null );
     
-    if (!existingOrganization) {
-      return res.status(404).json({
-        message: "No Organization Found.",
-      });
-    }
+    if (!organizationExists) return res.status(404).json({ message: "No Organization Found." });
+
     const { enrichedItems  } = await xsItemDataExists(organizationId);
 
     if (enrichedItems ) {
@@ -264,9 +361,9 @@ exports.getAllItemM = async (req, res) => {
   try {
     const organizationId = req.user.organizationId;
 
-    const existingOrganization = await Organization.findOne({ organizationId });
+    const { organizationExists } = await itemDataExist( organizationId, null );
     
-    if (!existingOrganization) return res.status(404).json({ message: "No Organization Found." });
+    if (!organizationExists) return res.status(404).json({ message: "No Organization Found." });
 
     const { enrichedItems  } = await mItemDataExists(organizationId);        
 
@@ -283,48 +380,38 @@ exports.getAllItemM = async (req, res) => {
 
 
 // Get one item
-exports.getAItem = async (req, res) => {
+exports.getAItem = async (req, res) => {  
+  try {
     const { itemId } = req.params;
     const organizationId = req.user.organizationId;
 
-    try {
-      // Check if an Organization already exists
-      const existingOrganization = await Organization.findOne({ organizationId });
+    const { organizationExists, item } = await itemDataExist( organizationId, itemId );
 
-      if (!existingOrganization) {
-          return res.status(404).json({
-              message: "No Organization Found."
-          });
-      }
-
-      // Fetch item
-      const singleItem = await Item.findById(itemId)
-      .populate('salesAccountId', 'accountName') 
-      .populate('purchaseAccountId', 'accountName')
-      .populate('preferredVendorId', 'supplierDisplayName  mobile billingAddressStreet1 billingAddressStreet2 billingCity billingState billingCountry billingPinCode')
-      .lean();
-
-      if (!singleItem) {
-          return res.status(404).json({ message: "Item not found." });
-      }
+    if (!organizationExists) return res.status(404).json({ message: "No Organization Found." });
+          
+      
+    if (!item) {
+      return res.status(404).json({ message: "Item not found." });
+    }
+      
       
       const transformedItems = {
-        ...singleItem,
-        salesAccountId: singleItem.salesAccountId?._id || undefined,
-        salesAccountName: singleItem.salesAccountId?.accountName || undefined,
+        ...item,
+        salesAccountId: item.salesAccountId?._id || undefined,
+        salesAccountName: item.salesAccountId?.accountName || undefined,
 
-        purchaseAccountId: singleItem.purchaseAccountId?._id || undefined,
-        purchaseAccountName: singleItem.purchaseAccountId?.accountName || undefined,
+        purchaseAccountId: item.purchaseAccountId?._id || undefined,
+        purchaseAccountName: item.purchaseAccountId?.accountName || undefined,
 
-        preferredVendorId: singleItem.preferredVendorId?._id || undefined,
-        preferredVendorName: singleItem.preferredVendorId?.supplierDisplayName || undefined,
-        preferredVendorMobile: singleItem.preferredVendorId?.mobile || undefined,
-        preferredVendorBillingAddressStreet1: singleItem.preferredVendorId?.billingAddressStreet1 || undefined,
-        preferredVendorBillingAddressStreet2: singleItem.preferredVendorId?.billingAddressStreet2 || undefined,
-        preferredVendorBillingCity: singleItem.preferredVendorId?.billingCity || undefined,
-        preferredVendorBillingState: singleItem.preferredVendorId?.billingState || undefined,
-        preferredVendorBillingCountry: singleItem.preferredVendorId?.billingCountry || undefined,
-        preferredVendorBillingPinCode: singleItem.preferredVendorId?.billingPinCode || undefined,
+        preferredVendorId: item.preferredVendorId?._id || undefined,
+        preferredVendorName: item.preferredVendorId?.supplierDisplayName || undefined,
+        preferredVendorMobile: item.preferredVendorId?.mobile || undefined,
+        preferredVendorBillingAddressStreet1: item.preferredVendorId?.billingAddressStreet1 || undefined,
+        preferredVendorBillingAddressStreet2: item.preferredVendorId?.billingAddressStreet2 || undefined,
+        preferredVendorBillingCity: item.preferredVendorId?.billingCity || undefined,
+        preferredVendorBillingState: item.preferredVendorId?.billingState || undefined,
+        preferredVendorBillingCountry: item.preferredVendorId?.billingCountry || undefined,
+        preferredVendorBillingPinCode: item.preferredVendorId?.billingPinCode || undefined,
 
       };
 
@@ -343,25 +430,21 @@ exports.updateItem = async (req, res) => {
     const organizationId = req.user.organizationId;
     const { itemId } = req.params;
     const cleanedData = cleanData(req.body);
-    const { salesAccountId, purchaseAccountId, itemName, sku, taxRate, openingStock } = cleanedData;
+    const { salesAccountId, purchaseAccountId, itemName, sku, taxRate } = cleanedData;
 
     const existingItem = await Item.findById(itemId);
-      if (!existingItem) {
-        console.log("Item not found with ID:", itemId);
-        return res.status(404).json({ message: "Item not found" });
-      }
-
+    
+    if (!existingItem) return res.status(404).json({ message: "Item not found" });
+      
 
     //Data Exist Validation
     const { organizationExists, taxExists, settingsExist, salesAccount, purchaseAccount } = await dataExist( organizationId, salesAccountId, purchaseAccountId );
     const { brandExist, manufacturerExist, categoriesExist, rackExist } = await bmcrDataExist(organizationId);
     const bmcr = { brandExist, manufacturerExist, categoriesExist, rackExist };
     const { itemTrackAll  } = await itemDataExist( organizationId, itemId );
-    const prevStock = existingItem.openingStock;
     
     if (!validateOrganizationTaxCurrency(organizationExists, taxExists, settingsExist, itemId, res)) return;     
     
-
     // Check for duplicate item name
     if (!settingsExist.itemDuplicateName && await isDuplicateItemNameExist( itemName, organizationId, itemId, res )) return;
 
@@ -378,7 +461,7 @@ exports.updateItem = async (req, res) => {
     Object.assign( existingItem, cleanedData );
     const savedItem = await existingItem.save();
 
-    await updateOpeningBalanceInItemTrack(openingStock, itemTrackAll, prevStock, cleanedData.openingStockRatePerUnit);
+    await updateOpeningBalanceInItemTrack( itemTrackAll, cleanedData);
  
     if (!savedItem) {
       console.error("Item could not be saved.");
@@ -429,15 +512,15 @@ exports.deleteItem = async (req, res) => {
 
 
 // Function to update the opening balance in item tracking
-const updateOpeningBalanceInItemTrack = async (openingStock, itemTrackAll, prevStock, openingStockRatePerUnit) => {
+const updateOpeningBalanceInItemTrack = async ( itemTrackAll, cleanedData) => {
   // Ensure openingStock, prevStock, and the difference are non-negative
-  if (openingStock < 0 || prevStock < 0) {
-    console.error("Opening stock and previous stock must be non-negative");
-    return;
-  }
+  // if (openingStock < 0 || prevStock < 0) {
+  //   console.error("Opening stock and previous stock must be non-negative");
+  //   return;
+  // }
 
-  const diff = ( openingStock || 0) - ( prevStock || 0 );
-  console.log( "Difference : ", diff );
+  // const diff = ( openingStock || 0) - ( prevStock || 0 );
+  // console.log( "Difference : ", diff );
   
 
   // If no change in stock, return without updating
@@ -447,28 +530,29 @@ const updateOpeningBalanceInItemTrack = async (openingStock, itemTrackAll, prevS
   // }
 
   // Iterate through each item track and update the current stock
-  itemTrackAll.forEach(itemTrack => {
-    // Ensure CurrentStock is non-negative before updating
-    if (itemTrack.currentStock < 0) {
-      console.error("Current Stock must be non-negative");
-      return;
-    }
+  // itemTrackAll.forEach(itemTrack => {
+  //   // Ensure CurrentStock is non-negative before updating
+  //   if (itemTrack.currentStock < 0) {
+  //     console.error("Current Stock must be non-negative");
+  //     return;
+  //   }
 
-    // Update current stock by adding or subtracting the difference
-    itemTrack.currentStock += diff;
-  });
+  //   // Update current stock by adding or subtracting the difference
+  //   itemTrack.currentStock += diff;
+  // });
 
   itemTrackAll.forEach(itemTrack => {
     if (itemTrack.action === "Opening Stock") {
-      const currentCreditQuantity = itemTrack.creditQuantity || 0;
-      const newCreditQuantity = currentCreditQuantity + diff;
+      // const currentCreditQuantity = itemTrack.creditQuantity || 0;
+      // const newCreditQuantity = currentCreditQuantity + diff;
 
-      if (isNaN(newCreditQuantity)) {
-        console.error("Invalid value for creditQuantity");
-        return;
-      }
-      itemTrack.creditQuantity = newCreditQuantity;
-      itemTrack.costPrice = openingStockRatePerUnit;
+      // if (isNaN(newCreditQuantity)) {
+      //   console.error("Invalid value for creditQuantity");
+      //   return;
+      // }
+      itemTrack.sellingPrice = cleanedData.sellingPrice || 0 ;
+      itemTrack.costPrice = cleanedData.costPrice || 0 ;
+      itemTrack.debitQuantity = cleanedData.openingStock || 0 ;
     }    
   });
 
@@ -684,7 +768,7 @@ function validateReqFields( data, errors ) {
   validateField(typeof data.sellingPrice !== 'undefined' && typeof data.salesAccountId === 'undefined',"Sales Account required", errors);
   validateField(typeof data.costPrice !== 'undefined' && typeof data.purchaseAccountId === 'undefined',"Purchase Account required", errors);
 
-  validateField(typeof data.openingStock !== 'undefined' && typeof data.openingStockRatePerUnit === 'undefined',"Opening Stock Rate Per Unit required", errors);
+  validateField(typeof data.openingStock !== 'undefined' && typeof data.costPrice === 'undefined',"Cost Price required", errors);
 }
 
 // Validation function for account structure
