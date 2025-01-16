@@ -116,6 +116,8 @@ const SalesInvoiceSchema = new Schema ({
   //lastModifiedDate
   // lastModifiedDate:{type: Date},
 
+  editLimit: {type: Boolean, default: true},   // true - before taxation file date  |  false - after taxation file date
+
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   //userName
 

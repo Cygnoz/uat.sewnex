@@ -1,6 +1,8 @@
 
 const mongoose = require('mongoose');
 const SalesInvoice = require('../../database/model/salesInvoice');
+const Settings = require("../../database/model/settings");
+// const TrialBalance = require("../../database/model/trialBalance");
 const { dataExist, saleInvoice, validation, calculation, accounts } = require("../Invoice/salesInvoice");
 const { cleanData } = require("../../services/cleanData");
 
@@ -12,7 +14,16 @@ exports.updateInvoice = async (req, res) => {
   
     try {
       const { organizationId, id: userId, userName } = req.user;
-      const { invoiceId } = req.params;
+      const { invoiceId } = req.body;
+
+      // Fetch Settings for the organization
+      const settings = await Settings.findOne({ organizationId });
+      if (!settings) {
+          return res.status(404).json({ message: "Settings not found for the organization" });
+      } else {
+        settings.invoiceEdit = true;
+        console.log("invoiceEdit has been set to true.");
+      }
 
       // Clean input data
       const cleanedData = cleanData(req.body);
@@ -83,44 +94,52 @@ exports.updateInvoice = async (req, res) => {
 
       //Sales Journal      
       if (!accounts.salesJournal( cleanedData, res )) return; 
-  
-    //   // Ensure `salesInvoice` field matches the existing order
-    //   const salesInvoice = cleanedData.salesInvoice;
-    //   if (salesInvoice !== existingSalesOrder.salesInvoice) {
-    //     console.error("Mismatched salesInvoice values.");
-    //     return res.status(400).json({
-    //         message: `The provided salesInvoice does not match the existing record. Expected: ${existingSalesOrder.salesInvoice}`
-    //     });
-    // }
 
-    //   // Update Sales Order Fields (Ensure system-managed fields are untouched)
-    //   existingSalesInvoice.set({
-    //     ...cleanedData,
-    //     lastModifiedDate: new Date(),
-    //   });
+      //Prefix
+      // await saleInvoice.salesPrefix(cleanedData, existingPrefix );
 
-    //   // Save Updated Sales Invoice
-    //   const updateSalesInvoice = await existingSalesInvoice.save();
-    //   if (!updateSalesInvoice) {
-    //       console.error("Failed to save updated sales invoice.");
-    //       return res.status(500).json({ message: "Failed to update sales invoice" });
-    //   }
-
-      // Create a new sales invoice with the same `createdDateTime`
-      const newSalesInvoiceData = {
-        ...cleanedData,
-        createdDateTime: existingSalesInvoice.createdDateTime, // Keep the original createdDateTime
-        // lastModifiedDate: new Date(), // Add the current date as the lastModifiedDate
-      };
-  
-      const newSalesInvoice = new SalesInvoice(newSalesInvoiceData);
-  
-      // Save the new Sales Invoice
-      const savedSalesInvoice = await newSalesInvoice.save();
-      if (!savedSalesInvoice) {
-        console.error("Failed to save new sales invoice.");
-        return res.status(500).json({ message: "Failed to save new sales invoice" });
+      // Ensure `salesInvoice` field matches the existing order
+      if (cleanedData.salesOrderNumber) {
+        if (cleanedData.salesOrderNumber !== existingSalesInvoice.salesOrderNumber) {
+          console.error("Mismatched sales order number values.");
+          return res.status(400).json({
+            message: `The provided sales order number does not match the existing record. Expected: ${existingSalesInvoice.salesOrderNumber}`
+        });
       }
+      }
+  
+      // Ensure `salesInvoice` field matches the existing order
+      const salesInvoice = cleanedData.salesInvoice;
+      if (salesInvoice !== existingSalesInvoice.salesInvoice) {
+        console.error("Mismatched salesInvoice values.");
+        return res.status(400).json({
+            message: `The provided salesInvoice does not match the existing record. Expected: ${existingSalesInvoice.salesInvoice}`
+        });
+      }
+
+      // Use `saleInvoice.createNewInvoice` to create a new invoice with the updated data
+    const newInvoiceData = {
+      ...cleanedData,
+      createdDateTime: existingSalesInvoice.createdDateTime, // Preserve original createdDateTime
+    };
+
+    const savedSalesInvoice = await saleInvoice.createNewInvoice(newInvoiceData, organizationId, userId, userName);
+
+    if (!savedSalesInvoice) {
+      console.error("Failed to save updated invoice order.");
+      return res.status(500).json({ message: "Failed to update sales invoice" });
+    }
+
+    // Check for `operationId` in TrialBalance and delete if found
+    const trialBalanceEntry = await TrialBalance.findOne({
+      organizationId,
+      operationId: invoiceId,
+    });
+
+    if (trialBalanceEntry) {
+      await trialBalanceEntry.deleteOne();
+      console.log(`Deleted TrialBalance entry with operationId...........................: ${invoiceId}`);
+    }
 
       //Journal
       await accounts.journal( savedSalesInvoice, defAcc, customerAccount );
@@ -136,3 +155,5 @@ exports.updateInvoice = async (req, res) => {
       res.status(500).json({ message: "Internal server error" });
     }
   };
+
+
