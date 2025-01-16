@@ -74,7 +74,7 @@ router.get('/sales-invoice',verifyToken,salesInvoice.getAllSalesInvoice)
 
 router.get('/sales-order/:invoiceId',verifyToken,salesInvoice.getOneSalesInvoice)
 
-router.post('/update-sales-invoice',verifyToken,updateSalesInvoice.updateInvoice)
+router.put('/update-sales-invoice/:invoiceId',verifyToken,updateSalesInvoice.updateInvoice)
 
 
 

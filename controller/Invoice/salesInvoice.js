@@ -25,7 +25,7 @@ const dataExist = async ( organizationId, customerId ) => {
     const [organizationExists, customerExist , settings, existingPrefix, defaultAccount, customerAccount ] = await Promise.all([
       Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
       Customer.findOne({ organizationId , _id:customerId }, { _id: 1, customerDisplayName: 1, taxType: 1 }),
-      Settings.findOne({ organizationId },{ salesOrderAddress: 1, salesOrderCustomerNote: 1, salesOrderTermsCondition: 1, salesOrderClose: 1, restrictSalesOrderClose: 1, termCondition: 1 ,customerNote: 1 }),
+      Settings.findOne({ organizationId },{ stockBelowZero:1, salesOrderAddress: 1, salesOrderCustomerNote: 1, salesOrderTermsCondition: 1, salesOrderClose: 1, restrictSalesOrderClose: 1, termCondition: 1 ,customerNote: 1 }),
       Prefix.findOne({ organizationId }),
       DefAcc.findOne({ organizationId },{ salesAccount: 1, salesDiscountAccount: 1, outputCgst: 1, outputSgst: 1, outputIgst: 1 ,outputVat: 1 }),
       Account.findOne({ organizationId , accountId:customerId },{ _id:1, accountName:1 })
@@ -36,36 +36,45 @@ const dataExist = async ( organizationId, customerId ) => {
 
 //Fetch Item Data
 const itemDataExists = async (organizationId,items) => {
-                // Retrieve items with specified fields
-                const itemIds = items.map(item => new mongoose.Types.ObjectId(item.itemId));
+  // Retrieve items with specified fields
+  const itemIds = items.map(item => new mongoose.Types.ObjectId(item.itemId));
 
-                const [newItems] = await Promise.all([
-                  Item.find( { organizationId, _id: { $in: itemIds } },
-                  { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, costPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }
-                  ).lean()
-                ]);
+  const [newItems] = await Promise.all([
+    Item.find( { organizationId, _id: { $in: itemIds } },
+    { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, costPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }
+    )
+  ]);
 
-                // Aggregate ItemTrack to get the latest entry for each itemId
-                const itemTracks = await ItemTrack.aggregate([
-                  { $match: { itemId: { $in: itemIds } } },
-                  { $sort: { _id: -1 } },
-                  { $group: { _id: "$itemId", lastEntry: { $first: "$$ROOT" } } }
-                ]);
-                
+  // Aggregate ItemTrack data to calculate current stock
+  const itemTracks = await ItemTrack.aggregate([
+    { $match: { itemId: { $in: itemIds } } },
+    {
+        $group: {
+            _id: "$itemId",
+            totalCredit: { $sum: "$creditQuantity" },
+            totalDebit: { $sum: "$debitQuantity" },
+            lastEntry: { $max: "$createdDateTime" } // Capture the latest entry time for each item
+        }
+    }
+  ]);
 
-                // Create a map of itemTracks by itemId for easier lookup
-                const itemTrackMap = itemTracks.reduce((acc, itemTrack) => {
-                  acc[itemTrack._id.toString()] = itemTrack.lastEntry;
-                  return acc;
-                }, {});
+  // Map itemTracks for easier lookup
+  const itemTrackMap = itemTracks.reduce((acc, itemTrack) => {
+      acc[itemTrack._id.toString()] = {
+          currentStock: itemTrack.totalDebit - itemTrack.totalCredit, // Calculate stock as debit - credit
+          lastEntry: itemTrack.lastEntry
+      };
+      return acc;
+    }, {});
 
-                // Enrich items with current stock data from itemTrackMap
-                const itemTable = newItems.map(item => ({
-                  ...item,
-                  currentStock: itemTrackMap[item._id.toString()]?.currentStock || null
-                }));
+  // Enrich newItems with currentStock data
+  const itemTable = newItems.map(item => ({
+      ...item,
+      currentStock: itemTrackMap[item._id.toString()]?.currentStock ?? 0, // Use 0 if no track data
+      // lastEntry: itemTrackMap[item._id.toString()]?.lastEntry || null // Include the latest entry timestamp
+  }));
 
-                return { itemTable };
+return { itemTable };
 };
 
 
@@ -152,15 +161,16 @@ exports.addInvoice = async (req, res) => {
         return res.status(400).json({ message: `Invalid item IDs: ${invalidItemIds.join(', ')}` });
       }   
   
-      const { organizationExists, customerExist ,existingPrefix, defaultAccount, customerAccount } = await dataExist( organizationId, customerId );   
+      const { organizationExists, settings, customerExist ,existingPrefix, defaultAccount, customerAccount } = await dataExist( organizationId, customerId );   
             
       const { itemTable } = await itemDataExists( organizationId, items );
+      console.log("itemTable",itemTable);
 
       //Data Exist Validation
       if (!validateOrganizationTaxCurrency( organizationExists, customerExist, existingPrefix, defaultAccount, res )) return;
       
       //Validate Inputs  
-      if (!validateInputs( cleanedData, customerExist, items, itemTable, organizationExists, defaultAccount, res)) return;
+      if (!validateInputs( cleanedData, settings, customerExist, items, itemTable, organizationExists, defaultAccount, res)) return;
 
       //Tax Type
       taxType(cleanedData, customerExist,organizationExists );
@@ -511,8 +521,8 @@ function validateOrganizationTaxCurrency( organizationExists, customerExist, exi
 
 
 //Validate inputs
-function validateInputs( data, customerExist, items, itemExists, organizationExists, defaultAccount, res) {
-  const validationErrors = validateInvoiceData(data, customerExist, items, itemExists, organizationExists, defaultAccount );
+function validateInputs( data, settings, customerExist, items, itemExists, organizationExists, defaultAccount, res) {
+  const validationErrors = validateInvoiceData(data, settings, customerExist, items, itemExists, organizationExists, defaultAccount );
 
   if (validationErrors.length > 0) {
     res.status(400).json({ message: validationErrors.join(", ") });
@@ -621,7 +631,7 @@ function assignAccountReferences(data, defaultAccount, accounts) {
 
 
 //Validate Data
-function validateInvoiceData( data, customerExist, items, itemTable, organizationExists, defaultAccount ) {
+function validateInvoiceData( data, settings, customerExist, items, itemTable, organizationExists, defaultAccount ) {
   const errors = [];
 
   // console.log("Item Request :",items);
@@ -630,7 +640,7 @@ function validateInvoiceData( data, customerExist, items, itemTable, organizatio
 
   //Basic Info
   validateReqFields( data, customerExist, defaultAccount, errors );
-  validateItemTable(items, itemTable, errors);
+  validateItemTable(items, settings, itemTable, errors);
   validateDiscountTransactionType(data.discountTransactionType, errors);
   validateShipmentPreference(data.shipmentPreference, errors);
   validatePaymentMode(data.paymentMode, errors);
@@ -683,13 +693,19 @@ validateField( customerExist.taxType === 'VAT' && typeof defaultAccount.outputVa
 }
 
 // Function to Validate Item Table 
-function validateItemTable(items, itemTable, errors) {
+function validateItemTable(items, settings, itemTable, errors) {
+// console.log("itemTable",itemTable);
+// console.log("items",items);
+// console.log("settings",settings);
+
 // Check for item count mismatch
 validateField( items.length !== itemTable.length, "Mismatch in item count between request and database.", errors  );
 
 // Iterate through each item to validate individual fields
 items.forEach((item) => {
-  const fetchedItem = itemTable.find(it => it._id.toString() === item.itemId);
+  const fetchedItem = itemTable.find(it => it._id.toString() === item.itemId.toString());
+  console.log("fetchedItem",fetchedItem);
+  
 
   // Check if item exists in the item table
   validateField( !fetchedItem, `Item with ID ${item.itemId} was not found.`, errors );
@@ -720,7 +736,7 @@ items.forEach((item) => {
   validateIntegerFields(['quantity'], item, errors);
 
   // Validate Stock Count 
-  validateField( item.quantity > fetchedItem.currentStock, `Insufficient Stock for ${item.itemName}: Requested quantity ${item.quantity}, Available stock ${fetchedItem.currentStock}`, errors );
+  validateField( settings.stockBelowZero === true && item.quantity > fetchedItem.currentStock, `Insufficient Stock for ${item.itemName}: Requested quantity ${item.quantity}, Available stock ${fetchedItem.currentStock}`, errors );
 
   // Validate float fields
   validateFloatFields(['sellingPrice', 'itemTotalTax', 'discountAmount', 'itemAmount'], item, errors);
@@ -1490,11 +1506,11 @@ async function itemTrack(savedInvoice, itemTable) {
       continue; 
     }
 
-    const newStock = matchingItem.currentStock - item.quantity;
-    if (newStock < 0) {
-      console.error(`Insufficient stock for item ${item.itemName}`);
-      continue; 
-    }
+    // const newStock = matchingItem.currentStock - item.quantity;
+    // if (newStock < 0) {
+    //   console.error(`Insufficient stock for item ${item.itemName}`);
+    //   continue; 
+    // }
 
     const newItemTrack = new ItemTrack({
       organizationId: savedInvoice.organizationId,
@@ -1502,10 +1518,9 @@ async function itemTrack(savedInvoice, itemTable) {
       transactionId: savedInvoice.salesInvoice,
       action: "Sale",
       itemId: matchingItem._id,
-      sellingPrice: matchingItem.sellingPrice,
+      sellingPrice: matchingItem.sellingPrice || 0,
       costPrice: matchingItem.costPrice || 0, 
       creditQuantity: item.quantity, 
-      currentStock: newStock
     });
 
     const savedItemTrack = await newItemTrack.save();

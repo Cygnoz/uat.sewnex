@@ -19,7 +19,7 @@ const dataExist = async ( organizationId, customerId, customerName ) => {
     const [organizationExists, customerExist , settings, existingPrefix  ] = await Promise.all([
       Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1, }),
       Customer.findOne({ organizationId , _id:customerId, customerDisplayName: customerName}, { _id: 1, customerDisplayName: 1, taxType: 1 }),
-      Settings.findOne({ organizationId },{ salesOrderAddress: 1, salesOrderCustomerNote: 1, salesOrderTermsCondition: 1, salesOrderClose: 1, restrictSalesOrderClose: 1, termCondition: 1 ,customerNote: 1 }),
+      Settings.findOne({ organizationId },{ stockBelowZero:1, salesOrderAddress: 1, salesOrderCustomerNote: 1, salesOrderTermsCondition: 1, salesOrderClose: 1, restrictSalesOrderClose: 1, termCondition: 1 ,customerNote: 1 }),
       Prefix.findOne({ organizationId }),
     ]);
     return { organizationExists, customerExist , settings, existingPrefix };
@@ -36,27 +36,36 @@ const newDataExists = async (organizationId,items) => {
             ).lean()
           ]);
         
-          // Aggregate ItemTrack to get the latest entry for each itemId
+          // Aggregate ItemTrack data to calculate current stock
           const itemTracks = await ItemTrack.aggregate([
             { $match: { itemId: { $in: itemIds } } },
-            { $sort: { _id: -1 } },
-            { $group: { _id: "$itemId", lastEntry: { $first: "$$ROOT" } } }
+            {
+                $group: {
+                    _id: "$itemId",
+                    totalCredit: { $sum: "$creditQuantity" },
+                    totalDebit: { $sum: "$debitQuantity" },
+                    lastEntry: { $max: "$createdDateTime" } // Capture the latest entry time for each item
+                }
+            }
           ]);
-
-        
-          // Create a map of itemTracks by itemId for easier lookup
+      
+          // Map itemTracks for easier lookup
           const itemTrackMap = itemTracks.reduce((acc, itemTrack) => {
-            acc[itemTrack._id.toString()] = itemTrack.lastEntry;
-            return acc;
-          }, {});
-        
-          // Enrich items with current stock data from itemTrackMap
+              acc[itemTrack._id.toString()] = {
+                  currentStock: itemTrack.totalDebit - itemTrack.totalCredit, // Calculate stock as debit - credit
+                  lastEntry: itemTrack.lastEntry
+              };
+              return acc;
+            }, {});
+      
+          // Enrich newItems with currentStock data
           const itemTable = newItems.map(item => ({
-            ...item,
-            currentStock: itemTrackMap[item._id.toString()]?.currentStock || null
+              ...item,
+              currentStock: itemTrackMap[item._id.toString()]?.currentStock ?? 0, // Use 0 if no track data
+              // lastEntry: itemTrackMap[item._id.toString()]?.lastEntry || null // Include the latest entry timestamp
           }));
-        
-          return { itemTable };
+      
+        return { itemTable };
 };
 
 
@@ -114,7 +123,7 @@ exports.addOrder = async (req, res) => {
       
 
       //Validate Inputs  
-      if (!validateInputs( cleanedData, customerExist, items, itemTable, organizationExists, res)) return;
+      if (!validateInputs( cleanedData, settings, customerExist, items, itemTable, organizationExists, res)) return;
 
       //Tax Type
       taxType(cleanedData, customerExist,organizationExists );
@@ -360,8 +369,8 @@ function validateOrganizationTaxCurrency( organizationExists, customerExist, exi
 
 
 //Validate inputs
-function validateInputs( data, customerExist, items, itemExists, organizationExists, res) {
-  const validationErrors = validateQuoteData(data, customerExist, items, itemExists, organizationExists );
+function validateInputs( data, settings, customerExist, items, itemExists, organizationExists, res) {
+  const validationErrors = validateOrderData(data, settings, customerExist, items, itemExists, organizationExists );
 
   if (validationErrors.length > 0) {
     res.status(400).json({ message: validationErrors.join(", ") });
@@ -388,8 +397,7 @@ function salesPrefix( cleanData, existingPrefix ) {
   activeSeries.salesOrderNum += 1;
 
   existingPrefix.save()
-
-  return 
+ 
 }
 
   
@@ -408,8 +416,7 @@ function taxType( cleanedData, customerExist, organizationExists ) {
   }
   if(customerExist.taxType === 'Non-Tax' ){
     cleanedData.taxType ='Non-Tax';
-  }  
-  return  
+  }    
 }
 
 
@@ -442,15 +449,15 @@ function taxType( cleanedData, customerExist, organizationExists ) {
 
 
 //Validate Data
-function validateQuoteData( data, customerExist, items, itemTable, organizationExists ) {
+function validateOrderData( data, settings, customerExist, items, itemTable, organizationExists ) {
   const errors = [];
 
   //Basic Info
   validateReqFields( data, errors );
-  validateItemTable(items, itemTable, errors);
+  validateItemTable(items, settings, itemTable, errors);
   validateDiscountTransactionType(data.discountTransactionType, errors);
   validateDeliveryMethod(data.deliveryMethod, errors);
-  validatePaymentMode(data.paymentMode, errors);
+  // validatePaymentMode(data.paymentMode, errors);
 
 
   //OtherDetails
@@ -478,7 +485,7 @@ validateField( typeof data.otherExpenseAmount !== 'undefined' && typeof data.oth
 validateField( typeof data.roundOffAmount !== 'undefined' && !(data.roundOffAmount >= 0 && data.roundOffAmount <= 1), " Round Off Amount must be between 0 and 1", errors );
 }
 // Function to Validate Item Table 
-function validateItemTable(items, itemTable, errors) {
+function validateItemTable(items, settings, itemTable, errors) {
 // Check for item count mismatch
 validateField( items.length !== itemTable.length, "Mismatch in item count between request and database.", errors  );
 
@@ -517,7 +524,7 @@ items.forEach((item) => {
   validateIntegerFields(['quantity'], item, errors);
 
   // Validate Stock Count 
-  validateField( item.quantity > fetchedItem.currentStock, `Insufficient Stock for ${item.itemName}: Requested quantity ${item.quantity}, Available stock ${fetchedItem.currentStock}`, errors );
+  validateField( settings.stockBelowZero === true && item.quantity > fetchedItem.currentStock, `Insufficient Stock for ${item.itemName}: Requested quantity ${item.quantity}, Available stock ${fetchedItem.currentStock}`, errors );
 
   // Validate float fields
   validateFloatFields(['sellingPrice', 'itemTotalTax', 'discountAmount', 'itemAmount'], item, errors);
@@ -545,10 +552,10 @@ function validateDeliveryMethod(deliveryMethod, errors) {
     "Invalid Delivery Method : " + deliveryMethod, errors);
 }
 //Validate Payment Mode
-function validatePaymentMode(paymentMode, errors) {
-  validateField(paymentMode && !validPaymentMode.includes(paymentMode),
-    "Invalid Payment Mode : " + paymentMode, errors);
-}
+// function validatePaymentMode(paymentMode, errors) {
+//   validateField(paymentMode && !validPaymentMode.includes(paymentMode),
+//     "Invalid Payment Mode : " + paymentMode, errors);
+// }
 //Valid Alphanumeric Fields
 function validateAlphanumericFields(fields, data, errors) {
   fields.forEach((field) => {
