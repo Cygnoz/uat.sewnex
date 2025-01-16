@@ -42,7 +42,7 @@ const itemDataExists = async (organizationId,items) => {
   const [newItems] = await Promise.all([
     Item.find( { organizationId, _id: { $in: itemIds } },
     { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, costPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }
-    )
+    ).lean()
   ]);
 
   // Aggregate ItemTrack data to calculate current stock
@@ -162,9 +162,8 @@ exports.addInvoice = async (req, res) => {
       }   
   
       const { organizationExists, settings, customerExist ,existingPrefix, defaultAccount, customerAccount } = await dataExist( organizationId, customerId );   
-            
+      
       const { itemTable } = await itemDataExists( organizationId, items );
-      console.log("itemTable",itemTable);
 
       //Data Exist Validation
       if (!validateOrganizationTaxCurrency( organizationExists, customerExist, existingPrefix, defaultAccount, res )) return;
@@ -694,18 +693,13 @@ validateField( customerExist.taxType === 'VAT' && typeof defaultAccount.outputVa
 
 // Function to Validate Item Table 
 function validateItemTable(items, settings, itemTable, errors) {
-// console.log("itemTable",itemTable);
-// console.log("items",items);
-// console.log("settings",settings);
 
 // Check for item count mismatch
 validateField( items.length !== itemTable.length, "Mismatch in item count between request and database.", errors  );
 
-// Iterate through each item to validate individual fields
+// Iterate through each item to validate individual fields 
 items.forEach((item) => {
-  const fetchedItem = itemTable.find(it => it._id.toString() === item.itemId.toString());
-  console.log("fetchedItem",fetchedItem);
-  
+  const fetchedItem = itemTable.find(it => it._id.toString() === item.itemId.toString());  
 
   // Check if item exists in the item table
   validateField( !fetchedItem, `Item with ID ${item.itemId} was not found.`, errors );

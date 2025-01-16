@@ -8,6 +8,7 @@ const { dataExist, saleInvoice, validation, calculation, accounts } = require(".
 const { cleanData } = require("../../services/cleanData");
 
 
+
 // Fetch invoice journal
 const editSalesDataExist = async ( organizationId, invoiceId ) => {    
   const invoiceJournal = await TrialBalance.find({ 
@@ -15,9 +16,9 @@ const editSalesDataExist = async ( organizationId, invoiceId ) => {
     operationId : invoiceId 
   });
   console.log("invoiceJournal",invoiceJournal);
-  
   return { invoiceJournal };
 };
+
 
 
 // Update Sales Invoice 
@@ -26,19 +27,16 @@ exports.updateInvoice = async (req, res) => {
   
     try {
       const { organizationId, id: userId, userName } = req.user;
-      const { invoiceId } = req.params;
+      const { invoiceId } = req.params;      
 
-      // console.log(`organizationId: ${organizationId} and invoiceId: ${invoiceId}`);
-      
-
-      // Fetch Settings for the organization
-      const settings = await Settings.findOne({ organizationId });
-      if (!settings) {
-          return res.status(404).json({ message: "Settings not found for the organization" });
-      } else {
-        settings.invoiceEdit = true;
-        // console.log("invoiceEdit has been set to true.");
-      }
+      // // Fetch Settings for the organization
+      // const settings = await Settings.findOne({ organizationId });
+      // if (!settings) {
+      //     return res.status(404).json({ message: "Settings not found for the organization" });
+      // } else {
+      //   settings.invoiceEdit = true;
+      //   // console.log("invoiceEdit has been set to true.");
+      // }
 
       // Fetch existing sales order
       const existingSalesInvoice = await SalesInvoice.findOne({ _id: invoiceId, organizationId });
@@ -46,8 +44,6 @@ exports.updateInvoice = async (req, res) => {
         console.log("Sales invoice not found with ID:", invoiceId);
         return res.status(404).json({ message: "Sales invoice not found" });
       }
-      // console.log("existingSalesInvoice",existingSalesInvoice);
-      
 
       // Clean input data
       const cleanedData = cleanData(req.body);
@@ -70,16 +66,15 @@ exports.updateInvoice = async (req, res) => {
       }
 
       // Fetch related data
-      const { organizationExists, customerExist, existingPrefix, defaultAccount, customerAccount } = await dataExist.dataExist(organizationId, customerId);
-
-      const { itemTable } = await dataExist.itemDataExists( organizationId, items );
-      console.log("itemTable",itemTable);
-  
-     //Data Exist Validation
-     if (!validation.validateOrganizationTaxCurrency( organizationExists, customerExist, existingPrefix, defaultAccount, res )) return;
+      const { organizationExists, settings, customerExist ,existingPrefix, defaultAccount, customerAccount } = await dataExist.dataExist( organizationId, customerId );   
       
+      const { itemTable } = await dataExist.itemDataExists( organizationId, items );
+  
+      //Data Exist Validation
+      if (!validation.validateOrganizationTaxCurrency( organizationExists, customerExist, existingPrefix, defaultAccount, res )) return;
+        
       // Validate Inputs
-      if (!validation.validateInputs(cleanedData, customerExist, items, itemTable, organizationExists, defaultAccount, res)) return;
+      if (!validation.validateInputs(cleanedData, settings, customerExist, items, itemTable, organizationExists, defaultAccount, res)) return;
   
       // Tax Type 
       calculation.taxType(cleanedData, customerExist, organizationExists);
@@ -97,64 +92,52 @@ exports.updateInvoice = async (req, res) => {
       //Sales Journal      
       if (!accounts.salesJournal( cleanedData, res )) return; 
 
-      //Prefix
-      // await saleInvoice.salesPrefix(cleanedData, existingPrefix );
-
       // Ensure salesInvoice fields match
-    if (cleanedData.salesOrderNumber && cleanedData.salesOrderNumber !== existingSalesInvoice.salesOrderNumber) {
-      return res.status(400).json({
-        message: `The provided sales order number does not match the existing record. Expected: ${existingSalesInvoice.salesOrderNumber}`,
-      });
-    }
+      if (cleanedData.salesOrderNumber && cleanedData.salesOrderNumber !== existingSalesInvoice.salesOrderNumber) {
+        return res.status(400).json({
+          message: `The provided sales order number does not match the existing record. Expected: ${existingSalesInvoice.salesOrderNumber}`,
+        });
+      }
   
       // Ensure `salesInvoice` field matches the existing order
-      if (cleanedData.salesInvoice && cleanedData.salesInvoice !== existingSalesInvoice.salesInvoice) {
+      if (cleanedData.salesInvoice !== existingSalesInvoice.salesInvoice) {
         return res.status(400).json({
           message: `The provided salesInvoice does not match the existing record. Expected: ${existingSalesInvoice.salesInvoice}`,
         });
       }
 
-    //   // Use `saleInvoice.createNewInvoice` to create a new invoice with the updated data
-    // const newInvoiceData = {
-    //   ...cleanedData,
-    //   createdDateTime: existingSalesInvoice.createdDateTime, // Preserve original createdDateTime
-    // };
+      const createdDateTime = existingSalesInvoice.createdDateTime;
+      // Create a new Sales Invoice document
+      const newSalesInvoice = {
+        ...cleanedData,
+        organizationId,
+        userId,
+        createdDateTime// Preserve the original creation time
+      };
 
-    // const savedSalesInvoice = await saleInvoice.createNewInvoice(newInvoiceData, organizationId, userId, userName);
+      const savedSalesInvoice = await SalesInvoice.create(newSalesInvoice);
 
-    // Update invoice and save
-    const mongooseDocument = SalesInvoice.hydrate(existingSalesInvoice);
-    Object.assign(mongooseDocument, cleanedData);
-    const savedSalesInvoice = await mongooseDocument.save();
-    if (!savedSalesInvoice) {
-      return res.status(500).json({ message: "Failed to update sales invoice" });
-    }
+      if (!savedSalesInvoice) {
+        return res.status(500).json({ message: "Failed to update sales invoice" });
+      }
 
       //Journal
       await journal( savedSalesInvoice, defAcc, customerAccount );
 
       //delete existing TrialBalanceEntry
       await deleteTrialBalanceEntry( organizationId, invoiceId );
-
+      
       //Item Track
-      // await itemTrack( savedSalesInvoice, itemTable );
+      await itemTrack( savedSalesInvoice, itemTable, organizationId, invoiceId );
   
       res.status(200).json({ message: "Sale invoice updated successfully", savedSalesInvoice });
-      console.log("Sale invoice updated successfully:", savedSalesInvoice);
+      // console.log("Sale invoice updated successfully:", savedSalesInvoice);
   
     } catch (error) {
       console.error("Error updating sale invoice:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   };
-
-
-
-
-
-
-
-
 
 
 
@@ -205,11 +188,11 @@ exports.updateInvoice = async (req, res) => {
 
     // delete existing TrialBalance entries
   async function deleteTrialBalanceEntry( organizationId, invoiceId) {
-    const {invoiceJournal} = await editSalesDataExist(organizationId,invoiceId);
+    const {invoiceJournal} = await editSalesDataExist(organizationId,invoiceId);    
 
     if (invoiceJournal.length > 0) {
       await TrialBalance.deleteMany({ organizationId, operationId: invoiceId });
-      console.log(`Deleted TrialBalance entries for operationId...........................: ${invoiceId}`);
+      console.log(`Deleted TrialBalance entries for operationId: ${invoiceId}`);
     } else {
       console.log(`No TrialBalance entry found for operationId: ${invoiceId}`);
     }
@@ -217,47 +200,58 @@ exports.updateInvoice = async (req, res) => {
 
 
 
+  
 
+  // Item Track Function
+async function itemTrack(savedInvoice, itemTable, organizationId, invoiceId) {
 
-//   // Item Track Function
-// async function itemTrack(savedInvoice, itemTable) {
-//   const { items } = savedInvoice;
+   // Fetch existing itemTrack entries
+   const existingItemTracks = await ItemTrack.find({ organizationId, operationId: invoiceId });
+   
+   const createdDateTime = existingItemTracks[0] ? existingItemTracks[0].createdDateTime : null; 
 
-//   for (const item of items) {
+    const { items } = savedInvoice;
 
-//     const itemIdAsObjectId = new ObjectId(item.itemId);
+    for (const item of items) {
 
-//     // Find the matching item
-//     const matchingItem = itemTable.find((entry) => entry._id.equals(itemIdAsObjectId));
+      const itemIdAsObjectId = new mongoose.Types.ObjectId(item.itemId);
 
-//     if (!matchingItem) {
-//       console.error(`Item with ID ${item.itemId} not found in itemTable`);
-//       continue; 
-//     }
+      // Find the matching item
+      const matchingItem = itemTable.find((entry) => entry._id.equals(itemIdAsObjectId));
 
-//     // const newStock = matchingItem.currentStock - item.quantity;
-//     // if (newStock < 0) {
-//     //   console.error(`Insufficient stock for item ${item.itemName}`);
-//     //   continue; 
-//     // }
+      if (!matchingItem) {
+        console.error(`Item with ID ${item.itemId} not found in itemTable`);
+        continue; 
+      }
 
-//     const newItemTrack = new ItemTrack({
-//       organizationId: savedInvoice.organizationId,
-//       operationId: savedInvoice._id,
-//       transactionId: savedInvoice.salesInvoice,
-//       action: "Sale",
-//       itemId: matchingItem._id,
-//       sellingPrice: matchingItem.sellingPrice || 0,
-//       costPrice: matchingItem.costPrice || 0, 
-//       creditQuantity: item.quantity, 
-//     });
+      // const newStock = matchingItem.currentStock - item.quantity;
+      // if (newStock < 0) {
+      //   console.error(`Insufficient stock for item ${item.itemName}`);
+      //   continue; 
+      // }
 
-//     const savedItemTrack = await newItemTrack.save();
-//     console.log("savedItemTrack",savedItemTrack);
-//   }
-// }
+      const newItemTrack = new ItemTrack({
+        organizationId: savedInvoice.organizationId,
+        operationId: savedInvoice._id,
+        transactionId: savedInvoice.salesInvoice,
+        action: "Sale",
+        itemId: matchingItem._id,
+        sellingPrice: matchingItem.sellingPrice || 0,
+        costPrice: matchingItem.costPrice || 0, 
+        creditQuantity: item.quantity, 
+        createdDateTime: createdDateTime // Preserve the original createdDateTime
+      });
 
+      const savedItemTrack = await newItemTrack.save();
+      // console.log("savedItemTrack",savedItemTrack);
 
+      // Delete existing itemTrack entries for the operation
+    if (existingItemTracks.length > 0) {
+      await ItemTrack.deleteMany({ organizationId, operationId: invoiceId });
+      console.log(`Deleted existing itemTrack entries for operationId: ${invoiceId}`);
+    }
+  }
+}
 
 
 
@@ -273,9 +267,9 @@ async function journal( savedInvoice, defAcc, customerAccount ) {
   const existingTrialBalance = await TrialBalance.findOne({
     organizationId: savedInvoice.organizationId,
     operationId: savedInvoice._id,
-  });
+  });  
 
-  const createdDateTime = existingTrialBalance ? existingTrialBalance.createdDateTime : "undefined"
+  const createdDateTime = existingTrialBalance ? existingTrialBalance.createdDateTime : null;
   
   const discount = {
     organizationId: savedInvoice.organizationId,
