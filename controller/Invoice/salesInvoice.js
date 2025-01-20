@@ -130,13 +130,11 @@ exports.addInvoice = async (req, res) => {
       const { items, salesOrderId, customerId, otherExpenseAccountId, freightAccountId, depositAccountId } = cleanedData;
       const itemIds = items.map(item => item.itemId);
       
-
       // Check for duplicate itemIds
       const uniqueItemIds = new Set(itemIds);
       if (uniqueItemIds.size !== itemIds.length) {
         return res.status(400).json({ message: "Duplicate Item found" });
       }
-
 
       //Validate Account Id
       if (!mongoose.Types.ObjectId.isValid(customerId) || customerId.length !== 24) {
@@ -185,9 +183,7 @@ exports.addInvoice = async (req, res) => {
       if (!calculateSalesOrder( cleanedData, res )) return;
 
       //Sales Journal      
-      if (!salesJournal( cleanedData, res )) return; 
-      
-      
+      if (!salesJournal( cleanedData, res )) return;      
       
       //Prefix
       await salesPrefix(cleanedData, existingPrefix );
@@ -208,8 +204,7 @@ exports.addInvoice = async (req, res) => {
       if (salesOrderId) {
         await deleteSaleOrder(salesOrderId, organizationId, res);
       }
-
-        
+      
       res.status(201).json({ message: "Sale Invoice created successfully", data:savedInvoice });
       console.log( "Sale Invoice created successfully:", savedInvoice );
     } catch (error) {
@@ -268,9 +263,8 @@ exports.invoiceJournal = async (req, res) => {
             accountName: item.accountId?.accountName,  
         };
     });
-    
-      
-      res.status(200).json(transformedJournal);
+
+    res.status(200).json(transformedJournal);
   } catch (error) {
       console.error("Error fetching journal:", error);
       res.status(500).json({ message: "Internal server error." });
@@ -678,6 +672,9 @@ validateField( typeof data.otherExpenseAmount !== 'undefined' && typeof data.oth
 validateField( typeof data.freightAmount !== 'undefined' && typeof data.freightAccountId === 'undefined', "Please select freight account", errors  );
 
 validateField( typeof data.roundOffAmount !== 'undefined' && !(data.roundOffAmount >= 0 && data.roundOffAmount <= 1), "Round Off Amount must be between 0 and 1", errors );
+
+console.log("paidAmount",data.paidAmount);
+console.log("totalAmount",data.totalAmount);
 
 validateField( typeof data.paidAmount !== 'undefined' && !(data.paidAmount <= data.totalAmount), "Excess payment amount", errors );
 validateField( typeof data.paidAmount !== 'undefined' && !(data.paidAmount >= 0 ), "Negative payment amount", errors );
@@ -1374,7 +1371,6 @@ async function journal( savedInvoice, defAcc, customerAccount ) {
 
   //Sales
     savedInvoice.salesJournal.forEach((entry) => {
-
       const data = {
         organizationId: savedInvoice.organizationId,
         operationId: savedInvoice._id,
@@ -1386,9 +1382,7 @@ async function journal( savedInvoice, defAcc, customerAccount ) {
         creditAmount: entry.creditAmount || 0,
         remark: savedInvoice.note,
       };
-      
       createTrialEntry( data )
-
     });
 
     
@@ -1456,11 +1450,7 @@ async function createTrialEntry( data ) {
       creditAmount: data.creditAmount,
       remark: data.remark
 });
-
-
-
 await newTrialEntry.save();
-
 }
 
 
@@ -1530,11 +1520,6 @@ exports.dataExist = {
   itemDataExists,
   accDataExists,
   salesDataExist
-};
-exports.saleInvoice = {
-  salesPrefix, 
-  createNewInvoice, 
-  itemTrack
 };
 exports.validation = {
   validateOrganizationTaxCurrency, 

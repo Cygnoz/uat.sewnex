@@ -4,11 +4,16 @@ const router = new express.Router()
 
 const salesQuotes = require('../controller/Quote/salesQuotes')
 const updateSalesQuotes = require('../controller/Quote/updateQuotes')
+
 const salesOrder = require('../controller/Order/salesOrder')
 const updateSalesOrder = require('../controller/Order/updateSalesOrder')
+
 const salesInvoice = require('../controller/Invoice/salesInvoice')
 const updateSalesInvoice = require('../controller/Invoice/updateInvoice')
+
 const salesReceipt = require('../controller/Receipt/salesReceipt')
+const updateSalesReceipt = require('../controller/Receipt/updateReceipt')
+
 const creditNote = require('../controller/Credit Note/creditNoteController')
 
 const salesSettings = require('../controller/salesSettings')
@@ -94,6 +99,8 @@ router.get('/get-receipt/:receiptId',verifyToken,salesReceipt.getSalesReceipt)
 router.get('/get-last-salesReceipt-prefix', verifyToken, salesReceipt.getLastSalesReceiptPrefix);
 
 router.get('/receipt-journal/:receiptId',verifyToken,salesReceipt.receiptJournal)
+
+router.put('/update-sales-receipt/:receiptId',verifyToken,updateSalesReceipt.updateReceipt)
 
 
 

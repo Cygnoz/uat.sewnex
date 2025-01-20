@@ -14,11 +14,11 @@ const { singleCustomDateTime, multiCustomDateTime } = require("../../services/ti
 
 
 // Fetch existing data
-const dataExist = async (organizationId, invoice ,customerId, customerDisplayName) => {
+const dataExist = async (organizationId, invoice ,customerId) => {
     const invoiceIds = invoice.map(invoices => invoices.invoiceId);    
     const [organizationExists, customerExists , paymentTable , existingPrefix ] = await Promise.all([
       Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
-      Customer.findOne({ organizationId, _id: customerId, customerDisplayName  }, { _id: 1, customerDisplayName: 1 }),
+      Customer.findOne({ organizationId, _id: customerId  }, { _id: 1, customerDisplayName: 1 }),
       Invoice.find({ organizationId , _id : { $in: invoiceIds}},{ _id: 1, salesInvoice: 1 , salesInvoiceDate: 1 , dueDate:1 , totalAmount: 1 , balanceAmount : 1}),
       Prefix.findOne({ organizationId })  
     ]);    
@@ -90,14 +90,14 @@ exports.addReceipt = async (req, res) => {
     return res.status(400).json({ message:"Please select a customer" });
   }
 
-  // Validate Bill IDs
+  // Validate Invoice IDs
   const invalidInvoices = invoiceIds.filter(invoiceId => !mongoose.Types.ObjectId.isValid(invoiceId) || invoiceId.length !== 24);
   if (invalidInvoices.length > 0) {
     return res.status(400).json({ message: `Invalid invoice IDs: ${invalidInvoices.join(', ')}` });
   }
 
   // Check if organization and customer exist
-  const { organizationExists, customerExists, paymentTable, existingPrefix } = await dataExist(organizationId, invoice, customerId, customerDisplayName);
+  const { organizationExists, customerExists, paymentTable, existingPrefix } = await dataExist(organizationId, invoice, customerId);
   
   const { depositAcc, customerAccount } = await accDataExists( organizationId, cleanedData.depositAccountId, cleanedData.customerId );
   
@@ -120,7 +120,7 @@ exports.addReceipt = async (req, res) => {
   //Prefix
   await salesReceiptPrefix(cleanedData, existingPrefix );
 
-  // Re-fetch the updated bills to get the latest `amountDue` and `balanceAmount`
+  // Re-fetch the updated invoice to get the latest `amountDue` and `balanceAmount`
   await SalesReceipt.find({ _id: { $in: updatedData.invoice.map(receipt => receipt.invoiceId) } });
     
   const savedReceipt = await createNewReceipt( updatedData, organizationId, userId, userName );  
@@ -281,7 +281,7 @@ function salesReceiptPrefix( cleanData, existingPrefix ) {
 
 
  // Validate Supplier and Organization
- function validateCustomerAndOrganization(organizationExists, customerExists, existingPrefix ,res) {
+ function validateCustomerAndOrganization(organizationExists, customerExists, existingPrefix ,res) {  
   if (!organizationExists) {
       res.status(404).json({ message: "Organization not found" });
       return false;
@@ -358,7 +358,7 @@ function validateField(condition, errorMsg, errors) {
 
 //Valid Req Fields
 function validateReqFields( data, depositAcc, customerAccount, errors ) {
-  validateField( typeof data.customerId === 'undefined' || typeof data.customerDisplayName === 'undefined', "Please select a customer", errors  );
+  validateField( typeof data.customerId === 'undefined', "Please select a customer", errors  );
   validateField( typeof data.invoice === 'undefined' || (Array.isArray(data.invoice) && data.invoice.length === 0), "Select an invoice", errors  );
   validateField( typeof data.amountReceived === 'undefined' || data.amountReceived === 0 || typeof data.amountUsedForPayments === 'undefined' || data.amountUsedForPayments === 0, "Enter amount received", errors  );
   validateField( typeof data.depositAccountId === 'undefined' , "Select deposit account", errors  );
@@ -397,7 +397,7 @@ function validatePaymentTable(invoice, paymentTable, errors) {
 
     // Validate billAmount
     validateField( invoices.totalAmount !== fetchedInvoices.totalAmount, `Grand Total for Invoice Number${invoices.salesInvoice}: ${invoices.totalAmount}`, errors );
-
+    
     // Validate amountDue
     validateField( invoices.balanceAmount !== fetchedInvoices.balanceAmount, `Amount Due for Invoice number ${invoices.salesInvoice}: ${invoices.balanceAmount}`, errors );
 
@@ -463,12 +463,10 @@ const calculateAmountDue = async (invoiceId, { amount }) => {
       throw new Error(`Invoice not found with ID: ${invoiceId}`);
     }
 
-
     // Initialize fields if undefined
     receipt.paidAmount = typeof receipt.paidAmount === 'number' ? receipt.paidAmount : 0;
     receipt.balanceAmount = typeof receipt.balanceAmount === 'number' ? receipt.balanceAmount : receipt.totalAmount;
 
-   
     // Calculate new paidAmount and balanceAmount
     receipt.paidAmount += amount;
     receipt.balanceAmount = receipt.totalAmount - receipt.paidAmount;
@@ -616,3 +614,26 @@ async function createTrialEntry( data ) {
 await newTrialEntry.save();
 
 }
+
+
+
+
+
+exports.dataExist = {
+  dataExist,
+  receiptDataExist,
+  accDataExists,
+  journalDataExist
+};
+exports.validation = {
+  validateCustomerAndOrganization, 
+  validateInputs,
+  validateInvoices
+};
+exports.calculation = { 
+  calculateTotalPaymentMade,
+  processInvoices
+};
+exports.accounts = { 
+  journal
+};
