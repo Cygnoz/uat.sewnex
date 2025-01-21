@@ -2,8 +2,8 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const itemsSchema = new Schema({
-  itemId: { type: String },
-  itemName: { type: String },
+  itemId: {type: mongoose.Schema.Types.ObjectId, ref: 'Item'},
+  // itemName: { type: String },
 
   itemQuantity: { type: Number },
   stock: { type: Number },
@@ -28,17 +28,23 @@ const itemsSchema = new Schema({
   itemVatAmount: { type: Number },
 },{ _id: false });
 
+const journalSchema = new Schema({
+  accountId: { type: mongoose.Schema.Types.ObjectId, ref: 'Accounts' },
+  debitAmount: { type: Number },
+  creditAmount: { type: Number },
+});
+
 const debitNoteSchema = new mongoose.Schema({
   organizationId: {type:String},
-  supplierId: { type: String},
-  supplierDisplayName: { type: String },
+  supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier' },
+  // supplierDisplayName: { type: String },
 
   sourceOfSupply: { type: String },
   destinationOfSupply: { type: String },
 
   taxMode: { type: String }, // intra/inter/Vat
 
-  billId: { type: String },
+  billId: { type: mongoose.Schema.Types.ObjectId, ref: 'PurchaseBill' },
   billNumber: { type: String },
   billDate: { type: String },
   billType: { type: String },
@@ -46,7 +52,8 @@ const debitNoteSchema = new mongoose.Schema({
   orderNumber: { type: String },
   supplierDebitDate: { type: String },
   paymentMode: { type: String },  // cash/credit
-  depositTo: { type: String },
+  depositAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'Accounts' },
+  // depositToAccountName
   subject: { type: String }, 
 
   // Item table
@@ -75,6 +82,13 @@ const debitNoteSchema = new mongoose.Schema({
   grandTotal: { type: Number },
   createdDate: { type: String },
   // status: { type: String }, // Open/Closed
+
+  purchaseJournal:[ journalSchema ], 
+
+  createdDateTime: { type: Date, default: () => new Date() },
+
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  //userName
 
 });
 

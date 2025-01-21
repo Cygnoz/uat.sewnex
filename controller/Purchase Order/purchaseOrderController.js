@@ -10,8 +10,10 @@ const Tax = require('../../database/model/tax');
 const Prefix = require("../../database/model/prefix");
 const moment = require("moment-timezone");
 const mongoose = require('mongoose');
-const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
+
+
 const { cleanData } = require("../../services/cleanData");
+const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
 
 
 
@@ -34,9 +36,15 @@ const dataExist = async ( organizationId, supplierId, items ) => {
 
 const purchaseOrderDataExist = async ( organizationId, orderId ) => {    
     const [organizationExists, allPurchaseOrder, purchaseOrder ] = await Promise.all([
-      Organization.findOne({ organizationId }, { organizationId: 1, timeZone: 1, dateFormatExp: 1, dateSplit: 1 }),
-      PurchaseOrder.find({ organizationId }),
+      Organization.findOne({ organizationId }, { organizationId: 1,timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1 })
+      .lean(),
+      PurchaseOrder.find({ organizationId })
+      .populate('supplierId', 'supplierDisplayName')    
+      .lean(),
       PurchaseOrder.findOne({ organizationId , _id: orderId })
+      .populate('items.itemId', 'itemName cgst sgst igst vat purchaseAccountId')    
+      .populate('supplierId', 'supplierDisplayName')    
+      .lean(),
     ]);
     return { organizationExists, allPurchaseOrder, purchaseOrder };
   };
@@ -51,8 +59,7 @@ exports.addPurchaseOrder = async (req, res) => {
       const { organizationId, id: userId, userName } = req.user;
   
       //Clean Data
-      const cleanedData = cleanData(req.body);
-  
+      const cleanedData = cleanData(req.body);  
       const { items, supplierId } = cleanedData;
       
       const itemIds = items.map(item => item.itemId);      
@@ -65,7 +72,7 @@ exports.addPurchaseOrder = async (req, res) => {
   
       //Validate Supplier
       if (!mongoose.Types.ObjectId.isValid(supplierId) || supplierId.length !== 24) {
-        return res.status(400).json({ message: `Invalid Supplier ID: ${supplierId}` });
+        return res.status(400).json({ message: `Select a supplier` });
       }
   
       // Validate ItemIds
@@ -82,11 +89,8 @@ exports.addPurchaseOrder = async (req, res) => {
       //Validate Inputs  
       if (!validateInputs( cleanedData, supplierExist, items, itemTable, organizationExists, res)) return;
   
-      //Date & Time
-      // const openingDate = generateOpeningDate(organizationExists);
-  
       //Tax Type
-      taxtype(cleanedData, supplierExist );
+      taxType(cleanedData, supplierExist );
       
       // Calculate Purchase order 
       if (!calculatePurchaseOrder( cleanedData, res )) return;
@@ -106,39 +110,35 @@ exports.addPurchaseOrder = async (req, res) => {
   
   
   
-  // Get All Purchase Order
-  exports.getAllPurchaseOrder = async (req, res) => {
-    try {
-      const organizationId = req.user.organizationId;
-  
-      const { organizationExists, allPurchaseOrder } = await purchaseOrderDataExist( organizationId , undefined );
-  
-      if (!organizationExists) {
-        return res.status(404).json({
-          message: "Organization not found",
-        });
-      }
-  
-      if (!allPurchaseOrder.length) {
-        return res.status(404).json({
-          message: "No purchase order found",
-        });
-      }
+// Get All Purchase Order
+exports.getAllPurchaseOrder = async (req, res) => {
+  try {
+    const organizationId = req.user.organizationId;
 
-      // Map over all purchaseOrder to remove the organizationId from each object
-      const sanitizedPurchaseOrders = allPurchaseOrder.map(order => {
-        const { organizationId, ...rest } = order.toObject(); // Convert to plain object and omit organizationId
-        return rest;
-      });
+    const { organizationExists, allPurchaseOrder } = await purchaseOrderDataExist( organizationId , undefined );
 
-      const formattedObjects = multiCustomDateTime(sanitizedPurchaseOrders, organizationExists.dateFormatExp, organizationExists.timeZone, organizationExists.dateSplit );    
-      
-      res.status(200).json( {allPurchaseOrder: formattedObjects });
-      } catch (error) {
-      console.error("Error fetching purchase order:", error);
-      res.status(500).json({ message: "Internal server error." });
-    }
-  };
+    if (!organizationExists) return res.status(404).json({ message: "Organization not found" });
+    
+
+    if (!allPurchaseOrder) return res.status(404).json({ message: "No purchase order found" });
+
+
+    
+    const transformedInvoice = allPurchaseOrder.map(data => {
+      return {
+          ...data,
+          supplierId: data.supplierId._id,  
+          supplierDisplayName: data.supplierId.supplierDisplayName,  
+      };});     
+    
+      const formattedObjects = multiCustomDateTime(transformedInvoice, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
+    
+    res.status(200).json( {allPurchaseOrder: formattedObjects });
+    } catch (error) {
+    console.error("Error fetching purchase order:", error);
+    res.status(500).json({ message: "Internal server error." });
+  }
+};
   
   
  // Get One Purchase Order
@@ -146,56 +146,37 @@ exports.addPurchaseOrder = async (req, res) => {
   
     try {
       const organizationId = req.user.organizationId;
-      const {orderId} = cleanData(req.params);      
-
-      if(orderId){
+      const {orderId} = cleanData(req.params);
+      
+      if ( !orderId || orderId.length !== 24 ) return res.status(404).json({ message: "No Order found1" });
     
       const { organizationExists, purchaseOrder } = await purchaseOrderDataExist(organizationId, orderId);
-    console.log("purchaseOrder...:",purchaseOrder);
     
-      if (!organizationExists) {
-        return res.status(404).json({
-          message: "Organization not found",
-        });
-      }
+      if (!organizationExists) return res.status(404).json({ message: "Organization not found" });
     
-      if (!purchaseOrder) {
-        return res.status(404).json({
-          message: "No purchase order found",
-        });
-      }
+      if (!purchaseOrder) return res.status(404).json({ message: "No purchase order found" });
+      
 
-      // Fetch item details associated with the purchaseOrder
-      const itemIds = purchaseOrder.items.map(item => item.itemId);
+      const transformedInvoice = {
+        ...purchaseOrder,
+        supplierId: purchaseOrder.supplierId._id,  
+        supplierDisplayName: purchaseOrder.supplierId.supplierDisplayName,
+        items: purchaseOrder.items.map(item => ({
+          ...item,
+          itemId: item.itemId._id,
+          itemName: item.itemId.itemName,
+          cgst: item.itemId.cgst,
+          sgst: item.itemId.sgst,
+          igst: item.itemId.igst,
+          vat: item.itemId.vat,      
+          purchaseAccountId: item.itemId.purchaseAccountId,
+        })),  
+    };
 
-      // Retrieve items including itemImage
-      const itemsWithImages = await Item.find(
-        { _id: { $in: itemIds }, organizationId },
-        { _id: 1, itemName: 1, itemImage: 1 } 
-      );
-
-      // Map the items to include item details
-      const updatedItems = purchaseOrder.items.map(purchaseOrderItem => {
-        const itemDetails = itemsWithImages.find(item => item._id.toString() === purchaseOrderItem.itemId.toString());
-        return {
-          ...purchaseOrderItem.toObject(),
-          itemName: itemDetails ? itemDetails.itemName : null,
-          itemImage: itemDetails ? itemDetails.itemImage : null,
-        };
-      });
-
-      // Attach updated items back to the purchaseOrder
-      const updatedPurchaseOrder = {
-        ...purchaseOrder.toObject(),
-        items: updatedItems,
-      };
-
-      updatedPurchaseOrder.organizationId = undefined;
-
-      const formattedObjects = singleCustomDateTime(updatedPurchaseOrder, organizationExists.dateFormatExp, organizationExists.timeZone, organizationExists.dateSplit );    
+      const formattedObjects = singleCustomDateTime(transformedInvoice, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
       
       res.status(200).json(formattedObjects);
-    }
+    
     } catch (error) {
       console.error("Error fetching purchase order:", error);
       res.status(500).json({ message: "Internal server error." });
@@ -241,9 +222,7 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
   
     activeSeries.purchaseOrderNum += 1;
   
-    existingPrefix.save()
-  
-    return 
+    existingPrefix.save() 
   }
 
 
@@ -258,15 +237,7 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
   }
   
   
-  // //Clean Data 
-  // function cleanData(data) {
-  //   const cleanData = (value) => (value === null || value === undefined || value === "" ? undefined : value);
-  //   return Object.keys(data).reduce((acc, key) => {
-  //     acc[key] = cleanData(data[key]);
-  //     return acc;
-  //   }, {});
-  // }
-  
+
   
   // Validate Organization Supplier Prefix
   function validateOrganizationSupplierPrefix( organizationExists, supplierExist, existingPrefix, res ) {
@@ -288,7 +259,7 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
   
   
   // Tax Type
-  function taxtype( cleanedData, supplierExist ) {
+  function taxType( cleanedData, supplierExist ) {
     if(supplierExist.taxType === 'GST' ){
       if(cleanedData.sourceOfSupply === cleanedData.destinationOfSupply){
         cleanedData.taxMode ='Intra';
@@ -299,8 +270,7 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
     }
     if(supplierExist.taxType === 'VAT' ){
       cleanedData.taxMode ='VAT'; 
-    }
-    return   
+    }   
   }
 
 
@@ -400,7 +370,7 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
     console.log(`itemTotalDiscount: ${itemTotalDiscount} , Provided ${cleanedData.itemTotalDiscount}`);
   
     // Transaction Discount
-    let transDisAmt = calculateTransactionDiscount(cleanedData, total, transactionDiscountAmount); 
+    let transDisAmt = calculateTransactionDiscount( cleanedData, total ); 
   
     // grandTotal amount calculation with including transactionDiscount
     grandTotal = total - transDisAmt; 
@@ -441,12 +411,12 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
   
   
   //TransactionDiscount
-  function calculateTransactionDiscount(cleanedData, total, transactionDiscountAmount) {
-    transactionDiscountAmount = cleanedData.transactionDiscount || 0;
+  function calculateTransactionDiscount( cleanedData, total ) {
+    const discountAmount = cleanedData.discountTransactionAmount || 0;
   
     return cleanedData.transactionDiscountType === 'currency'
-      ? transactionDiscountAmount
-      : (total * cleanedData.transactionDiscount) / 100;    //if percentage
+      ? discountAmount
+      : (total * discountAmount) / 100;    //if percentage
   }
   
   
@@ -476,52 +446,6 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
 
 
 
-//    //Return Date and Time 
-// function generateOpeningDate(organizationExists) {
-//     const date = generateTimeAndDateForDB(
-//         organizationExists.timeZoneExp,
-//         organizationExists.dateFormatExp,
-//         organizationExists.dateSplit
-//       )
-//     return date.dateTime;
-//   }
-  
-  
-//   // Function to generate time and date for storing in the database
-//   function generateTimeAndDateForDB(
-//     timeZone,
-//     dateFormat,
-//     dateSplit,
-//     baseTime = new Date(),
-//     timeFormat = "HH:mm:ss",
-//     timeSplit = ":"
-//   ) {
-//     // Convert the base time to the desired time zone
-//     const localDate = moment.tz(baseTime, timeZone);
-  
-//     // Format date and time according to the specified formats
-//     let formattedDate = localDate.format(dateFormat);
-  
-//     // Handle date split if specified
-//     if (dateSplit) {
-//       // Replace default split characters with specified split characters
-//       formattedDate = formattedDate.replace(/[-/]/g, dateSplit); // Adjust regex based on your date format separators
-//     }
-  
-//     const formattedTime = localDate.format(timeFormat);
-//     const timeZoneName = localDate.format("z"); // Get time zone abbreviation
-  
-//     // Combine the formatted date and time with the split characters and time zone
-//     const dateTime = `${formattedDate} ${formattedTime
-//       .split(":")
-//       .join(timeSplit)} (${timeZoneName})`;
-  
-//     return {
-//       date: formattedDate,
-//       time: `${formattedTime} (${timeZoneName})`,
-//       dateTime: dateTime,
-//     };
-//   }
 
 
 
@@ -563,12 +487,7 @@ function validateInputs( data, supplierExist, items, itemExists, organizationExi
     validatePaymentTerms(data.paymentTerms, errors);
     //validateGSTorVAT(data, errors);
   
-    //Currency
-    //validateCurrency(data.currency, validCurrencies, errors);
-  
-    //Address
-    //validateBillingAddress(data, errors);
-    //validateShippingAddress(data, errors);  
+
     return errors;
   }
   
@@ -583,8 +502,8 @@ function validateInputs( data, supplierExist, items, itemExists, organizationExi
   //Valid Req Fields
   function validateReqFields( data, supplierExist, errors ) {
   validateField( typeof data.supplierId === 'undefined' || typeof data.supplierDisplayName === 'undefined', "Please select a Supplier", errors  );
-  validateField( supplierExist.taxtype == 'GST' && typeof data.sourceOfSupply === 'undefined', "Source of supply required", errors  );
-  validateField( supplierExist.taxtype == 'GST' && typeof data.destinationOfSupply === 'undefined', "Destination of supply required", errors  );
+  validateField( supplierExist.taxType == 'GST' && typeof data.sourceOfSupply === 'undefined', "Source of supply required", errors  );
+  validateField( supplierExist.taxType == 'GST' && typeof data.destinationOfSupply === 'undefined', "Destination of supply required", errors  );
   validateField( typeof data.items === 'undefined', "Select an item", errors  );
   }
   
@@ -843,6 +762,6 @@ exports.validation = {
     validateInputs
 };
 exports.calculations = { 
-    taxtype,
+    taxType,
     calculatePurchaseOrder
 };

@@ -2,9 +2,9 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const unpaidBillSchema = new Schema({
+  billId: { type: mongoose.Schema.Types.ObjectId, ref: 'PurchaseBill' },
   billDate: { type: String },
   dueDate: { type: String },
-  billId: { type: String },
   billNumber: { type: String },
   billAmount: { type: Number },
   amountDue: { type: Number },
@@ -13,14 +13,19 @@ const unpaidBillSchema = new Schema({
 
 const paymentSchema = new Schema({
   organizationId: { type: String },
-  supplierId: { type: String },
-  supplierDisplayName: { type: String },
-  // payment:{type:String},// input field for payment
-  paymentMade :  { type: Number },  //prefix
+
+  supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier' },
+  //supplierDisplayName: { type: String },
+  
+  // payment:{type:String}, // input field for payment
+  paymentMade  :  { type: String },  //prefix
   paymentDate: { type: String },
+  
   // paymentId: { type: String }, //prefix
   paymentMode: { type: String },// cash, bank
-  paidThrough: { type: String },//accounts
+  
+  paidThroughAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'Accounts' },//accounts
+  
   reference: { type: String },
   notes: { type: String },
   attachments: { type: String },
@@ -32,8 +37,11 @@ const paymentSchema = new Schema({
   // amountRefunded: { type: Number},
   amountInExcess: { type : Number},
   unpaidBills: [unpaidBillSchema],
-  userId:{ type: String },
-  userName:{ type: String }
+  
+  
+  createdDateTime: { type: Date, default: () => new Date() },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  //userName
 });
 
 const PurchasePayment = mongoose.model('Payment Made', paymentSchema);

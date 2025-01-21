@@ -1,36 +1,39 @@
+//v1.1
+
 const mongoose = require('mongoose')
 const { Schema } = mongoose;
 
 const itemsSchema = new Schema({
-  itemId: { type: String },
-  itemName: { type: String },
+  itemId: {type: mongoose.Schema.Types.ObjectId, ref: 'Item'},
+  // itemName
 
   itemQuantity: { type: Number },
   itemCostPrice: { type: Number },
 
-  itemTax: { type: Number },
-
-  itemDiscountType: { type: String }, //percentage/rupees
-  itemDiscount: { type: String },
   
-  itemAmount: { type: Number },
-
+  itemDiscountType: { type: String }, //percentage/rupees
+  itemDiscount: { type: Number },
+  
   taxPreference: {type:String}, //Taxable or Not
+  
   itemSgst: { type: Number },
   itemCgst: { type: Number },
   itemIgst: { type: Number },
   itemVat: { type: Number },
-
+  
   itemSgstAmount: { type: Number },
   itemCgstAmount: { type: Number },
   itemIgstAmount: { type: Number },
   itemVatAmount: { type: Number },
+  itemTax: { type: Number }, //Total Tax Amount
+  
+  itemAmount: { type: Number },
 },{ _id: false });
 
 const purchaseOrderSchema = new mongoose.Schema({
   organizationId: {type:String},
-  supplierId: { type: String},
-  supplierDisplayName: { type: String },
+  supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier' },
+  // supplierDisplayName
   
   //supplierBillingAddress:
   supplierBillingCountry: { type: String },
@@ -61,8 +64,11 @@ const purchaseOrderSchema = new mongoose.Schema({
   // Other details:
   otherExpenseAmount: { type: Number },
   otherExpenseReason: { type: String },
+  
   freightAmount: { type: Number },
+  
   vehicleNo: { type: String }, 
+  
   addNotes: { type: String },
   termsAndConditions: { type: String },
   attachFiles: { type: String }, 
