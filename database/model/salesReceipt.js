@@ -39,6 +39,8 @@ const SalesReceiptSchema = new Schema ({
 
   total: {type: Number},
 
+  amountUsedForPayments: {type: Number},
+
   createdDateTime: { type: Date, default: () => new Date() },
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   //userName

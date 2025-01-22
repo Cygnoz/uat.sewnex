@@ -1350,3 +1350,31 @@ async function createTrialEntry( data ) {
 await newTrialEntry.save();
 
 }
+
+
+
+
+
+
+
+
+exports.dataExist = {
+  dataExist,
+  accDataExists,
+  itemDataExists,
+  creditDataExist
+};
+exports.validation = {
+  validateOrganizationTaxCurrency, 
+  validateInputs
+};
+exports.calculation = { 
+  taxType,
+  calculateCreditNote,
+  updateSalesInvoiceWithCreditNote
+};
+exports.accounts = { 
+  defaultAccounting,
+  salesJournal,
+  journal
+};

@@ -9,7 +9,7 @@ const itemsSchema = new Schema({
   //itemName
 
   quantity: {type:Number},
-  returnQuantity: { type: Number, default: 0},
+  returnQuantity: { type: Number },
   sellingPrice: {type:Number},
 
   taxPreference: {type:String},
@@ -99,7 +99,7 @@ const SalesInvoiceSchema = new Schema ({
   totalAmount: { type: Number },
   totalDiscount: { type: Number },
 
-  paidAmount: { type: Number },
+  paidAmount: { type: Number }, 
   balanceAmount: { type: Number },
   depositAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'Accounts' },
 

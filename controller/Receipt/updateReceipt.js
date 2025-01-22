@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const SalesReceipt = require('../../database/model/salesReceipt');
 const TrialBalance = require("../../database/model/trialBalance");
+const Invoice = require("../../database/model/salesInvoice");
 const { dataExist, validation, calculation, accounts } = require("../Receipt/salesReceipt");
 const { cleanData } = require("../../services/cleanData");
 
@@ -12,14 +13,13 @@ exports.updateReceipt = async (req, res) => {
   
     try {
       const { organizationId, id: userId, userName } = req.user;
-      const { receiptId } = req.params;      
+      const { receiptId } = req.params;  
 
       // Fetch existing sales receipt
-      const existingSalesReceipt = await SalesReceipt.findOne({ _id: receiptId, organizationId });
-      if (!existingSalesReceipt) {
-        console.log("Sales receipt not found with ID:", receiptId);
-        return res.status(404).json({ message: "Sales receipt not found" });
-      }
+      const existingSalesReceipt = await getExistingSalesReceipt(receiptId, organizationId);
+
+      // Extract paymentAmount values
+      const existingSalesReceiptInvoice = existingSalesReceipt.invoice;
 
       // Clean input data
       const cleanedData = cleanData(req.body);
@@ -27,11 +27,21 @@ exports.updateReceipt = async (req, res) => {
       const { invoice, amountReceived, customerId } = cleanedData;      
 
       const invoiceIds = invoice.map(inv => inv.invoiceId);
+
+      // Fetch the latest receipt for the given customerId and organizationId
+      await getLatestReceipt(receiptId, organizationId, customerId, invoiceIds);
     
       // Validate _id's
       const validateAllIds = validateIds({ invoiceIds, customerId });
       if (validateAllIds) {
         return res.status(400).json({ message: validateAllIds });
+      }
+
+      // Ensure `salesReceipt` field matches the existing order
+      if (cleanedData.receipt !== existingSalesReceipt.receipt) {
+        return res.status(400).json({
+          message: `The provided salesReceipt does not match the existing record. Expected: ${existingSalesReceipt.receipt}`,
+        });
       }
 
       // Fetch related data
@@ -42,37 +52,26 @@ exports.updateReceipt = async (req, res) => {
       //Data Exist Validation
       if (!validation.validateCustomerAndOrganization( organizationExists, customerExists, existingPrefix, res )) return;
 
-      // Call the new function to calculate actual amountDue
-      const { totalPaymentAmount } = await calculateActualAmountDue( organizationId, customerId, invoiceIds, receiptId );
-      console.log("totalPaymentAmount...................",totalPaymentAmount);
-      
-        
       // Validate Inputs
-      if (!validateInputs(cleanedData, invoice, paymentTable, totalPaymentAmount, organizationExists, depositAcc, customerAccount, res)) return;
-  
-      const updatedData = await calculation.calculateTotalPaymentMade(cleanedData, amountReceived );
+      if (!validateInputs(cleanedData, invoice, paymentTable, organizationExists, depositAcc, customerAccount, res)) return;
 
+      const updatedData = await calculation.calculateTotalPaymentMade(cleanedData, amountReceived );
+      
       // Validate invoices
       const validatedInvoices = validation.validateInvoices(updatedData.invoice);
-  
+      
       // Process invoices
-      const paymentResults = await calculation.processInvoices(validatedInvoices);
-      console.log('Invoice processing complete:', paymentResults);
+      await processInvoices(validatedInvoices, existingSalesReceiptInvoice);
+
+      // Validate Inputs
+      if (!validateUpdatedInputs(cleanedData, existingSalesReceipt, res)) return;
 
       // Re-fetch the updated invoice to get the latest `amountDue` and `balanceAmount`
       await SalesReceipt.find({ _id: { $in: updatedData.invoice.map(receipt => receipt.invoiceId) } });  
-  
-      // Ensure `salesReceipt` field matches the existing order
-      if (cleanedData.receipt !== existingSalesReceipt.receipt) {
-        return res.status(400).json({
-          message: `The provided salesReceipt does not match the existing record. Expected: ${existingSalesReceipt.receipt}`,
-        });
-      }
 
       const mongooseDocument = SalesReceipt.hydrate(existingSalesReceipt);
       Object.assign(mongooseDocument, cleanedData);
       const savedSalesReceipt = await mongooseDocument.save();
-
       if (!savedSalesReceipt) {
         return res.status(500).json({ message: "Failed to update sales receipt" });
       }
@@ -88,6 +87,45 @@ exports.updateReceipt = async (req, res) => {
       res.status(500).json({ message: "Internal server error" });
     }
 };
+
+
+
+
+
+
+// Get Existing Sales Receipt
+async function getExistingSalesReceipt(receiptId, organizationId) {
+  const existingSalesReceipt = await SalesReceipt.findOne({ _id: receiptId, organizationId });
+  if (!existingSalesReceipt) {
+      console.log("Sales receipt not found with ID:", receiptId);
+      return res.status(404).json({ message: "Sales receipt not found" });
+  }
+  return existingSalesReceipt;
+}
+
+
+// Get Latest Receipt
+async function getLatestReceipt(receiptId, organizationId, customerId, invoiceIds) {
+  const latestReceipt = await SalesReceipt.findOne({ 
+      organizationId, 
+      customerId,
+      "invoice.invoiceId": { $in: invoiceIds }, 
+  }).sort({ createdDateTime: -1 }); // Sort by createdDateTime in descending order
+
+  if (!latestReceipt) {
+      console.log("No sales receipts found for this customer.");
+      return res.status(404).json({ message: "No sales receipts found for this customer." });
+  }
+
+  // Check if the provided receiptId matches the latest one
+  if (latestReceipt._id.toString() !== receiptId) {
+    return res.status(400).json({
+      message: "Only the latest sales receipt can be edited."
+    });
+  }
+
+  return latestReceipt;
+}
 
 
 
@@ -119,30 +157,93 @@ function validateIds({ invoiceIds, customerId }) {
 
 
 
-const calculateActualAmountDue = async ( organizationId, customerId, invoiceIds, receiptId ) => {
+
+// Utility function to process invoices
+async function processInvoices(invoices, existingSalesReceiptInvoice) {
+  
+  const results = [];
+  for (const invoice of invoices) {
+    try {
+      const result = await calculateAmountDue(invoice.invoiceId, { amount: invoice.paymentAmount }, existingSalesReceiptInvoice);
+      results.push(result);
+    } catch (error) {
+      console.error(`Error processing Invoice ID: ${invoice.invoiceId}`, error);
+      throw error; // Re-throw for higher-level error handling
+    }
+  }
+  return results;
+}
+
+
+const calculateAmountDue = async (invoiceId, { amount }, existingSalesReceiptInvoice) => {
   try {
-      // Fetch invoices for the given customer and organization, excluding the edited receipt
-      const invoicesForCustomer = await SalesReceipt.find({ 
-          organizationId, 
-          "invoice.invoiceId": { $in: invoiceIds }, 
-          customerId,
-          _id: { $ne: receiptId } // Exclude the edited receipt
-      });
+    // Find the bill by its ID
+    const invoice = await Invoice.findById(invoiceId);
 
-      let totalPaymentAmount = 0;
+    if (!invoice) {
+      throw new Error(`Invoice not found with ID: ${invoiceId}`);
+    }
 
-      invoicesForCustomer.forEach((salesReceipt) => {
-          salesReceipt.invoice.forEach((inv) => {
-              if (invoiceIds.includes(inv.invoiceId.toString())) {
-                  totalPaymentAmount += inv.paymentAmount;
-              }
-          });
-      });
+    // Find the corresponding invoice in existingSalesReceiptInvoice
+    const existingInvoice = existingSalesReceiptInvoice.find((inv) => inv.invoiceId.toString() === invoiceId.toString());
 
-      return { totalPaymentAmount };
+    if (!existingInvoice) {
+      throw new Error(`No matching invoice found in existingSalesReceiptInvoice for ID: ${invoiceId}`);
+    }
+
+    // Initialize fields if undefined
+    invoice.paidAmount = typeof invoice.paidAmount === 'number' ? invoice.paidAmount : 0;
+    invoice.balanceAmount = typeof invoice.balanceAmount === 'number' ? invoice.balanceAmount : invoice.totalAmount;
+
+    // Check if paymentAmount and amount are equal
+    if (existingInvoice.paymentAmount === amount) {
+
+      invoice.balanceAmount = existingInvoice.balanceAmount;
+      await invoice.save();
+      console.log(`No changes required for Invoice ID ${invoiceId}: paymentAmount and amount are equal.`);
+
+    } else {
+      
+      if (existingInvoice.paymentAmount < amount) {
+        // If the incoming amount is greater than the existing paymentAmount, increase paidAmount
+        const incAmt = amount - existingInvoice.paymentAmount;
+        invoice.paidAmount += incAmt;
+      } else {
+        // If the incoming amount is less than the existing paymentAmount, decrease paidAmount
+        const decAmt = (existingInvoice.paymentAmount - amount);
+        invoice.paidAmount -= decAmt;
+      }
+
+      // Recalculate balanceAmount
+      invoice.balanceAmount = existingInvoice.balanceAmount - amount;
+
+      // Ensure values are within correct bounds
+      if (invoice.balanceAmount < 0) {
+        invoice.balanceAmount = 0;
+      }
+      if (invoice.paidAmount > invoice.totalAmount) {
+        invoice.paidAmount = invoice.totalAmount;
+      }
+
+      await invoice.save();
+    }
+
+    // Log the updated bill status for debugging
+    console.log(`Updated Invoice ID ${invoiceId}: Paid Amount: ${invoice.paidAmount}, Balance Amount: ${invoice.balanceAmount}`);
+
+    // Check if payment is complete
+    if (invoice.balanceAmount === 0) {
+      return {
+        message: `Payment completed for Invoice ID ${invoiceId}. No further payments are needed.`,
+        invoice,
+      };
+    }
+    
+    return { message: 'Payment processed', invoice };
+
   } catch (error) {
-      console.error("Error calculating totalPaymentAmount:", error);
-      throw new Error("Failed to calculate totalPaymentAmount");
+    console.error(`Error calculating balance amount for Invoice ID ${invoiceId}:`, error);
+    throw new Error(`Error calculating balance amount for Invoice ID ${invoiceId}: ${error.message}`);
   }
 };
 
@@ -151,9 +252,18 @@ const calculateActualAmountDue = async ( organizationId, customerId, invoiceIds,
 
 
 
+
+
+// Field validation utility
+function validateField(condition, errorMsg, errors) {
+  if (condition) errors.push(errorMsg);
+}
+
+
+
 //Validate inputs
-function validateInputs( data, invoice, paymentTable, totalPaymentAmount, organizationExists, depositAcc, customerAccount, res) {
-  const validationErrors = validatePaymentData(data, invoice, paymentTable, totalPaymentAmount, organizationExists, depositAcc, customerAccount);
+function validateInputs( data, invoice, paymentTable, organizationExists, depositAcc, customerAccount, res) {
+  const validationErrors = validatePaymentData(data, invoice, paymentTable, organizationExists, depositAcc, customerAccount);
 
   if (validationErrors.length > 0) {
     res.status(400).json({ message: validationErrors.join(", ") });
@@ -164,27 +274,14 @@ function validateInputs( data, invoice, paymentTable, totalPaymentAmount, organi
 
 
 //Validate Data
-function validatePaymentData( data, invoice, paymentTable, totalPaymentAmount, organizationExists, depositAcc, customerAccount ) {
+function validatePaymentData( data, invoice, paymentTable, organizationExists, depositAcc, customerAccount ) {
   const errors = [];
-
-  // console.log("invoice Request :",invoice);
-  // console.log("invoice Fetched :",paymentTable);
-  
   //Basic Info
   validateReqFields( data, depositAcc, customerAccount, errors );
-  validatePaymentTable(invoice, paymentTable, totalPaymentAmount, errors);
+  validatePaymentTable(invoice, paymentTable, errors);
   validateFloatFields([ 'amountReceived','amountUsedForPayments','total'], data, errors);
 
-  //Currency
-  // validateCurrency(data.currency, validCurrencies, errors);
-
   return errors;
-}
-
-
-// Field validation utility
-function validateField(condition, errorMsg, errors) {
-  if (condition) errors.push(errorMsg);
 }
 
 
@@ -199,14 +296,11 @@ function validateReqFields( data, depositAcc, customerAccount, errors ) {
 
   validateField( !depositAcc && typeof data.amountReceived !== 'undefined' , "Deposit Account not found", errors  );
   validateField( !customerAccount && typeof data.amountReceived !== 'undefined' , "Customer Account not found", errors  );
-
 }
 
 
-
 // Function to Validate Item Table 
-function validatePaymentTable(invoice, paymentTable, totalPaymentAmount, errors) {
-  // console.log("validate.......:",invoice , paymentTable)  //invoice - invoice in the receipt, paymentTable - exact invoice
+function validatePaymentTable(invoice, paymentTable, errors) {
 
   // Check for bill count mismatch
   validateField( invoice.length !== paymentTable.length, "Mismatch in invoice count between request and database.", errors  );
@@ -218,8 +312,6 @@ function validatePaymentTable(invoice, paymentTable, totalPaymentAmount, errors)
     // Check if item exists in the item table
     validateField( !fetchedInvoices, `Invoice with ID ${invoices.invoiceId} was not found.`, errors );
     if (!fetchedInvoices) return; 
-
-    console.log("1111........",invoices, fetchedInvoices);  //invoices - invoice in the receipt, fetchedInvoices - paymentTable/exact invoice
 
     // Validate invoice number
     validateField( invoices.salesInvoice !== fetchedInvoices.salesInvoice, `Invoice Number Mismatch Invoice Number: ${fetchedInvoices.salesInvoice}`, errors );
@@ -233,16 +325,61 @@ function validatePaymentTable(invoice, paymentTable, totalPaymentAmount, errors)
     // Validate billAmount
     validateField( invoices.totalAmount !== fetchedInvoices.totalAmount, `Invoice Amount for Invoice Number ${invoices.salesInvoice}: ${fetchedInvoices.totalAmount}`, errors );
     
-    // Validate amountDue
-    const actualBalanceAmt = fetchedInvoices.totalAmount - totalPaymentAmount;
-    console.log("totalPaymentAmount:", totalPaymentAmount);
-    console.log("actualBalanceAmt:", actualBalanceAmt);
-    validateField( invoices.balanceAmount !== actualBalanceAmt, `Amount Due for Invoice number ${invoices.salesInvoice}: ${actualBalanceAmt}`, errors );
-
     // Validate float fields
     validateFloatFields(['balanceAmount', 'totalAmount', 'paymentAmount'], invoices, errors);
   });
 }
+
+
+
+
+
+//Validate inputs
+function validateUpdatedInputs(cleanedData, existingSalesReceiptInvoice, res) {
+  const validationErrors = validateBalanceAmtData(cleanedData, existingSalesReceiptInvoice);
+
+  if (validationErrors.length > 0) {
+    res.status(400).json({ message: validationErrors.join(", ") });
+    return false;
+  }
+  return true;
+}
+
+//Validate Data
+function validateBalanceAmtData( cleanedData, existingSalesReceiptInvoice ) {
+  const errors = [];
+  validateAmtDueData(cleanedData, existingSalesReceiptInvoice, errors);
+  return errors;
+}
+
+//Function to Validate Amount Due 
+function validateAmtDueData(cleanedData, existingSalesReceiptInvoice, errors) {
+
+  const receiptInvoice = cleanedData.invoice;
+  const existingReceiptInvoice = existingSalesReceiptInvoice.invoice;
+
+  // Check if receiptInvoice and existingReceiptInvoice are valid arrays
+  validateField(!Array.isArray(receiptInvoice), "Invalid receipt invoice data.", errors);
+  validateField(!Array.isArray(existingReceiptInvoice), "Invalid existing receipt invoice data.", errors);
+  if (!Array.isArray(receiptInvoice) || !Array.isArray(existingReceiptInvoice)) return;
+
+  validateField( receiptInvoice.length !== existingReceiptInvoice.length, "Mismatch in receipt invoice count between request and database.", errors  );
+
+  receiptInvoice.forEach((RInv) => {
+    const existingRInv = existingReceiptInvoice.find(inv => inv.invoiceId.toString() === RInv.invoiceId.toString());
+
+    validateField( !existingRInv, `Invoice with ID ${RInv.invoiceId} was not found.`, errors );
+    if (!existingRInv) return;
+
+    validateField( RInv.salesInvoice !== existingRInv.salesInvoice, `Invoice Number Mismatch Receipt Invoice Number: ${existingRInv.salesInvoice}`, errors );
+    validateField( RInv.salesInvoiceDate !== existingRInv.salesInvoiceDate, `Invoice Date Mismatch Receipt Invoice Number: ${RInv.salesInvoice} : ${existingRInv.salesInvoiceDate}` , errors );
+    validateField( RInv.dueDate !== existingRInv.dueDate, `Due Date Mismatch for Receipt Invoice Number ${RInv.salesInvoice}:  ${existingRInv.dueDate}`, errors );
+    validateField( RInv.totalAmount !== existingRInv.totalAmount, `Invoice Amount for Receipt Invoice Number ${RInv.salesInvoice}: ${existingRInv.totalAmount}`, errors );
+    validateField( RInv.balanceAmount !== existingRInv.balanceAmount, `Amount Due for Receipt Invoice number ${RInv.salesInvoice}: ${existingRInv.balanceAmount}`, errors );
+  });
+}
+
+
 
 
 
@@ -253,8 +390,6 @@ function validateFloatFields(fields, data, errors) {
       "Invalid " + balance.replace(/([A-Z])/g, " $1") + ": " + data[balance], errors);
   });
 }
-
-
 
 // Helper functions to handle formatting
 function capitalize(word) {

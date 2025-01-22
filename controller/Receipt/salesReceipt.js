@@ -114,7 +114,6 @@ exports.addReceipt = async (req, res) => {
 
   // Process invoices
   const paymentResults = await processInvoices(validatedInvoices);
-
   console.log('Invoice processing complete:', paymentResults);
 
   //Prefix
@@ -517,7 +516,7 @@ const calculateTotalPaymentMade = async (cleanedData, amountReceived) => {
 
   // Calculate amountUsedForPayments and amountInExcess
   amountReceived = cleanedData.amountReceived || 0;
-  cleanedData.amountUsedForPayments = amountReceived - totalPayment;
+  cleanedData.amountUsedForPayments = totalPayment;
 
   return cleanedData;
 };
