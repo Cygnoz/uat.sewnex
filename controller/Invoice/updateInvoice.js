@@ -15,7 +15,7 @@ exports.updateInvoice = async (req, res) => {
     console.log("Update sales invoice:", req.body);
   
     try {
-      const { organizationId, id: userId, userName } = req.user;
+      const { organizationId } = req.user;
       const { invoiceId } = req.params;   
       
       // Check if the invoiceId exists in SalesReceipt schema
@@ -215,8 +215,7 @@ exports.updateInvoice = async (req, res) => {
           createdDateTime: createdDateTime // Preserve the original createdDateTime
         });
 
-        const savedItemTrack = await newItemTrack.save();
-        // console.log("savedItemTrack",savedItemTrack);
+        await newItemTrack.save();
 
         // Delete existing itemTrack entries for the operation
       if (existingItemTracks.length > 0) {
