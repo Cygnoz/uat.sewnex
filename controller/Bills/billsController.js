@@ -5,120 +5,122 @@ const Supplier = require('../../database/model/supplier');
 const Item = require('../../database/model/item');
 const Settings = require("../../database/model/settings");
 const ItemTrack = require("../../database/model/itemTrack");
-const Tax = require('../../database/model/tax');  
-const moment = require("moment-timezone");
 const mongoose = require('mongoose');
 const Prefix = require("../../database/model/prefix");
 const DefAcc  = require("../../database/model/defaultAccount");
 const TrialBalance = require("../../database/model/trialBalance");
 const Account = require("../../database/model/account");
+
 const { cleanData } = require("../../services/cleanData");
 const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
 
+
 // Fetch existing data
-const dataExist = async ( organizationId, supplierId, supplierDisplayName, purchaseOrderId ) => {
-    const [organizationExists, supplierExist, purchaseOrderExist, taxExists, existingPrefix, settings, defaultAccount , supplierAccount] = await Promise.all([
+const dataExist = async ( organizationId, supplierId ) => {
+    const [organizationExists, supplierExist, existingPrefix, settings, defaultAccount , supplierAccount] = await Promise.all([
       Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
       Supplier.findOne({ organizationId , _id:supplierId}, { _id: 1, supplierDisplayName: 1, taxType: 1 }),
-      PurchaseOrder.findOne({organizationId , _id:purchaseOrderId}),
-      Tax.findOne({ organizationId }),
       Prefix.findOne({ organizationId }),
       Settings.findOne({ organizationId }),
       DefAcc.findOne({ organizationId },{ purchaseAccount: 1, purchaseDiscountAccount: 1, inputCgst: 1, inputSgst: 1, inputIgst: 1 ,inputVat: 1 }),
-      Account.findOne({ organizationId , accountName:supplierDisplayName },{ _id:1, accountName:1 })
+      Account.findOne({ organizationId , accountId:supplierId },{ _id:1, accountName:1 })
     ]);    
-  return { organizationExists, supplierExist, purchaseOrderExist, taxExists, existingPrefix, settings, defaultAccount, supplierAccount };
+  return { organizationExists, supplierExist, existingPrefix, settings, defaultAccount, supplierAccount };
 };
 
 
 //Fetch Item Data
-const itemDataExists = async (organizationId, items) => {
+const itemDataExists = async (organizationId,items) => {
   // Retrieve items with specified fields
-  const itemIds = items.map(item => item.itemId);
+  const itemIds = items.map(item => new mongoose.Types.ObjectId(item.itemId));
 
   const [newItems] = await Promise.all([
-    Item.find({ organizationId, _id: { $in: itemIds } }, { _id: 1, itemName: 1, taxPreference: 1, costPrice:1,  taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }),
+    Item.find( { organizationId, _id: { $in: itemIds } },
+    { _id: 1, itemName: 1, taxPreference: 1, sellingPrice: 1, costPrice: 1, taxRate: 1, cgst: 1, sgst: 1, igst: 1, vat: 1 }
+    ).lean()
   ]);
 
-  // Aggregate ItemTrack to get the latest entry for each itemId
+  // Aggregate ItemTrack data to calculate current stock
   const itemTracks = await ItemTrack.aggregate([
     { $match: { itemId: { $in: itemIds } } },
-    { $sort: { _id: -1 } },
-    { $group: { _id: "$itemId", lastEntry: { $first: "$$ROOT" } } }
+    {
+        $group: {
+            _id: "$itemId",
+            totalCredit: { $sum: "$creditQuantity" },
+            totalDebit: { $sum: "$debitQuantity" },
+            lastEntry: { $max: "$createdDateTime" } // Capture the latest entry time for each item
+        }
+    }
   ]);
 
-  // Map itemTracks by itemId for easier lookup
+  // Map itemTracks for easier lookup
   const itemTrackMap = itemTracks.reduce((acc, itemTrack) => {
-    acc[itemTrack._id] = itemTrack.lastEntry;
-    return acc;
-  }, {});
+      acc[itemTrack._id.toString()] = {
+          currentStock: itemTrack.totalDebit - itemTrack.totalCredit, // Calculate stock as debit - credit
+          lastEntry: itemTrack.lastEntry
+      };
+      return acc;
+    }, {});
 
-  // Attach the last entry from ItemTrack to each item in newItems
+  // Enrich newItems with currentStock data
   const itemTable = newItems.map(item => ({
-    ...item._doc, // Copy item fields
-    lastEntry: itemTrackMap[item._id] || null, // Attach lastEntry if found
-    currentStock: itemTrackMap[item._id.toString()] ? itemTrackMap[item._id.toString()].currentStock : null
+      ...item,
+      currentStock: itemTrackMap[item._id.toString()]?.currentStock ?? 0, // Use 0 if no track data
+      // lastEntry: itemTrackMap[item._id.toString()]?.lastEntry || null // Include the latest entry timestamp
   }));
 
-  return { itemTable };
+return { itemTable };
 };
 
 
 
 // Fetch Acc existing data
-const accDataExists = async ( defaultAccount, organizationId, otherExpenseAccountId, freightAccountId, paidAccountId ) => {
-  const [ purchaseAccountName, purchaseDiscountAccountName , inputCgstName, inputSgstName, inputIgstName, inputVatName, otherExpenseAcc, freightAcc, paidAcc ] = await Promise.all([
-    Account.findOne({ organizationId , _id: defaultAccount.purchaseAccount }, { accountName: 1 }),
-    Account.findOne({ organizationId , _id: defaultAccount.purchaseDiscountAccount}, { accountName: 1 }),
-
-    Account.findOne({ organizationId , _id: defaultAccount.inputCgst}, { accountName: 1 }),
-    Account.findOne({ organizationId , _id: defaultAccount.inputSgst}, { accountName: 1 }),
-    Account.findOne({ organizationId , _id: defaultAccount.inputIgst}, { accountName: 1 }),
-
-    Account.findOne({ organizationId , _id: defaultAccount.inputVat}, { accountName: 1 }),
-
+const accDataExists = async ( organizationId, otherExpenseAccountId, freightAccountId, paidAccountId ) => {
+  const [ otherExpenseAcc, freightAcc, paidAcc ] = await Promise.all([
     Account.findOne({ organizationId , _id: otherExpenseAccountId, accountHead: "Expenses" }, { _id:1, accountName: 1 }),
     Account.findOne({ organizationId , _id: freightAccountId, accountHead: "Expenses" }, { _id:1, accountName: 1 }),
-
     Account.findOne({ organizationId , _id: paidAccountId, accountHead: "Asset" }, { _id:1, accountName: 1 }),
 
   ]);
-  return { purchaseAccountName, purchaseDiscountAccountName , inputCgstName, inputSgstName, inputIgstName, inputVatName, otherExpenseAcc, freightAcc, paidAcc };
+  return { otherExpenseAcc, freightAcc, paidAcc };
 };
 
 
 const billsDataExist = async ( organizationId, billId ) => {    
-    const [organizationExists, allBills, bill ] = await Promise.all([
-      Organization.findOne({ organizationId }, { organizationId: 1, timeZone: 1, dateFormatExp: 1, dateSplit: 1}),
-      Bills.find({ organizationId }),
+    const [organizationExists, allBills, bill, billJournal ] = await Promise.all([
+      Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }).lean(),
+      Bills.find({ organizationId })
+      .populate('items.itemId', 'itemName') 
+      .populate('supplierId', 'supplierDisplayName')    
+      .lean(),
       Bills.findOne({ organizationId , _id: billId })
+      .populate('items.itemId', 'itemName itemImage') 
+      .populate('supplierId', 'supplierDisplayName')    
+      .lean(),      
+      TrialBalance.find({ organizationId: organizationId, operationId : billId })
+      .populate('accountId', 'accountName')    
+      .lean(),
     ]);
-    return { organizationExists, allBills, bill };
+    return { organizationExists, allBills, bill, billJournal };
   };
 
 
 
 // Add Bills
 exports.addBills = async (req, res) => {
-    console.log("Add bills:", req.body);
-  
+    console.log("Add bills:", req.body);  
     try {
       const { organizationId, id: userId, userName } = req.user;
   
       //Clean Data
       const cleanedData = cleanData(req.body);
-      cleanedData.items = cleanedData.items?.map(person => cleanData(person)) || [];
-      // console.log("cleanedData",cleanedData);
+      cleanedData.items = cleanedData.items?.map(data => cleanData(data)) || [];
 
+      cleanedData.items = cleanedData.items
+      ?.map(data => cleanData(data))
+      .filter(item => item.itemId !== undefined && item.itemId !== '') || []; 
       
-
-  
-      const { items, supplierId, purchaseOrderId } = cleanedData;
-      const { supplierDisplayName, otherExpenseAccountId, freightAccountId, paidAccountId } = cleanedData;
-
-    //   const { orderNumber } = cleanedData;
-    
-      
+      const { items, purchaseOrderId, supplierId, otherExpenseAccountId, freightAccountId, paidAccountId } = cleanedData;      
       const itemIds = items.map(item => item.itemId);      
       
       // Check for duplicate itemIds
@@ -133,7 +135,7 @@ exports.addBills = async (req, res) => {
   
       //Validate Supplier
       if (!mongoose.Types.ObjectId.isValid(supplierId) || supplierId.length !== 24) {
-        return res.status(400).json({ message: `Invalid supplier ID: ${supplierId}` });
+        return res.status(400).json({ message: `Select a supplier` });
       }
 
       if ((!mongoose.Types.ObjectId.isValid(otherExpenseAccountId) || otherExpenseAccountId.length !== 24) && cleanedData.otherExpenseAmount !== undefined ) {
@@ -146,15 +148,7 @@ exports.addBills = async (req, res) => {
 
       if ((!mongoose.Types.ObjectId.isValid(paidAccountId) || paidAccountId.length !== 24) && cleanedData.paidAmount !== undefined ) {
         return res.status(400).json({ message: `Select paid through account` });
-      }
-  
-      // Validate purchase order only if `purchaseOrderId` exists
-      if (purchaseOrderId) {
-        if (!mongoose.Types.ObjectId.isValid(purchaseOrderId) || purchaseOrderId.length !== 24) {
-            return res.status(400).json({ message: `Invalid Purchase Order ID: ${purchaseOrderId}` });
-        }
-      }
-      
+      }     
       
       // Validate ItemIds
       const invalidItemIds = itemIds.filter(itemId => !mongoose.Types.ObjectId.isValid(itemId) || itemId.length !== 24);
@@ -162,12 +156,12 @@ exports.addBills = async (req, res) => {
         return res.status(400).json({ message: `Invalid item IDs: ${invalidItemIds.join(', ')}` });
       }   
       
-      const { organizationExists, supplierExist, purchaseOrderExist, taxExists, existingPrefix, settings, defaultAccount, supplierAccount } = await dataExist( organizationId, supplierId, supplierDisplayName, purchaseOrderId );
+      const { organizationExists, supplierExist, existingPrefix, defaultAccount, supplierAccount } = await dataExist( organizationId, supplierId );
       
       const { itemTable } = await itemDataExists( organizationId, items );
       
       //Data Exist Validation
-      if (!validateOrganizationSupplierOrder( purchaseOrderId, organizationExists, supplierExist, purchaseOrderExist, existingPrefix, defaultAccount, res )) return;
+      if (!validateOrganizationSupplierOrder( organizationExists, supplierExist, existingPrefix, defaultAccount, res )) return;
       
       //Validate Inputs  
       if (!validateInputs( cleanedData, supplierExist, purchaseOrderExist, items, itemTable, organizationExists, defaultAccount, res)) return;
@@ -186,12 +180,15 @@ exports.addBills = async (req, res) => {
       }
 
       // Calculate Sales 
-      if (!calculateBills( cleanedData, itemTable, res )) return;      
+      if (!calculateBills( cleanedData, itemTable, res )) return;
+      
+      //Purchase Journal      
+      if (!purchaseJournal( cleanedData, res )) return; 
 
       //Prefix
       await billsPrefix(cleanedData, existingPrefix );
   
-      const savedBills = await createNewBills(cleanedData, organizationId, openingDate, userId, userName );
+      const savedBills = await createNewBills(cleanedData, organizationId, userId, userName );
   
       //Journal      
       await journal( savedBills, defAcc, supplierAccount );
@@ -222,26 +219,34 @@ exports.addBills = async (req, res) => {
       const { organizationExists, allBills } = await billsDataExist( organizationId, null );
   
       if (!organizationExists) {
-        return res.status(404).json({
-          message: "Organization not found",
-        });
+        return res.status(404).json({ message: "Organization not found" });
       }
+
+      if (!allBills) {
+        return res.status(404).json({ message: "No Invoice found" });
+      }
+
+      const transformedBill = allBills.map(data => {
+        return {
+            ...data,
+            supplierId: data.supplierId._id,  
+            supplierDisplayName: data.supplierId.supplierDisplayName,
+            items: data.items.map(item => ({
+              ...item,
+              itemId: item.itemId._id,
+              itemName: item.itemId.itemName,
+            })),  
+        };});
   
-      if (!allBills.length) {
-        return res.status(404).json({
-          message: "No Bills Note found",
-        });
-      }
 
         // Get current date for comparison
         const currentDate = new Date();
 
-        // Array to store purchase bills with updated status
-        const updatedBills = [];
+      
 
         // Map through purchase bills and update paidStatus if needed
         for (const bill of allBills) {
-        const { organizationId, balanceAmount, dueDate, paidStatus: currentStatus, ...rest } = bill.toObject();
+        const { balanceAmount, dueDate, paidStatus: currentStatus } = bill;
         
         // Determine the correct paidStatus based on balanceAmount and dueDate
         let newStatus;
@@ -257,18 +262,10 @@ exports.addBills = async (req, res) => {
         if (newStatus !== currentStatus) {
             await Bills.updateOne({ _id: bill._id }, { paidStatus: newStatus });
         }
-
-        // Push the bill object with the updated status to the result array
-        updatedBills.push({ ...rest, balanceAmount , dueDate , paidStatus: newStatus });
         }
 
-        // Map over all purchaseOrder to remove the organizationId from each object
-        const sanitizedBills = updatedBills.map(order => {
-          const { organizationId, ...rest } = order; 
-          return rest;
-        });
+        const formattedObjects = multiCustomDateTime(transformedBill, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
 
-        const formattedObjects = multiCustomDateTime(sanitizedBills, organizationExists.dateFormatExp, organizationExists.timeZone, organizationExists.dateSplit );    
   
       res.status(200).json({allBills: formattedObjects});
     } catch (error) {
@@ -286,47 +283,23 @@ exports.addBills = async (req, res) => {
   
     const { organizationExists, bill } = await billsDataExist(organizationId, billId);
   
-    if (!organizationExists) {
-      return res.status(404).json({
-        message: "Organization not found",
-      });
-    }
-  
-    if (!bill) {
-      return res.status(404).json({
-        message: "No bill found",
-      });
-    }
+    if (!organizationExists) return res.status(404).json({ message: "Organization not found" });
+     
+    if (!bill) return res.status(404).json({ message: "No bill found" });
 
-    
-    // Fetch item details associated with the bill
-    const itemIds = bill.items.map(item => item.itemId);
+    const transformedBill = {
+      ...bill,
+      supplierId: bill.supplierId._id,  
+      supplierDisplayName: bill.supplierId.supplierDisplayName,
+      items: bill.items.map(item => ({
+        ...item,
+        itemId: item.itemId._id,
+        itemName: item.itemId.itemName,
+        itemImage: item.itemId.itemImage,
+      })),  
+  };
 
-    // Retrieve items including itemImage
-    const itemsWithImages = await Item.find(
-      { _id: { $in: itemIds }, organizationId },
-      { _id: 1, itemName: 1, itemImage: 1 } 
-    );
-
-    // Map the items to include item details
-    const updatedItems = bill.items.map(billItem => {
-      const itemDetails = itemsWithImages.find(item => item._id.toString() === billItem.itemId.toString());
-      return {
-        ...billItem.toObject(),
-        itemName: itemDetails ? itemDetails.itemName : null,
-        itemImage: itemDetails ? itemDetails.itemImage : null,
-      };
-    });
-
-    // Attach updated items back to the bill
-    const updatedBill = {
-      ...bill.toObject(),
-      items: updatedItems,
-    };
-
-    updatedBill.organizationId = undefined;
-
-    const formattedObjects = singleCustomDateTime(updatedBill, organizationExists.dateFormatExp, organizationExists.timeZone, organizationExists.dateSplit );    
+    const formattedObjects = singleCustomDateTime(transformedBill, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
 
     res.status(200).json(formattedObjects);
   } catch (error) {
@@ -344,17 +317,25 @@ exports.billJournal = async (req, res) => {
       const organizationId = req.user.organizationId;
       const { billId } = req.params;
 
-
-      // Find all accounts where organizationId matches
-      const billJournal = await TrialBalance.find({ organizationId : organizationId, operationId : billId });
+      const { billJournal } = await billsDataExist( organizationId, billId );      
 
       if (!billJournal) {
           return res.status(404).json({
               message: "No Journal found for the Bill.",
           });
       }
+
+      const transformedJournal = billJournal.map(item => {
+        return {
+            ...item,
+            accountId: item.accountId?._id,  
+            accountName: item.accountId?.accountName,  
+        };
+    });
+
+    console.log("Transformed Journal:", transformedJournal);
       
-      res.status(200).json(billJournal);
+      res.status(200).json(transformedJournal);
   } catch (error) {
       console.error("Error fetching journal:", error);
       res.status(500).json({ message: "Internal server error." });
@@ -402,71 +383,60 @@ exports.billJournal = async (req, res) => {
 
   //Default Account
 async function defaultAccounting( data, defaultAccount, organizationExists ) {
-
-  // Fetch data from accDataExists and destructure results
-  const {
-    purchaseAccountName,
-    purchaseDiscountAccountName,
-    inputCgstName,
-    inputSgstName,
-    inputIgstName,
-    inputVatName,
-    otherExpenseAcc,
-    freightAcc,
-    paidAcc
-  } = await accDataExists(
-    defaultAccount,
-    organizationExists.organizationId,
-    data.otherExpenseAccountId,
-    data.freightAccountId,
-    data.paidAccountId
+  // 1. Fetch required accounts
+  const accounts = await accDataExists(
+    organizationExists.organizationId, 
+    data.otherExpenseAccountId, 
+    data.freightAccountId, 
+    data.depositAccountId
   );
-  
-  
-  let errorMessage = '';
-  if (!defaultAccount.purchaseAccount && typeof data.totalAmount !== 'undefined') errorMessage += "Sales Account not found. ";
-  if (!defaultAccount.purchaseDiscountAccount && (typeof data.totalDiscount !== 'undefined' || data.totalDiscount !== 0 )) errorMessage += "Discount Account not found. ";
- 
-  if (!defaultAccount.inputCgst && ( typeof data.cgst !== 'undefined' && data.cgst !== 0 )) errorMessage += "CGST Account not found. ";
-  if (!defaultAccount.inputSgst && ( typeof data.sgst !== 'undefined' && data.sgst !== 0 )) errorMessage += "SGST Account not found. ";
-  if (!defaultAccount.inputIgst && ( typeof data.igst !== 'undefined' && data.igst !== 0 )) errorMessage += "IGST Account not found. ";
-  if (!defaultAccount.inputVat && ( typeof data.vat !== 'undefined' && data.vat !== 0 )) errorMessage += "VAT Account not found. ";
-   
-  if (!otherExpenseAcc && typeof data.otherExpenseAmount !== 'undefined') errorMessage += "Other Expense Account not found. ";
-  if (!freightAcc && typeof data.freightAmount !== 'undefined') errorMessage += "Freight Account not found. ";
-  if (!paidAcc && typeof data.paidAmount !== 'undefined') errorMessage += "Paid Through Account not found. ";
-
-
-  // If there is an error message, return it as a response
-  if (errorMessage) {
-    return { defAcc: null, error: errorMessage.trim() }; // Return error message
-  }
-  
-  // Update defaultAccount fields
-  defaultAccount.purchaseAccountName = purchaseAccountName?.accountName;
-  defaultAccount.purchaseDiscountAccountName = purchaseDiscountAccountName?.accountName;
-
-  if (data.taxType !== 'VAT') {
-    defaultAccount.inputCgstName = inputCgstName?.accountName;
-    defaultAccount.inputSgstName = inputSgstName?.accountName;
-    defaultAccount.inputIgstName = inputIgstName?.accountName;
-  } else {
-    defaultAccount.inputVatName = inputVatName?.accountName;
-  }
-  if(data.otherExpenseAmount !=='undefined'){
-    defaultAccount.otherExpenseAccountName = otherExpenseAcc?.accountName;
-    defaultAccount.otherExpenseAccountId = otherExpenseAcc?._id;
-  }
-  if(data.freightAmount !=='undefined'){
-    defaultAccount.freightAccountName = freightAcc?.accountName;
-    defaultAccount.freightAccountId = freightAcc?._id;
-  }
-  if(data.paidAmount !=='undefined'){
-    defaultAccount.paidAccountName = paidAcc?.accountName;
-    defaultAccount.paidAccountId = paidAcc?._id;
-  }    
-  return { defAcc:defaultAccount ,error:null };
+   // 2. Check for missing required accounts
+   const errorMessage = getMissingAccountsError(data, defaultAccount, accounts);
+   if (errorMessage) {
+     return { defAcc: null, error: errorMessage };
+   }
+   // 3. Update account references
+  assignAccountReferences(data, defaultAccount, accounts);  
+  return { defAcc: defaultAccount, error: null };
 }
+
+function getMissingAccountsError(data, defaultAccount, accounts) {
+  const accountChecks = [
+    // Tax account checks
+    { condition: data.cgst, account: defaultAccount.inputCgst, message: "CGST Account" },
+    { condition: data.sgst, account: defaultAccount.inputSgst, message: "SGST Account" },
+    { condition: data.igst, account: defaultAccount.inputIgst, message: "IGST Account" },
+    { condition: data.vat, account: defaultAccount.inputVat, message: "VAT Account" },
+    
+    // Transaction account checks
+    { condition: data.totalDiscount, account: defaultAccount.purchaseDiscountAccount, message: "Discount Account" },
+    { condition: data.otherExpenseAmount, account: accounts.otherExpenseAcc, message: "Other Expense Account" },
+    { condition: data.freightAmount, account: accounts.freightAcc, message: "Freight Account" },
+    { condition: data.paidAmount, account: accounts.paidAcc, message: "Paid Through Account" }
+  ];
+
+  const missingAccounts = accountChecks
+    .filter(({ condition, account }) => condition && !account)
+    .map(({ message }) => `${message} not found`);
+
+  return missingAccounts.length ? missingAccounts.join(". ") : null;
+}
+
+function assignAccountReferences(data, defaultAccount, accounts) {
+  if (data.otherExpenseAmount) {
+    defaultAccount.otherExpenseAccountId = accounts.otherExpenseAcc?._id;
+  }
+  if (data.freightAmount) {
+    defaultAccount.freightAccountId = accounts.freightAcc?._id;
+  }
+  if (data.paidAmount) {
+    defaultAccount.paidAccountId = accounts.paidAcc?._id;
+  }
+}
+
+  
+  
+  
 
 
 
@@ -522,9 +492,7 @@ function billsPrefix( cleanData, existingPrefix ) {
 
   activeSeries.billNum += 1;
 
-  existingPrefix.save()
-
-  return 
+  existingPrefix.save() 
 }
 
 
@@ -536,8 +504,8 @@ function billsPrefix( cleanData, existingPrefix ) {
 
 
   // Create New Debit Note
-  function createNewBills( data, organizationId, openingDate, userId, userName ) {
-    const newBill = new Bills({ ...data, organizationId, createdDate: openingDate, userId, userName });
+  function createNewBills( data, organizationId, userId, userName ) {
+    const newBill = new Bills({ ...data, organizationId, userId, userName });
     return newBill.save();
   }
 
@@ -556,7 +524,7 @@ function billsPrefix( cleanData, existingPrefix ) {
   
   
   // Validate Organization Tax Currency
-  function validateOrganizationSupplierOrder( purchaseOrderId, organizationExists, supplierExist, purchaseOrderExist, existingPrefix, defaultAccount, res ) {
+  function validateOrganizationSupplierOrder( organizationExists, supplierExist, existingPrefix, defaultAccount, res ) {
     if (!organizationExists) {
       res.status(404).json({ message: "Organization not found" });
       return false;
@@ -565,11 +533,6 @@ function billsPrefix( cleanData, existingPrefix ) {
       res.status(404).json({ message: "Supplier not found." });
       return false;
     }
-    if (purchaseOrderId) {
-    if (!purchaseOrderExist) {
-      res.status(404).json({ message: "Purchase order not found" });
-      return false;
-    }}
     if (!existingPrefix) {
       res.status(404).json({ message: "Prefix not found" });
       return false;
@@ -595,8 +558,7 @@ function billsPrefix( cleanData, existingPrefix ) {
     }
     if(supplierExist.taxType === 'VAT' ){
       cleanedData.taxMode ='VAT'; 
-    }
-    return   
+    }   
   }
 
 
@@ -604,12 +566,6 @@ function billsPrefix( cleanData, existingPrefix ) {
 
 
   function calculateBills(cleanedData, itemTable, res) {
-
-    
-
-    // cleanedData.otherExpenseAmount = cleanedData.otherExpense;
-    // cleanedData.freightAmount = cleanedData.freight;
-    // cleanedData.roundOffAmount = cleanedData.roundOff;
     
     const errors = [];
   
@@ -654,7 +610,6 @@ function billsPrefix( cleanData, existingPrefix ) {
       totalDiscount +=  parseFloat(itemDiscAmt);
   
       const withoutTaxAmount = (item.itemCostPrice * item.itemQuantity - itemDiscAmt);
-      console.log("withoutTaxAmount",withoutTaxAmount);
   
       // Handle tax calculation only for taxable items
       if (item.taxPreference === 'Taxable') {
@@ -685,14 +640,14 @@ function billsPrefix( cleanData, existingPrefix ) {
         checkAmount(calculatedItemTaxAmount, item.itemTax, item.itemName, 'Item tax',errors);
   
         totalTaxAmount += calculatedItemTaxAmount;
+        console.log("totalTaxAmount:",totalTaxAmount);
   
       } else {
         console.log(`Skipping Tax for Non-Taxable item: ${item.itemName}`);
         console.log(`Item: ${item.itemName}, Calculated Discount: ${itemDiscAmt}`);
       }
 
-      itemAmount = (withoutTaxAmount + totalTaxAmount);
-      console.log("withoutTaxAmount11",withoutTaxAmount,totalTaxAmount,itemAmount);
+      itemAmount = (withoutTaxAmount + calculatedItemTaxAmount);
   
       checkAmount(itemAmount, item.itemAmount, item.itemName, 'Item Total',errors);
   
@@ -717,7 +672,7 @@ function billsPrefix( cleanData, existingPrefix ) {
     console.log(`Item Total Discount: ${itemTotalDiscount} , Provided ${cleanedData.itemTotalDiscount}`);
   
     // Transaction Discount
-    let transDisAmt = calculateTransactionDiscount(cleanedData, total, transactionDiscountAmount); 
+    let transDisAmt = calculateTransactionDiscount( cleanedData, total ); 
   
     cleanedData.totalDiscount =  roundToTwoDecimals(totalDiscount + parseFloat(transDisAmt));
 
@@ -767,12 +722,13 @@ function billsPrefix( cleanData, existingPrefix ) {
   
   
   //TransactionDiscount
-  function calculateTransactionDiscount(cleanedData, total, transactionDiscountAmount) {
-    transactionDiscountAmount = cleanedData.transactionDiscount || 0;    
+  function calculateTransactionDiscount(cleanedData, total ) {
+    const discountAmount = cleanedData.transactionDiscount || 0;
+
   
     return cleanedData.transactionDiscountType === 'currency'
-      ? transactionDiscountAmount
-      : (total * (cleanedData.transactionDiscount || 0)) / 100;    
+      ? discountAmount
+      : (total * (discountAmount)) / 100;    
   }
   
   
@@ -803,9 +759,16 @@ function billsPrefix( cleanData, existingPrefix ) {
 
 
 
+
+
+
+
+
+
+
   //Validate inputs
-function validateInputs( data, supplierExist, purchaseOrderExist, items, itemExists, organizationExists, defaultAccount, res) {
-    const validationErrors = validateBillsData(data, supplierExist, purchaseOrderExist, items, itemExists, organizationExists, defaultAccount );  
+function validateInputs( data, supplierExist, items, itemExists, organizationExists, defaultAccount, res) {
+    const validationErrors = validateBillsData(data, supplierExist, items, itemExists, organizationExists, defaultAccount );  
   
     if (validationErrors.length > 0) {
       res.status(400).json({ message: validationErrors.join(", ") })
@@ -816,7 +779,7 @@ function validateInputs( data, supplierExist, purchaseOrderExist, items, itemExi
   }
   
   //Validate Data
-  function validateBillsData( data, supplierExist, purchaseOrderExist, items, itemTable, organizationExists, defaultAccount ) {
+  function validateBillsData( data, supplierExist, items, itemTable, organizationExists, defaultAccount ) {
     const errors = [];
   
     // console.log("Item Request :",items);
@@ -826,9 +789,9 @@ function validateInputs( data, supplierExist, purchaseOrderExist, items, itemExi
     validateReqFields( data, supplierExist, defaultAccount, errors );
     validateItemTable(items, itemTable, errors);
     // Activate `validatePurchaseOrderData` only when `purchaseOrderId` is present
-    if (data.purchaseOrderId) {
-      validatePurchaseOrderData(data, purchaseOrderExist, items, errors);
-    }
+    // if (data.purchaseOrderId) {
+    //   validatePurchaseOrderData(data, purchaseOrderExist, items, errors);
+    // }
     validateShipmentPreferences(data.shipmentPreference, errors)
     validateTransactionDiscountType(data.transactionDiscountType, errors);
     // console.log("billExist Data:", billExist.billNumber, billExist.billDate, billExist.orderNumber)
@@ -865,11 +828,12 @@ function validateInputs( data, supplierExist, purchaseOrderExist, items, itemExi
   
   //Valid Req Fields
   function validateReqFields( data, supplierExist, defaultAccount, errors ) {
-  validateField( typeof data.supplierId === 'undefined' || typeof data.supplierDisplayName === 'undefined', "Please select a Supplier", errors  );
+  validateField( typeof data.supplierId === 'undefined', "Please select a Supplier", errors  );
   validateField( supplierExist.taxType == 'GST' && typeof data.sourceOfSupply === 'undefined', "Source of supply required", errors  );
   validateField( supplierExist.taxType == 'GST' && typeof data.destinationOfSupply === 'undefined', "Destination of supply required", errors  );
   
   validateField( typeof data.items === 'undefined', "Select an item", errors  );
+  validateField( Array.isArray(data.items) && data.items.length === 0, "Select an item", errors );
   validateField( typeof data.supplierInvoiceNum === 'undefined', "Select an supplier invoice number", errors  );
 
   validateField( typeof data.otherExpenseAmount !== 'undefined' && typeof data.otherExpenseReason === 'undefined', "Please enter other expense reason", errors  );
@@ -1055,6 +1019,77 @@ function validateSourceOfSupply(sourceOfSupply, organization, errors) {
   }
 
   
+
+
+
+
+
+
+  function purchaseJournal(cleanedData, res) {
+    const errors = [];
+    
+  
+    // Utility function to round values to two decimal places
+    const roundToTwoDecimals = (value) => Number(value.toFixed(2));
+  
+    // Group items by salesAccountId and calculate debit amounts
+    const accountEntries = {};
+  
+  
+    cleanedData.items.forEach(item => {
+            
+            const accountId = item.purchaseAccountId || '6777775bb84d21a5f77be689';
+  
+            if (!accountId) {
+  
+              errors.push({
+                message: `Purchase Account not found for item ${item.itemName}`,
+              });
+              return; 
+            }
+      
+            const debitAmount = roundToTwoDecimals(item.itemCostPrice * item.itemQuantity);
+  
+            if (!accountEntries[accountId]) {
+              accountEntries[accountId] = { accountId, debitAmount: 0 };
+            }
+            // Accumulate the debit amount
+            accountEntries[accountId].debitAmount += debitAmount;
+    });
+  
+    // Push the grouped entries into cleanedData.journal
+    cleanedData.purchaseJournal = Object.values(accountEntries);
+    console.log("purchaseJournal:", cleanedData.purchaseJournal);  
+    
+    // Handle response or further processing
+    if (errors.length > 0) {
+      res.status(400).json({ success: false, message:"Purchase journal error", errors });
+      return false;
+    }
+    return true;
+  }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   
   
   // Helper functions to handle formatting
@@ -1252,153 +1287,162 @@ async function journal( savedBills, defAcc, supplierAccount ) {
   const discount = {
     organizationId: savedBills.organizationId,
     operationId: savedBills._id,
-    transactionId: savedBills.salesInvoice,
+    transactionId: savedBills.billNumber,
     date: savedBills.createdDate,
     accountId: defAcc.purchaseDiscountAccount || undefined,
-    accountName: defAcc.purchaseDiscountAccountName || undefined,
     action: "Purchase Bill",
     debitAmount: 0,
-    creditAmount: savedBills.totalDiscount,
+    creditAmount: savedBills.totalDiscount || 0,
     remark: savedBills.note,
   };
-  const purchase = {
-    organizationId: savedBills.organizationId,
-    operationId: savedBills._id,
-    transactionId: savedBills.salesInvoice,
-    date: savedBills.createdDate,
-    accountId: defAcc.purchaseAccount || undefined,
-    accountName: defAcc.purchaseAccountName || undefined,
-    action: "Purchase Bill",
-    debitAmount: savedBills.purchaseAmount,
-    creditAmount: 0,
-    remark: savedBills.note,
-  };
+  // const purchase = {
+  //   organizationId: savedBills.organizationId,
+  //   operationId: savedBills._id,
+  //   transactionId: savedBills.billNumber,
+  //   date: savedBills.createdDate,
+  //   accountId: defAcc.purchaseAccount || undefined,
+  //   accountName: defAcc.purchaseAccountName || undefined,
+  //   action: "Purchase Bill",
+  //   debitAmount: savedBills.purchaseAmount,
+  //   creditAmount: 0,
+  //   remark: savedBills.note,
+  // };
   const cgst = {
     organizationId: savedBills.organizationId,
     operationId: savedBills._id,
-    transactionId: savedBills.salesInvoice,
+    transactionId: savedBills.billNumber,
     date: savedBills.createdDate,
     accountId: defAcc.inputCgst || undefined,
-    accountName: defAcc.inputCgstName || undefined,
     action: "Purchase Bill",
-    debitAmount: savedBills.cgst,
+    debitAmount: savedBills.cgst || 0,
     creditAmount: 0,
     remark: savedBills.note,
   };
   const sgst = {
     organizationId: savedBills.organizationId,
     operationId: savedBills._id,
-    transactionId: savedBills.salesInvoice,
+    transactionId: savedBills.billNumber,
     date: savedBills.createdDate,
     accountId: defAcc.inputSgst || undefined,
-    accountName: defAcc.inputSgstName || undefined,
     action: "Purchase Bill",
-    debitAmount: savedBills.sgst,
+    debitAmount: savedBills.sgst || 0,
     creditAmount: 0,
     remark: savedBills.note,
   };
   const igst = {
     organizationId: savedBills.organizationId,
     operationId: savedBills._id,
-    transactionId: savedBills.salesInvoice,
+    transactionId: savedBills.billNumber,
     date: savedBills.createdDate,
     accountId: defAcc.inputIgst || undefined,
-    accountName: defAcc.inputIgstName || undefined,
     action: "Purchase Bill",
-    debitAmount: savedBills.igst,
+    debitAmount: savedBills.igst || 0,
     creditAmount: 0,
     remark: savedBills.note,
   };
   const vat = {
     organizationId: savedBills.organizationId,
     operationId: savedBills._id,
-    transactionId: savedBills.salesInvoice,
+    transactionId: savedBills.billNumber,
     date: savedBills.createdDate,
     accountId: defAcc.inputVat || undefined,
-    accountName: defAcc.inputVatName || undefined,
     action: "Purchase Bill",
-    debitAmount: savedBills.vat,
+    debitAmount: savedBills.vat || 0,
     creditAmount: 0,
     remark: savedBills.note,
   };
   const supplier = {
     organizationId: savedBills.organizationId,
     operationId: savedBills._id,
-    transactionId: savedBills.salesInvoice,
+    transactionId: savedBills.billNumber,
     date: savedBills.createdDate,
     accountId: supplierAccount._id || undefined,
-    accountName: supplierAccount.accountName || undefined,
     action: "Purchase Bill",
     debitAmount: 0,
-    creditAmount: savedBills.grandTotal,
+    creditAmount: savedBills.grandTotal || 0,
     remark: savedBills.note,
   };
   const supplierPaid = {
     organizationId: savedBills.organizationId,
     operationId: savedBills._id,
-    transactionId: savedBills.salesInvoice,
+    transactionId: savedBills.billNumber,
     date: savedBills.createdDate,
     accountId: supplierAccount._id || undefined,
-    accountName: supplierAccount.accountName || undefined,
     action: "Payment",
-    debitAmount: savedBills.paidAmount,
+    debitAmount: savedBills.paidAmount || 0,
     creditAmount: 0,
     remark: savedBills.note,
   };
   const paidAccount = {
     organizationId: savedBills.organizationId,
     operationId: savedBills._id,
-    transactionId: savedBills.salesInvoice,
+    transactionId: savedBills.billNumber,
     date: savedBills.createdDate,
     accountId: defAcc.paidAccountId || undefined,
-    accountName: defAcc.paidAccountName || undefined,
     action: "Payment",
     debitAmount: 0,
-    creditAmount: savedBills.paidAmount,
+    creditAmount: savedBills.paidAmount || 0,
     remark: savedBills.note,
   };
   const otherExpense = {
     organizationId: savedBills.organizationId,
     operationId: savedBills._id,
-    transactionId: savedBills.salesInvoice,
+    transactionId: savedBills.billNumber,
     date: savedBills.createdDate,
     accountId: defAcc.otherExpenseAccountId || undefined,
-    accountName: defAcc.otherExpenseAccountName || undefined,
     action: "Purchase Bill",
-    debitAmount: savedBills.otherExpenseAmount,
+    debitAmount: savedBills.otherExpenseAmount || 0,
     creditAmount: 0,
     remark: savedBills.note,
   };
   const freight = {
     organizationId: savedBills.organizationId,
     operationId: savedBills._id,
-    transactionId: savedBills.salesInvoice,
+    transactionId: savedBills.billNumber,
     date: savedBills.createdDate,
     accountId: defAcc.freightAccountId || undefined,
-    accountName: defAcc.freightAccountName || undefined,
     action: "Purchase Bill",
-    debitAmount: savedBills.freightAmount,
+    debitAmount: savedBills.freightAmount || 0,
     creditAmount: 0,
     remark: savedBills.note,
   };
   const roundOff = {
     organizationId: savedBills.organizationId,
     operationId: savedBills._id,
-    transactionId: savedBills.salesInvoice,
+    transactionId: savedBills.billNumber,
     date: savedBills.createdDate,
     accountName: "Round Off",
     action: "Purchase Bill",
     debitAmount: 0,
-    creditAmount: savedBills.roundOffAmount,
+    creditAmount: savedBills.roundOffAmount || 0,
     remark: savedBills.note,
   };
+
+  let purchaseTotalDebit = 0;
+  let purchaseTotalCredit = 0;
+
+  if (Array.isArray(savedBills.salesJournal)) {
+    savedBills.salesJournal.forEach((entry) => {
+
+      console.log( "Account Log",entry.accountId, entry.debitAmount, entry.creditAmount );      
+
+      purchaseTotalDebit += entry.debitAmount || 0;
+      purchaseTotalCredit += entry.creditAmount || 0;
+
+    });
+
+    console.log("Total Debit Amount from savedBills:", purchaseTotalDebit);
+    console.log("Total Credit Amount from savedBills:", purchaseTotalCredit);
+  } else {
+    console.error("SavedBills is not an array or is undefined.");
+  }
 
   console.log("cgst", cgst.debitAmount,  cgst.creditAmount);
   console.log("sgst", sgst.debitAmount,  sgst.creditAmount);
   console.log("igst", igst.debitAmount,  igst.creditAmount);
   console.log("vat", vat.debitAmount,  vat.creditAmount);
 
-  console.log("purchase", purchase.debitAmount,  purchase.creditAmount);
+  // console.log("purchase", purchase.debitAmount,  purchase.creditAmount);
   console.log("supplier", supplier.debitAmount,  supplier.creditAmount);
   console.log("discount", discount.debitAmount,  discount.creditAmount);
 
@@ -1413,32 +1457,32 @@ async function journal( savedBills, defAcc, supplierAccount ) {
   // const  debitAmount = cgst.debitAmount  + sgst.debitAmount + igst.debitAmount +  vat.debitAmount + purchase.debitAmount + supplier.debitAmount + discount.debitAmount + otherExpense.debitAmount + freight.debitAmount + roundOff.debitAmount + supplierPaid.debitAmount + paidAccount.debitAmount ;
   // const  creditAmount = cgst.creditAmount  + sgst.creditAmount + igst.creditAmount +  vat.creditAmount + purchase.creditAmount + supplier.creditAmount + discount.creditAmount + otherExpense.creditAmount + freight.creditAmount + roundOff.creditAmount + supplierPaid.creditAmount + paidAccount.creditAmount ;
   const debitAmount = 
-  (cgst.debitAmount ?? 0) + 
-  (sgst.debitAmount ?? 0) + 
-  (igst.debitAmount ?? 0) + 
-  (vat.debitAmount ?? 0) + 
-  (purchase.debitAmount ?? 0) + 
-  (supplier.debitAmount ?? 0) + 
-  (discount.debitAmount ?? 0) + 
-  (otherExpense.debitAmount ?? 0) + 
-  (freight.debitAmount ?? 0) + 
-  (roundOff.debitAmount ?? 0) + 
-  (supplierPaid.debitAmount ?? 0) + 
-  (paidAccount.debitAmount ?? 0);
+  cgst.debitAmount  + 
+  sgst.debitAmount  + 
+  igst.debitAmount  + 
+  vat.debitAmount  + 
+  purchaseTotalDebit + 
+  supplier.debitAmount  + 
+  discount.debitAmount  + 
+  otherExpense.debitAmount  + 
+  freight.debitAmount  + 
+  roundOff.debitAmount  + 
+  supplierPaid.debitAmount  + 
+  paidAccount.debitAmount ;
 
 const creditAmount = 
-  (cgst.creditAmount ?? 0) + 
-  (sgst.creditAmount ?? 0) + 
-  (igst.creditAmount ?? 0) + 
-  (vat.creditAmount ?? 0) + 
-  (purchase.creditAmount ?? 0) + 
-  (supplier.creditAmount ?? 0) + 
-  (discount.creditAmount ?? 0) + 
-  (otherExpense.creditAmount ?? 0) + 
-  (freight.creditAmount ?? 0) + 
-  (roundOff.creditAmount ?? 0) + 
-  (supplierPaid.creditAmount ?? 0) + 
-  (paidAccount.creditAmount ?? 0);
+  cgst.creditAmount  + 
+  sgst.creditAmount  + 
+  igst.creditAmount  + 
+  vat.creditAmount  + 
+  purchaseTotalCredit  + 
+  supplier.creditAmount  + 
+  discount.creditAmount  + 
+  otherExpense.creditAmount  + 
+  freight.creditAmount  + 
+  roundOff.creditAmount  + 
+  supplierPaid.creditAmount  + 
+  paidAccount.creditAmount ;
 
   console.log("Total Debit Amount: ", debitAmount );
   console.log("Total Credit Amount: ", creditAmount );
@@ -1446,7 +1490,27 @@ const creditAmount =
   // console.log( discount, sale, cgst, sgst, igst, vat, customer, otherExpense, freight, roundOff );
 
 
-  createTrialEntry( purchase )
+  //Purchase
+  savedBills.purchaseJournal.forEach((entry) => {
+
+    const data = {
+      organizationId: savedBills.organizationId,
+      operationId: savedBills._id,
+      transactionId: savedBills.billNumber,
+      date: savedBills.createdDateTime,
+      accountId: entry.accountId || undefined,
+      action: "Purchase Bill",
+      debitAmount: entry.debitAmount || 0,
+      creditAmount: 0,
+      remark: savedBills.note,
+    };
+    
+    createTrialEntry( data )
+
+  });
+
+
+  // createTrialEntry( purchase )
 
   //Tax
   if(savedBills.cgst){
@@ -1502,10 +1566,9 @@ async function createTrialEntry( data ) {
       transactionId: data.transactionId,
       date:data.date,
       accountId: data.accountId,
-      accountName: data.accountName,
       action: data.action,
-      debitAmount: data.debitAmount,
-      creditAmount: data.creditAmount,
+      debitAmount: data.debitAmount || 0,
+      creditAmount: data.creditAmount || 0,
       remark: data.remark
 });
 

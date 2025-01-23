@@ -2,8 +2,8 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const itemsSchema = new Schema({
-  itemId: { type: String },
-  itemName: { type: String },
+  itemId: {type: mongoose.Schema.Types.ObjectId, ref: 'Item'},
+  // itemName: { type: String },
 
   itemQuantity: { type: Number },
   returnQuantity: { type: Number },   // Don't use default: 0
@@ -30,11 +30,17 @@ const itemsSchema = new Schema({
 }, { _id: false });
 
 
+const journalSchema = new Schema({
+  accountId: {type: mongoose.Schema.Types.ObjectId, ref: 'Accounts'},
+  debitAmount: {type:Number},
+  creditAmount: {type:Number},
+  }, { _id: false });
+
 
 const PurchaseBillSchema = new Schema({
   organizationId: { type: String },
-  supplierId: { type: String },
-  supplierDisplayName: { type: String },
+  supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier' },
+  // supplierDisplayName: { type: String },
 
   //supplierBillingAddress
   supplierBillingCountry: { type: String },
@@ -53,7 +59,7 @@ const PurchaseBillSchema = new Schema({
 
   orderNumber: { type: String },  //purchaseOrder(prefix)
   reference: { type: String },
-  puchaseOrderDate: { type: String },
+  purchaseOrderDate: { type: String },
   expectedShipmentDate: { type: String },
   shipmentPreference: { type: String },   // e.g., 'Road', 'Rail', 'Air', 'Sea'
   paymentTerms: { type: String },
@@ -66,11 +72,15 @@ const PurchaseBillSchema = new Schema({
   
   items: [itemsSchema],
 
-  otherExpenseAccountId: { type: String },
+  otherExpenseAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'Accounts' },
   otherExpenseAmount: { type: Number },
   otherExpenseReason: { type: String },
-  freightAccountId: { type: String },
+
+  freightAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'Accounts' },
   freightAmount: { type: Number },
+  
+  roundOffAmount: { type: Number },
+
   vehicleNo: { type: String },
   addNotes: { type: String },
   termsAndConditions: { type: String },
@@ -87,9 +97,9 @@ const PurchaseBillSchema = new Schema({
   transactionDiscount: { type: Number },
   transactionDiscountType: { type: String }, //percentage/rupee
   transactionDiscountAmount: { type: Number }, 
+  
   totalTaxAmount: { type: Number },
   itemTotalDiscount: { type: Number },
-  roundOffAmount: { type: Number },
   totalDiscount: { type: Number },
   grandTotal: { type: Number },
 
@@ -100,17 +110,9 @@ const PurchaseBillSchema = new Schema({
   paidStatus: { type: String },
   
   purchaseOrderId:{ type: String },
-
-  // createdDate: { type: String },
+  purchaseJournal:[ journalSchema ], 
 
   createdDateTime: { type: Date, default: () => new Date() },
-  
-    //lastModifiedDate
-    // lastModifiedDate:{type: Date},
-  
-    // editLimit: {type: Boolean, default: true}, 
-  
-    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 
 });
 

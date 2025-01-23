@@ -1,3 +1,5 @@
+// v1.4
+
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
 
@@ -5,10 +7,20 @@ const itemSchema = new Schema({
     //Basis
     organizationId: {type: String},
     itemType: { type: String },
-    itemName: { type: String}, 
+    itemName: { type: String},
     itemImage: { type: String },
     sku: { type: String,},
-    unit: { type: String },
+
+    //Unit
+    unitName: { type: String },
+    alterUnit: [
+        {
+            unitName: { type: String }, 
+            conversionRate: { type: Number }, // eg: 5 (1 unitName = 5 alterUnit)  
+        }
+    ],
+
+
     returnableItem: { type: Boolean },
     hsnCode: { type: String },
     sac:{type:String},
@@ -37,14 +49,14 @@ const itemSchema = new Schema({
     isbn:{ type: String },
 
     //Sale Info
-    sellingPrice: { type: Number }, 
+    sellingPrice: { type: Number },
+    salesAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'Accounts' },
     saleMrp: { type: Number },
-    salesDescription: { type: String },
     
     //Purchase Info
     costPrice: { type: Number },
-    purchaseDescription: { type: String },
-    preferredVendor: { type: String },
+    purchaseAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'Accounts' },
+    preferredVendorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier' },
 
     taxRate:{type:String},
     cgst:{type:Number},
@@ -54,11 +66,12 @@ const itemSchema = new Schema({
 
 
     openingStock:{type:Number},
-    openingStockRatePerUnit: { type: Number },
+    openingStockRatePerUnit:{type:Number},
     reorderPoint: { type: Number },
     
-    createdDate: { type: String },
-    lastModifiedDate: { type: String },  
+    createdDateTime: { type: Date, default: () => new Date() },
+    lastModifiedDateTime: { type: Date, default: () => new Date() },
+  
 });
 
 const Item = mongoose.model("Item", itemSchema);

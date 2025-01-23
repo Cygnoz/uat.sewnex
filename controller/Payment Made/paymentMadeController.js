@@ -5,18 +5,20 @@ const PurchaseBill = require('../../database/model/bills')
 const mongoose = require('mongoose');
 const moment = require("moment-timezone");
 const Prefix = require("../../database/model/prefix");
+const Account = require("../../database/model/account");
+const TrialBalance = require("../../database/model/trialBalance");
 const { cleanData } = require("../../services/cleanData");
 const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
 
 
 
 // Fetch existing data
-const dataExist = async (organizationId, unpaidBills ,supplierId, supplierDisplayName) => {
+const dataExist = async (organizationId, unpaidBills ,supplierId, ) => {
   const billIds = unpaidBills.map(unpaidBill => unpaidBill.billId);
   
   const [organizationExists, supplierExists , paymentTable , existingPrefix ] = await Promise.all([
     Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
-    Supplier.findOne({ organizationId, _id: supplierId, supplierDisplayName  }, { _id: 1, supplierDisplayName: 1 }),
+    Supplier.findOne({ organizationId, _id: supplierId  }, { _id: 1, supplierDisplayName: 1 }),
     PurchaseBill.find({ organizationId , _id : { $in: billIds}},{ _id: 1, billNumber: 1 , billDate: 1 , dueDate:1 , grandTotal: 1 , balanceAmount : 1 }),
     Prefix.findOne({ organizationId })
 
@@ -28,15 +30,38 @@ const dataExist = async (organizationId, unpaidBills ,supplierId, supplierDispla
 
 
 
-const paymentDataExist = async ( organizationId, PaymentId ) => {    
+const paymentDataExist = async ( organizationId, paymentId ) => {    
     
-  const [organizationExists, allPayments, payments ] = await Promise.all([
-    Organization.findOne({ organizationId }, { organizationId: 1, timeZone: 1, dateFormatExp: 1, dateSplit: 1}),
-    PurchasePayment.find({ organizationId }),
-    PurchasePayment.findOne({ organizationId , _id: PaymentId },)
+  const [organizationExists, allPayments, payments , paymentJournal ] = await Promise.all([
+    Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }).lean(),
+    PurchasePayment.find({ organizationId })
+    .populate('supplierId', 'supplierDisplayName')
+    .lean(),    
+    PurchasePayment.findOne({ organizationId , _id: paymentId })
+    .populate('supplierId', 'supplierDisplayName')
+    .lean(),
+    TrialBalance.find({ organizationId: organizationId, operationId : paymentId })
+    .populate('accountId', 'accountName')    
+    .lean(),
   ]);
-  return { organizationExists, allPayments, payments };
+  return { organizationExists, allPayments, payments , paymentJournal };
 };
+
+
+
+// Fetch Acc existing data
+const accDataExists = async ( organizationId, paidThroughAccountId, supplierId ) => {
+  const [ paidThroughAccount, supplierAccount ] = await Promise.all([
+    Account.findOne({ organizationId , _id: paidThroughAccountId, accountHead: "Asset" }, { _id:1, accountName: 1 }),
+    Account.findOne({ organizationId , accountId:supplierId },{ _id:1, accountName:1 })
+  ]);
+  return { paidThroughAccount, supplierAccount };
+};
+
+
+
+
+
 
 
 
@@ -44,10 +69,11 @@ exports.addPayment = async (req, res) => {
   console.log("Add Payment :",req.body);  
   try {
     const { organizationId, id: userId, userName } = req.user; 
-    const cleanedData = cleanData(req.body); 
+    const cleanedData = cleanData(req.body);
 
-    const { unpaidBills, amountPaid } = cleanedData; 
-    const { supplierId, supplierDisplayName } = cleanedData;
+    cleanedData.unpaidBills = cleanedData.unpaidBills.filter(unpaidBills => unpaidBills.payment > 0);
+
+    const { unpaidBills, amountPaid, supplierId } = cleanedData; 
     const billIds = unpaidBills.map(unpaidBill => unpaidBill.billId);
 
     // Check for duplicate billIds
@@ -55,6 +81,8 @@ exports.addPayment = async (req, res) => {
     if (uniqueBillIds.size !== billIds.length) {
       return res.status(400).json({ message: "Duplicate bill found" });
     }
+
+    cleanedData.paidThroughAccountId = cleanedData.paidThrough;
 
     // Validate SupplierId
     if (!mongoose.Types.ObjectId.isValid(supplierId) || supplierId.length !== 24) {
@@ -68,43 +96,47 @@ exports.addPayment = async (req, res) => {
     }
 
     // Check if organization and supplier exist
-    const { organizationExists, supplierExists, paymentTable, existingPrefix } = await dataExist(organizationId, unpaidBills, supplierId, supplierDisplayName);
+    const { organizationExists, supplierExists, paymentTable, existingPrefix } = await dataExist(organizationId, unpaidBills, supplierId );
     
+    const { paidThroughAccount, supplierAccount } = await accDataExists( organizationId, cleanedData.paidThroughAccountId, cleanedData.supplierId );
+
+
     // Validate supplier and organization
     if (!validateSupplierAndOrganization(organizationExists, supplierExists, existingPrefix, res)) {
       return; 
     }
 
     // Validate input values, unpaidBills, and paymentTable
-    if (!validateInputs(cleanedData, supplierExists, unpaidBills, organizationExists, paymentTable,  res)) {
+    if (!validateInputs(cleanedData, unpaidBills, paymentTable, paidThroughAccount, supplierAccount,  res)) {
       return; 
     }
 
     // Calculate the total payment made
     const updatedData = await calculateTotalPaymentMade(cleanedData, amountPaid );
 
-    // Generate prefix for vendor payment
-    await vendorPaymentPrefix(cleanedData, existingPrefix);
-  
+    
     // Validate and ensure all unpaid bills are properly formatted
     const validatedBills = validateUnpaidBills(updatedData.unpaidBills);
-
+    
     // Process unpaid bills and calculate `amountDue`
     const paymentResults = await processUnpaidBills(validatedBills);
-
-    // console.log('Payment processing complete:', paymentResults);
-
+    
+    console.log('Payment processing complete:', paymentResults);
+    
+    // Generate prefix for vendor payment
+    await vendorPaymentPrefix(cleanedData, existingPrefix);
   
     // Re-fetch the updated bills to get the latest `amountDue` and `balanceAmount`
     const updatedBills = await PurchaseBill.find({ _id: { $in: updatedData.unpaidBills.map(bill => bill.billId) } });
 
     // Create and save new payment
-    const payment = await createNewPayment(updatedData , openingDate, organizationId, userId, userName);
+    const payment = await createNewPayment(updatedData, organizationId, userId, userName);
+
+    //Journal
+    await journal( payment, paidThroughAccount, supplierAccount );
 
     //Response with the updated bills and the success message
-    return res.status(200).json({
-      message: 'Payment added successfully',  payment , updatedBills,
-    });
+    return res.status(200).json({ message: 'Payment added successfully',  payment , updatedBills });
 
   } catch (error) {
     console.error('Error adding payment:', error);
@@ -117,33 +149,24 @@ exports.addPayment = async (req, res) => {
 
 
 exports.getAllPayment = async (req, res) => {
-  // const { organizationId } = req.body;
   try {
-
     const organizationId  = req.user.organizationId;
 
-    // Check if an Organization already exists
-    const { organizationExists , allPayments} = await paymentDataExist(organizationId);
+    const { organizationExists , allPayments} = await paymentDataExist( organizationId, null );
 
-    if (!organizationExists) {
-      return res.status(404).json({
-        message: "Organization not found",
-      });
-    }
+    if (!organizationExists) return res.status(404).json({ message: "Organization not found" });
     
-    if (!allPayments.length) {
-      return res.status(404).json({
-        message: "No Payments found",
-      });
-    }
+    if (!allPayments.length) return res.status(404).json({ message: "No Payments found" });
+    
 
-    // Map over all categories to remove the organizationId from each object
-    const AllPayments = allPayments.map((history) => {
-      const { organizationId, ...rest } = history.toObject(); // Convert to plain object and omit organizationId
-      return rest;
-    });
+    const transformedData = allPayments.map(data => {
+      return {
+        ...data,
+        supplierId: data.supplierId._id,  
+        supplierDisplayName: data.supplierId.supplierDisplayName,  
+      };}); 
 
-    const formattedObjects = multiCustomDateTime(AllPayments, organizationExists.dateFormatExp, organizationExists.timeZone, organizationExists.dateSplit );    
+      const formattedObjects = multiCustomDateTime(transformedData, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
 
     res.status(200).json({allPayments: formattedObjects});
   } catch (error) {
@@ -158,25 +181,22 @@ exports.getAllPayment = async (req, res) => {
 exports.getPurchasePayment = async (req, res) => {
   try {
     const organizationId = req.user.organizationId;
-    const  PaymentId = req.params.PaymentId;
+    const  paymentId = req.params.paymentId;
 
-    const { organizationExists , payments } = await paymentDataExist(organizationId , PaymentId);
+    const { organizationExists , payments } = await paymentDataExist(organizationId , paymentId);
 
-    if (!organizationExists) {
-      return res.status(404).json({
-        message: "Organization not found",
-      });
-    }
+    if (!organizationExists) return res.status(404).json({ message: "Organization not found" });
+    
+    if (!payments) return res.status(404).json({ message: "No payment found" });
+    
 
-    if (!payments) {
-      return res.status(404).json({
-        message: "No payment found",
-      });
-    }
-
-    payments.organizationId = undefined;
-
-    const formattedObjects = singleCustomDateTime(payments, organizationExists.dateFormatExp, organizationExists.timeZone, organizationExists.dateSplit );        
+    const transformedData = {
+      ...payments,
+      supplierId: payments.supplierId._id,  
+      supplierDisplayName: payments.supplierId.supplierDisplayName,
+      };
+      
+    const formattedObjects = singleCustomDateTime(transformedData, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );        
 
     res.status(200).json(formattedObjects);
   } catch (error) {
@@ -184,6 +204,41 @@ exports.getPurchasePayment = async (req, res) => {
     res.status(500).json({ message: "Internal server error." });
   }
 };
+
+
+
+
+
+// Get receipt Journal
+exports.paymentJournal = async (req, res) => {
+  try {
+      const organizationId = req.user.organizationId;
+      const { paymentId } = req.params;
+
+      const { paymentJournal } = await paymentDataExist( organizationId, paymentId );      
+
+      if (!paymentJournal) {
+          return res.status(404).json({
+              message: "No Journal found for the Invoice.",
+          });
+      }
+
+      const transformedJournal = paymentJournal.map(item => {
+        return {
+            ...item,
+            accountId: item.accountId._id,  
+            accountName: item.accountId.accountName,  
+        };
+    });    
+      
+      res.status(200).json(transformedJournal);
+  } catch (error) {
+      console.error("Error fetching journal:", error);
+      res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+
 
 
 
@@ -213,20 +268,22 @@ exports.getLastPaymentMadePrefix = async (req, res) => {
   }
 };
 
+
+
+
 // Purchase Prefix
 function vendorPaymentPrefix( cleanData, existingPrefix ) {
   const activeSeries = existingPrefix.series.find(series => series.status === true);
   if (!activeSeries) {
       return res.status(404).json({ message: "No active series found for the organization." });
   }
-  cleanData.paymentMade = `${activeSeries.payment}${activeSeries.paymentNum}`;
+  cleanData.paymentMade  = `${activeSeries.payment}${activeSeries.paymentNum}`;
 
   activeSeries.paymentNum += 1;
 
-  existingPrefix.save()
-
-  return 
+  existingPrefix.save() 
 }
+
 
 
 
@@ -278,9 +335,14 @@ function validateSupplierAndOrganization(organizationExists, supplierExists, exi
 
 
 
+
+
+
+
+
 //Validate inputs
-function validateInputs( data, supplierExists, unpaidBills , organizationExists, paymentTableExist ,  res) {
-  const validationErrors = validatePaymentData(data, supplierExists, unpaidBills , paymentTableExist, organizationExists);
+function validateInputs( data, unpaidBills , paymentTableExist,  paidThroughAccount, supplierAccount, res) {
+  const validationErrors = validatePaymentData(data, unpaidBills , paymentTableExist, paidThroughAccount, supplierAccount);
 
   if (validationErrors.length > 0) {
     res.status(400).json({ message: validationErrors.join(", ") });
@@ -290,11 +352,10 @@ function validateInputs( data, supplierExists, unpaidBills , organizationExists,
 }
 
 // Function to create a new payment record
-function createNewPayment(data, openingDate, organizationId, userId, userName) {
+function createNewPayment(data, organizationId, userId, userName) {
   const newPayment = new PurchasePayment({
     ...data,
     organizationId,
-    createdDate: openingDate,
     userId,
     userName
   });
@@ -302,7 +363,7 @@ function createNewPayment(data, openingDate, organizationId, userId, userName) {
 }
 
 //Validate Data
-function validatePaymentData( data, supplierExists, unpaidBills, paymentTable ) {
+function validatePaymentData( data, unpaidBills, paymentTable, paidThroughAccount, supplierAccount ) {
   const errors = [];
 
   // console.log("Bills Request :",unpaidBills);
@@ -310,7 +371,7 @@ function validatePaymentData( data, supplierExists, unpaidBills, paymentTable ) 
   
 
   //Basic Info
-  validateReqFields( data, supplierExists , errors );
+  validateReqFields( data, paidThroughAccount, supplierAccount, errors );
   validatePaymentTable(unpaidBills, paymentTable, errors);
 
 
@@ -330,9 +391,22 @@ function validateField(condition, errorMsg, errors) {
 }
 
 //Valid Req Fields
-function validateReqFields( data, errors ) {
-  validateField( typeof data.supplierId === 'undefined' || typeof data.supplierDisplayName === 'undefined', "Please select a supplier", errors  );
+function validateReqFields( data, paidThroughAccount, supplierAccount, errors ) {
+  validateField( typeof data.supplierId === 'undefined', "Please select a supplier", errors  );
+  validateField( typeof data.unpaidBills === 'undefined' || (Array.isArray(data.unpaidBills) && data.unpaidBills.length === 0), "Select a bill", errors  );
+
+  validateField( typeof data.amountPaid === 'undefined' || data.amountPaid === 0 || typeof data.amountUsedForPayments === 'undefined' || data.amountUsedForPayments === 0, "Enter amount paid", errors  );
+
+  validateField( typeof data.paymentMode === 'undefined' , "Select payment mode", errors  );
+  validateField( typeof data.paymentDate === 'undefined' , "Select payment date", errors  );
+
   validateField( typeof data.unpaidBills === 'undefined', "Select an Bill", errors  );
+
+  validateField( typeof data.paidThroughAccountId === 'undefined' , "Select paid through account", errors  );
+  validateField( !paidThroughAccount && typeof data.amountPaid !== 'undefined' , "Paid Through Account not found", errors  );
+  validateField( !supplierAccount && typeof data.amountPaid !== 'undefined' , "Supplier Account not found", errors  );
+
+
 }
 
 
@@ -477,7 +551,7 @@ const calculateAmountDue = async (billId, { amount }) => {
 
 
 
-const calculateTotalPaymentMade = async (cleanedData) => {
+const calculateTotalPaymentMade = async (cleanedData, amountPaid) => {
   let totalPayment = 0;
 
   // Sum the `payment` amounts from each unpaid bill in the array
@@ -490,7 +564,7 @@ const calculateTotalPaymentMade = async (cleanedData) => {
   cleanedData.amountPaid = totalPayment;
 
   // Calculate amountUsedForPayments and amountInExcess
-  const amountPaid = cleanedData.amountPaid || 0;
+  amountPaid = cleanedData.amountPaid || 0;
   cleanedData.amountUsedForPayments = amountPaid - totalPayment;
 
   return cleanedData;
@@ -539,16 +613,97 @@ const validPaymentMode = [ "Cash", "check", "Card", "Bank Transfer" ]
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+async function journal( payment, paidThroughAccount, supplierAccount ) {    
+  const supplierReceived = {
+    organizationId: payment.organizationId,
+    operationId: payment._id,
+    transactionId: payment.paymentMade,
+    accountId: supplierAccount._id || undefined,
+    action: "Payment Made",
+    debitAmount: payment.amountPaid || 0,
+    creditAmount: 0,
+    remark: payment.note,
+  };
+  const paidThroughAcc = {
+    organizationId: payment.organizationId,
+    operationId: payment._id,
+    transactionId: payment.paymentMade,
+    accountId: paidThroughAccount._id || undefined,
+    action: "Payment Made",
+    debitAmount: 0,
+    creditAmount: payment.amountPaid || 0,
+    remark: payment.note,
+  };
+  
+
+  console.log("supplierReceived", supplierReceived.debitAmount,  supplierReceived.creditAmount);
+  console.log("paidThroughAcc", paidThroughAcc.debitAmount,  paidThroughAcc.creditAmount);
+
+  const  debitAmount = supplierReceived.debitAmount + paidThroughAcc.debitAmount ;
+  const  creditAmount = supplierReceived.creditAmount + paidThroughAcc.creditAmount ;
+
+  console.log("Total Debit Amount: ", debitAmount );
+  console.log("Total Credit Amount: ", creditAmount );
+  
+  createTrialEntry( supplierReceived )
+  createTrialEntry( paidThroughAcc )
+}
+
+
+
+
+
+async function createTrialEntry( data ) {
+  const newTrialEntry = new TrialBalance({
+      organizationId:data.organizationId,
+      operationId:data.operationId,
+      transactionId: data.transactionId,
+      accountId: data.accountId,
+      action: data.action,
+      debitAmount: data.debitAmount,
+      creditAmount: data.creditAmount,
+      remark: data.remark
+});
+
+await newTrialEntry.save();
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
 exports.dataExist = {
   dataExist,
   paymentDataExist,
-  accDataExists,
-  journalDataExist
+  accDataExists
 };
 exports.validation = {
   validateSupplierAndOrganization, 
   validateInputs,
-  validateUnpaidBills
+  validateUnpaidBills,
+  validPaymentMode
 };
 exports.calculation = { 
   calculateTotalPaymentMade,

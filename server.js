@@ -1,30 +1,33 @@
-require('dotenv').config()
+require('dotenv').config();
 
-const express = require('express')
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
 
-const cors = require('cors')
+const server = express();
+const purchaseRouter = require("./router/purchaseRouter");
+require('./database/connection/connection');
 
-const server = express()
-
-
-
-// Increase the limit for JSON payloads
-server.use(express.json({ limit: '10mb' })); // Set limit to 10MB
-
-// Increase the limit for URL-encoded payloads
+server.use(express.json({ limit: '10mb' })); 
 server.use(express.urlencoded({ limit: '10mb', extended: true }));
 
-const purchaseRouter = require("./router/purchaseRouter")
+server.use(cors({
+    origin: "*",
+    methods: "GET, POST, PUT, DELETE, OPTIONS",
+    allowedHeaders: "Content-Type, Authorization"
+}));
 
-require('./database/connection/connection')
+server.options('*', (req, res) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.sendStatus(200);
+});
 
-server.use(cors())
+server.use(helmet()); 
+server.use(purchaseRouter);
 
-server.use(express.json())
-
-server.use(purchaseRouter)
-
-PORT = 5005
+const PORT = 5005;
 
 server.get('/',(req,res)=>{
     res.status(200).json("Dev Bill BIZZ server started - Purchase(v 0.2)")
