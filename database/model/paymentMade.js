@@ -32,6 +32,9 @@ const paymentSchema = new Schema({
   // amountRefunded: { type: Number},
   amountInExcess: { type : Number},
   unpaidBills: [unpaidBillSchema],
+
+  createdDateTime: { type: Date, default: () => new Date() },
+
   userId:{ type: String },
   userName:{ type: String }
 });

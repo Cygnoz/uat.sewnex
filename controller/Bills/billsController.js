@@ -12,6 +12,8 @@ const Prefix = require("../../database/model/prefix");
 const DefAcc  = require("../../database/model/defaultAccount");
 const TrialBalance = require("../../database/model/trialBalance");
 const Account = require("../../database/model/account");
+const { cleanData } = require("../../services/cleanData");
+const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
 
 // Fetch existing data
 const dataExist = async ( organizationId, supplierId, supplierDisplayName, purchaseOrderId ) => {
@@ -30,7 +32,7 @@ const dataExist = async ( organizationId, supplierId, supplierDisplayName, purch
 
 
 //Fetch Item Data
-const newDataExists = async (organizationId, items) => {
+const itemDataExists = async (organizationId, items) => {
   // Retrieve items with specified fields
   const itemIds = items.map(item => item.itemId);
 
@@ -87,7 +89,7 @@ const accDataExists = async ( defaultAccount, organizationId, otherExpenseAccoun
 
 const billsDataExist = async ( organizationId, billId ) => {    
     const [organizationExists, allBills, bill ] = await Promise.all([
-      Organization.findOne({ organizationId }, { organizationId: 1}),
+      Organization.findOne({ organizationId }, { organizationId: 1, timeZone: 1, dateFormatExp: 1, dateSplit: 1}),
       Bills.find({ organizationId }),
       Bills.findOne({ organizationId , _id: billId })
     ]);
@@ -104,8 +106,8 @@ exports.addBills = async (req, res) => {
       const { organizationId, id: userId, userName } = req.user;
   
       //Clean Data
-      const cleanedData = cleanBillsData(req.body);
-      cleanedData.items = cleanedData.items?.map(person => cleanBillsData(person)) || [];
+      const cleanedData = cleanData(req.body);
+      cleanedData.items = cleanedData.items?.map(person => cleanData(person)) || [];
       // console.log("cleanedData",cleanedData);
 
       
@@ -162,7 +164,7 @@ exports.addBills = async (req, res) => {
       
       const { organizationExists, supplierExist, purchaseOrderExist, taxExists, existingPrefix, settings, defaultAccount, supplierAccount } = await dataExist( organizationId, supplierId, supplierDisplayName, purchaseOrderId );
       
-      const { itemTable } = await newDataExists( organizationId, items );
+      const { itemTable } = await itemDataExists( organizationId, items );
       
       //Data Exist Validation
       if (!validateOrganizationSupplierOrder( purchaseOrderId, organizationExists, supplierExist, purchaseOrderExist, existingPrefix, defaultAccount, res )) return;
@@ -172,9 +174,6 @@ exports.addBills = async (req, res) => {
       
       //Check Bill Exist
       // if (await checkExistingBill(cleanedData.billNumber, organizationId, res)) return;
-      
-      //Date & Time
-      const openingDate = generateOpeningDate(organizationExists);
   
       //Tax Type
       taxType(cleanedData, supplierExist );
@@ -204,10 +203,7 @@ exports.addBills = async (req, res) => {
       if (purchaseOrderId) {
         await deletePurchaseOrder(purchaseOrderId, organizationId, res);
       }
-
-      // savedBills.organizationId = undefined;
-      // Object.assign(savedBills, { organizationId: undefined, purchaseOrderId: undefined });
-        
+ 
       res.status(201).json({ message: "Bills created successfully", savedBills });
       console.log( "Bills created successfully:", savedBills );
     } catch (error) {
@@ -271,8 +267,10 @@ exports.addBills = async (req, res) => {
           const { organizationId, ...rest } = order; 
           return rest;
         });
+
+        const formattedObjects = multiCustomDateTime(sanitizedBills, organizationExists.dateFormatExp, organizationExists.timeZone, organizationExists.dateSplit );    
   
-      res.status(200).json({allBills: sanitizedBills});
+      res.status(200).json({allBills: formattedObjects});
     } catch (error) {
       console.error("Error fetching bills:", error);
       res.status(500).json({ message: "Internal server error." });
@@ -328,7 +326,9 @@ exports.addBills = async (req, res) => {
 
     updatedBill.organizationId = undefined;
 
-    res.status(200).json(updatedBill);
+    const formattedObjects = singleCustomDateTime(updatedBill, organizationExists.dateFormatExp, organizationExists.timeZone, organizationExists.dateSplit );    
+
+    res.status(200).json(formattedObjects);
   } catch (error) {
     console.error("Error fetching bill:", error);
     res.status(500).json({ message: "Internal server error." });
@@ -553,14 +553,6 @@ function billsPrefix( cleanData, existingPrefix ) {
   // }
   
   
-  //Clean Data 
-  function cleanBillsData(data) {
-    const cleanData = (value) => (value === null || value === undefined || value === "" ? undefined : value);
-    return Object.keys(data).reduce((acc, key) => {
-      acc[key] = cleanData(data[key]);
-      return acc;
-    }, {});
-  }
   
   
   // Validate Organization Tax Currency
@@ -807,58 +799,6 @@ function billsPrefix( cleanData, existingPrefix ) {
       console.log(errorMessage);
     }
   };
-
-
-
-
-
-  //Return Date and Time 
-function generateOpeningDate(organizationExists) {
-    const date = generateTimeAndDateForDB(
-        organizationExists.timeZoneExp,
-        organizationExists.dateFormatExp,
-        organizationExists.dateSplit
-      )
-    return date.dateTime;
-  }
-  
-  
-  // Function to generate time and date for storing in the database
-  function generateTimeAndDateForDB(
-    timeZone,
-    dateFormat,
-    dateSplit,
-    baseTime = new Date(),
-    timeFormat = "HH:mm:ss",
-    timeSplit = ":"
-  ) {
-    // Convert the base time to the desired time zone
-    const localDate = moment.tz(baseTime, timeZone);
-  
-    // Format date and time according to the specified formats
-    let formattedDate = localDate.format(dateFormat);
-  
-    // Handle date split if specified
-    if (dateSplit) {
-      // Replace default split characters with specified split characters
-      formattedDate = formattedDate.replace(/[-/]/g, dateSplit); // Adjust regex based on your date format separators
-    }
-  
-    const formattedTime = localDate.format(timeFormat);
-    const timeZoneName = localDate.format("z"); // Get time zone abbreviation
-  
-    // Combine the formatted date and time with the split characters and time zone
-    const dateTime = `${formattedDate} ${formattedTime
-      .split(":")
-      .join(timeSplit)} (${timeZoneName})`;
-  
-    return {
-      date: formattedDate,
-      time: `${formattedTime} (${timeZoneName})`,
-      dateTime: dateTime,
-    };
-  }
-
 
 
 
@@ -1573,3 +1513,31 @@ await newTrialEntry.save();
 
 }
 
+
+
+
+
+
+
+
+
+
+
+exports.dataExist = {
+  dataExist,
+  itemDataExists,
+  accDataExists,
+  billsDataExist
+};
+exports.validation = {
+  validateOrganizationSupplierOrder, 
+  validateInputs
+};
+exports.calculation = { 
+  taxType,
+  calculateBills
+};
+exports.accounts = { 
+  defaultAccounting,
+  journal
+};

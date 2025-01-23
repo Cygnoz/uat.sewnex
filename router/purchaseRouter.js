@@ -8,6 +8,7 @@ const debitNoteController = require('../controller/Debit Note/debitNoteControlle
 const PaymentMadeController = require('../controller/Payment Made/paymentMadeController');
 const purchaseSettingsController = require('../controller/purchaseSettingsController')
 const billsController = require('../controller/Bills/billsController')
+const updateBills = require('../controller/Bills/updateBills')
 const SupplierController = require('../controller/supplierController')
  
 
@@ -32,7 +33,7 @@ router.get('/get-all-Bills',verifyToken, billsController.getAllBills);
 router.get('/get-a-Bill/:billId',verifyToken, billsController.getOneBill);
 router.get('/bill-journal/:billId',verifyToken,billsController.billJournal);
 router.get('/get-last-bills-prefix', verifyToken, billsController.getLastBillsPrefix);
-// router.put('/update-Bill/:id',billsController.updatePurchaseBill)
+router.put('/update-bill/:billId',updateBills.updateBill);
 // router.delete('/delete-Bill/:id',billsController.deletePurchaseBill) 
 
 

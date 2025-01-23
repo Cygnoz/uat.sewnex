@@ -4,7 +4,11 @@ const PurchasePayment = require('../../database/model/paymentMade');
 const PurchaseBill = require('../../database/model/bills')
 const mongoose = require('mongoose');
 const moment = require("moment-timezone");
-const Prefix = require("../../database/model/prefix");``
+const Prefix = require("../../database/model/prefix");
+const { cleanData } = require("../../services/cleanData");
+const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
+
+
 
 // Fetch existing data
 const dataExist = async (organizationId, unpaidBills ,supplierId, supplierDisplayName) => {
@@ -27,7 +31,7 @@ const dataExist = async (organizationId, unpaidBills ,supplierId, supplierDispla
 const paymentDataExist = async ( organizationId, PaymentId ) => {    
     
   const [organizationExists, allPayments, payments ] = await Promise.all([
-    Organization.findOne({ organizationId }, { organizationId: 1}),
+    Organization.findOne({ organizationId }, { organizationId: 1, timeZone: 1, dateFormatExp: 1, dateSplit: 1}),
     PurchasePayment.find({ organizationId }),
     PurchasePayment.findOne({ organizationId , _id: PaymentId },)
   ]);
@@ -40,7 +44,7 @@ exports.addPayment = async (req, res) => {
   console.log("Add Payment :",req.body);  
   try {
     const { organizationId, id: userId, userName } = req.user; 
-    const cleanedData = cleanSupplierData(req.body); 
+    const cleanedData = cleanData(req.body); 
 
     const { unpaidBills, amountPaid } = cleanedData; 
     const { supplierId, supplierDisplayName } = cleanedData;
@@ -94,9 +98,6 @@ exports.addPayment = async (req, res) => {
     // Re-fetch the updated bills to get the latest `amountDue` and `balanceAmount`
     const updatedBills = await PurchaseBill.find({ _id: { $in: updatedData.unpaidBills.map(bill => bill.billId) } });
 
-    //openingDate
-    const openingDate = generateOpeningDate({ timeZoneExp: organizationId.timeZoneExp, dateFormatExp: organizationId.dateFormatExp, dateSplit: organizationId.dateSplit });
-
     // Create and save new payment
     const payment = await createNewPayment(updatedData , openingDate, organizationId, userId, userName);
 
@@ -142,12 +143,16 @@ exports.getAllPayment = async (req, res) => {
       return rest;
     });
 
-    res.status(200).json({allPayments: AllPayments});
+    const formattedObjects = multiCustomDateTime(AllPayments, organizationExists.dateFormatExp, organizationExists.timeZone, organizationExists.dateSplit );    
+
+    res.status(200).json({allPayments: formattedObjects});
   } catch (error) {
     console.error("Error fetching purchase paymentMade:", error);
     res.status(500).json({ message: "Internal server error." });
   }
 };
+
+
 
 // Get One Payment Quote
 exports.getPurchasePayment = async (req, res) => {
@@ -171,7 +176,9 @@ exports.getPurchasePayment = async (req, res) => {
 
     payments.organizationId = undefined;
 
-    res.status(200).json(payments);
+    const formattedObjects = singleCustomDateTime(payments, organizationExists.dateFormatExp, organizationExists.timeZone, organizationExists.dateSplit );        
+
+    res.status(200).json(formattedObjects);
   } catch (error) {
     console.error("Error fetching Payments:", error);
     res.status(500).json({ message: "Internal server error." });
@@ -225,23 +232,23 @@ function vendorPaymentPrefix( cleanData, existingPrefix ) {
 
 
 
-  //Clean Data 
-function cleanSupplierData(data) {
-    const cleanData = (value) => (value === null || value === undefined || value === "" ? undefined : value);
-    const cleanedData = Object.keys(data).reduce((acc, key) => {
-      acc[key] = cleanData(data[key]);
-      return acc;
-    }, {});
+//   //Clean Data 
+// function cleanSupplierData(data) {
+//     const cleanData = (value) => (value === null || value === undefined || value === "" ? undefined : value);
+//     const cleanedData = Object.keys(data).reduce((acc, key) => {
+//       acc[key] = cleanData(data[key]);
+//       return acc;
+//     }, {});
 
-    // Filter unpaidBills where payment is greater than 0
-    if (Array.isArray(cleanedData.unpaidBills)) {
-      cleanedData.unpaidBills = cleanedData.unpaidBills.filter(bill => {
-          return bill.payment && bill.payment > 0;
-      });
-    }
+//     // Filter unpaidBills where payment is greater than 0
+//     if (Array.isArray(cleanedData.unpaidBills)) {
+//       cleanedData.unpaidBills = cleanedData.unpaidBills.filter(bill => {
+//           return bill.payment && bill.payment > 0;
+//       });
+//     }
 
-  return cleanedData;
-}
+//   return cleanedData;
+// }
 
 
 
@@ -268,60 +275,6 @@ function validateSupplierAndOrganization(organizationExists, supplierExists, exi
 }
 
 
-
-
-
-
-//Return Date and Time 
-function generateOpeningDate(organizationExists) {
-  const date = generateTimeAndDateForDB(
-      organizationExists.timeZoneExp,
-      organizationExists.dateFormatExp,
-      organizationExists.dateSplit
-    )
-  return date.dateTime;
-}
-
-
-
-
-
-
-// Function to generate time and date for storing in the database
-function generateTimeAndDateForDB(
-    timeZone,
-    dateFormat,
-    dateSplit,
-    baseTime = new Date(),
-    timeFormat = "HH:mm:ss",
-    timeSplit = ":"
-  ) {
-    // Convert the base time to the desired time zone
-    const localDate = moment.tz(baseTime, timeZone);
-  
-    // Format date and time according to the specified formats
-    let formattedDate = localDate.format(dateFormat);
-  
-    // Handle date split if specified
-    if (dateSplit) {
-      // Replace default split characters with specified split characters
-      formattedDate = formattedDate.replace(/[-/]/g, dateSplit); // Adjust regex based on your date format separators
-    }
-  
-    const formattedTime = localDate.format(timeFormat);
-    const timeZoneName = localDate.format("z"); // Get time zone abbreviation
-  
-    // Combine the formatted date and time with the split characters and time zone
-    const dateTime = `${formattedDate} ${formattedTime
-      .split(":")
-      .join(timeSplit)} (${timeZoneName})`;
-  
-    return {
-      date: formattedDate,
-      time: `${formattedTime} (${timeZoneName})`,
-      dateTime: dateTime,
-    };
-  }
 
 
 
@@ -574,3 +527,33 @@ async function processUnpaidBills(unpaidBills) {
 
 
 const validPaymentMode = [ "Cash", "check", "Card", "Bank Transfer" ]
+
+
+
+
+
+
+
+
+
+
+
+
+exports.dataExist = {
+  dataExist,
+  paymentDataExist,
+  accDataExists,
+  journalDataExist
+};
+exports.validation = {
+  validateSupplierAndOrganization, 
+  validateInputs,
+  validateUnpaidBills
+};
+exports.calculation = { 
+  calculateTotalPaymentMade,
+  processUnpaidBills
+};
+exports.accounts = { 
+  journal
+};

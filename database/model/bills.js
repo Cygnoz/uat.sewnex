@@ -6,7 +6,7 @@ const itemsSchema = new Schema({
   itemName: { type: String },
 
   itemQuantity: { type: Number },
-  returnQuantity: { type: Number },
+  returnQuantity: { type: Number },   // Don't use default: 0
   itemCostPrice: { type: Number },
 
   itemTax:{ type:Number },
@@ -101,7 +101,16 @@ const PurchaseBillSchema = new Schema({
   
   purchaseOrderId:{ type: String },
 
-  createdDate: { type: String },
+  // createdDate: { type: String },
+
+  createdDateTime: { type: Date, default: () => new Date() },
+  
+    //lastModifiedDate
+    // lastModifiedDate:{type: Date},
+  
+    // editLimit: {type: Boolean, default: true}, 
+  
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 
 });
 
