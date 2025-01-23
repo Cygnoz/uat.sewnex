@@ -136,7 +136,7 @@ exports.addCreditNote = async (req, res) => {
 
     //Validate invoice
     if (!mongoose.Types.ObjectId.isValid(invoiceId) || invoiceId.length !== 24) {
-      return res.status(400).json({ message: `Invalid bill ID: ${invoiceId}` });
+      return res.status(400).json({ message: `Invalid Invoice ID: ${invoiceId}` });
     }
 
     // Validate ItemIds
@@ -1366,7 +1366,10 @@ exports.dataExist = {
 };
 exports.validation = {
   validateOrganizationTaxCurrency, 
-  validateInputs
+  validateInputs,
+  validPaymentMode,
+  validInvoiceType,
+  validCountries
 };
 exports.calculation = { 
   taxType,

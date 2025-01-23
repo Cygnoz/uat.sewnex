@@ -86,6 +86,9 @@ const creditNoteSchema = new mongoose.Schema({
 
   createdDateTime: { type: Date, default: () => new Date() },
 
+  //lastModifiedDate
+  // lastModifiedDate:{type: Date},
+
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   //userName
 

@@ -15,6 +15,7 @@ const salesReceipt = require('../controller/Receipt/salesReceipt')
 const updateSalesReceipt = require('../controller/Receipt/updateReceipt')
 
 const creditNote = require('../controller/Credit Note/creditNoteController')
+const updateCreditNote = require('../controller/Credit Note/updateCreditNote')
 
 const salesSettings = require('../controller/salesSettings')
 const customerController = require('../controller/customerController')
@@ -115,6 +116,7 @@ router.get('/get-one-creditNote/:creditId', verifyToken, creditNote.getOneCredit
 
 router.get('/get-last-creditNote-prefix', verifyToken, creditNote.getLastCreditNotePrefix);
 
+router.put('/update-creditNote/:creditId', verifyToken, updateCreditNote.updateCreditNote);
 
 
 

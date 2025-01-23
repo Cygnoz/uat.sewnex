@@ -12,7 +12,7 @@ exports.updateReceipt = async (req, res) => {
     console.log("Update sales invoice:", req.body);
   
     try {
-      const { organizationId, id: userId, userName } = req.user;
+      const { organizationId } = req.user;
       const { receiptId } = req.params;  
 
       // Fetch existing sales receipt
