@@ -5,10 +5,15 @@ const router = new express.Router()
 const purchaseOrderController = require('../controller/Purchase Order/purchaseOrderController');
 const updateOrderController = require('../controller/Purchase Order/updateOrder');
 const debitNoteController = require('../controller/Debit Note/debitNoteController'); 
+
 const PaymentMadeController = require('../controller/Payment Made/paymentMadeController');
+const updatePaymentMade = require('../controller/Payment Made/updatePaymentMade');
+
 const purchaseSettingsController = require('../controller/purchaseSettingsController')
+
 const billsController = require('../controller/Bills/billsController')
 const updateBills = require('../controller/Bills/updateBills')
+
 const SupplierController = require('../controller/supplierController')
  
 
@@ -43,7 +48,7 @@ router.get('/getAllPayments', verifyToken, PaymentMadeController.getAllPayment )
 router.get('/payment-journal/:paymentId', verifyToken, PaymentMadeController.paymentJournal);
 router.get('/get-last-payment-made-prefix', verifyToken, PaymentMadeController.getLastPaymentMadePrefix )
 router.get('/getPayment/:paymentId', verifyToken, PaymentMadeController.getPurchasePayment);
-// router.put('/updatePayment/:id', PaymentMadeController.updatePurchasePayment);
+router.put('/update-paymentMade/:paymentId', updatePaymentMade.updatePaymentMade);
 // router.delete('/deletePayment/:id', PaymentMadeController.deletePurchasePayment);
 
 //Debit Note
