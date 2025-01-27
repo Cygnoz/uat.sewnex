@@ -55,7 +55,7 @@ exports.updatePurchaseOrder = async (req, res) => {
       if (!validation.validateInputs(cleanedData, supplierExist, items, itemTable, organizationExists, res)) return;
   
       // Tax Type 
-      calculations.taxtype(cleanedData, supplierExist);
+      calculations.taxType(cleanedData, supplierExist);
   
       // Calculate Purchase Order
       if (!calculations.calculatePurchaseOrder(cleanedData, res)) return;
