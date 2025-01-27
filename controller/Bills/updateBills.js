@@ -103,7 +103,7 @@ exports.updateBill = async (req, res) => {
       if (!calculation.calculateBills(cleanedData, itemTable, res)) return;
 
       //Sales Journal      
-      if (!accounts.salesJournal( cleanedData, res )) return; 
+      if (!accounts.purchaseJournal( cleanedData, res )) return; 
 
       const mongooseDocument = Bills.hydrate(existingBill);
       Object.assign(mongooseDocument, cleanedData);
@@ -193,43 +193,44 @@ exports.updateBill = async (req, res) => {
       const { items } = savedBill;
 
       for (const item of items) {
-
-        const itemIdAsObjectId = new mongoose.Types.ObjectId(item.itemId);
-
-        // Find the matching item
-        const matchingItem = itemTable.find((entry) => entry._id.equals(itemIdAsObjectId));
-
+        // Find the matching item in itemTable by itemId
+        const matchingItem = itemTable.find((entry) => entry._id.toString() === item.itemId);
+    
         if (!matchingItem) {
           console.error(`Item with ID ${item.itemId} not found in itemTable`);
-          continue; 
+          continue; // Skip this entry if not found
         }
-
-        // const newStock = matchingItem.currentStock - item.quantity;
-        // if (newStock < 0) {
-        //   console.error(`Insufficient stock for item ${item.itemName}`);
-        //   continue; 
-        // }
-
-        const newItemTrack = new ItemTrack({
-          organizationId: savedInvoice.organizationId,
-          operationId: savedInvoice._id,
-          transactionId: savedInvoice.salesInvoice,
-          action: "Sale",
+    
+        // Calculate the new stock level after the purchase
+        const newStock = matchingItem.currentStock + item.itemQuantity;
+    
+    
+        // Create a new entry for item tracking
+        const newTrialEntry = new ItemTrack({
+          organizationId: savedBill.organizationId,
+          operationId: savedBill._id,
+          transactionId: savedBill.bill,
+          action: "Bills",
+          date: savedBill.billDate,
           itemId: matchingItem._id,
-          sellingPrice: matchingItem.sellingPrice || 0,
-          costPrice: matchingItem.costPrice || 0, 
-          creditQuantity: item.quantity, 
+          itemName: matchingItem.itemName,
+          sellingPrice: matchingItem.itemSellingPrice,
+          costPrice: matchingItem.itemCostPrice || 0, // Assuming cost price is in itemTable
+          creditQuantity: item.itemQuantity, // Quantity sold
+          currentStock: newStock,
+          remark: `Sold to ${savedBill.supplierDisplayName}`,
           createdDateTime: createdDateTime // Preserve the original createdDateTime
         });
-
-        await newItemTrack.save();
+    
+        // Save the tracking entry and update the item's stock in the item table
+        await newTrialEntry.save();
 
         // Delete existing itemTrack entries for the operation
-      if (existingItemTracks.length > 0) {
-        await ItemTrack.deleteMany({ organizationId, operationId: billId });
-        console.log(`Deleted existing itemTrack entries for operationId: ${billId}`);
+        if (existingItemTracks.length > 0) {
+          await ItemTrack.deleteMany({ organizationId, operationId: billId });
+          console.log(`Deleted existing itemTrack entries for operationId: ${billId}`);
+        }
       }
-    }
   }
 
 
@@ -261,144 +262,144 @@ exports.updateBill = async (req, res) => {
     }
     
     const discount = {
-      organizationId: savedBills.organizationId,
-      operationId: savedBills._id,
-      transactionId: savedBills.billNumber,
-      date: savedBills.createdDate,
+      organizationId: savedBill.organizationId,
+      operationId: savedBill._id,
+      transactionId: savedBill.billNumber,
+      date: savedBill.createdDate,
       accountId: defAcc.purchaseDiscountAccount || undefined,
       action: "Purchase Bill",
       debitAmount: 0,
-      creditAmount: savedBills.totalDiscount || 0,
-      remark: savedBills.note,
+      creditAmount: savedBill.totalDiscount || 0,
+      remark: savedBill.note,
     };
     // const purchase = {
-    //   organizationId: savedBills.organizationId,
-    //   operationId: savedBills._id,
-    //   transactionId: savedBills.billNumber,
-    //   date: savedBills.createdDate,
+    //   organizationId: savedBill.organizationId,
+    //   operationId: savedBill._id,
+    //   transactionId: savedBill.billNumber,
+    //   date: savedBill.createdDate,
     //   accountId: defAcc.purchaseAccount || undefined,
     //   accountName: defAcc.purchaseAccountName || undefined,
     //   action: "Purchase Bill",
-    //   debitAmount: savedBills.purchaseAmount,
+    //   debitAmount: savedBill.purchaseAmount,
     //   creditAmount: 0,
-    //   remark: savedBills.note,
+    //   remark: savedBill.note,
     // };
     const cgst = {
-      organizationId: savedBills.organizationId,
-      operationId: savedBills._id,
-      transactionId: savedBills.billNumber,
-      date: savedBills.createdDate,
+      organizationId: savedBill.organizationId,
+      operationId: savedBill._id,
+      transactionId: savedBill.billNumber,
+      date: savedBill.createdDate,
       accountId: defAcc.inputCgst || undefined,
       action: "Purchase Bill",
-      debitAmount: savedBills.cgst || 0,
+      debitAmount: savedBill.cgst || 0,
       creditAmount: 0,
-      remark: savedBills.note,
+      remark: savedBill.note,
     };
     const sgst = {
-      organizationId: savedBills.organizationId,
-      operationId: savedBills._id,
-      transactionId: savedBills.billNumber,
-      date: savedBills.createdDate,
+      organizationId: savedBill.organizationId,
+      operationId: savedBill._id,
+      transactionId: savedBill.billNumber,
+      date: savedBill.createdDate,
       accountId: defAcc.inputSgst || undefined,
       action: "Purchase Bill",
-      debitAmount: savedBills.sgst || 0,
+      debitAmount: savedBill.sgst || 0,
       creditAmount: 0,
-      remark: savedBills.note,
+      remark: savedBill.note,
     };
     const igst = {
-      organizationId: savedBills.organizationId,
-      operationId: savedBills._id,
-      transactionId: savedBills.billNumber,
-      date: savedBills.createdDate,
+      organizationId: savedBill.organizationId,
+      operationId: savedBill._id,
+      transactionId: savedBill.billNumber,
+      date: savedBill.createdDate,
       accountId: defAcc.inputIgst || undefined,
       action: "Purchase Bill",
-      debitAmount: savedBills.igst || 0,
+      debitAmount: savedBill.igst || 0,
       creditAmount: 0,
-      remark: savedBills.note,
+      remark: savedBill.note,
     };
     const vat = {
-      organizationId: savedBills.organizationId,
-      operationId: savedBills._id,
-      transactionId: savedBills.billNumber,
-      date: savedBills.createdDate,
+      organizationId: savedBill.organizationId,
+      operationId: savedBill._id,
+      transactionId: savedBill.billNumber,
+      date: savedBill.createdDate,
       accountId: defAcc.inputVat || undefined,
       action: "Purchase Bill",
-      debitAmount: savedBills.vat || 0,
+      debitAmount: savedBill.vat || 0,
       creditAmount: 0,
-      remark: savedBills.note,
+      remark: savedBill.note,
     };
     const supplier = {
-      organizationId: savedBills.organizationId,
-      operationId: savedBills._id,
-      transactionId: savedBills.billNumber,
-      date: savedBills.createdDate,
+      organizationId: savedBill.organizationId,
+      operationId: savedBill._id,
+      transactionId: savedBill.billNumber,
+      date: savedBill.createdDate,
       accountId: supplierAccount._id || undefined,
       action: "Purchase Bill",
       debitAmount: 0,
-      creditAmount: savedBills.grandTotal || 0,
-      remark: savedBills.note,
+      creditAmount: savedBill.grandTotal || 0,
+      remark: savedBill.note,
     };
     const supplierPaid = {
-      organizationId: savedBills.organizationId,
-      operationId: savedBills._id,
-      transactionId: savedBills.billNumber,
-      date: savedBills.createdDate,
+      organizationId: savedBill.organizationId,
+      operationId: savedBill._id,
+      transactionId: savedBill.billNumber,
+      date: savedBill.createdDate,
       accountId: supplierAccount._id || undefined,
       action: "Payment",
-      debitAmount: savedBills.paidAmount || 0,
+      debitAmount: savedBill.paidAmount || 0,
       creditAmount: 0,
-      remark: savedBills.note,
+      remark: savedBill.note,
     };
     const paidAccount = {
-      organizationId: savedBills.organizationId,
-      operationId: savedBills._id,
-      transactionId: savedBills.billNumber,
-      date: savedBills.createdDate,
+      organizationId: savedBill.organizationId,
+      operationId: savedBill._id,
+      transactionId: savedBill.billNumber,
+      date: savedBill.createdDate,
       accountId: defAcc.paidAccountId || undefined,
       action: "Payment",
       debitAmount: 0,
-      creditAmount: savedBills.paidAmount || 0,
-      remark: savedBills.note,
+      creditAmount: savedBill.paidAmount || 0,
+      remark: savedBill.note,
     };
     const otherExpense = {
-      organizationId: savedBills.organizationId,
-      operationId: savedBills._id,
-      transactionId: savedBills.billNumber,
-      date: savedBills.createdDate,
+      organizationId: savedBill.organizationId,
+      operationId: savedBill._id,
+      transactionId: savedBill.billNumber,
+      date: savedBill.createdDate,
       accountId: defAcc.otherExpenseAccountId || undefined,
       action: "Purchase Bill",
-      debitAmount: savedBills.otherExpenseAmount || 0,
+      debitAmount: savedBill.otherExpenseAmount || 0,
       creditAmount: 0,
-      remark: savedBills.note,
+      remark: savedBill.note,
     };
     const freight = {
-      organizationId: savedBills.organizationId,
-      operationId: savedBills._id,
-      transactionId: savedBills.billNumber,
-      date: savedBills.createdDate,
+      organizationId: savedBill.organizationId,
+      operationId: savedBill._id,
+      transactionId: savedBill.billNumber,
+      date: savedBill.createdDate,
       accountId: defAcc.freightAccountId || undefined,
       action: "Purchase Bill",
-      debitAmount: savedBills.freightAmount || 0,
+      debitAmount: savedBill.freightAmount || 0,
       creditAmount: 0,
-      remark: savedBills.note,
+      remark: savedBill.note,
     };
     const roundOff = {
-      organizationId: savedBills.organizationId,
-      operationId: savedBills._id,
-      transactionId: savedBills.billNumber,
-      date: savedBills.createdDate,
+      organizationId: savedBill.organizationId,
+      operationId: savedBill._id,
+      transactionId: savedBill.billNumber,
+      date: savedBill.createdDate,
       accountName: "Round Off",
       action: "Purchase Bill",
       debitAmount: 0,
-      creditAmount: savedBills.roundOffAmount || 0,
-      remark: savedBills.note,
+      creditAmount: savedBill.roundOffAmount || 0,
+      remark: savedBill.note,
     };
 
     let purchaseTotalDebit = 0;
     let purchaseTotalCredit = 0;
 
-    if (Array.isArray(savedBills.salesJournal)) {
-      savedBills.salesJournal.forEach((entry) => {
+    if (Array.isArray(savedBill.purchaseJournal)) {
+      savedBill.purchaseJournal.forEach((entry) => {
   
         console.log( "Account Log",entry.accountId, entry.debitAmount, entry.creditAmount );      
   
@@ -407,10 +408,10 @@ exports.updateBill = async (req, res) => {
   
       });
   
-      console.log("Total Debit Amount from savedBills:", purchaseTotalDebit);
-      console.log("Total Credit Amount from savedBills:", purchaseTotalCredit);
+      console.log("Total Debit Amount from savedBill:", purchaseTotalDebit);
+      console.log("Total Credit Amount from savedBill:", purchaseTotalCredit);
     } else {
-      console.error("SavedBills is not an array or is undefined.");
+      console.error("SavedBill is not an array or is undefined.");
     }
     
 
@@ -468,17 +469,17 @@ exports.updateBill = async (req, res) => {
 
 
     //Sales
-    savedBills.purchaseJournal.forEach((entry) => {
+    savedBill.purchaseJournal.forEach((entry) => {
       const data = {
-        organizationId: savedBills.organizationId,
-        operationId: savedBills._id,
-        transactionId: savedBills.billNumber,
-        date: savedBills.createdDateTime,
+        organizationId: savedBill.organizationId,
+        operationId: savedBill._id,
+        transactionId: savedBill.billNumber,
+        date: savedBill.createdDateTime,
         accountId: entry.accountId || undefined,
         action: "Purchase Bill",
         debitAmount: entry.debitAmount || 0,
         creditAmount: 0,
-        remark: savedBills.note,
+        remark: savedBill.note,
       };
       createTrialEntry( data, createdDateTime )
     });
@@ -491,36 +492,36 @@ exports.updateBill = async (req, res) => {
     // createTrialEntry( purchase )
 
   //Tax
-  if(savedBills.cgst){
+  if(savedBill.cgst){
     createTrialEntry( cgst, createdDateTime )
   }
-  if(savedBills.sgst){
+  if(savedBill.sgst){
     createTrialEntry( sgst, createdDateTime )
   }
-  if(savedBills.igst){
+  if(savedBill.igst){
     createTrialEntry( igst, createdDateTime )
   }
-  if(savedBills.vat){
+  if(savedBill.vat){
     createTrialEntry( vat, createdDateTime )
   }
 
   //Discount  
-  if(savedBills.totalDiscount){
+  if(savedBill.totalDiscount){
     createTrialEntry( discount, createdDateTime )
   }
 
   //Other Expense
-  if(savedBills.otherExpenseAmount){
+  if(savedBill.otherExpenseAmount){
     createTrialEntry( otherExpense, createdDateTime )
   }
 
   //Freight
-  if(savedBills.freightAmount){
+  if(savedBill.freightAmount){
     createTrialEntry( freight, createdDateTime )
   }
   
   //Round Off
-  if(savedBills.roundOffAmount){
+  if(savedBill.roundOffAmount){
     createTrialEntry( roundOff, createdDateTime )
   }
  
@@ -528,7 +529,7 @@ exports.updateBill = async (req, res) => {
   createTrialEntry( supplier, createdDateTime )
   
   //Paid
-  if(savedBills.paidAmount){
+  if(savedBill.paidAmount){
     createTrialEntry( supplierPaid, createdDateTime )
     createTrialEntry( paidAccount, createdDateTime )
   }

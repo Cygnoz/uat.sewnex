@@ -1421,8 +1421,8 @@ async function journal( savedBills, defAcc, supplierAccount ) {
   let purchaseTotalDebit = 0;
   let purchaseTotalCredit = 0;
 
-  if (Array.isArray(savedBills.salesJournal)) {
-    savedBills.salesJournal.forEach((entry) => {
+  if (Array.isArray(savedBills.purchaseJournal)) {
+    savedBills.purchaseJournal.forEach((entry) => {
 
       console.log( "Account Log",entry.accountId, entry.debitAmount, entry.creditAmount );      
 

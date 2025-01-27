@@ -4,7 +4,9 @@ const router = new express.Router()
 
 const purchaseOrderController = require('../controller/Purchase Order/purchaseOrderController');
 const updateOrderController = require('../controller/Purchase Order/updateOrder');
+
 const debitNoteController = require('../controller/Debit Note/debitNoteController'); 
+const updateDebitNote = require('../controller/Debit Note/updateDebitNote'); 
 
 const PaymentMadeController = require('../controller/Payment Made/paymentMadeController');
 const updatePaymentMade = require('../controller/Payment Made/updatePaymentMade');
@@ -38,7 +40,7 @@ router.get('/get-all-Bills',verifyToken, billsController.getAllBills);
 router.get('/get-a-Bill/:billId',verifyToken, billsController.getOneBill);
 router.get('/bill-journal/:billId',verifyToken,billsController.billJournal);
 router.get('/get-last-bills-prefix', verifyToken, billsController.getLastBillsPrefix);
-router.put('/update-bill/:billId',updateBills.updateBill);
+router.put('/update-bill/:billId', verifyToken, updateBills.updateBill);
 // router.delete('/delete-Bill/:id',billsController.deletePurchaseBill) 
 
 
@@ -48,7 +50,7 @@ router.get('/getAllPayments', verifyToken, PaymentMadeController.getAllPayment )
 router.get('/payment-journal/:paymentId', verifyToken, PaymentMadeController.paymentJournal);
 router.get('/get-last-payment-made-prefix', verifyToken, PaymentMadeController.getLastPaymentMadePrefix )
 router.get('/getPayment/:paymentId', verifyToken, PaymentMadeController.getPurchasePayment);
-router.put('/update-paymentMade/:paymentId', updatePaymentMade.updatePaymentMade);
+router.put('/update-paymentMade/:paymentId', verifyToken, updatePaymentMade.updatePaymentMade);
 // router.delete('/deletePayment/:id', PaymentMadeController.deletePurchasePayment);
 
 //Debit Note
@@ -57,7 +59,7 @@ router.get('/get-last-debit-note-prefix', verifyToken, debitNoteController.getLa
 router.get('/get-all-debitNote', verifyToken, debitNoteController.getAllDebitNote);
 router.get('/getDebitNote/:debitId', verifyToken, debitNoteController.getOneDebitNote);
 router.get('/debitNote-journal/:debitId', verifyToken, debitNoteController.debitNoteJournal);
-// router.put('/updateDebitNote/:id', debitNoteController.updateDebitNote);
+router.put('/update-debitNote/:debitId', verifyToken, updateDebitNote.updateDebitNote);
 // router.delete('/deleteDebitNote/:id', debitNoteController.deleteDebitNote);
 
 // purchase settings

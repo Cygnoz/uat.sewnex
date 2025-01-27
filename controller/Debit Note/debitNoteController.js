@@ -168,7 +168,7 @@ exports.addDebitNote = async (req, res) => {
       return false; 
     }    
     
-    // Calculate Sales 
+    // Calculate Debit Note 
     if (!calculateDebitNote( cleanedData, res )) return;
 
     //Purchase Journal      
@@ -1378,3 +1378,35 @@ async function createTrialEntry( data ) {
 await newTrialEntry.save();
 
 }
+
+
+
+
+
+
+
+
+
+exports.dataExist = {
+  dataExist,
+  accDataExists,
+  itemDataExists,
+  debitDataExist
+};
+exports.validation = {
+  validateOrganizationTaxCurrency, 
+  validateInputs,
+  validPaymentMode,
+  validBillType,
+  validCountries
+};
+exports.calculation = { 
+  taxType,
+  calculateDebitNote,
+  updateBillWithDebitNote
+};
+exports.accounts = { 
+  defaultAccounting,
+  purchaseJournal,
+  journal
+};

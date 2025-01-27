@@ -79,7 +79,7 @@ exports.updatePaymentMade = async (req, res) => {
       }
 
       //Journal
-      await journal( savedPaymentMade, payment, paidThroughAccount, supplierAccount );
+      await journal( savedPaymentMade, paidThroughAccount, supplierAccount );
       
       res.status(200).json({ message: "Payment made updated successfully", savedPaymentMade });
       // console.log("Payment made updated successfully:", savedPaymentMade);
@@ -264,8 +264,8 @@ function validateField(condition, errorMsg, errors) {
 
 
 //Validate inputs
-function validateInputs( data, unpaidBills, paymentTable, paidThroughAccount, supplierAccount, res) {
-  const validationErrors = validatePaymentData(data, unpaidBills , paymentTableExist, paidThroughAccount, supplierAccount);
+function validateInputs( cleanedData, unpaidBills, paymentTable, paidThroughAccount, supplierAccount, res) {
+  const validationErrors = validatePaymentData(cleanedData, unpaidBills , paymentTable, paidThroughAccount, supplierAccount);
 
   if (validationErrors.length > 0) {
     res.status(400).json({ message: validationErrors.join(", ") });
@@ -439,7 +439,7 @@ function isAlphanumeric(value) {
 
 
 
-async function journal( savedPaymentMade, payment, paidThroughAccount, supplierAccount ) { 
+async function journal( savedPaymentMade, paidThroughAccount, supplierAccount ) { 
     
     // Fetch existing TrialBalance's createdDateTime
     const existingTrialBalance = await TrialBalance.findOne({
@@ -459,24 +459,24 @@ async function journal( savedPaymentMade, payment, paidThroughAccount, supplierA
     }
         
     const supplierReceived = {
-      organizationId: payment.organizationId,
-      operationId: payment._id,
-      transactionId: payment.paymentMade,
+      organizationId: savedPaymentMade.organizationId,
+      operationId: savedPaymentMade._id,
+      transactionId: savedPaymentMade.paymentMade,
       accountId: supplierAccount._id || undefined,
       action: "Payment Made",
-      debitAmount: payment.amountPaid || 0,
+      debitAmount: savedPaymentMade.amountPaid || 0,
       creditAmount: 0,
-      remark: payment.note,
+      remark: savedPaymentMade.note,
     };
     const paidThroughAcc = {
-      organizationId: payment.organizationId,
-      operationId: payment._id,
-      transactionId: payment.paymentMade,
+      organizationId: savedPaymentMade.organizationId,
+      operationId: savedPaymentMade._id,
+      transactionId: savedPaymentMade.paymentMade,
       accountId: paidThroughAccount._id || undefined,
       action: "Payment Made",
       debitAmount: 0,
-      creditAmount: payment.amountPaid || 0,
-      remark: payment.note,
+      creditAmount: savedPaymentMade.amountPaid || 0,
+      remark: savedPaymentMade.note,
     };
     
     console.log("supplierReceived", supplierReceived.debitAmount,  supplierReceived.creditAmount);
