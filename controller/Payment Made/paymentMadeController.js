@@ -82,7 +82,7 @@ exports.addPayment = async (req, res) => {
       return res.status(400).json({ message: "Duplicate bill found" });
     }
 
-    cleanedData.paidThroughAccountId = cleanedData.paidThrough;
+    // cleanedData.paidThroughAccountId = cleanedData.paidThrough;
 
     // Validate SupplierId
     if (!mongoose.Types.ObjectId.isValid(supplierId) || supplierId.length !== 24) {
@@ -368,7 +368,6 @@ function validatePaymentData( data, unpaidBills, paymentTable, paidThroughAccoun
 
   // console.log("Bills Request :",unpaidBills);
   // console.log("Bills Fetched :",paymentTable);
-  
 
   //Basic Info
   validateReqFields( data, paidThroughAccount, supplierAccount, errors );
@@ -392,6 +391,7 @@ function validateField(condition, errorMsg, errors) {
 
 //Valid Req Fields
 function validateReqFields( data, paidThroughAccount, supplierAccount, errors ) {
+
   validateField( typeof data.supplierId === 'undefined', "Please select a supplier", errors  );
   validateField( typeof data.unpaidBills === 'undefined' || (Array.isArray(data.unpaidBills) && data.unpaidBills.length === 0), "Select a bill", errors  );
 
@@ -431,10 +431,10 @@ function validatePaymentTable(unpaidBills, paymentTable, errors) {
     // Validate bill date
     validateField( unpaidBill.billDate !== fetchedBills.billDate, `Bill Date Mismatch Bill Number: ${unpaidBill.billNumber} : ${unpaidBill.billDate}` , errors );
 
-    // Validate duedate
+    // Validate dueDate
     validateField( unpaidBill.dueDate !== fetchedBills.dueDate, `Due Date Mismatch for Bill Number${unpaidBill.billNumber}:  ${unpaidBill.dueDate}`, errors );
 
-    // Validate billamount
+    // Validate billAmount
     validateField( unpaidBill.billAmount !== fetchedBills.grandTotal, `Grand Total for Bill Number${unpaidBill.billNumber}: ${unpaidBill.billAmount}`, errors );
 
     // Validate amountDue

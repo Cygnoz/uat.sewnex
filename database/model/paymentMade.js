@@ -9,7 +9,7 @@ const unpaidBillSchema = new Schema({
   billAmount: { type: Number },
   amountDue: { type: Number },
   payment: { type: Number },
-});
+},{ _id: false });
 
 const paymentSchema = new Schema({
   organizationId: { type: String },

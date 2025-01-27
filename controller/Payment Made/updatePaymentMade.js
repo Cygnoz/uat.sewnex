@@ -31,7 +31,7 @@ exports.updatePaymentMade = async (req, res) => {
       // Fetch the latest payment made for the given supplierId and organizationId
       await getLatestPaymentMade(paymentId, organizationId, supplierId, billIds);
 
-      cleanedData.paidThroughAccountId = cleanedData.paidThrough;
+      // cleanedData.paidThroughAccountId = cleanedData.paidThrough;
     
       // Validate _id's
       const validateAllIds = validateIds({ billIds, supplierId });
@@ -289,6 +289,10 @@ function validatePaymentData( data, unpaidBills, paymentTable, paidThroughAccoun
 
 //Valid Req Fields
 function validateReqFields( data, paidThroughAccount, supplierAccount, errors ) {
+  console.log("paidThroughAccount....................",data)
+  
+
+
   validateField( typeof data.supplierId === 'undefined', "Please select a supplier", errors  );
   validateField( typeof data.unpaidBills === 'undefined' || (Array.isArray(data.unpaidBills) && data.unpaidBills.length === 0), "Select a bill", errors  );
 
