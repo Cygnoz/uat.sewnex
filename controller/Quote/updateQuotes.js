@@ -89,3 +89,45 @@ exports.updateSalesQuote = async (req, res) => {
       res.status(500).json({ message: "Internal server error" });
     }
   };
+
+
+
+
+
+
+
+// Delete Sales Quote
+exports.deleteSalesQuote = async (req, res) => {
+  console.log("Delete sales quote request received:", req.params);
+
+  try {
+      const { organizationId } = req.user;
+      const { quoteId } = req.params;
+
+      // Validate quoteId
+      if (!mongoose.Types.ObjectId.isValid(quoteId) || quoteId.length !== 24) {
+          return res.status(400).json({ message: `Invalid Sales Quote ID: ${quoteId}` });
+      }
+
+      // Fetch existing sales quote
+      const existingSalesQuote = await SalesQuotes.findOne({ _id: quoteId, organizationId });
+      if (!existingSalesQuote) {
+          console.log("Sales quote not found with ID:", quoteId);
+          return res.status(404).json({ message: "Sales quote not found" });
+      }
+
+      // Delete the sales quote
+      const deletedSalesQuote = await existingSalesQuote.deleteOne();
+      if (!deletedSalesQuote) {
+          console.error("Failed to delete sales quote.");
+          return res.status(500).json({ message: "Failed to delete sales quote" });
+      }
+
+      res.status(200).json({ message: "Sales quote deleted successfully" });
+      console.log("Sales quote deleted successfully with ID:", quoteId);
+
+  } catch (error) {
+      console.error("Error deleting sales quote:", error);
+      res.status(500).json({ message: "Internal server error" });
+  }
+};

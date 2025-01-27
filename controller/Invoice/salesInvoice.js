@@ -130,13 +130,11 @@ exports.addInvoice = async (req, res) => {
       const { items, salesOrderId, customerId, otherExpenseAccountId, freightAccountId, depositAccountId } = cleanedData;
       const itemIds = items.map(item => item.itemId);
       
-
       // Check for duplicate itemIds
       const uniqueItemIds = new Set(itemIds);
       if (uniqueItemIds.size !== itemIds.length) {
         return res.status(400).json({ message: "Duplicate Item found" });
       }
-
 
       //Validate Account Id
       if (!mongoose.Types.ObjectId.isValid(customerId) || customerId.length !== 24) {
@@ -162,7 +160,7 @@ exports.addInvoice = async (req, res) => {
       }   
   
       const { organizationExists, settings, customerExist ,existingPrefix, defaultAccount, customerAccount } = await dataExist( organizationId, customerId );   
-            
+      
       const { itemTable } = await itemDataExists( organizationId, items );
 
       //Data Exist Validation
@@ -185,9 +183,7 @@ exports.addInvoice = async (req, res) => {
       if (!calculateSalesOrder( cleanedData, res )) return;
 
       //Sales Journal      
-      if (!salesJournal( cleanedData, res )) return; 
-      
-      
+      if (!salesJournal( cleanedData, res )) return;      
       
       //Prefix
       await salesPrefix(cleanedData, existingPrefix );
@@ -208,8 +204,7 @@ exports.addInvoice = async (req, res) => {
       if (salesOrderId) {
         await deleteSaleOrder(salesOrderId, organizationId, res);
       }
-
-        
+      
       res.status(201).json({ message: "Sale Invoice created successfully", data:savedInvoice });
       console.log( "Sale Invoice created successfully:", savedInvoice );
     } catch (error) {
@@ -268,9 +263,8 @@ exports.invoiceJournal = async (req, res) => {
             accountName: item.accountId?.accountName,  
         };
     });
-    
-      
-      res.status(200).json(transformedJournal);
+
+    res.status(200).json(transformedJournal);
   } catch (error) {
       console.error("Error fetching journal:", error);
       res.status(500).json({ message: "Internal server error." });
@@ -310,7 +304,7 @@ exports.getAllSalesInvoice = async (req, res) => {
    const currentDate = new Date();
 
    // Process and update statuses, storing results in updatedInvoices
-   await Promise.all(allInvoice.map(async (invoice) => {
+   await Promise.all(transformedInvoice.map(async (invoice) => {
     const { organizationId, balanceAmount, dueDate, paidStatus: currentStatus, ...rest } = invoice;
     
     let newStatus;
@@ -679,6 +673,9 @@ validateField( typeof data.freightAmount !== 'undefined' && typeof data.freightA
 
 validateField( typeof data.roundOffAmount !== 'undefined' && !(data.roundOffAmount >= 0 && data.roundOffAmount <= 1), "Round Off Amount must be between 0 and 1", errors );
 
+console.log("paidAmount",data.paidAmount);
+console.log("totalAmount",data.totalAmount);
+
 validateField( typeof data.paidAmount !== 'undefined' && !(data.paidAmount <= data.totalAmount), "Excess payment amount", errors );
 validateField( typeof data.paidAmount !== 'undefined' && !(data.paidAmount >= 0 ), "Negative payment amount", errors );
 
@@ -693,12 +690,13 @@ validateField( customerExist.taxType === 'VAT' && typeof defaultAccount.outputVa
 
 // Function to Validate Item Table 
 function validateItemTable(items, settings, itemTable, errors) {
+
 // Check for item count mismatch
 validateField( items.length !== itemTable.length, "Mismatch in item count between request and database.", errors  );
 
-// Iterate through each item to validate individual fields
+// Iterate through each item to validate individual fields 
 items.forEach((item) => {
-  const fetchedItem = itemTable.find(it => it._id.toString() === item.itemId);
+  const fetchedItem = itemTable.find(it => it._id.toString() === item.itemId.toString());  
 
   // Check if item exists in the item table
   validateField( !fetchedItem, `Item with ID ${item.itemId} was not found.`, errors );
@@ -1373,7 +1371,6 @@ async function journal( savedInvoice, defAcc, customerAccount ) {
 
   //Sales
     savedInvoice.salesJournal.forEach((entry) => {
-
       const data = {
         organizationId: savedInvoice.organizationId,
         operationId: savedInvoice._id,
@@ -1385,9 +1382,7 @@ async function journal( savedInvoice, defAcc, customerAccount ) {
         creditAmount: entry.creditAmount || 0,
         remark: savedInvoice.note,
       };
-      
       createTrialEntry( data )
-
     });
 
     
@@ -1455,11 +1450,7 @@ async function createTrialEntry( data ) {
       creditAmount: data.creditAmount,
       remark: data.remark
 });
-
-
-
 await newTrialEntry.save();
-
 }
 
 
@@ -1520,3 +1511,26 @@ async function itemTrack(savedInvoice, itemTable) {
     console.log("savedItemTrack",savedItemTrack);
   }
 }
+
+
+
+
+exports.dataExist = {
+  dataExist,
+  itemDataExists,
+  accDataExists,
+  salesDataExist
+};
+exports.validation = {
+  validateOrganizationTaxCurrency, 
+  validateInputs
+};
+exports.calculation = { 
+  taxType,
+  calculateSalesOrder
+};
+exports.accounts = { 
+  defaultAccounting,
+  salesJournal,
+  journal
+};

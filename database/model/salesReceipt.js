@@ -20,7 +20,7 @@ const SalesReceiptSchema = new Schema ({
   customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
   //customerName
 
-  bankCharge: { type: String },  
+  // bankCharge: { type: String },  
   paymentDate: { type: String },
 
   receipt: { type: String }, //prefix
@@ -36,6 +36,10 @@ const SalesReceiptSchema = new Schema ({
   status: { type: String },
 
   amountReceived: { type: Number },
+
+  total: {type: Number},
+
+  amountUsedForPayments: {type: Number},
 
   createdDateTime: { type: Date, default: () => new Date() },
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

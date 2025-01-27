@@ -4,11 +4,18 @@ const router = new express.Router()
 
 const salesQuotes = require('../controller/Quote/salesQuotes')
 const updateSalesQuotes = require('../controller/Quote/updateQuotes')
+
 const salesOrder = require('../controller/Order/salesOrder')
 const updateSalesOrder = require('../controller/Order/updateSalesOrder')
+
 const salesInvoice = require('../controller/Invoice/salesInvoice')
+const updateSalesInvoice = require('../controller/Invoice/updateInvoice')
+
 const salesReceipt = require('../controller/Receipt/salesReceipt')
+const updateSalesReceipt = require('../controller/Receipt/updateReceipt')
+
 const creditNote = require('../controller/Credit Note/creditNoteController')
+const updateCreditNote = require('../controller/Credit Note/updateCreditNote')
 
 const salesSettings = require('../controller/salesSettings')
 const customerController = require('../controller/customerController')
@@ -35,6 +42,8 @@ router.get('/get-one-sales-quotes/:quoteId',verifyToken,salesQuotes.getOneSalesQ
 
 router.put('/update-sales-quotes/:quoteId',verifyToken,updateSalesQuotes.updateSalesQuote)
 
+router.delete('/delete-sales-quotes/:quoteId',verifyToken,updateSalesQuotes.deleteSalesQuote)
+
 
 
 //Sales Order
@@ -47,6 +56,8 @@ router.get('/get-all-sales-order',verifyToken,salesOrder.getAllSalesOrder)
 router.get('/get-one-sales-order/:orderId',verifyToken,salesOrder.getOneSalesOrder)
 
 router.put('/update-sales-order/:orderId',verifyToken,updateSalesOrder.updateSalesOrder) 
+
+router.delete('/delete-sales-order/:orderId',verifyToken,updateSalesOrder.deleteSalesOrder) 
 
 
 
@@ -73,6 +84,7 @@ router.get('/sales-invoice',verifyToken,salesInvoice.getAllSalesInvoice)
 
 router.get('/sales-order/:invoiceId',verifyToken,salesInvoice.getOneSalesInvoice)
 
+router.put('/update-sales-invoice/:invoiceId',verifyToken,updateSalesInvoice.updateInvoice)
 
 
 
@@ -93,6 +105,8 @@ router.get('/get-last-salesReceipt-prefix', verifyToken, salesReceipt.getLastSal
 
 router.get('/receipt-journal/:receiptId',verifyToken,salesReceipt.receiptJournal)
 
+router.put('/update-sales-receipt/:receiptId',verifyToken,updateSalesReceipt.updateReceipt)
+
 
 
 
@@ -106,7 +120,9 @@ router.get('/get-one-creditNote/:creditId', verifyToken, creditNote.getOneCredit
 
 router.get('/get-last-creditNote-prefix', verifyToken, creditNote.getLastCreditNotePrefix);
 
+router.put('/update-creditNote/:creditId', verifyToken, updateCreditNote.updateCreditNote);
 
+router.get('/creditNote-journal/:creditId',verifyToken,creditNote.creditNoteJournal)
 
 
 

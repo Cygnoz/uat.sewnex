@@ -9,7 +9,7 @@ const itemsSchema = new Schema({
   //itemName
 
   quantity: {type:Number},
-  returnQuantity: { type: Number, default: 0},
+  returnQuantity: { type: Number }, // Don't use default: 0
   sellingPrice: {type:Number},
 
   taxPreference: {type:String},
@@ -99,7 +99,7 @@ const SalesInvoiceSchema = new Schema ({
   totalAmount: { type: Number },
   totalDiscount: { type: Number },
 
-  paidAmount: { type: Number },
+  paidAmount: { type: Number }, 
   balanceAmount: { type: Number },
   depositAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'Accounts' },
 
@@ -112,7 +112,12 @@ const SalesInvoiceSchema = new Schema ({
   salesJournal:[ journalSchema ], 
 
   createdDateTime: { type: Date, default: () => new Date() },
-  
+
+  //lastModifiedDate
+  // lastModifiedDate:{type: Date},
+
+  editLimit: {type: Boolean, default: true},   // true - before taxation file date  |  false - after taxation file date
+
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   //userName
 
