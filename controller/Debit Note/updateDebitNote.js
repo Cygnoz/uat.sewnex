@@ -25,7 +25,7 @@ exports.updateDebitNote = async (req, res) => {
       // Clean input data
       const cleanedData = cleanData(req.body);
 
-      cleanedData.depositAccountId = cleanedData.depositTo || undefined;
+      // cleanedData.depositAccountId = cleanedData.depositTo || undefined;
 
       const { supplierId, items, billId } = cleanedData;
 

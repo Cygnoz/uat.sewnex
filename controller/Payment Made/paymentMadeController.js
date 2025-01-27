@@ -55,6 +55,8 @@ const accDataExists = async ( organizationId, paidThroughAccountId, supplierId )
     Account.findOne({ organizationId , _id: paidThroughAccountId, accountHead: "Asset" }, { _id:1, accountName: 1 }),
     Account.findOne({ organizationId , accountId:supplierId },{ _id:1, accountName:1 })
   ]);
+  console.log("paidThroughAccount....................",paidThroughAccount, paidThroughAccountId)
+
   return { paidThroughAccount, supplierAccount };
 };
 

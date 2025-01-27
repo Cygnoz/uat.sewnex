@@ -121,7 +121,7 @@ exports.addDebitNote = async (req, res) => {
       ?.map(data => cleanData(data))
       .filter(item => item.itemId !== undefined && item.itemId !== '') || [];
       
-    cleanedData.depositAccountId = cleanedData.depositTo || undefined;
+    // cleanedData.depositAccountId = cleanedData.depositTo || undefined;
 
     const { supplierId, items, billId } = cleanedData;    
     const itemIds = items.map(item => item.itemId);

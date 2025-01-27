@@ -39,6 +39,7 @@ exports.updatePaymentMade = async (req, res) => {
         return res.status(400).json({ message: validateAllIds });
       }
 
+
       // Ensure `paymentMade` field matches the existing payment
       if (cleanedData.paymentMade !== existingPaymentMade.paymentMade) {
         return res.status(400).json({
@@ -200,7 +201,7 @@ const calculateAmountDue = async (billId, { amount }, existingPaymentMadeBills) 
     // Check if payment and amount are equal
     if (existingBill.payment === amount) {
 
-      bill.balanceAmount = existingBill.balanceAmount;
+      bill.balanceAmount = existingBill.amountDue;
       await bill.save();
       console.log(`No changes required for Bill ID ${billId}: payment and amount are equal.`);
 
@@ -217,7 +218,7 @@ const calculateAmountDue = async (billId, { amount }, existingPaymentMadeBills) 
       }
 
       // Recalculate balanceAmount
-      bill.balanceAmount = existingBill.balanceAmount - amount;
+      bill.balanceAmount = existingBill.amountDue - amount;
 
       // Ensure values are within correct bounds
       if (bill.balanceAmount < 0) {
@@ -307,7 +308,6 @@ function validateReqFields( data, paidThroughAccount, supplierAccount, errors ) 
   validateField( !paidThroughAccount && typeof data.amountPaid !== 'undefined' , "Paid Through Account not found", errors  );
   validateField( !supplierAccount && typeof data.amountPaid !== 'undefined' , "Supplier Account not found", errors  );
 }
-
 
 // Function to Validate Item Table 
 function validatePaymentTable(unpaidBills, paymentTable, errors) {
