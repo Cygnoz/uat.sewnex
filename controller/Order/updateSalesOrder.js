@@ -91,3 +91,47 @@ exports.updateSalesOrder = async (req, res) => {
       res.status(500).json({ message: "Internal server error" });
     }
   };
+
+
+
+
+
+
+
+
+
+// Delete Sales order
+exports.deleteSalesOrder = async (req, res) => {
+  console.log("Delete sales order request received:", req.params);
+
+  try {
+      const { organizationId } = req.user;
+      const { orderId } = req.params;
+
+      // Validate orderId
+      if (!mongoose.Types.ObjectId.isValid(orderId) || orderId.length !== 24) {
+          return res.status(400).json({ message: `Invalid Sales Order ID: ${orderId}` });
+      }
+
+      // Fetch existing sales order
+      const existingSalesOrder = await SalesOrder.findOne({ _id: orderId, organizationId });
+      if (!existingSalesOrder) {
+          console.log("Sales order not found with ID:", quoteId);
+          return res.status(404).json({ message: "Sales order not found" });
+      }
+
+      // Delete the sales quote
+      const deletedSalesOrder = await existingSalesOrder.deleteOne();
+      if (!deletedSalesOrder) {
+          console.error("Failed to delete sales order.");
+          return res.status(500).json({ message: "Failed to delete sales order" });
+      }
+
+      res.status(200).json({ message: "Sales order deleted successfully" });
+      console.log("Sales order deleted successfully with ID:", orderId);
+
+  } catch (error) {
+      console.error("Error deleting sales order:", error);
+      res.status(500).json({ message: "Internal server error" });
+  }
+};

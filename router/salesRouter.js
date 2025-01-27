@@ -42,6 +42,8 @@ router.get('/get-one-sales-quotes/:quoteId',verifyToken,salesQuotes.getOneSalesQ
 
 router.put('/update-sales-quotes/:quoteId',verifyToken,updateSalesQuotes.updateSalesQuote)
 
+router.delete('/delete-sales-quotes/:quoteId',verifyToken,updateSalesQuotes.deleteSalesQuote)
+
 
 
 //Sales Order
@@ -54,6 +56,8 @@ router.get('/get-all-sales-order',verifyToken,salesOrder.getAllSalesOrder)
 router.get('/get-one-sales-order/:orderId',verifyToken,salesOrder.getOneSalesOrder)
 
 router.put('/update-sales-order/:orderId',verifyToken,updateSalesOrder.updateSalesOrder) 
+
+router.delete('/delete-sales-order/:orderId',verifyToken,updateSalesOrder.deleteSalesOrder) 
 
 
 

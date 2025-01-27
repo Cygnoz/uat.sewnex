@@ -58,6 +58,20 @@ exports.updateInvoice = async (req, res) => {
         return res.status(400).json({ message: validateAllIds });
       }
 
+      // Ensure salesInvoice fields match
+      if (cleanedData.salesOrderNumber && cleanedData.salesOrderNumber !== existingSalesInvoice.salesOrderNumber) {
+        return res.status(400).json({
+          message: `The provided sales order number does not match the existing record. Expected: ${existingSalesInvoice.salesOrderNumber}`,
+        });
+      }
+  
+      // Ensure `salesInvoice` field matches the existing order
+      if (cleanedData.salesInvoice !== existingSalesInvoice.salesInvoice) {
+        return res.status(400).json({
+          message: `The provided salesInvoice does not match the existing record. Expected: ${existingSalesInvoice.salesInvoice}`,
+        });
+      }
+
       // Fetch related data
       const { organizationExists, settings, customerExist ,existingPrefix, defaultAccount, customerAccount } = await dataExist.dataExist( organizationId, customerId );  
       
@@ -89,20 +103,6 @@ exports.updateInvoice = async (req, res) => {
 
       //Sales Journal      
       if (!accounts.salesJournal( cleanedData, res )) return; 
-
-      // Ensure salesInvoice fields match
-      if (cleanedData.salesOrderNumber && cleanedData.salesOrderNumber !== existingSalesInvoice.salesOrderNumber) {
-        return res.status(400).json({
-          message: `The provided sales order number does not match the existing record. Expected: ${existingSalesInvoice.salesOrderNumber}`,
-        });
-      }
-  
-      // Ensure `salesInvoice` field matches the existing order
-      if (cleanedData.salesInvoice !== existingSalesInvoice.salesInvoice) {
-        return res.status(400).json({
-          message: `The provided salesInvoice does not match the existing record. Expected: ${existingSalesInvoice.salesInvoice}`,
-        });
-      }
 
       const mongooseDocument = SalesInvoice.hydrate(existingSalesInvoice);
       Object.assign(mongooseDocument, cleanedData);
