@@ -478,7 +478,7 @@ function validateField(condition, errorMsg, errors) {
 }
 //Valid Req Fields
 function validateReqFields( data, errors ) {
-validateField( typeof data.customerId === 'undefined' || typeof data.customerName === 'undefined', "Please select a Customer", errors  );
+validateField( typeof data.customerId === 'undefined', "Please select a Customer", errors  );
 validateField( typeof data.placeOfSupply === 'undefined', "Place of supply required", errors  );
 validateField( typeof data.items === 'undefined', "Select an item", errors  );
 validateField( typeof data.otherExpenseAmount !== 'undefined' && typeof data.otherExpenseReason === 'undefined', "Please enter other expense reason", errors  );
