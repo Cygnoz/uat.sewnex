@@ -45,7 +45,7 @@ const creditNoteSchema = new mongoose.Schema({
 
   taxType: { type: String },//Intra, Inter, Non-tax, VAT 
 
-  invoiceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
+  invoiceId: { type: mongoose.Schema.Types.ObjectId, ref: 'SalesInvoice' },
   //salesInvoice -invoice prefix
   //salesInvoiceDate
   

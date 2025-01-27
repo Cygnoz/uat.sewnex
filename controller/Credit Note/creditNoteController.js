@@ -217,17 +217,9 @@ exports.getAllCreditNote = async (req, res) => {
 
 
     // Process and filter credit notes using the helper function
-    const updatedCreditNotes = (
-      await Promise.all(transformedInvoice.map((creditNote) => calculateStock(creditNote)))
-    ).filter((creditNote) =>
-      creditNote.items.some((item) => item.stock > 0)
+    const updatedCreditNotes = await Promise.all(
+      transformedInvoice.map((creditNote) => calculateStock(creditNote))
     );
-
-    if (!updatedCreditNotes.length) {
-      return res.status(404).json({
-        message: "No valid Credit Notes with available stock found",
-      });
-    }
 
     const formattedObjects = multiCustomDateTime(updatedCreditNotes, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
 
@@ -1015,14 +1007,10 @@ const calculateStock = async (creditNote) => {
         );
 
         if (salesItem) {
-          // Calculate stock based on quantity and returnQuantity
           creditItem.stock = Math.max(salesItem.quantity - salesItem.returnQuantity, 0);
         } else {
-          // If no matching item in salesInvoice, set stock to 0
           creditItem.stock = 0;
         }
-
-        // Ensure stock is never negative
         if (creditItem.stock < 0) {
           creditItem.stock = 0;
         }
@@ -1031,7 +1019,6 @@ const calculateStock = async (creditNote) => {
       console.warn(`Sales Invoice with ID ${invoiceId} not found.`);
     }
 
-    // Update stock in the creditNote schema
     await CreditNote.findByIdAndUpdate(
       creditNote._id,
       { items },
