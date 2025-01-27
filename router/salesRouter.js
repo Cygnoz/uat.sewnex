@@ -122,6 +122,7 @@ router.get('/get-last-creditNote-prefix', verifyToken, creditNote.getLastCreditN
 
 router.put('/update-creditNote/:creditId', verifyToken, updateCreditNote.updateCreditNote);
 
+router.get('/creditNote-journal/:creditId',verifyToken,creditNote.creditNoteJournal)
 
 
 
