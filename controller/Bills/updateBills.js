@@ -74,7 +74,7 @@ exports.updateBill = async (req, res) => {
       }
 
       // Fetch related data
-      const { organizationExists, supplierExist, purchaseOrderExist, taxExists, existingPrefix, settings, defaultAccount, supplierAccount } = await dataExist.dataExist( organizationId, supplierId, supplierDisplayName, purchaseOrderId );  
+      const { organizationExists, supplierExist, existingPrefix, defaultAccount, supplierAccount } = await dataExist.dataExist( organizationId, supplierId, supplierDisplayName, purchaseOrderId );  
       
       // // Check if bill editing is allowed
       // if (settings.billEdit !== true) {
@@ -84,10 +84,10 @@ exports.updateBill = async (req, res) => {
       const { itemTable } = await dataExist.itemDataExists( organizationId, items );
   
       //Data Exist Validation
-      if (!validation.validateOrganizationSupplierOrder( purchaseOrderId, organizationExists, supplierExist, purchaseOrderExist, existingPrefix, defaultAccount, res )) return;
+      if (!validation.validateOrganizationSupplierOrder( organizationExists, supplierExist, existingPrefix, defaultAccount, res )) return;
         
       // Validate Inputs
-      if (!validation.validateInputs(cleanedData, supplierExist, purchaseOrderExist, items, itemTable, organizationExists, defaultAccount, res)) return;
+      if (!validation.validateInputs(cleanedData, supplierExist, items, itemTable, organizationExists, defaultAccount, res)) return;
   
       // Tax Type 
       calculation.taxType(cleanedData, supplierExist);

@@ -164,7 +164,7 @@ exports.addBills = async (req, res) => {
       if (!validateOrganizationSupplierOrder( organizationExists, supplierExist, existingPrefix, defaultAccount, res )) return;
       
       //Validate Inputs  
-      if (!validateInputs( cleanedData, supplierExist, purchaseOrderExist, items, itemTable, organizationExists, defaultAccount, res)) return;
+      if (!validateInputs( cleanedData, supplierExist, items, itemTable, organizationExists, defaultAccount, res)) return;
       
       //Check Bill Exist
       // if (await checkExistingBill(cleanedData.billNumber, organizationId, res)) return;
@@ -1602,5 +1602,6 @@ exports.calculation = {
 };
 exports.accounts = { 
   defaultAccounting,
+  purchaseJournal,
   journal
 };
