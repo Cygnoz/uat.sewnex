@@ -492,7 +492,9 @@ validateField( items.length !== itemTable.length, "Mismatch in item count betwee
 // Iterate through each item to validate individual fields
 items.forEach((item) => {
   const fetchedItem = itemTable.find(it => it._id.toString() === item.itemId);
-  // console.log("itemTable..........:",itemTable);
+  console.log("itemTable type:", typeof itemTable);
+  console.log("itemTable:", itemTable);
+
   
 
   // Check if item exists in the item table
