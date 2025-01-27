@@ -31,9 +31,11 @@ exports.addTax = async (req, res) => {
     if (!existingOrganization) {
       return res.status(404).json({ message: "No Organization Found." });
     }
+
+    if(!existingOrganization.timeZoneExp){
+      return res.status(404).json({ message: "Please Setup Organization First." });
+    }
     
-
-
     // Validate GST tax rate for duplicates
     if (cleanedData.gstTaxRate && await isDuplicateGSTTaxName(organizationId, cleanedData.gstTaxRate)) {
       return res.status(400).json({ message: `GST Tax record with tax name ${gstTaxRate.taxName} already exists.` });

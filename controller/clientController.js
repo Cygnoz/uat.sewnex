@@ -16,6 +16,7 @@ const DefAcc = require("../database/model/defaultAccount")
 const bcrypt = require('bcrypt');
 
 
+const { cleanData } = require("../services/cleanData");
 
 
 
@@ -402,46 +403,34 @@ const createSettingsOrganization = async (organizationId) => {
 
 
 
-const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/; //minimum 8 characters,one uppercase letter, one lowercase letter, one number, and one special character
-// const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/; // Minimum 8 characters, at least one letter and one number
-
 
 // Create New Client, Organization, Prefix, Role
 exports.createOrganizationAndClient = async (req, res) => {
   console.log("Create Organization and Client:", req.body);
   try {
-    const {
-      organizationName,
-      contactName,
-      contactNum,
-      email,
-      password,
-      startDate,
-      endDate
-      // Add other fields as needed
-    } = req.body;
+    const cleanedData = cleanData(req.body);
+    // const {
+    //   organizationName,
+    //   contactName,
+    //   contactNum,
+    //   email,
+    //   password,
+    //   startDate,
+    //   endDate
+    //   // Add other fields as needed
+    // } = req.body;
 
-    // // Email Validation
-    // if (!emailRegex.test(email)) {
-    //   return res.status(400).json({ message: "Invalid email format." });
-    // }
-
-    // // Password Validation
-    // if (!passwordRegex.test(password)) {
-    //   return res.status(400).json({ 
-    //     message: "Password must be at least 8 characters long and include at least one letter and one number." 
-    //   });
-    // }
-
+    //Validate Inputs  
+    if (!validateInputs(cleanedData, res)) return;
+    
     // Check if an organization with the same organizationName already exists
-    const existingOrganization = await Organization.findOne({ organizationName });
-
+    const existingOrganization = await Organization.findOne({ organizationName : cleanedData.organizationName });
+    
     if (existingOrganization) {
       return res.status(409).json({ message: "Organization with the provided name already exists." });
     }
-
-    const clientExists = await Client.findOne({ email:email });
+    
+    const clientExists = await Client.findOne({ email:cleanedData.email });
     if (clientExists) {
       return res.status(404).json({ message: "Client Exists" });
     }
@@ -458,13 +447,11 @@ exports.createOrganizationAndClient = async (req, res) => {
 
     // Create a new organization
     const newOrganization = new Organization({
-      organizationId,
-      organizationName,
-      primaryContactName: contactName,
-      primaryContactNum: contactNum,
-      primaryContactEmail: email,
-      startDate,
-      endDate
+      ...cleanedData,
+      primaryContactName: cleanedData.contactName,
+      primaryContactNum: cleanedData.contactNum,
+      primaryContactEmail: cleanedData.email,
+      organizationId
     });
 
     let savedOrganization = await newOrganization.save();
@@ -519,16 +506,10 @@ exports.createOrganizationAndClient = async (req, res) => {
      }   
 
     // Hash the password before saving
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(cleanedData.password, 10);
 
     // Create a new client
-    const newClient = new Client({
-      organizationId,
-      contactName,
-      contactNum,
-      email,
-      // Add other fields as needed
-    });
+    const newClient = new Client({ ...cleanedData, organizationId });
 
     const savedClient = await newClient.save();
 
@@ -539,13 +520,13 @@ exports.createOrganizationAndClient = async (req, res) => {
 
     // Create a new user
     const newUser = new User({
+      ...cleanedData,
       organizationId,
-      userName: contactName,
-      userNum: contactNum,
-      userEmail: email,
+      userName: cleanedData.contactName,
+      userNum: cleanedData.contactNum,
+      userEmail: cleanedData.email,
       password: hashedPassword,
       role: 'Admin',
-      // Add other fields as needed
     });
 
     const savedUser = await newUser.save();
@@ -810,9 +791,11 @@ const accounts = [
   { accountName: "Interest Income", accountSubhead: "Income", accountHead: "Income", accountGroup: "Asset",accountCode:"AC-22",systemAccounts: true,description: "A percentage of your balances and deposits are given as interest to you by your banks and financial institutions. This interest is recorded into the interest income account." },
   { accountName: "Late Fee Income", accountSubhead: "Income", accountHead: "Income", accountGroup: "Asset",accountCode:"AC-23",systemAccounts: true,description: "Any late fee income is recorded into the late fee income account. The late fee is levied when the payment for an invoice is not received by the due date."},
   { accountName: "Other Charges", accountSubhead: "Income", accountHead: "Income", accountGroup: "Asset",accountCode:"AC-24",systemAccounts: true,description: "Miscellaneous charges like adjustments made to the invoice can be recorded in this account."},
-  { accountName: "Sales", accountSubhead: "Income", accountHead: "Income", accountGroup: "Asset",accountCode:"AC-25",systemAccounts: true,description: "The income from the sales in your business is recorded under the sales account."},
-  { accountName: "Shipping Charge", accountSubhead: "Income", accountHead: "Income", accountGroup: "Asset",accountCode:"AC-26",systemAccounts: true,description: "Shipping charges made to the invoice will be recorded in this account."},
+  { accountName: "Shipping Charge", accountSubhead: "Income", accountHead: "Income", accountGroup: "Asset",accountCode:"AC-25",systemAccounts: true,description: "Shipping charges made to the invoice will be recorded in this account."},
   
+  //Sales
+  { accountName: "Sales", accountSubhead: "Sales", accountHead: "Income", accountGroup: "Asset",accountCode:"AC-26",systemAccounts: true,description: "The income from the sales in your business is recorded under the sales account."},
+
   //Current Liability
   { accountName: "Employee Reimbursements", accountSubhead: "Current Liability", accountHead: "Liabilities", accountGroup: "Liability",accountCode:"AC-27",systemAccounts: true,description: "This account can be used to track the reimbursements that are due to be paid out to employees." },
   { accountName: "Output Tax Credit", accountSubhead: "Current Liability", accountHead: "Liabilities", accountGroup: "Liability",accountCode:"AC-28",systemAccounts: true,description: "Output Tax Credit" },
@@ -861,11 +844,64 @@ const accounts = [
   
   //Cost of Goods Sold
   { accountName: "Cost of Goods Sold", accountSubhead: "Cost of Goods Sold", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-65" ,systemAccounts: true,description: "An expense account which tracks the value of the goods sold."},
-  { accountName: "Job Costing", accountSubhead: "Cost of Goods Sold", accountHead: "Expenses", accountGroup: "Liability" ,accountCode:"AC-66",systemAccounts: false,description: "An expense account to track the costs that you incur in performing a job or a task."},
-  { accountName: "Labor", accountSubhead: "Cost of Goods Sold", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-67",systemAccounts: false,description: " An expense account that tracks the amount that you pay as labor." },
-  { accountName: "Materials", accountSubhead: "Cost of Goods Sold", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-68",systemAccounts: false,description: "An expense account that tracks the amount you use in purchasing materials." },
-  { accountName: "Subcontractor", accountSubhead: "Cost of Goods Sold", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-69",systemAccounts: false,description: "An expense account to track the amount that you pay subcontractors who provide service to you." },
   
   //Other Expense
-  { accountName: "Exchange Gain or Loss", accountSubhead: "Other Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-70" ,systemAccounts: true,description: "Changing the conversion rate can result in a gain or a loss. You can record this into the exchange gain or loss account."},
+  { accountName: "Exchange Gain or Loss", accountSubhead: "Other Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-66" ,systemAccounts: true,description: "Changing the conversion rate can result in a gain or a loss. You can record this into the exchange gain or loss account."},
 ];
+
+
+
+
+
+
+
+
+
+
+
+
+//Validate inputs
+function validateInputs(data, res) {
+  const validationErrors = validateData(data);
+  if (validationErrors.length > 0) {
+    res.status(400).json({ message: validationErrors.join(", ") });
+    return false;
+  }
+  return true;
+}
+
+//Validate Data
+function validateData(data) {
+  const errors = [];
+
+  //Basic Info
+  validateReqFields( data, errors);
+
+  return errors;
+}
+
+// Field validation utility
+function validateField(condition, errorMsg, errors) {
+  if (condition) errors.push(errorMsg);
+}
+
+//Valid Req Fields
+function validateReqFields( data, errors ) {
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/; //minimum 8 characters,one uppercase letter, one lowercase letter, one number, and one special character
+
+  validateField( typeof data.organizationName === 'undefined', `Organization Name Required`, errors );
+  validateField( typeof data.contactName === 'undefined', `Contact Name Required`, errors );
+  validateField( typeof data.contactNum === 'undefined', `Contact Number Required`, errors );
+
+  validateField( typeof data.email === 'undefined', `Email Required`, errors );
+  validateField( typeof data.password === 'undefined', `Password Required`, errors );
+
+  // validateField( typeof data.startDate === 'undefined', `Start Date Required`, errors );
+  // validateField( typeof data.endDate === 'undefined', `End Date Required`, errors );  
+
+  validateField( !emailRegex.test(data.email), `Invalid email format.`, errors );
+  // validateField( !passwordRegex.test(data.password), `Password must be at least 8 characters long and include at least one letter and one number.`, errors );
+
+}
