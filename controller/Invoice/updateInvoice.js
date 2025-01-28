@@ -132,6 +132,85 @@ exports.updateInvoice = async (req, res) => {
 
 
 
+  // Delete Sales invoice
+  exports.deleteSalesInvoice = async (req, res) => {
+    console.log("Delete sales invoice request received:", req.params);
+
+    try {
+        const { organizationId } = req.user;
+        const { invoiceId } = req.params;
+
+        // Validate invoiceId
+        if (!mongoose.Types.ObjectId.isValid(invoiceId) || invoiceId.length !== 24) {
+            return res.status(400).json({ message: `Invalid Sales Invoice ID: ${invoiceId}` });
+        }
+
+        // Check if the invoiceId exists in SalesReceipt schema
+        const existingSalesReceipt = await SalesReceipt.findOne({
+          organizationId,
+          "invoice.invoiceId": invoiceId,
+        });
+        if (existingSalesReceipt) {
+          console.log(`Invoice ID ${invoiceId} exists in SalesReceipt. Cannot be deleted.`);
+          return res.status(400).json({
+            message: `This invoice is associated with a Sales Receipt and cannot be deleted.`,
+          });
+        }
+
+        // Fetch existing sales order
+        const existingSalesInvoice = await SalesInvoice.findOne({ _id: invoiceId, organizationId });
+        if (!existingSalesInvoice) {
+            console.log("Sales invoice not found with ID:", invoiceId);
+            return res.status(404).json({ message: "Sales invoice not found" });
+        }
+
+        // Fetch existing itemTrack entries
+        const existingItemTracks = await ItemTrack.find({ organizationId, operationId: invoiceId });
+        // Delete existing itemTrack entries for the operation
+        if (existingItemTracks.length > 0) {
+          await ItemTrack.deleteMany({ organizationId, operationId: invoiceId });
+          console.log(`Deleted existing itemTrack entries for operationId: ${invoiceId}`);
+        }
+
+        // Fetch existing TrialBalance's createdDateTime
+        const existingTrialBalance = await TrialBalance.findOne({
+          organizationId: existingSalesInvoice.organizationId,
+          operationId: existingSalesInvoice._id,
+        });  
+        // If there are existing entries, delete them
+        if (existingTrialBalance) {
+          await TrialBalance.deleteMany({
+            organizationId: existingSalesInvoice.organizationId,
+            operationId: existingSalesInvoice._id,
+          });
+          console.log(`Deleted existing TrialBalance entries for operationId: ${existingSalesInvoice._id}`);
+        }
+
+        // Delete the sales invoice
+        const deletedSalesInvoice = await existingSalesInvoice.deleteOne();
+        if (!deletedSalesInvoice) {
+            console.error("Failed to delete sales invoice.");
+            return res.status(500).json({ message: "Failed to delete sales invoice" });
+        }
+
+        res.status(200).json({ message: "Sales invoice deleted successfully" });
+        console.log("Sales invoice deleted successfully with ID:", invoiceId);
+
+    } catch (error) {
+        console.error("Error deleting sales invoice:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+  };
+
+
+
+
+
+
+
+
+
+
   function validateIds({ customerId, otherExpenseAccountId, freightAccountId, depositAccountId, itemIds, cleanedData }) {
     // Validate Customer ID
     if (!mongoose.Types.ObjectId.isValid(customerId) || customerId.length !== 24) {

@@ -116,7 +116,7 @@ exports.deleteSalesOrder = async (req, res) => {
       // Fetch existing sales order
       const existingSalesOrder = await SalesOrder.findOne({ _id: orderId, organizationId });
       if (!existingSalesOrder) {
-          console.log("Sales order not found with ID:", quoteId);
+          console.log("Sales order not found with ID:", orderId);
           return res.status(404).json({ message: "Sales order not found" });
       }
 

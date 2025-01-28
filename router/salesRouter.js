@@ -86,6 +86,8 @@ router.get('/sales-order/:invoiceId',verifyToken,salesInvoice.getOneSalesInvoice
 
 router.put('/update-sales-invoice/:invoiceId',verifyToken,updateSalesInvoice.updateInvoice)
 
+router.delete('/delete-sales-invoice/:invoiceId',verifyToken,updateSalesInvoice.deleteSalesInvoice)
+
 
 
 
@@ -107,6 +109,7 @@ router.get('/receipt-journal/:receiptId',verifyToken,salesReceipt.receiptJournal
 
 router.put('/update-sales-receipt/:receiptId',verifyToken,updateSalesReceipt.updateReceipt)
 
+router.delete('/delete-sales-receipt/:receiptId',verifyToken,updateSalesReceipt.deleteSalesReceipt)
 
 
 
