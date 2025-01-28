@@ -774,7 +774,7 @@ function validateReqFields( data, errors ) {
 // Validation function for account structure
 function validateAccountStructure( data, salesAccount, purchaseAccount, errors ) {
   if(data.salesAccountId) {
-    validateField( salesAccount.accountGroup !== "Asset" || salesAccount.accountHead !== "Income" || salesAccount.accountSubhead !== "Income" , "Invalid Sales Account.", errors);
+    validateField( salesAccount.accountGroup !== "Asset" || salesAccount.accountHead !== "Income" || salesAccount.accountSubhead !== "Sales" , "Invalid Sales Account.", errors);
   }
   if(data.purchaseAccountId) {
     validateField( purchaseAccount.accountGroup !== "Liability" || purchaseAccount.accountHead !== "Expenses" ||  (purchaseAccount.accountSubhead !== "Expense" && purchaseAccount.accountSubhead !== "Cost of Goods Sold") , "Invalid Purchase Account.", errors);
