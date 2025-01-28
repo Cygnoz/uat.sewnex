@@ -467,6 +467,8 @@ function salesJournal(cleanedData, res) {
           const accountId = item.salesAccountId;
 
           if (!accountId) {
+            console.log(`Sales Account not found for item ${item.itemName}`);
+            
 
             errors.push({
               message: `Sales Account not found for item ${item.itemName}`,
@@ -705,7 +707,7 @@ function validateReqFields( data, customerExist, errors ) {
   validateField( typeof data.items === 'undefined', "Select an item", errors  );
   validateField( Array.isArray(data.items) && data.items.length === 0, "Select an item", errors );
   
-  validateField( typeof data.invoiceNumber === 'undefined', "Select an invoice number", errors  );
+  validateField( data.invoiceNumber === 'undefined', "Select an invoice number", errors  );
   validateField( typeof data.paymentMode === 'undefined', "Select payment mode", errors  );
   validateField( data.paymentMode === 'Cash' && typeof data.totalAmount === 'undefined', "Enter the amount paid", errors  );
   validateField( data.paymentMode === 'Cash' && typeof data.paidThroughAccountId === 'undefined', "Select an paid through account", errors  );  
@@ -768,9 +770,9 @@ function validateInvoiceData(data, items, invoiceExist, errors) {
 
 
   // Validate basic fields
-  validateField( invoiceExist.salesInvoiceDate !== data.invoiceDate, `Invoice Date mismatch for ${invoiceExist.salesInvoiceDate}`, errors  );
-  validateField( invoiceExist.salesOrderNumber !== data.orderNumber, `Order Number mismatch for ${invoiceExist.salesOrderNumber}`, errors  );
-  validateField( invoiceExist.salesInvoice !== data.invoiceNumber, `Order Number mismatch for ${invoiceExist.salesInvoice}`, errors  );
+  // validateField( invoiceExist.salesInvoiceDate !== data.invoiceDate, `Invoice Date mismatch for ${invoiceExist.salesInvoiceDate}`, errors  );
+  // validateField( invoiceExist.salesOrderNumber !== data.orderNumber, `Order Number mismatch for ${invoiceExist.salesOrderNumber}`, errors  );
+  // validateField( invoiceExist.salesInvoice !== data.invoiceNumber, `Order Number mismatch for ${invoiceExist.salesInvoice}`, errors  );
 
 
   // Validate only the items included in the credit note
