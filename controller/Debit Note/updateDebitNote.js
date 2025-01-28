@@ -184,7 +184,6 @@ async function getLatestDebitNote(debitId, organizationId, supplierId, billId, i
 
 
 
-
   const updateBillWithDebitNote = async (billId, items, organizationId, supplierId, debitId) => {
     try {
       for (const item of items) {
@@ -311,7 +310,7 @@ function validateItemTable(items, itemTable, errors) {
       if (!fetchedItem) return; 
     
       // Validate item name
-      validateField( item.itemName !== fetchedItem.itemName, `Item Name Mismatch : ${item.itemName}`, errors );
+      // validateField( item.itemName !== fetchedItem.itemName, `Item Name Mismatch : ${item.itemName}`, errors );
     
       // Validate cost price
       // validateField( item.itemCostPrice !== fetchedItem.costPrice, `Cost price Mismatch for ${item.itemName}:  ${item.itemCostPrice}`, errors );
@@ -386,21 +385,21 @@ function validateBillData(data, items, billExist, existingDebitNoteItems, errors
 // Validate source Of Supply
 function validateSourceOfSupply(sourceOfSupply, organization, errors) {
     validateField(
-      sourceOfSupply && !validCountries[organization.organizationCountry]?.includes(sourceOfSupply),
+      sourceOfSupply && !validation.validCountries[organization.organizationCountry]?.includes(sourceOfSupply),
       "Invalid Source of Supply: " + sourceOfSupply, errors );
 }
   
 // Validate destination Of Supply
 function validateDestinationOfSupply(destinationOfSupply, organization, errors) {
     validateField(
-      destinationOfSupply && !validCountries[organization.organizationCountry]?.includes(destinationOfSupply),
+      destinationOfSupply && !validation.validCountries[organization.organizationCountry]?.includes(destinationOfSupply),
       "Invalid Destination of Supply: " + destinationOfSupply, errors );
 }
 
 // Validate Bill Type
 function validateBillType(billType, errors) {
     validateField(
-      billType && !validBillType.includes(billType),
+      billType && !validation.validBillType.includes(billType),
       "Invalid Bill Type: " + billType, errors );
 }
 
