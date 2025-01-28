@@ -888,20 +888,21 @@ function validateField(condition, errorMsg, errors) {
 //Valid Req Fields
 function validateReqFields( data, errors ) {
 
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/; //minimum 8 characters,one uppercase letter, one lowercase letter, one number, and one special character
-
+  
   validateField( typeof data.organizationName === 'undefined', `Organization Name Required`, errors );
   validateField( typeof data.contactName === 'undefined', `Contact Name Required`, errors );
   validateField( typeof data.contactNum === 'undefined', `Contact Number Required`, errors );
-
+  
   validateField( typeof data.email === 'undefined', `Email Required`, errors );
   validateField( typeof data.password === 'undefined', `Password Required`, errors );
-
+  
   // validateField( typeof data.startDate === 'undefined', `Start Date Required`, errors );
   // validateField( typeof data.endDate === 'undefined', `End Date Required`, errors );  
 
-  validateField( !emailRegex.test(data.email), `Invalid email format.`, errors );
+  // const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  // const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/; //minimum 8 characters,one uppercase letter, one lowercase letter, one number, and one special character
+
+  // validateField( !emailRegex.test(data.email), `Invalid email format.`, errors );
   // validateField( !passwordRegex.test(data.password), `Password must be at least 8 characters long and include at least one letter and one number.`, errors );
 
 }
