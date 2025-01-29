@@ -100,7 +100,6 @@ const creditDataExist = async ( organizationId, creditId ) => {
     .populate('accountId', 'accountName')    
     .lean(),
   ]);
-  console.log("organizationExists",organizationExists);
   return { organizationExists, allCreditNote, creditNote, creditJournal };
 };
 
@@ -1315,10 +1314,8 @@ async function journal( savedCreditNote, defAcc, customerAccount, paidThroughAcc
     createTrialEntry( vat )
   }
 
-  if(savedCreditNote.paymentMode === 'Credit'){
-    createTrialEntry( customerCredit )
-  }
- 
+  //Credit
+  createTrialEntry( customerCredit ) 
   
   //Paid
   if(savedCreditNote.paymentMode === 'Cash'){

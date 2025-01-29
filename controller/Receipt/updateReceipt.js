@@ -555,7 +555,7 @@ async function journal( savedReceipt, depositAcc, customerAccount ) {
     const customerPaid = {
       organizationId: savedReceipt.organizationId,
       operationId: savedReceipt._id,
-      transactionId: savedReceipt.payment,
+      transactionId: savedReceipt.receipt,
       accountId: customerAccount._id || undefined,
       action: "Receipt",
       debitAmount: 0,
@@ -565,7 +565,7 @@ async function journal( savedReceipt, depositAcc, customerAccount ) {
     const depositAccount = {
       organizationId: savedReceipt.organizationId,
       operationId: savedReceipt._id,
-      transactionId: savedReceipt.payment,
+      transactionId: savedReceipt.receipt,
       accountId: depositAcc._id || undefined,
       action: "Receipt",
       debitAmount: savedReceipt.amountReceived || 0,
