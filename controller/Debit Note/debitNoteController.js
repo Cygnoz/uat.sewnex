@@ -587,7 +587,7 @@ function purchaseJournal(cleanedData, res) {
   cleanedData.items.forEach(item => {
           
           const accountId = item.purchaseAccountId;
-
+          
           if (!accountId) {
 
             errors.push({

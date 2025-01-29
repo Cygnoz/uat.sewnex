@@ -28,6 +28,8 @@ const itemsSchema = new Schema({
   itemTax: { type: Number }, //Total Tax Amount
   
   itemAmount: { type: Number },
+
+  purchaseAccountId: {type:String}
 },{ _id: false });
 
 const purchaseOrderSchema = new mongoose.Schema({

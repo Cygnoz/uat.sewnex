@@ -26,6 +26,8 @@ const itemsSchema = new Schema({
   itemCgstAmount: { type: Number },
   itemIgstAmount: { type: Number },
   itemVatAmount: { type: Number },
+
+  purchaseAccountId: {type:String}
 },{ _id: false });
 
 const journalSchema = new Schema({
