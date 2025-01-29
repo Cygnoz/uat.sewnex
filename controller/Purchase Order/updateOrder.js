@@ -90,3 +90,46 @@ exports.updatePurchaseOrder = async (req, res) => {
       res.status(500).json({ message: "Internal server error" });
     }
   };
+
+
+
+
+
+
+
+
+  // Delete Purchase order
+exports.deletePurchaseOrder = async (req, res) => {
+  console.log("Delete purchase order request received:", req.params);
+
+  try {
+      const { organizationId } = req.user;
+      const { orderId } = req.params;
+
+      // Validate orderId
+      if (!mongoose.Types.ObjectId.isValid(orderId) || orderId.length !== 24) {
+          return res.status(400).json({ message: `Invalid Purchase Order ID: ${orderId}` });
+      }
+
+      // Fetch existing purchase order
+      const existingPurchaseOrder = await PurchaseOrder.findOne({ _id: orderId, organizationId });
+      if (!existingPurchaseOrder) {
+          console.log("Purchase order not found with ID:", orderId);
+          return res.status(404).json({ message: "Purchase order not found" });
+      }
+
+      // Delete the purchase order
+      const deletedPurchaseOrder = await existingPurchaseOrder.deleteOne();
+      if (!deletedPurchaseOrder) {
+          console.error("Failed to delete purchase order.");
+          return res.status(500).json({ message: "Failed to delete purchase order" });
+      }
+
+      res.status(200).json({ message: "Purchase order deleted successfully" });
+      console.log("Purchase order deleted successfully with ID:", orderId);
+
+  } catch (error) {
+      console.error("Error deleting purchase order:", error);
+      res.status(500).json({ message: "Internal server error" });
+  }
+};

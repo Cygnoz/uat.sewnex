@@ -30,7 +30,7 @@ router.get('/get-last-purchase-order-prefix', verifyToken, purchaseOrderControll
 router.get('/get-all-purchaseOrders',verifyToken, purchaseOrderController.getAllPurchaseOrder);
 router.get('/get-purchaseOrder/:orderId',verifyToken, purchaseOrderController.getOnePurchaseOrder);
 router.put('/update-purchaseOrder/:orderId', verifyToken, updateOrderController.updatePurchaseOrder);
-// router.delete('/delete-purchaseOrder/:id', purchaseOrderController.deletePurchaseOrder);
+router.delete('/delete-purchaseOrder/:orderId', verifyToken, updateOrderController.deletePurchaseOrder);
 
 
 
@@ -41,7 +41,7 @@ router.get('/get-a-Bill/:billId',verifyToken, billsController.getOneBill);
 router.get('/bill-journal/:billId',verifyToken,billsController.billJournal);
 router.get('/get-last-bills-prefix', verifyToken, billsController.getLastBillsPrefix);
 router.put('/update-bill/:billId', verifyToken, updateBills.updateBill);
-// router.delete('/delete-Bill/:id',billsController.deletePurchaseBill) 
+router.delete('/delete-bill/:billId', verifyToken, updateBills.deletePurchaseBill); 
 
 
  //paymentMade

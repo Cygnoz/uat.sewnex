@@ -132,6 +132,84 @@ exports.updateBill = async (req, res) => {
 
 
 
+   // Delete Purchase Bill
+   exports.deletePurchaseBill = async (req, res) => {
+    console.log("Delete purchase bill request received:", req.params);
+
+    try {
+        const { organizationId } = req.user;
+        const { billId } = req.params;
+
+        // Validate billId
+        if (!mongoose.Types.ObjectId.isValid(billId) || billId.length !== 24) {
+            return res.status(400).json({ message: `Invalid Purchase Bill ID: ${billId}` });
+        }
+
+        // Check if the billId exists in paymentMade schema
+        const existingPaymentMade = await PaymentMade.findOne({
+          organizationId,
+          "unpaidBillSchema.billId": billId,
+        });
+        if (existingPaymentMade) {
+          console.log(`Bill ID ${billId} exists in paymentMade. Cannot be deleted.`);
+          return res.status(400).json({
+            message: `This bill is associated with a paymentMade and cannot be deleted.`,
+          });
+        }
+
+        // Fetch existing purchase bill
+        const existingPurchaseBill = await Bills.findOne({ _id: billId, organizationId });
+        if (!existingPurchaseBill) {
+            console.log("Purchase bill not found with ID:", billId);
+            return res.status(404).json({ message: "Purchase bill not found" });
+        }
+
+        // Fetch existing itemTrack entries
+        const existingItemTracks = await ItemTrack.find({ organizationId, operationId: billId });
+        // Delete existing itemTrack entries for the operation
+        if (existingItemTracks.length > 0) {
+          await ItemTrack.deleteMany({ organizationId, operationId: billId });
+          console.log(`Deleted existing itemTrack entries for operationId: ${billId}`);
+        }
+
+        // Fetch existing TrialBalance's createdDateTime
+        const existingTrialBalance = await TrialBalance.findOne({
+          organizationId: existingPurchaseBill.organizationId,
+          operationId: existingPurchaseBill._id,
+        });  
+        // If there are existing entries, delete them
+        if (existingTrialBalance) {
+          await TrialBalance.deleteMany({
+            organizationId: existingPurchaseBill.organizationId,
+            operationId: existingPurchaseBill._id,
+          });
+          console.log(`Deleted existing TrialBalance entries for operationId: ${existingSalesInvoice._id}`);
+        }
+
+        // Delete the purchase bill
+        const deletedPurchaseBill = await existingPurchaseBill.deleteOne();
+        if (!deletedPurchaseBill) {
+            console.error("Failed to delete purchase bill.");
+            return res.status(500).json({ message: "Failed to delete purchase bill" });
+        }
+
+        res.status(200).json({ message: "Purchase bill deleted successfully" });
+        console.log("Purchase bill deleted successfully with ID:", billId);
+
+    } catch (error) {
+        console.error("Error deleting purchase bill:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+  };
+
+
+
+
+
+
+
+
+
 
   function validateIds({ supplierId, otherExpenseAccountId, freightAccountId, paidAccountId, purchaseOrderId, itemIds, cleanedData }) {
     // Validate Supplier ID

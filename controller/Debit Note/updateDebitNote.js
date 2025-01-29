@@ -352,8 +352,8 @@ function validateBillData(data, items, billExist, existingDebitNoteItems, errors
   billExist.items = Array.isArray(billExist.items) ? billExist.items : [];
 
   // Validate basic fields
-  validateField( billExist.billDate !== data.billDate, `Bill Date mismatch for ${billExist.billDate}`, errors  );
-  validateField( billExist.orderNumber !== data.orderNumber, `Order Number mismatch for ${billExist.orderNumber}`, errors  );
+  // validateField( billExist.billDate !== data.billDate, `Bill Date mismatch for ${billExist.billDate}`, errors  );
+  // validateField( billExist.orderNumber !== data.orderNumber, `Order Number mismatch for ${billExist.orderNumber}`, errors  );
 
   // Validate only the items included in the debit note
   items.forEach(dNItem => {

@@ -1038,7 +1038,7 @@ function validateSourceOfSupply(sourceOfSupply, organization, errors) {
   
     cleanedData.items.forEach(item => {
             
-            const accountId = item.purchaseAccountId || '6777775bb84d21a5f77be689';
+            const accountId = item.purchaseAccountId;
   
             if (!accountId) {
   
