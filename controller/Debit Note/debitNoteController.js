@@ -1346,10 +1346,8 @@ const creditAmount =
   if(savedDebitNote.vat){
     createTrialEntry( vat )
   }
-
-  
  
-  //supplier
+  //Credit
   createTrialEntry( supplierCredit )
   
   //Paid

@@ -736,12 +736,15 @@ function capitalize(word) {
     if(savedDebitNote.vat){
       createTrialEntry( vat, createdDateTime )
     }
+
+    //Credit
+    createTrialEntry( supplierCredit, createdDateTime)
   
-  //Paid
-  if(savedDebitNote.grandTotal){
-    createTrialEntry( supplierReceived, createdDateTime )
-    createTrialEntry( depositAccounts, createdDateTime )
-  }
+    //Paid
+    if(savedDebitNote.grandTotal){
+      createTrialEntry( supplierReceived, createdDateTime )
+      createTrialEntry( depositAccounts, createdDateTime )
+    }
 }
   
   async function createTrialEntry( data, createdDateTime ) {
