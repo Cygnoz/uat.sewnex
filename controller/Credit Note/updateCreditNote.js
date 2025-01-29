@@ -18,7 +18,7 @@ exports.updateCreditNote = async (req, res) => {
       const { creditId } = req.params;   
       
       // Fetch existing credit note
-      const existingCreditNote = await getExistingCreditNote(creditId, organizationId);
+      const existingCreditNote = await getExistingCreditNote(creditId, organizationId, res);
 
       const existingCreditNoteItems = existingCreditNote.items;      
 
@@ -88,9 +88,6 @@ exports.updateCreditNote = async (req, res) => {
 
       // Update Sales Invoice
       await updateSalesInvoiceWithCreditNote(invoiceId, items, organizationId, customerId, creditId);
-
-      // Calculate stock
-      // await calculateStock(savedCreditNote);
   
       res.status(200).json({ message: "Credit note updated successfully", savedCreditNote });
       // console.log("Credit Note updated successfully:", savedCreditNote);  
@@ -105,8 +102,98 @@ exports.updateCreditNote = async (req, res) => {
 
 
 
+  // Delete Credit Note
+  exports.deleteCreditNote = async (req, res) => {
+    console.log("Delete credit note request received:", req.params);
+
+    try {
+        const { organizationId } = req.user;
+        const { creditId } = req.params;
+
+        // Validate creditId
+        if (!mongoose.Types.ObjectId.isValid(creditId) || creditId.length !== 24) {
+            return res.status(400).json({ message: `Invalid Credit Note ID: ${creditId}` });
+        }
+ 
+        // Fetch existing credit note
+        const existingCreditNote = await getExistingCreditNote(creditId, organizationId, res);
+
+        const { items, invoiceId, customerId } = existingCreditNote;
+
+        const itemIds = items.map(item => item.itemId);     
+
+        // Fetch the latest credit note for the given customerId and organizationId
+        const latestCreditNote = await CreditNote.findOne({ 
+          organizationId, 
+          customerId,
+          invoiceId,
+          "items.itemId": { $in: itemIds }, 
+        }).sort({ createdDateTime: -1 }); // Sort by createdDateTime in descending order
+      
+        if (!latestCreditNote) {
+            console.log("No credit note found for this customer.");
+            return res.status(404).json({ message: "No credit note found for this customer." });
+        }
+      
+        // Check if the provided receiptId matches the latest one
+        if (latestCreditNote._id.toString() !== creditId) {
+          return res.status(400).json({
+            message: "Only the latest credit note can be deleted."
+          });
+        }
+
+        // Extract credit note items
+        const existingCreditNoteItems = existingCreditNote.items;
+
+        // Delete the credit note
+        const deletedCreditNote = await existingCreditNote.deleteOne();
+        if (!deletedCreditNote) {
+            console.error("Failed to delete credit note.");
+            return res.status(500).json({ message: "Failed to delete credit note" });
+        }
+
+        // Update returnQuantity after deletion
+        await updateReturnQuantity( existingCreditNoteItems, invoiceId );
+
+        // Fetch existing itemTrack entries
+        const existingItemTracks = await ItemTrack.find({ organizationId, operationId: creditId });
+        // Delete existing itemTrack entries for the operation
+        if (existingItemTracks.length > 0) {
+          await ItemTrack.deleteMany({ organizationId, operationId: creditId });
+          console.log(`Deleted existing itemTrack entries for operationId: ${creditId}`);
+        }
+
+        // Fetch existing TrialBalance's createdDateTime
+        const existingTrialBalance = await TrialBalance.findOne({
+          organizationId: existingCreditNote.organizationId,
+          operationId: existingCreditNote._id,
+        });  
+        // If there are existing entries, delete them
+        if (existingTrialBalance) {
+          await TrialBalance.deleteMany({
+            organizationId: existingCreditNote.organizationId,
+            operationId: existingCreditNote._id,
+          });
+          console.log(`Deleted existing TrialBalance entries for operationId: ${existingCreditNote._id}`);
+        }
+
+        res.status(200).json({ message: "Credit note deleted successfully" });
+        console.log("Credit note deleted successfully with ID:", creditId);
+
+    } catch (error) {
+        console.error("Error deleting credit note:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+  };
+
+
+
+
+
+
+
   // Get Existing Credit Note
-async function getExistingCreditNote(creditId, organizationId) {
+async function getExistingCreditNote(creditId, organizationId, res) {
   const existingCreditNote = await CreditNote.findOne({ _id: creditId, organizationId });
   if (!existingCreditNote) {
       console.log("Credit note not found with ID:", creditId);
@@ -114,7 +201,6 @@ async function getExistingCreditNote(creditId, organizationId) {
   }
   return existingCreditNote;
 }
-
 
 
 
@@ -140,6 +226,39 @@ async function getLatestCreditNote(creditId, organizationId, customerId, invoice
   }
 
   return latestCreditNote;
+}
+
+
+
+// Update invoice's returnQuantity
+async function updateReturnQuantity( existingCreditNoteItems, invoiceId ) {
+  try {
+    // Find the invoice by its ID
+    const invoice = await Invoice.findById(invoiceId);
+    if (!invoice) {
+      console.warn(`Invoice not found with ID: ${invoiceId}`);
+      return;
+    }
+
+    // Loop through the credit note items
+    for (const existingItems of existingCreditNoteItems) {
+      const invoiceItem = invoice.items.find(item => item.itemId.toString() === existingItems.itemId.toString());
+      
+      if (invoiceItem) { 
+        // Update the invoice's returnQuantity
+        invoiceItem.returnQuantity -= existingItems.quantity;
+      } else {
+        console.warn(`Item ID: ${existingItems.itemId} not found in invoice ID: ${invoiceId}`);
+      }
+
+      // Save the updated invoice
+      await invoice.save();
+      console.log(`Updated Invoice ID: ${invoiceId} | Return Quantity: ${invoice.returnQuantity}`);
+    }
+  } catch (error) {
+    console.error("Error updating invoice returnQuantity:", error);
+    throw new Error("Failed to update invoice returnQuantity");
+  }
 }
 
 
@@ -229,52 +348,6 @@ async function getLatestCreditNote(creditId, organizationId, customerId, invoice
 
 
 
-//   // Helper function to calculate stock
-// const calculateStock = async (creditNote) => {
-//   try {
-//     const { invoiceId, items } = creditNote;
-
-//     const salesInvoice = await Invoice.findById(invoiceId);
-
-//     if (salesInvoice) {
-//       items.forEach((creditItem) => {
-//         const salesItem = salesInvoice.items.find(
-//           (item) => item.itemId.toString() === creditItem.itemId.toString()
-//         );
-
-//         if (salesItem) {
-//           creditItem.stock = Math.max(salesItem.quantity - salesItem.returnQuantity, 0);
-//         } else {
-//           creditItem.stock = 0;
-//         }
-//         if (creditItem.stock < 0) {
-//           creditItem.stock = 0;
-//         }
-//       });
-//     } else {
-//       console.warn(`Sales Invoice with ID ${invoiceId} not found.`);
-//     }
-
-//     await CreditNote.findByIdAndUpdate(
-//       creditNote._id,
-//       { items },
-//       { new: true }
-//     );
-
-//     return creditNote;
-    
-//   } catch (error) {
-//     console.error("Error in calculateStock:", error);
-//     throw new Error("Failed to calculate stock for Credit Note.");
-//   }
-// };
-  
-
-
-
-
-
-
 
 
 //Validate inputs
@@ -297,7 +370,7 @@ function validateCreditNoteData({ cleanedData, customerExist, invoiceExist, item
   //Basic Info
   validateReqFields( cleanedData, customerExist, errors );
   validateItemTable(items, itemTable, existingCreditNoteItems, errors);
-  validateInvoiceData(cleanedData, items, invoiceExist, existingCreditNoteItems, errors);
+  validateInvoiceData(cleanedData, items, invoiceExist, errors);
 
   //OtherDetails
   validateIntegerFields(['totalItem'], cleanedData, errors);
@@ -366,11 +439,11 @@ function validateItemTable(items, itemTable, existingCreditNoteItems, errors) {
     // Validate tax preference
     validateField( item.taxPreference !== fetchedItem.taxPreference, `Tax Preference mismatch for ${item.itemName}: ${item.taxPreference}`, errors );
   
-    console.log("existingCreditNoteItems",existingCreditNoteItems);
+    // console.log("existingCreditNoteItems",existingCreditNoteItems);
 
+    // Validate stock
     if ( existingCreditNoteItems.length > 0 ) {
       const stock = existingCreditNoteItems[0].stock;
-      // item.stock = stock;
       validateField( stock !== item.stock, `Stock mismatch: Expected ${stock}, got ${item.stock}`, errors );
     } else {
       console.log(`Existing credit note item not found ${existingCreditNoteItems}`);
@@ -387,9 +460,7 @@ function validateItemTable(items, itemTable, existingCreditNoteItems, errors) {
 
 
   // validate invoice data
-function validateInvoiceData(data, items, invoiceExist, existingCreditNoteItems, errors) {  
-
-  // const existingItem = existingCreditNoteItems[0].stock;
+function validateInvoiceData(data, items, invoiceExist, errors) {  
   
   // Validate basic fields
   // validateField( invoiceExist.salesInvoiceDate !== data.invoiceDate, `Invoice Date mismatch for ${invoiceExist.salesInvoiceDate}`, errors  );
@@ -416,7 +487,6 @@ function validateInvoiceData(data, items, invoiceExist, existingCreditNoteItems,
       validateField(CNItem.igst !== invoiceItem.igst, 
                     `Item IGST mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.igst}, got ${CNItem.igst}`, 
                     errors);     
-      
       validateField(CNItem.quantity > invoiceItem.quantity, 
                     `Provided quantity (${CNItem.quantity}) cannot exceed invoice quantity (${invoiceItem.quantity}).`, 
                     errors);

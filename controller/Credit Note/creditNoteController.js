@@ -185,12 +185,8 @@ exports.addCreditNote = async (req, res) => {
     // Update Sales Invoice
     await updateSalesInvoiceWithCreditNote(invoiceId, items);
 
-    // Calculate stock only for the next addCreditNote call
-    // setTimeout(() => calculateStock(savedCreditNote), 0);
-    // Update stock only in the next addCreditNote execution
-    process.nextTick(async () => {
-      await calculateStock(savedCreditNote);
-    });
+    // Calculate stock 
+    await calculateStock(savedCreditNote);
       
     res.status(201).json({ message: "Credit Note created successfully",savedCreditNote });
     // console.log( "Credit Note created successfully:", savedCreditNote );
@@ -1007,40 +1003,31 @@ const calculateStock = async (creditNote) => {
   try {
     const { invoiceId, items } = creditNote;
 
+    // Fetch corresponding invoice
     const salesInvoice = await Invoice.findById(invoiceId);
+    const stockData = [];
 
     if (salesInvoice) {
-      // items.forEach((creditItem) => {
-        // const salesItem = salesInvoice.items.find(
-        //   (item) => item.itemId.toString() === creditItem.itemId.toString()
-        // );
+      items.forEach((creditItem) => {
+        const invoiceItem = salesInvoice.items.find(
+          (item) => item.itemId.toString() === creditItem.itemId.toString()
+        );
 
-        if (items) {
-          items.stock = Math.max(salesInvoice.quantity - salesInvoice.returnQuantity, 0);
-        } else {
-          items.stock = 0;
-        }
-        if (items.stock < 0) {
-          items.stock = 0;
-        }
-      // });
-    } else {
-      console.warn(`Sales Invoice with ID ${invoiceId} not found.`);
+        const stock = invoiceItem
+          ? Math.max(invoiceItem.quantity - invoiceItem.returnQuantity, 0)
+          : 0;
+
+        stockData.push({ itemId: creditItem.itemId, stock });
+      });
     }
 
-    await CreditNote.findByIdAndUpdate(
-      creditNote._id,
-      { items },
-      { new: true }
-    );
-
-    return creditNote;
-    
+    return stockData; // Return computed values without modifying current CreditNote 
   } catch (error) {
     console.error("Error in calculateStock:", error);
     throw new Error("Failed to calculate stock for Credit Note.");
   }
 };
+
 
 
 
