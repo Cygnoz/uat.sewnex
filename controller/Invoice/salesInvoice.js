@@ -676,7 +676,7 @@ validateField( typeof data.roundOffAmount !== 'undefined' && !(data.roundOffAmou
 console.log("paidAmount",data.paidAmount);
 console.log("totalAmount",data.totalAmount);
 
-validateField( typeof data.paidAmount !== 'undefined' && !(data.paidAmount <= data.totalAmount), "Excess payment amount", errors );
+validateField( typeof data.paidAmount !== 'undefined' && !(data.paidAmount > data.totalAmount), "Excess payment amount", errors );
 validateField( typeof data.paidAmount !== 'undefined' && !(data.paidAmount >= 0 ), "Negative payment amount", errors );
 
 validateField( typeof defaultAccount.salesDiscountAccount === 'undefined', "No Sales Discount Account found", errors  );
