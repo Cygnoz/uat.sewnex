@@ -721,10 +721,9 @@ function capitalize(word) {
     if(savedCreditNote.vat){
       createTrialEntry( vat, createdDateTime )
     }
-  
-    if(savedCreditNote.paymentMode === 'Credit'){
-      createTrialEntry( customerCredit, createdDateTime )
-    }
+    
+     //Credit
+    createTrialEntry( customerCredit, createdDateTime )   
    
     
     //Paid
