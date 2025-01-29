@@ -9,7 +9,7 @@ const itemsSchema = new Schema({
   //itemName
 
   quantity: {type:Number},
-  returnQuantity: { type: Number }, // Don't use default: 0
+  returnQuantity: { type: Number, default: 0 }, 
   sellingPrice: {type:Number},
 
   taxPreference: {type:String},

@@ -186,8 +186,12 @@ exports.addCreditNote = async (req, res) => {
     // Update Sales Invoice
     await updateSalesInvoiceWithCreditNote(invoiceId, items);
 
-    // Calculate stock
-    await calculateStock(savedCreditNote);
+    // Calculate stock only for the next addCreditNote call
+    // setTimeout(() => calculateStock(savedCreditNote), 0);
+    // Update stock only in the next addCreditNote execution
+    process.nextTick(async () => {
+      await calculateStock(savedCreditNote);
+    });
       
     res.status(201).json({ message: "Credit Note created successfully",savedCreditNote });
     // console.log( "Credit Note created successfully:", savedCreditNote );
@@ -813,7 +817,7 @@ function validateInvoiceData(data, items, invoiceExist, errors) {
       validateField(CNItem.igst !== invoiceItem.igst, 
                     `Item IGST mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.igst}, got ${CNItem.igst}`, 
                     errors);
-      if (!invoiceItem.returnQuantity) {
+      if (invoiceItem.returnQuantity === 0) {
         validateField(CNItem.stock !== invoiceItem.quantity, 
                     `Stock mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.quantity}, got ${CNItem.stock}`, 
                     errors);
@@ -1007,20 +1011,20 @@ const calculateStock = async (creditNote) => {
     const salesInvoice = await Invoice.findById(invoiceId);
 
     if (salesInvoice) {
-      items.forEach((creditItem) => {
-        const salesItem = salesInvoice.items.find(
-          (item) => item.itemId.toString() === creditItem.itemId.toString()
-        );
+      // items.forEach((creditItem) => {
+        // const salesItem = salesInvoice.items.find(
+        //   (item) => item.itemId.toString() === creditItem.itemId.toString()
+        // );
 
-        if (salesItem) {
-          creditItem.stock = Math.max(salesItem.quantity - salesItem.returnQuantity, 0);
+        if (items) {
+          items.stock = Math.max(salesInvoice.quantity - salesInvoice.returnQuantity, 0);
         } else {
-          creditItem.stock = 0;
+          items.stock = 0;
         }
-        if (creditItem.stock < 0) {
-          creditItem.stock = 0;
+        if (items.stock < 0) {
+          items.stock = 0;
         }
-      });
+      // });
     } else {
       console.warn(`Sales Invoice with ID ${invoiceId} not found.`);
     }
