@@ -567,7 +567,7 @@ const calculateTotalPaymentMade = async (cleanedData, amountPaid) => {
 
   // Calculate amountUsedForPayments and amountInExcess
   amountPaid = cleanedData.amountPaid || 0;
-  cleanedData.amountUsedForPayments = amountPaid - totalPayment;
+  cleanedData.amountUsedForPayments = totalPayment;
 
   return cleanedData;
 };
