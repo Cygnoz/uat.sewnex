@@ -250,8 +250,8 @@ function validateDebitNoteData(data, supplierExist, billExist, items, itemTable,
 
   //Basic Info
   validateReqFields( data, supplierExist, errors );
-  validateItemTable(items, itemTable, errors);
-  validateBillData(data, items, billExist, existingDebitNoteItems, errors);
+  validateItemTable(items, itemTable, existingDebitNoteItems, errors);
+  validateBillData(data, items, billExist, errors);
 
   //OtherDetails
   validateIntegerFields(['totalItem'], data, errors);
@@ -297,7 +297,7 @@ function validateReqFields( data, supplierExist, errors ) {
 
 
 // Function to Validate Item Table 
-function validateItemTable(items, itemTable, errors) {
+function validateItemTable(items, itemTable, existingDebitNoteItems, errors) {
     // Check for item count mismatch
     validateField( items.length !== itemTable.length, "Mismatch in item count between request and database.", errors  );
     
@@ -327,15 +327,17 @@ function validateItemTable(items, itemTable, errors) {
       // Validate tax preference
       validateField( item.taxPreference !== fetchedItem.taxPreference, `Tax Preference mismatch for ${item.itemName}: ${item.taxPreference}`, errors );
     
-      // Validate discount type
-      // validateItemDiscountType(item.itemDiscountType, errors);
+      // Validate stock
+      if ( existingDebitNoteItems.length > 0 ) {
+        const stock = existingDebitNoteItems[0].stock;
+        validateField( stock !== item.stock, `Stock mismatch: Expected ${stock}, got ${item.stock}`, errors );
+      } else {
+        console.log(`Existing credit note item not found ${existingDebitNoteItems}`);
+      }
     
       // Validate integer fields
       validateIntegerFields(['itemQuantity'], item, errors);
-    
-      // Validate Stock Count 
-      // validateField( item.itemQuantity > fetchedItem.currentStock, `Insufficient Stock for ${item.itemName}: Requested quantity ${item.itemQuantity}, Available stock ${fetchedItem.currentStock}`, errors );
-    
+
       // Validate float fields
       validateFloatFields(['itemCostPrice', 'itemTotalTax', 'itemAmount'], item, errors);
     });
@@ -344,9 +346,7 @@ function validateItemTable(items, itemTable, errors) {
 
 
   // validate invoice data
-function validateBillData(data, items, billExist, existingDebitNoteItems, errors) {  
-
-  // const existingItem = existingDebitNoteItems[0].stock;
+function validateBillData(data, items, billExist, errors) {  
   
   // Initialize `billExist.items` to an empty array if undefined
   billExist.items = Array.isArray(billExist.items) ? billExist.items : [];

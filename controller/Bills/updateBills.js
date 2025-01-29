@@ -183,7 +183,7 @@ exports.updateBill = async (req, res) => {
             organizationId: existingPurchaseBill.organizationId,
             operationId: existingPurchaseBill._id,
           });
-          console.log(`Deleted existing TrialBalance entries for operationId: ${existingSalesInvoice._id}`);
+          console.log(`Deleted existing TrialBalance entries for operationId: ${existingPurchaseBill._id}`);
         }
 
         // Delete the purchase bill
