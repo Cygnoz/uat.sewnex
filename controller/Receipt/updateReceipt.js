@@ -16,7 +16,7 @@ exports.updateReceipt = async (req, res) => {
       const { receiptId } = req.params;  
 
       // Fetch existing sales receipt
-      const existingSalesReceipt = await getExistingSalesReceipt(receiptId, organizationId);
+      const existingSalesReceipt = await getExistingSalesReceipt(receiptId, organizationId, res);
 
       // Extract paymentAmount values
       const existingSalesReceiptInvoice = existingSalesReceipt.invoice;
@@ -91,10 +91,88 @@ exports.updateReceipt = async (req, res) => {
 
 
 
+// Delete Sales Receipt
+exports.deleteSalesReceipt = async (req, res) => {
+  console.log("Delete sales receipt request received:", req.params);
+
+  try {
+      const { organizationId } = req.user;
+      const { receiptId } = req.params;
+
+      // Validate receiptId
+      if (!mongoose.Types.ObjectId.isValid(receiptId) || receiptId.length !== 24) {
+          return res.status(400).json({ message: `Invalid Sales Receipt ID: ${receiptId}` });
+      }
+
+      // Fetch existing sales receipt
+      const existingSalesReceipt = await getExistingSalesReceipt(receiptId, organizationId, res);
+
+      const { invoice, customerId } = existingSalesReceipt;
+
+      const invoiceIds = invoice.map(inv => inv.invoiceId);      
+
+      // Fetch the latest receipt for the given customerId and organizationId
+      const latestReceipt = await SalesReceipt.findOne({ 
+        organizationId, 
+        customerId,
+        "invoice.invoiceId": { $in: invoiceIds }, 
+      }).sort({ createdDateTime: -1 }); // Sort by createdDateTime in descending order
+    
+      if (!latestReceipt) {
+          console.log("No sales receipts found for this customer.");
+          return res.status(404).json({ message: "No sales receipts found for this customer." });
+      }
+    
+      // Check if the provided receiptId matches the latest one
+      if (latestReceipt._id.toString() !== receiptId) {
+        return res.status(400).json({
+          message: "Only the latest sales receipt can be deleted."
+        });
+      }
+
+      // Extract invoices
+      const existingSalesReceiptInvoice = existingSalesReceipt.invoice;
+
+      // Delete the sales receipt
+      const deletedSalesReceipt = await existingSalesReceipt.deleteOne();
+      if (!deletedSalesReceipt) {
+          console.error("Failed to delete sales receipt.");
+          return res.status(500).json({ message: "Failed to delete sales receipt!" });
+      }
+
+      // Fetch existing TrialBalance's createdDateTime
+      const existingTrialBalance = await TrialBalance.findOne({ 
+        organizationId: existingSalesReceipt.organizationId,
+        operationId: existingSalesReceipt._id,
+      });  
+      // If there are existing entries, delete them
+      if (existingTrialBalance) {
+        await TrialBalance.deleteMany({
+          organizationId: existingSalesReceipt.organizationId,
+          operationId: existingSalesReceipt._id,
+        });
+        console.log(`Deleted existing TrialBalance entries for operationId: ${existingSalesReceipt._id}`);
+      }
+
+      // Return balance amount after deletion
+      await returnBalanceAmount( existingSalesReceiptInvoice );
+
+      res.status(200).json({ message: "Sales receipt deleted successfully" });
+      console.log("Sales receipt deleted successfully with ID:", receiptId);
+
+  } catch (error) {
+      console.error("Error deleting sales receipt:", error);
+      res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+
+
+
 
 
 // Get Existing Sales Receipt
-async function getExistingSalesReceipt(receiptId, organizationId) {
+async function getExistingSalesReceipt(receiptId, organizationId, res) {
   const existingSalesReceipt = await SalesReceipt.findOne({ _id: receiptId, organizationId });
   if (!existingSalesReceipt) {
       console.log("Sales receipt not found with ID:", receiptId);
@@ -102,6 +180,7 @@ async function getExistingSalesReceipt(receiptId, organizationId) {
   }
   return existingSalesReceipt;
 }
+
 
 
 // Get Latest Receipt
@@ -125,6 +204,35 @@ async function getLatestReceipt(receiptId, organizationId, customerId, invoiceId
   }
 
   return latestReceipt;
+}
+
+
+
+
+async function returnBalanceAmount(existingSalesReceiptInvoice) {
+  try {
+    for (const existingInvoice of existingSalesReceiptInvoice) {
+      const { invoiceId, paymentAmount, balanceAmount } = existingInvoice;
+
+      // Find the invoice by its ID
+      const invoice = await Invoice.findById(invoiceId);
+      if (!invoice) {
+        console.warn(`Invoice not found with ID: ${invoiceId}`);
+        continue;
+      }
+
+      // Update the invoice's paidAmount and balanceAmount
+      invoice.paidAmount -= paymentAmount;
+      invoice.balanceAmount = balanceAmount;
+
+      // Save the updated invoice
+      await invoice.save();
+      console.log(`Updated Invoice ID: ${invoiceId} | Paid Amount: ${invoice.paidAmount} | Balance Amount: ${invoice.balanceAmount}`);
+    }
+  } catch (error) {
+    console.error("Error updating invoice balances:", error);
+    throw new Error("Failed to update invoice balances");
+  }
 }
 
 
@@ -186,7 +294,6 @@ const calculateAmountDue = async (invoiceId, { amount }, existingSalesReceiptInv
 
     // Find the corresponding invoice in existingSalesReceiptInvoice
     const existingInvoice = existingSalesReceiptInvoice.find((inv) => inv.invoiceId.toString() === invoiceId.toString());
-
     if (!existingInvoice) {
       throw new Error(`No matching invoice found in existingSalesReceiptInvoice for ID: ${invoiceId}`);
     }
@@ -448,7 +555,7 @@ async function journal( savedReceipt, depositAcc, customerAccount ) {
     const customerPaid = {
       organizationId: savedReceipt.organizationId,
       operationId: savedReceipt._id,
-      transactionId: savedReceipt.payment,
+      transactionId: savedReceipt.receipt,
       accountId: customerAccount._id || undefined,
       action: "Receipt",
       debitAmount: 0,
@@ -458,7 +565,7 @@ async function journal( savedReceipt, depositAcc, customerAccount ) {
     const depositAccount = {
       organizationId: savedReceipt.organizationId,
       operationId: savedReceipt._id,
-      transactionId: savedReceipt.payment,
+      transactionId: savedReceipt.receipt,
       accountId: depositAcc._id || undefined,
       action: "Receipt",
       debitAmount: savedReceipt.amountReceived || 0,

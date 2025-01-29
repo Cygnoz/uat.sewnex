@@ -100,6 +100,7 @@ const creditDataExist = async ( organizationId, creditId ) => {
     .populate('accountId', 'accountName')    
     .lean(),
   ]);
+  console.log("organizationExists",organizationExists);
   return { organizationExists, allCreditNote, creditNote, creditJournal };
 };
 
@@ -184,6 +185,9 @@ exports.addCreditNote = async (req, res) => {
 
     // Update Sales Invoice
     await updateSalesInvoiceWithCreditNote(invoiceId, items);
+
+    // Calculate stock
+    await calculateStock(savedCreditNote);
       
     res.status(201).json({ message: "Credit Note created successfully",savedCreditNote });
     // console.log( "Credit Note created successfully:", savedCreditNote );
@@ -217,11 +221,11 @@ exports.getAllCreditNote = async (req, res) => {
 
 
     // Process and filter credit notes using the helper function
-    const updatedCreditNotes = await Promise.all(
-      transformedInvoice.map((creditNote) => calculateStock(creditNote))
-    );
+    // const updatedCreditNotes = await Promise.all(
+    //   transformedInvoice.map((creditNote) => calculateStock(creditNote))
+    // );
 
-    const formattedObjects = multiCustomDateTime(updatedCreditNotes, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
+    const formattedObjects = multiCustomDateTime(transformedInvoice, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
 
 
     res.status(200).json(formattedObjects);
@@ -467,6 +471,8 @@ function salesJournal(cleanedData, res) {
           const accountId = item.salesAccountId;
 
           if (!accountId) {
+            console.log(`Sales Account not found for item ${item.itemName}`);
+            
 
             errors.push({
               message: `Sales Account not found for item ${item.itemName}`,
@@ -705,7 +711,7 @@ function validateReqFields( data, customerExist, errors ) {
   validateField( typeof data.items === 'undefined', "Select an item", errors  );
   validateField( Array.isArray(data.items) && data.items.length === 0, "Select an item", errors );
   
-  validateField( typeof data.invoiceNumber === 'undefined', "Select an invoice number", errors  );
+  validateField( data.invoiceNumber === 'undefined', "Select an invoice number", errors  );
   validateField( typeof data.paymentMode === 'undefined', "Select payment mode", errors  );
   validateField( data.paymentMode === 'Cash' && typeof data.totalAmount === 'undefined', "Enter the amount paid", errors  );
   validateField( data.paymentMode === 'Cash' && typeof data.paidThroughAccountId === 'undefined', "Select an paid through account", errors  );  
@@ -768,9 +774,9 @@ function validateInvoiceData(data, items, invoiceExist, errors) {
 
 
   // Validate basic fields
-  validateField( invoiceExist.salesInvoiceDate !== data.invoiceDate, `Invoice Date mismatch for ${invoiceExist.salesInvoiceDate}`, errors  );
-  validateField( invoiceExist.salesOrderNumber !== data.orderNumber, `Order Number mismatch for ${invoiceExist.salesOrderNumber}`, errors  );
-  validateField( invoiceExist.salesInvoice !== data.invoiceNumber, `Order Number mismatch for ${invoiceExist.salesInvoice}`, errors  );
+  // validateField( invoiceExist.salesInvoiceDate !== data.invoiceDate, `Invoice Date mismatch for ${invoiceExist.salesInvoiceDate}`, errors  );
+  // validateField( invoiceExist.salesOrderNumber !== data.orderNumber, `Order Number mismatch for ${invoiceExist.salesOrderNumber}`, errors  );
+  // validateField( invoiceExist.salesInvoice !== data.invoiceNumber, `Order Number mismatch for ${invoiceExist.salesInvoice}`, errors  );
 
 
   // Validate only the items included in the credit note

@@ -250,7 +250,7 @@ function validateCreditNoteData({ cleanedData, customerExist, invoiceExist, item
 
   //Basic Info
   validateReqFields( cleanedData, customerExist, errors );
-  validateItemTable(items, itemTable, errors);
+  validateItemTable(items, itemTable, existingCreditNoteItems, errors);
   validateInvoiceData(cleanedData, items, invoiceExist, existingCreditNoteItems, errors);
 
   //OtherDetails
@@ -284,7 +284,7 @@ function validateReqFields( data, customerExist, errors ) {
   validateField( typeof data.items === 'undefined', "Select an item", errors  );
   validateField( Array.isArray(data.items) && data.items.length === 0, "Select an item", errors );
   
-  validateField( typeof data.invoiceNumber === 'undefined', "Select an invoice number", errors  );
+  validateField( data.invoiceNumber === 'undefined', "Select an invoice number", errors  );
   validateField( typeof data.paymentMode === 'undefined', "Select payment mode", errors  );
   validateField( data.paymentMode === 'Cash' && typeof data.totalAmount === 'undefined', "Enter the amount paid", errors  );
   validateField( data.paymentMode === 'Cash' && typeof data.paidThroughAccountId === 'undefined', "Select an paid through account", errors  );  
@@ -292,7 +292,8 @@ function validateReqFields( data, customerExist, errors ) {
 
 
 // Function to Validate Item Table 
-function validateItemTable(items, itemTable, errors) {
+function validateItemTable(items, itemTable, existingCreditNoteItems, errors) {
+
   // Check for item count mismatch
   validateField( items.length !== itemTable.length, "Mismatch in item count between request and database.", errors  );
   
@@ -318,6 +319,15 @@ function validateItemTable(items, itemTable, errors) {
   
     // Validate tax preference
     validateField( item.taxPreference !== fetchedItem.taxPreference, `Tax Preference mismatch for ${item.itemName}: ${item.taxPreference}`, errors );
+
+    // console.log("existingCreditNoteItems",existingCreditNoteItems);
+
+    // if ( existingCreditNoteItems.length > 0 ) {
+    //   const stock = existingCreditNoteItems[0].stock + existingCreditNoteItems[0].quantity;
+    //   validateField( stock !== item.stock, `Stock mismatch, expected ${stock}, got ${item.stock}`, errors );
+    // } else {
+    //   console.log(`Existing credit note item not found ${existingCreditNoteItems}`);
+    // }
   
     // Validate integer fields
     validateIntegerFields(['itemQuantity'], item, errors);
@@ -335,9 +345,9 @@ function validateInvoiceData(data, items, invoiceExist, existingCreditNoteItems,
   // const existingItem = existingCreditNoteItems[0].stock;
   
   // Validate basic fields
-  validateField( invoiceExist.salesInvoiceDate !== data.invoiceDate, `Invoice Date mismatch for ${invoiceExist.salesInvoiceDate}`, errors  );
-  validateField( invoiceExist.salesOrderNumber !== data.orderNumber, `Order Number mismatch for ${invoiceExist.salesOrderNumber}`, errors  );
-  validateField( invoiceExist.salesInvoice !== data.invoiceNumber, `Order Number mismatch for ${invoiceExist.salesInvoice}`, errors  );
+  // validateField( invoiceExist.salesInvoiceDate !== data.invoiceDate, `Invoice Date mismatch for ${invoiceExist.salesInvoiceDate}`, errors  );
+  // validateField( invoiceExist.salesOrderNumber !== data.orderNumber, `Order Number mismatch for ${invoiceExist.salesOrderNumber}`, errors  );
+  // validateField( invoiceExist.salesInvoice !== data.invoiceNumber, `Order Number mismatch for ${invoiceExist.salesInvoice}`, errors  );
 
 
   // Validate only the items included in the credit note

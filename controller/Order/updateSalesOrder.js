@@ -45,7 +45,7 @@ exports.updateSalesOrder = async (req, res) => {
       }
   
       // Fetch related data
-      const { organizationExists, customerExist, existingPrefix } = await dataExist.dataExist(organizationId, customerId, customerName);
+      const { organizationExists, customerExist, settings, existingPrefix } = await dataExist.dataExist(organizationId, customerId, customerName);
 
       const { itemTable } = await dataExist.newDataExists( organizationId, items );
   
@@ -53,7 +53,7 @@ exports.updateSalesOrder = async (req, res) => {
      if (!validation.validateOrganizationTaxCurrency( organizationExists, customerExist, existingPrefix, res )) return;
       
       // Validate Inputs
-      if (!validation.validateInputs(cleanedData, customerExist, items, itemTable, organizationExists, res)) return;
+      if (!validation.validateInputs(cleanedData, settings, customerExist, items, itemTable, organizationExists, res)) return;
   
       // Tax Type 
       calculation.taxType(cleanedData, customerExist, organizationExists);
@@ -116,11 +116,11 @@ exports.deleteSalesOrder = async (req, res) => {
       // Fetch existing sales order
       const existingSalesOrder = await SalesOrder.findOne({ _id: orderId, organizationId });
       if (!existingSalesOrder) {
-          console.log("Sales order not found with ID:", quoteId);
+          console.log("Sales order not found with ID:", orderId);
           return res.status(404).json({ message: "Sales order not found" });
       }
 
-      // Delete the sales quote
+      // Delete the sales order
       const deletedSalesOrder = await existingSalesOrder.deleteOne();
       if (!deletedSalesOrder) {
           console.error("Failed to delete sales order.");

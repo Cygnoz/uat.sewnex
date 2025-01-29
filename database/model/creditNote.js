@@ -24,6 +24,7 @@ const itemsSchema = new Schema({
 
   itemTotalTax: {type:Number},
   itemAmount: { type: Number },
+  salesAccountId: {type:String}
 
 },{ _id: false });
 
