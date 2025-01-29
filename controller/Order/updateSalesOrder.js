@@ -120,7 +120,7 @@ exports.deleteSalesOrder = async (req, res) => {
           return res.status(404).json({ message: "Sales order not found" });
       }
 
-      // Delete the sales quote
+      // Delete the sales order
       const deletedSalesOrder = await existingSalesOrder.deleteOne();
       if (!deletedSalesOrder) {
           console.error("Failed to delete sales order.");

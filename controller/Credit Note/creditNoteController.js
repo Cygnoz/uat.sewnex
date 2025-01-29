@@ -100,6 +100,7 @@ const creditDataExist = async ( organizationId, creditId ) => {
     .populate('accountId', 'accountName')    
     .lean(),
   ]);
+  console.log("organizationExists",organizationExists);
   return { organizationExists, allCreditNote, creditNote, creditJournal };
 };
 
@@ -184,6 +185,9 @@ exports.addCreditNote = async (req, res) => {
 
     // Update Sales Invoice
     await updateSalesInvoiceWithCreditNote(invoiceId, items);
+
+    // Calculate stock
+    await calculateStock(savedCreditNote);
       
     res.status(201).json({ message: "Credit Note created successfully",savedCreditNote });
     // console.log( "Credit Note created successfully:", savedCreditNote );
@@ -217,11 +221,11 @@ exports.getAllCreditNote = async (req, res) => {
 
 
     // Process and filter credit notes using the helper function
-    const updatedCreditNotes = await Promise.all(
-      transformedInvoice.map((creditNote) => calculateStock(creditNote))
-    );
+    // const updatedCreditNotes = await Promise.all(
+    //   transformedInvoice.map((creditNote) => calculateStock(creditNote))
+    // );
 
-    const formattedObjects = multiCustomDateTime(updatedCreditNotes, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
+    const formattedObjects = multiCustomDateTime(transformedInvoice, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
 
 
     res.status(200).json(formattedObjects);

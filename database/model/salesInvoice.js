@@ -29,6 +29,7 @@ const itemsSchema = new Schema({
   discountType: {type:String}, //Currency,Percentage
   discountAmount: {type:Number}, 
   itemAmount: {type:Number},
+  salesAccountId: {type:String}
 
   }, { _id: false });
 
