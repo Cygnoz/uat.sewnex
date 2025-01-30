@@ -48,10 +48,6 @@ exports.getTrialBalance = async (req, res) => {
             });
         }
 
-        // Debugging: Log the organizationId and date range
-        console.log('Organization ID:', organizationId);
-        console.log('Date Range:', { startUTC, endUTC });
-
         // Find all transactions for the given date range
         const transactions = await TrialBalances.find({
             organizationId: organizationId,
@@ -61,28 +57,15 @@ exports.getTrialBalance = async (req, res) => {
             }
         }).populate('accountId', 'accountName accountSubhead accountHead accountGroup');
 
-        // Debugging: Log the transactions fetched
-        // console.log('Fetched Transactions:', transactions);
-
         // Restructure the response
         const accountMap = {};
 
-        let cumulativeDebit = 0;
-        let cumulativeCredit = 0;
-
         transactions.forEach(transaction => {
-            // Log each transaction being processed
-            // console.log('Processing Transaction:', transaction);
-
-            // Check if the transaction has at least one of the necessary fields
-            if (transaction.debitAmount === undefined && transaction.creditAmount === undefined) {
-                console.warn('Transaction missing both debitAmount and creditAmount:', transaction);
-                return; // Skip this transaction if it doesn't have either field
-            }
-
-            const accountSubHead = transaction.accountId ? transaction.accountId.accountSubhead : 'Uncategorized'; // Use a default if not defined
-            const totalDebit = transaction.debitAmount || 0; // Default to 0 if undefined
-            const totalCredit = transaction.creditAmount || 0; // Default to 0 if undefined
+            const totalDebit = transaction.debitAmount || 0;
+            const totalCredit = transaction.creditAmount || 0;
+            const accountSubHead = transaction.accountId ? transaction.accountId.accountSubhead : 'Uncategorized';
+            const accountName = transaction.accountId ? transaction.accountId.accountName : 'Unknown Account';
+            const transactionDate = moment(transaction.createdDateTime).format('MMMM YYYY'); // Format as "January 2025"
 
             // Initialize accountSubHead if it doesn't exist
             if (!accountMap[accountSubHead]) {
@@ -90,62 +73,85 @@ exports.getTrialBalance = async (req, res) => {
                     accountSubHead,
                     totalDebit: 0,
                     totalCredit: 0,
-                    entries: []
+                    accounts: {}
                 };
             }
 
-            // Update cumulative totals
-            cumulativeDebit += totalDebit;
-            cumulativeCredit += totalCredit;
-
-            // Update account totals
+            // Update totals for the account subhead
             accountMap[accountSubHead].totalDebit += totalDebit;
             accountMap[accountSubHead].totalCredit += totalCredit;
 
-            // Add entry to the accountSubHead
-            accountMap[accountSubHead].entries.push({
-                accountName: transaction.accountId ? transaction.accountId.accountName : 'Unknown Account', // Use accountName from populated data
-                totalDebit,
-                totalCredit,
-                accountHead: transaction.accountId ? transaction.accountId.accountHead : 'Unknown Head', // Use accountHead from populated data
-                accountGroup: transaction.accountId ? transaction.accountId.accountGroup : 'Unknown Group', // Use accountGroup from populated data
-                entries: [] // Assuming no nested entries
+            // Initialize accountName if it doesn't exist
+            if (!accountMap[accountSubHead].accounts[accountName]) {
+                accountMap[accountSubHead].accounts[accountName] = {
+                    accountName,
+                    totalDebit: 0,
+                    totalCredit: 0,
+                    months: {}
+                };
+            }
+
+            // Update totals for the account name
+            accountMap[accountSubHead].accounts[accountName].totalDebit += totalDebit;
+            accountMap[accountSubHead].accounts[accountName].totalCredit += totalCredit;
+
+            // Initialize month if it doesn't exist
+            if (!accountMap[accountSubHead].accounts[accountName].months[transactionDate]) {
+                accountMap[accountSubHead].accounts[accountName].months[transactionDate] = {
+                    date: transactionDate,
+                    totalDebit: 0,
+                    totalCredit: 0,
+                    data: []
+                };
+            }
+
+            // Update totals for the month
+            accountMap[accountSubHead].accounts[accountName].months[transactionDate].totalDebit += totalDebit;
+            accountMap[accountSubHead].accounts[accountName].months[transactionDate].totalCredit += totalCredit;
+
+            // Add transaction data for the month
+            accountMap[accountSubHead].accounts[accountName].months[transactionDate].data.push({
+                _id: transaction._id,
+                organizationId: transaction.organizationId,
+                operationId: transaction.operationId,
+                transactionId: transaction.transactionId,
+                accountId: transaction.accountId._id,
+                accountName: transaction.accountId.accountName,
+                accountSubhead: transaction.accountId.accountSubhead,
+                accountHead: transaction.accountId.accountHead,
+                accountGroup: transaction.accountId.accountGroup,
+                action: transaction.action,
+                debitAmount: totalDebit,
+                creditAmount: totalCredit,
+                createdDateTime: transaction.createdDateTime,
+                createdDate: moment(transaction.createdDateTime).format('DD/MMM/YYYY'),
+                createdTime: moment(transaction.createdDateTime).format('hh:mm:ss A'),
             });
         });
 
         // Convert accountMap to an array
         const responseData = Object.values(accountMap).map(account => {
-            const totalDebit = account.totalDebit;
-            const totalCredit = account.totalCredit;
-
-            // Calculate the absolute difference
-            const total = Math.abs(totalDebit - totalCredit);
-
-            // Determine which total to show based on the absolute difference
             return {
                 accountSubHead: account.accountSubHead,
-                totalDebit: totalDebit > totalCredit ? total : undefined, // Set totalDebit to total if greater, else undefined
-                totalCredit: totalCredit > totalDebit ? total : undefined, // Set totalCredit to total if greater, else undefined
-                entries: account.entries // Keep the entries intact
+                totalDebit: account.totalDebit,
+                totalCredit: account.totalCredit,
+                accounts: Object.values(account.accounts).map(acc => ({
+                    accountName: acc.accountName,
+                    totalDebit: acc.totalDebit,
+                    totalCredit: acc.totalCredit,
+                    months: Object.values(acc.months).map(month => ({
+                        date: month.date,
+                        totalDebit: month.totalDebit,
+                        totalCredit: month.totalCredit,
+                        data: month.data
+                    }))
+                }))
             };
-        }).filter(account => account.totalDebit !== undefined || account.totalCredit !== undefined); // Filter out accounts with both totals undefined
-
-        // Calculate the absolute difference
-        const x = Math.abs(cumulativeDebit - cumulativeCredit);
-
-        // Determine which total to show in summary
-        const totalDebit = cumulativeDebit > cumulativeCredit ? x : 0;
-        const totalCredit = cumulativeCredit > cumulativeDebit ? x : 0;
+        });
 
         res.status(200).json({
             success: true,
             data: responseData,
-            summary: {
-                totalDebit,
-                totalCredit,
-                difference: x,
-                balance: (cumulativeDebit > cumulativeCredit ? `${totalDebit} (Dr)` : `${totalCredit} (Cr)`)
-            },
             debug: {
                 dateRange: {
                     start: startUTC,

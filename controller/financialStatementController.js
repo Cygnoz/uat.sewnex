@@ -2,28 +2,20 @@ const ItemTrack = require("../database/model/itemTrack");
 const TrialBalance = require("../database/model/trialBalance");
 const Account = require("../database/model/account");
 const mongoose = require('mongoose');
+const moment = require('moment');
 
 // Trading Account Function
 exports.calculateTradingAccount = async (req, res) => {
     try {
         const { organizationId } = req.user;
         const { startDate, endDate } = req.params;
-        
-        console.log('Trading Account Params:', { organizationId, startDate, endDate });
-        
+
         // Fix date parsing
         const [startDay, startMonth, startYear] = startDate.split('-');
         const [endDay, endMonth, endYear] = endDate.split('-');
-        
+
         const start = new Date(startYear, startMonth - 1, startDay, 0, 0, 0);
         const end = new Date(endYear, endMonth - 1, endDay, 23, 59, 59);
-
-        console.log('Parsed Dates:', { 
-            start: start.toISOString(), 
-            end: end.toISOString(),
-            isStartValid: !isNaN(start),
-            isEndValid: !isNaN(end)
-        });
 
         // Validate dates
         if (isNaN(start) || isNaN(end)) {
@@ -32,181 +24,187 @@ exports.calculateTradingAccount = async (req, res) => {
             });
         }
 
-        // Add data validation check
-        const itemTrackCount = await ItemTrack.countDocuments({ organizationId });
-        const trialBalanceCount = await TrialBalance.countDocuments({ organizationId });
-
-        console.log('Data Validation:', {
-            itemTrackCount,
-            trialBalanceCount,
-            organizationId
-        });
-
         // Get Opening Stock Details
-        console.log('Calculating Opening Stock...');
         const openingStockDetails = await calculateOpeningStock(organizationId, start);
-        console.log('Opening Stock Details:', JSON.stringify(openingStockDetails, null, 2));
-
-        // Add collection validation in helper functions
-        if (openingStockDetails.items.length === 0) {
-            console.log('No ItemTrack records found for opening stock calculation');
-        }
 
         // Get Closing Stock Details
-        console.log('Calculating Closing Stock...');
         const closingStockDetails = await calculateClosingStock(organizationId, end);
-        console.log('Closing Stock Details:', JSON.stringify(closingStockDetails, null, 2));
-
-        // Add collection validation in helper functions
-        if (closingStockDetails.items.length === 0) {
-            console.log('No ItemTrack records found for closing stock calculation');
-        }
 
         // Get Trading Account Transactions
-        console.log('Getting Trading Account Transactions...');
         const tradingAccountData = await getTradeAccountTransactions(organizationId, start, end);
-        console.log('Trading Account Data:', JSON.stringify(tradingAccountData, null, 2));
 
-        // Add collection validation in helper functions
-        if (!tradingAccountData.sales.entries.length && !tradingAccountData.costOfGoodsSold.entries.length) {
-            console.log('No TrialBalance records found for trading account transactions');
-        }
-
-        // Calculate Trading Account Result
-        console.log('Calculating Trading Result with:', {
-            openingStock: openingStockDetails.total,
-            closingStock: closingStockDetails.total,
-            sales: tradingAccountData.sales.total,
-            costOfGoodsSold: tradingAccountData.costOfGoodsSold.total
-        });
-
-        const tradingResult = calculateTradingResult(
-            openingStockDetails.total,
-            closingStockDetails.total,
-            tradingAccountData.sales.total,
-            tradingAccountData.costOfGoodsSold.total
-        );
-
-        console.log('Trading Result:', tradingResult);
+        // Ensure tradingAccountData has the expected structure
+        const salesEntries = tradingAccountData.sales?.entries || [];
+        const costOfGoodsSoldEntries = tradingAccountData.costOfGoodsSold?.entries || [];
+        const expensesEntries = tradingAccountData.expenses?.entries || [];
 
         // Prepare final result
         const result = {
-            openingStock: {
-                items: openingStockDetails.items.map(item => {
-                    const quantity = Number(((item.totalDebit || 0) - (item.totalCredit || 0)).toFixed(2));
-                    const costPrice = Number((item.lastCostPrice || 0).toFixed(2));
-                    const value = Number((quantity * costPrice).toFixed(2));
-                    
-                    const mappedItem = {
-                        itemId: item._id || null,
-                        itemName: item.itemName || 'Unknown Item',
-                        quantity,
-                        costPrice,
-                        value
-                    };
-                    console.log('Mapped Opening Stock Item:', mappedItem);
-                    return mappedItem;
-                }),
-                total: Number((openingStockDetails.total || 0).toFixed(2))
-            },
-            closingStock: {
-                items: closingStockDetails.items.map(item => {
-                    const quantity = Number(((item.totalDebit || 0) - (item.totalCredit || 0)).toFixed(2));
-                    const costPrice = Number((item.lastCostPrice || 0).toFixed(2));
-                    const value = Number((quantity * costPrice).toFixed(2));
-                    
-                    const mappedItem = {
-                        itemId: item._id || null,
-                        itemName: item.itemName || 'Unknown Item',
-                        quantity,
-                        costPrice,
-                        value
-                    };
-                    console.log('Mapped Closing Stock Item:', mappedItem);
-                    return mappedItem;
-                }),
-                total: Number((closingStockDetails.total || 0).toFixed(2))
-            },
-            sales: {
-                entries: tradingAccountData.sales.entries.map(entry => {
-                    const mappedEntry = {
-                        date: entry.createdDateTime || new Date(),
-                        amount: Number((entry.creditAmount || 0).toFixed(2)),
-                        reference: entry.transactionId || 'No Reference'
-                    };
-                    console.log('Mapped Sales Entry:', mappedEntry);
-                    return mappedEntry;
-                }),
-                total: Number((tradingAccountData.sales.total || 0).toFixed(2))
-            },
-            costOfGoodsSold: {
-                entries: tradingAccountData.costOfGoodsSold.entries.map(entry => {
-                    const mappedEntry = {
-                        date: entry.createdDateTime || new Date(),
-                        amount: Number((entry.debitAmount || 0).toFixed(2)),
-                        reference: entry.transactionId || 'No Reference'
-                    };
-                    console.log('Mapped COGS Entry:', mappedEntry);
-                    return mappedEntry;
-                }),
-                total: Number((tradingAccountData.costOfGoodsSold.total || 0).toFixed(2))
-            },
-            summary: {
-                totalDebit: Number((tradingResult.totalDebit || 0).toFixed(2)),
-                totalCredit: Number((tradingResult.totalCredit || 0).toFixed(2)),
-                grossProfit: Number((tradingResult.grossProfit || 0).toFixed(2)),
-                grossLoss: Number((tradingResult.grossLoss || 0).toFixed(2))
-            }
+            debit: [],
+            credit: []
         };
 
-        console.log('Final Trading Account Result:', JSON.stringify(result, null, 2));
+        // Process Cost of Goods Sold
+        if (costOfGoodsSoldEntries.length > 0) {
+            const purchaseAccount = {
+                accountSubhead: "Cost of Goods Sold",
+                totalDebit: costOfGoodsSoldEntries.reduce((sum, entry) => sum + (entry.debitAmount || 0), 0),
+                totalCredit: 0,
+                accounts: []
+            };
 
-        // Log MongoDB queries for debugging
-        console.log('MongoDB Query for ItemTrack:', {
-            organizationId,
-            createdDateTime: { $lt: start }
+            costOfGoodsSoldEntries.forEach(entry => {
+                const accountName = entry.accountName || 'Unknown Account';
+                const transactions = entry.transactions?.map(transaction => ({
+                    _id: transaction._id || null,
+                    date: moment(transaction.createdDateTime).format('YYYY-MM-DD'),
+                    amount: Number((transaction.debitAmount || 0).toFixed(2)),
+                    reference: transaction.transactionId || 'No Reference',
+                    remark: transaction.remark || 'No Remark',
+                    createdDateTime: transaction.createdDateTime || new Date(),
+                    operationId: transaction.operationId || 'No Operation ID',
+                    transactionId: transaction.transactionId || 'No Transaction ID'
+                })) || [];
+
+                const totalDebit = transactions.reduce((sum, t) => sum + t.amount, 0);
+                purchaseAccount.accounts.push({
+                    accountName,
+                    totalDebit,
+                    totalCredit: 0,
+                    transactions
+                });
+            });
+
+            result.debit.push(purchaseAccount);
+        }
+
+        // Process Expenses
+        if (expensesEntries.length > 0) {
+            const expenseAccount = {
+                accountSubhead: "Expenses",
+                totalDebit: expensesEntries.reduce((sum, entry) => sum + (entry.debitAmount || 0), 0),
+                totalCredit: 0,
+                accounts: []
+            };
+
+            expensesEntries.forEach(entry => {
+                const accountName = entry.accountName || 'Unknown Account';
+                const transactions = entry.transactions?.map(transaction => ({
+                    _id: transaction._id || null,
+                    date: moment(transaction.createdDateTime).format('YYYY-MM-DD'),
+                    amount: Number((transaction.debitAmount || 0).toFixed(2)),
+                    reference: transaction.transactionId || 'No Reference',
+                    remark: transaction.remark || 'No Remark',
+                    createdDateTime: transaction.createdDateTime || new Date(),
+                    operationId: transaction.operationId || 'No Operation ID',
+                    transactionId: transaction.transactionId || 'No Transaction ID'
+                })) || [];
+
+                const totalDebit = transactions.reduce((sum, t) => sum + t.amount, 0);
+                expenseAccount.accounts.push({
+                    accountName,
+                    totalDebit,
+                    totalCredit: 0,
+                    transactions
+                });
+            });
+
+            result.debit.push(expenseAccount);
+        }
+
+        // Process Sales
+        if (salesEntries.length > 0) {
+            const salesAccount = {
+                accountSubhead: "Sales",
+                totalDebit: 0,
+                totalCredit: salesEntries.reduce((sum, entry) => sum + (entry.creditAmount || 0), 0),
+                accounts: []
+            };
+
+            salesEntries.forEach(entry => {
+                const accountName = entry.accountName || 'Unknown Account';
+                const transactions = entry.transactions?.map(transaction => ({
+                    _id: transaction._id || null,
+                    date: moment(transaction.createdDateTime).format('YYYY-MM-DD'),
+                    amount: Number((transaction.creditAmount || 0).toFixed(2)),
+                    reference: transaction.transactionId || 'No Reference',
+                    remark: transaction.remark || 'No Remark',
+                    createdDateTime: transaction.createdDateTime || new Date(),
+                    operationId: transaction.operationId || 'No Operation ID',
+                    transactionId: transaction.transactionId || 'No Transaction ID'
+                })) || [];
+
+                salesAccount.accounts.push({
+                    accountName,
+                    totalDebit: 0,
+                    totalCredit: transactions.reduce((sum, t) => sum + t.amount, 0),
+                    transactions
+                });
+            });
+
+            result.credit.push(salesAccount);
+        }
+
+        // Add Closing Stock to Credit
+        result.credit.push({
+            accountSubhead: "Closing Stock",
+            totalDebit: 0,
+            totalCredit: Number((closingStockDetails.total || 0).toFixed(2)),
+            accounts: [{
+                accountName: "Closing Stock",
+                totalDebit: 0,
+                totalCredit: Number((closingStockDetails.total || 0).toFixed(2)),
+                transactions: closingStockDetails.items.map(item => ({
+                    itemId: item._id || null,
+                    itemName: item.itemName || 'Unknown Item',
+                    quantity: item.quantity || 0,
+                    costPrice: item.costPrice || 0,
+                    value: item.value || 0
+                }))
+            }]
         });
 
-        console.log('MongoDB Query for TrialBalance:', {
-            organizationId,
-            createdDateTime: {
-                $gte: start,
-                $lte: end
+        // Send the response
+        res.status(200).json({
+            success: true,
+            data: result
+        });
+    } catch (error) {
+        console.error('Error in calculateTradingAccount:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message,
+            debug: {
+                stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
             }
         });
-
-        res.status(200).json(result);
-    } catch (error) {
-        console.error("Error calculating trading account:", error);
-        console.error("Error stack:", error.stack);
-        res.status(500).json({ message: "Internal server error" });
     }
 };
 
 async function calculateOpeningStock(organizationId, startDate) {
-    console.log('calculateOpeningStock called with:', { 
-        organizationId, 
-        startDate: startDate.toISOString() 
-    });
+    // console.log('calculateOpeningStock called with:', { 
+    //     organizationId, 
+    //     startDate: startDate.toISOString() 
+    // });
     
     // First check if we have any records at all
-    const totalRecords = await ItemTrack.countDocuments({ organizationId });
-    console.log(`Total ItemTrack records for org ${organizationId}:`, totalRecords);
+    // const totalRecords = await ItemTrack.countDocuments({ organizationId });
+    // console.log(`Total ItemTrack records for org ${organizationId}:`, totalRecords);
 
     // Check date range
-    const dateRange = await ItemTrack.aggregate([
-        {
-            $match: { organizationId }
-        },
-        {
-            $group: {
-                _id: null,
-                minDate: { $min: "$createdDateTime" },
-                maxDate: { $max: "$createdDateTime" }
-            }
-        }
-    ]);
-    console.log('ItemTrack date range:', dateRange);
+    // const dateRange = await ItemTrack.aggregate([
+    //     {
+    //         $match: { organizationId }
+    //     },
+    //     {
+    //         $group: {
+    //             _id: null,
+    //             minDate: { $min: "$createdDateTime" },
+    //             maxDate: { $max: "$createdDateTime" }
+    //         }
+    //     }
+    // ]);
+    // console.log('ItemTrack date range:', dateRange);
 
     const itemStocks = await ItemTrack.aggregate([
         {
@@ -268,7 +266,7 @@ async function calculateOpeningStock(organizationId, startDate) {
         }
     ]);
     
-    console.log('ItemTrack aggregate result:', JSON.stringify(itemStocks, null, 2));
+    // console.log('ItemTrack aggregate result:', JSON.stringify(itemStocks, null, 2));
     
     const total = itemStocks.reduce((total, item) => {
         const quantity = (item.totalDebit || 0) - (item.totalCredit || 0);
@@ -364,22 +362,22 @@ async function calculateClosingStock(organizationId, endDate) {
 }
 
 async function getTradeAccountTransactions(organizationId, startDate, endDate) {
-    console.log('getTradeAccountTransactions called with:', { 
-        organizationId, 
-        startDate: startDate.toISOString(), 
-        endDate: endDate.toISOString() 
-    });
+    // console.log('getTradeAccountTransactions called with:', { 
+    //     organizationId, 
+    //     startDate: startDate.toISOString(), 
+    //     endDate: endDate.toISOString() 
+    // });
 
     // Check if we have any trial balance records
-    const totalRecords = await TrialBalance.countDocuments({ organizationId });
-    console.log(`Total TrialBalance records for org ${organizationId}:`, totalRecords);
+    // const totalRecords = await TrialBalance.countDocuments({ organizationId });
+    // console.log(`Total TrialBalance records for org ${organizationId}:`, totalRecords);
 
     // Check account mappings
-    const accountMappings = await Account.find({
-        organizationId,
-        accountSubhead: { $in: ['Sales', 'Cost of Goods Sold'] }
-    });
-    console.log('Found account mappings:', accountMappings);
+    // const accountMappings = await Account.find({
+    //     organizationId,
+    //     accountSubhead: { $in: ['Sales', 'Cost of Goods Sold'] }
+    // });
+    // console.log('Found account mappings:', accountMappings);
 
     const trialBalanceData = await TrialBalance.aggregate([
         {
@@ -429,13 +427,14 @@ async function getTradeAccountTransactions(organizationId, startDate, endDate) {
         }
     ]);
     
-    console.log('TrialBalance aggregate result:', JSON.stringify(trialBalanceData, null, 2));
+    // console.log('TrialBalance aggregate result:', JSON.stringify(trialBalanceData, null, 2));
     
     const salesData = trialBalanceData.find(item => item._id === 'Sales') || { entries: [], creditTotal: 0 };
     const cogsData = trialBalanceData.find(item => item._id === 'Cost of Goods Sold') || { entries: [], debitTotal: 0 };
 
-    console.log('Sales Data found:', JSON.stringify(salesData, null, 2));
+    // console.log('Sales Data found:', JSON.stringify(salesData, null, 2));
     console.log('COGS Data found:', JSON.stringify(cogsData, null, 2));
+console.dir("111111111111111111111111111111111111111",trialBalanceData, { depth: 5 });
 
     return {
         sales: {
