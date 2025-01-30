@@ -4,7 +4,6 @@ const PurchaseOrder = require('../../database/model/purchaseOrder');
 const Organization = require('../../database/model/organization');
 const Item = require('../../database/model/item');
 const Supplier = require('../../database/model/supplier');
-const Customer = require('../../database/model/customer');
 const Settings = require("../../database/model/settings")
 const Tax = require('../../database/model/tax');
 const Prefix = require("../../database/model/prefix");
@@ -14,7 +13,6 @@ const mongoose = require('mongoose');
 
 const { cleanData } = require("../../services/cleanData");
 const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
-const { accounts } = require('../../../../Sales/BillBizz/controller/Invoice/salesInvoice');
 
 
 
