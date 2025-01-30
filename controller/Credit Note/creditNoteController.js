@@ -1013,9 +1013,9 @@ const calculateStock = async (creditNote) => {
           (item) => item.itemId.toString() === creditItem.itemId.toString()
         );
 
-        const stock = invoiceItem
-          ? Math.max(invoiceItem.quantity - invoiceItem.returnQuantity, 0)
-          : 0;
+        const stock = invoiceItem ? Math.max(invoiceItem.quantity - invoiceItem.returnQuantity) : 0;
+        console.log("stock........................",stock,stockData);
+        
 
         stockData.push({ itemId: creditItem.itemId, stock });
       });

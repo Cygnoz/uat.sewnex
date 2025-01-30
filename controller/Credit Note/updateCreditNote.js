@@ -135,7 +135,7 @@ exports.updateCreditNote = async (req, res) => {
             return res.status(404).json({ message: "No credit note found for this customer." });
         }
       
-        // Check if the provided receiptId matches the latest one
+        // Check if the provided creditId matches the latest one
         if (latestCreditNote._id.toString() !== creditId) {
           return res.status(400).json({
             message: "Only the latest credit note can be deleted."
