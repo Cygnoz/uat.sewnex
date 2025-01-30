@@ -51,7 +51,8 @@ router.get('/payment-journal/:paymentId', verifyToken, PaymentMadeController.pay
 router.get('/get-last-payment-made-prefix', verifyToken, PaymentMadeController.getLastPaymentMadePrefix )
 router.get('/getPayment/:paymentId', verifyToken, PaymentMadeController.getPurchasePayment);
 router.put('/update-paymentMade/:paymentId', verifyToken, updatePaymentMade.updatePaymentMade);
-// router.delete('/deletePayment/:id', PaymentMadeController.deletePurchasePayment);
+router.delete('/delete-paymentMade/:paymentId', verifyToken, updatePaymentMade.deletePaymentMade);
+
 
 //Debit Note
 router.post('/add-DebitNote', verifyToken, debitNoteController.addDebitNote);
@@ -60,7 +61,8 @@ router.get('/get-all-debitNote', verifyToken, debitNoteController.getAllDebitNot
 router.get('/getDebitNote/:debitId', verifyToken, debitNoteController.getOneDebitNote);
 router.get('/debitNote-journal/:debitId', verifyToken, debitNoteController.debitNoteJournal);
 router.put('/update-debitNote/:debitId', verifyToken, updateDebitNote.updateDebitNote);
-// router.delete('/deleteDebitNote/:id', debitNoteController.deleteDebitNote);
+router.delete('/delete-debitNote/:debitId', verifyToken, updateDebitNote.deleteDebitNote);
+
 
 // purchase settings
 router.put('/add-purchase-settings', verifyToken, purchaseSettingsController.updatePurchaseSettings)

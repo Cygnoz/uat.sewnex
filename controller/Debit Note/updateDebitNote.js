@@ -18,7 +18,7 @@ exports.updateDebitNote = async (req, res) => {
       const { debitId } = req.params;   
       
       // Fetch existing credit note
-      const existingDebitNote = await getExistingDebitNote(debitId, organizationId);
+      const existingDebitNote = await getExistingDebitNote(debitId, organizationId, res);
 
       const existingDebitNoteItems = existingDebitNote.items;      
 
@@ -103,9 +103,99 @@ exports.updateDebitNote = async (req, res) => {
 
 
 
+  // Delete Debit Note
+  exports.deleteDebitNote = async (req, res) => {
+    console.log("Delete debit note request received:", req.params);
+
+    try {
+        const { organizationId } = req.user;
+        const { debitId } = req.params;
+
+        // Validate debitId
+        if (!mongoose.Types.ObjectId.isValid(debitId) || debitId.length !== 24) {
+            return res.status(400).json({ message: `Invalid Debit Note ID: ${debitId}` });
+        }
+ 
+        // Fetch existing debit note
+        const existingDebitNote = await getExistingDebitNote(debitId, organizationId, res);
+
+        const { items, billId, supplierId } = existingDebitNote;
+
+        const itemIds = items.map(item => item.itemId);     
+
+        // Fetch the latest debit note for the given supplierId and organizationId
+        const latestDebitNote = await DebitNote.findOne({ 
+          organizationId, 
+          supplierId,
+          billId,
+          "items.itemId": { $in: itemIds }, 
+        }).sort({ createdDateTime: -1 }); // Sort by createdDateTime in descending order
+      
+        if (!latestDebitNote) {
+            console.log("No debit note found for this supplier.");
+            return res.status(404).json({ message: "No debit note found for this supplier." });
+        }
+      
+        // Check if the provided debitId matches the latest one
+        if (latestDebitNote._id.toString() !== debitId) {
+          return res.status(400).json({
+            message: "Only the latest debit note can be deleted."
+          });
+        }
+
+        // Extract debit note items
+        const existingDebitNoteItems = existingDebitNote.items;
+
+        // Delete the debit note
+        const deletedDebitNote = await existingDebitNote.deleteOne();
+        if (!deletedDebitNote) {
+            console.error("Failed to delete debit note.");
+            return res.status(500).json({ message: "Failed to delete debit note" });
+        }
+
+        // Update returnQuantity after deletion
+        await updateReturnQuantity( existingDebitNoteItems, billId );
+
+        // Fetch existing itemTrack entries
+        const existingItemTracks = await ItemTrack.find({ organizationId, operationId: debitId });
+        // Delete existing itemTrack entries for the operation
+        if (existingItemTracks.length > 0) {
+          await ItemTrack.deleteMany({ organizationId, operationId: debitId });
+          console.log(`Deleted existing itemTrack entries for operationId: ${debitId}`);
+        }
+
+        // Fetch existing TrialBalance's createdDateTime
+        const existingTrialBalance = await TrialBalance.findOne({
+          organizationId: existingDebitNote.organizationId,
+          operationId: existingDebitNote._id,
+        });  
+        // If there are existing entries, delete them
+        if (existingTrialBalance) {
+          await TrialBalance.deleteMany({
+            organizationId: existingDebitNote.organizationId,
+            operationId: existingDebitNote._id,
+          });
+          console.log(`Deleted existing TrialBalance entries for operationId: ${existingDebitNote._id}`);
+        }
+
+        res.status(200).json({ message: "Debit note deleted successfully" });
+        console.log("Debit note deleted successfully with ID:", debitId);
+
+    } catch (error) {
+        console.error("Error deleting debit note:", error);
+        res.status(500).json({ message: "Internal server error" });
+    }
+  };
+
+
+
+
+
+
+
 
   // Get Existing Debit Note
-async function getExistingDebitNote(debitId, organizationId) {
+async function getExistingDebitNote(debitId, organizationId, res) {
   const existingDebitNote = await DebitNote.findOne({ _id: debitId, organizationId });
   if (!existingDebitNote) {
       console.log("Debit note not found with ID:", debitId);
@@ -140,6 +230,42 @@ async function getLatestDebitNote(debitId, organizationId, supplierId, billId, i
 
   return latestDebitNote;
 }
+
+
+
+
+// Update bill's returnQuantity
+async function updateReturnQuantity( existingDebitNoteItems, billId ) {
+  try {
+    // Find the bill by its ID
+    const bill = await Bill.findById(billId);
+    if (!bill) {
+      console.warn(`Bill not found with ID: ${billId}`);
+      return;
+    }
+
+    // Loop through the debit note items
+    for (const existingItems of existingDebitNoteItems) {
+      const billItem = bill.items.find(item => item.itemId.toString() === existingItems.itemId.toString());
+      
+      if (billItem) { 
+        // Update the bill's returnQuantity
+        billItem.returnQuantity -= existingItems.itemQuantity;
+      } else {
+        console.warn(`Item ID: ${existingItems.itemId} not found in Bill ID: ${billId}`);
+      }
+
+      // Save the updated bill
+      await bill.save();
+      console.log(`Updated Bill ID: ${billId} | Return Quantity: ${bill.returnQuantity}`);
+    }
+  } catch (error) {
+    console.error("Error updating bills returnQuantity:", error);
+    throw new Error("Failed to update bills returnQuantity");
+  }
+}
+
+
 
 
 
