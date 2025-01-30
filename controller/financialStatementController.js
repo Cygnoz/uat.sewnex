@@ -40,129 +40,101 @@ exports.calculateTradingAccount = async (req, res) => {
 
         // Prepare final result
         const result = {
-            debit: [],
-            credit: []
+            debit: [
+                {
+                    openingStock: {
+                        items: openingStockDetails.items.map(item => {
+                            const quantity = Number(((item.totalDebit || 0) - (item.totalCredit || 0)).toFixed(2));
+                            const costPrice = Number((item.lastCostPrice || 0).toFixed(2));
+                            const value = Number((quantity * costPrice).toFixed(2));
+
+                            return {
+                                itemId: item._id || null,
+                                itemName: item.itemName || 'Unknown Item',
+                                quantity,
+                                costPrice,
+                                value
+                            };
+                        }),
+                        total: Number((openingStockDetails.total || 0).toFixed(2))
+                    }
+                },
+                {
+                    purchase: {
+                        accounts: costOfGoodsSoldEntries.map(entry => {
+                            return {
+                                accountName: entry.accountName || 'Unknown Account',
+                                transactions: entry.transactions?.map(transaction => ({
+                                    _id: transaction._id || null,
+                                    date: moment(transaction.createdDateTime).format('YYYY-MM-DD'),
+                                    amount: Number((transaction.debitAmount || 0).toFixed(2)),
+                                    reference: transaction.transactionId || 'No Reference',
+                                    remark: transaction.remark || 'No Remark',
+                                    createdDateTime: transaction.createdDateTime || new Date(),
+                                    operationId: transaction.operationId || 'No Operation ID',
+                                    transactionId: transaction.transactionId || 'No Transaction ID'
+                                })) || [] // Default to empty array if undefined
+                            };
+                        }),
+                        total: Number((tradingAccountData.costOfGoodsSold?.total || 0).toFixed(2))
+                    }
+                },
+                {
+                    expenses: {
+                        accounts: expensesEntries.map(entry => {
+                            return {
+                                accountName: entry.accountName || 'Unknown Account',
+                                transactions: entry.transactions?.map(transaction => ({
+                                    _id: transaction._id || null,
+                                    date: moment(transaction.createdDateTime).format('YYYY-MM-DD'),
+                                    amount: Number((transaction.debitAmount || 0).toFixed(2)),
+                                    reference: transaction.transactionId || 'No Reference',
+                                    remark: transaction.remark || 'No Remark',
+                                    createdDateTime: transaction.createdDateTime || new Date(),
+                                    operationId: transaction.operationId || 'No Operation ID',
+                                    transactionId: transaction.transactionId || 'No Transaction ID'
+                                })) || [] // Default to empty array if undefined
+                            };
+                        }),
+                        total: Number((tradingAccountData.expenses?.total || 0).toFixed(2))
+                    }
+                }
+            ],
+            credit: [
+                {
+                    sales: {
+                        accounts: salesEntries.map(entry => {
+                            return {
+                                accountName: entry.accountName || 'Unknown Account',
+                                transactions: entry.transactions?.map(transaction => ({
+                                    _id: transaction._id || null,
+                                    date: moment(transaction.createdDateTime).format('YYYY-MM-DD'),
+                                    amount: Number((transaction.creditAmount || 0).toFixed(2)),
+                                    reference: transaction.transactionId || 'No Reference',
+                                    remark: transaction.remark || 'No Remark',
+                                    createdDateTime: transaction.createdDateTime || new Date(),
+                                    operationId: transaction.operationId || 'No Operation ID',
+                                    transactionId: transaction.transactionId || 'No Transaction ID'
+                                })) || [] // Default to empty array if undefined
+                            };
+                        }),
+                        total: Number((tradingAccountData.sales?.total || 0).toFixed(2))
+                    }
+                },
+                {
+                    closingStock: {
+                        total: Number((closingStockDetails.total || 0).toFixed(2)), // Include closing stock total
+                        items: closingStockDetails.items.map(item => ({
+                            itemId: item._id || null,
+                            itemName: item.itemName || 'Unknown Item',
+                            quantity: item.quantity || 0,
+                            costPrice: item.costPrice || 0,
+                            value: item.value || 0
+                        }))
+                    }
+                }
+            ]
         };
-
-        // Process Cost of Goods Sold
-        if (costOfGoodsSoldEntries.length > 0) {
-            const purchaseAccount = {
-                accountSubhead: "Cost of Goods Sold",
-                totalDebit: costOfGoodsSoldEntries.reduce((sum, entry) => sum + (entry.debitAmount || 0), 0),
-                totalCredit: 0,
-                accounts: []
-            };
-
-            costOfGoodsSoldEntries.forEach(entry => {
-                const accountName = entry.accountName || 'Unknown Account';
-                const transactions = entry.transactions?.map(transaction => ({
-                    _id: transaction._id || null,
-                    date: moment(transaction.createdDateTime).format('YYYY-MM-DD'),
-                    amount: Number((transaction.debitAmount || 0).toFixed(2)),
-                    reference: transaction.transactionId || 'No Reference',
-                    remark: transaction.remark || 'No Remark',
-                    createdDateTime: transaction.createdDateTime || new Date(),
-                    operationId: transaction.operationId || 'No Operation ID',
-                    transactionId: transaction.transactionId || 'No Transaction ID'
-                })) || [];
-
-                const totalDebit = transactions.reduce((sum, t) => sum + t.amount, 0);
-                purchaseAccount.accounts.push({
-                    accountName,
-                    totalDebit,
-                    totalCredit: 0,
-                    transactions
-                });
-            });
-
-            result.debit.push(purchaseAccount);
-        }
-
-        // Process Expenses
-        if (expensesEntries.length > 0) {
-            const expenseAccount = {
-                accountSubhead: "Expenses",
-                totalDebit: expensesEntries.reduce((sum, entry) => sum + (entry.debitAmount || 0), 0),
-                totalCredit: 0,
-                accounts: []
-            };
-
-            expensesEntries.forEach(entry => {
-                const accountName = entry.accountName || 'Unknown Account';
-                const transactions = entry.transactions?.map(transaction => ({
-                    _id: transaction._id || null,
-                    date: moment(transaction.createdDateTime).format('YYYY-MM-DD'),
-                    amount: Number((transaction.debitAmount || 0).toFixed(2)),
-                    reference: transaction.transactionId || 'No Reference',
-                    remark: transaction.remark || 'No Remark',
-                    createdDateTime: transaction.createdDateTime || new Date(),
-                    operationId: transaction.operationId || 'No Operation ID',
-                    transactionId: transaction.transactionId || 'No Transaction ID'
-                })) || [];
-
-                const totalDebit = transactions.reduce((sum, t) => sum + t.amount, 0);
-                expenseAccount.accounts.push({
-                    accountName,
-                    totalDebit,
-                    totalCredit: 0,
-                    transactions
-                });
-            });
-
-            result.debit.push(expenseAccount);
-        }
-
-        // Process Sales
-        if (salesEntries.length > 0) {
-            const salesAccount = {
-                accountSubhead: "Sales",
-                totalDebit: 0,
-                totalCredit: salesEntries.reduce((sum, entry) => sum + (entry.creditAmount || 0), 0),
-                accounts: []
-            };
-
-            salesEntries.forEach(entry => {
-                const accountName = entry.accountName || 'Unknown Account';
-                const transactions = entry.transactions?.map(transaction => ({
-                    _id: transaction._id || null,
-                    date: moment(transaction.createdDateTime).format('YYYY-MM-DD'),
-                    amount: Number((transaction.creditAmount || 0).toFixed(2)),
-                    reference: transaction.transactionId || 'No Reference',
-                    remark: transaction.remark || 'No Remark',
-                    createdDateTime: transaction.createdDateTime || new Date(),
-                    operationId: transaction.operationId || 'No Operation ID',
-                    transactionId: transaction.transactionId || 'No Transaction ID'
-                })) || [];
-
-                salesAccount.accounts.push({
-                    accountName,
-                    totalDebit: 0,
-                    totalCredit: transactions.reduce((sum, t) => sum + t.amount, 0),
-                    transactions
-                });
-            });
-
-            result.credit.push(salesAccount);
-        }
-
-        // Add Closing Stock to Credit
-        result.credit.push({
-            accountSubhead: "Closing Stock",
-            totalDebit: 0,
-            totalCredit: Number((closingStockDetails.total || 0).toFixed(2)),
-            accounts: [{
-                accountName: "Closing Stock",
-                totalDebit: 0,
-                totalCredit: Number((closingStockDetails.total || 0).toFixed(2)),
-                transactions: closingStockDetails.items.map(item => ({
-                    itemId: item._id || null,
-                    itemName: item.itemName || 'Unknown Item',
-                    quantity: item.quantity || 0,
-                    costPrice: item.costPrice || 0,
-                    value: item.value || 0
-                }))
-            }]
-        });
 
         // Send the response
         res.status(200).json({
