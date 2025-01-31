@@ -24,7 +24,8 @@ const dataExist = async ( organizationId, parentAccountId, accountId ) => {
     .lean(),
     TrialBalance.find({ accountId: accountId, organizationId: organizationId })
     .populate('accountId', 'accountName')
-    .lean(),
+    .lean()
+    .sort({ createDateTime: 1 }),
     Account.find({ organizationId: organizationId },{ bankAccNum: 0 , organizationId : 0 })
     .populate('parentAccountId', 'accountName')
     .lean(),
@@ -219,7 +220,7 @@ exports.deleteAccount = async (req, res) => {
     const organizationId = req.user.organizationId;
 
     // Check if an account with the given organizationId and accountId exists
-    const { existingOrganization, accountExist, trialBalance } = await dataExist(organizationId, null, accountId);
+    const { accountExist, trialBalance } = await dataExist(organizationId, null, accountId);
 
     if (!accountExist) {
       return res.status(404).json({ message: "Account not found" });
@@ -318,28 +319,29 @@ function calculateCumulativeSum(transactions) {
 const validStructure = {
   Asset: {
     Asset: [
-      "Other Asset",
       "Current Asset",
+      "Non-Current Asset",
       "Cash",
       "Bank",
-      "Fixed Asset",
-      "Stock",
-      "Payment Clearing",
       // "Sundry Debtors",
     ],
     Equity: ["Equity"],
-    Income: ["Income", "Other Income"],
+    Income: [
+      "Sales", 
+      "Indirect Income"
+    ],
   },
   Liability: {
     Liabilities: [
       "Current Liability",
-      "Credit Card",
-      "Long Term Liability",
-      "Other Liability",
-      "Overseas Tax Payable",
+      "Non-Current Liability",
       // "Sundry Creditors",
     ],
-    Expenses: ["Expense", "Cost of Goods Sold", "Other Expense"],
+    Expenses: [
+      "Direct Expense", 
+      "Cost of Goods Sold", 
+      "Indirect Expense"
+    ],
   },
 };
 
