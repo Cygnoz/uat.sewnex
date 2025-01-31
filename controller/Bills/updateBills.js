@@ -148,7 +148,7 @@ exports.updateBill = async (req, res) => {
         // Check if the billId exists in paymentMade schema
         const existingPaymentMade = await PaymentMade.findOne({
           organizationId,
-          "unpaidBillSchema.billId": billId,
+          "unpaidBills.billId": billId,
         });
         if (existingPaymentMade) {
           console.log(`Bill ID ${billId} exists in paymentMade. Cannot be deleted.`);
