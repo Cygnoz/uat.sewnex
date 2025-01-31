@@ -7,7 +7,7 @@ const ItemTrack = require("../../database/model/itemTrack");
 const { dataExist, validation, calculation, accounts } = require("../Debit Note/debitNoteController");
 const { cleanData } = require("../../services/cleanData");
 
-
+const { ObjectId } = require('mongodb');
 
 // Update Debit Note 
 exports.updateDebitNote = async (req, res) => {
@@ -625,8 +625,11 @@ function capitalize(word) {
     const { items } = savedDebitNote;
 
     for (const item of items) {
-        const matchingItem = itemTable.find((entry) => entry._id.toString() === item.itemId.toString());
 
+      const itemIdAsObjectId = new ObjectId(item.itemId);
+
+      const matchingItem = itemTable.find((entry) => entry._id.equals(itemIdAsObjectId));
+  
         if (!matchingItem) {
             console.error(`Item with ID ${item.itemId} not found in itemTable`);
             continue; 
@@ -644,8 +647,7 @@ function capitalize(word) {
         sellingPrice: matchingItem.itemSellingPrice || 0,
         costPrice: matchingItem.itemCostPrice || 0, 
         creditQuantity: item.itemQuantity, 
-        remark: `Sold to ${savedDebitNote.supplierDisplayName}`,
-        createdDateTime: createdDateTime // Preserve the original createdDateTime
+        createdDateTime: createdDateTime 
       });  
 
       await newTrialEntry.save();

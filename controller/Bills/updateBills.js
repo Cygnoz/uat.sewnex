@@ -7,7 +7,7 @@ const ItemTrack = require("../../database/model/itemTrack");
 const { dataExist, validation, calculation, accounts } = require("../Bills/billsController");
 const { cleanData } = require("../../services/cleanData");
 
-
+const { ObjectId } = require('mongodb');
 
 
 // Update Purchase Bill 
@@ -271,17 +271,15 @@ exports.updateBill = async (req, res) => {
       const { items } = savedBill;
 
       for (const item of items) {
-        // Find the matching item in itemTable by itemId
-        const matchingItem = itemTable.find((entry) => entry._id.toString() === item.itemId);
+
+        const itemIdAsObjectId = new ObjectId(item.itemId);
+
+        const matchingItem = itemTable.find((entry) => entry._id.equals(itemIdAsObjectId));
     
         if (!matchingItem) {
           console.error(`Item with ID ${item.itemId} not found in itemTable`);
           continue; // Skip this entry if not found
-        }
-    
-        // Calculate the new stock level after the purchase
-        const newStock = matchingItem.currentStock + item.itemQuantity;
-    
+        }    
     
         // Create a new entry for item tracking
         const newTrialEntry = new ItemTrack({
@@ -289,15 +287,11 @@ exports.updateBill = async (req, res) => {
           operationId: savedBill._id,
           transactionId: savedBill.bill,
           action: "Bills",
-          date: savedBill.billDate,
           itemId: matchingItem._id,
-          itemName: matchingItem.itemName,
           sellingPrice: matchingItem.itemSellingPrice,
-          costPrice: matchingItem.itemCostPrice || 0, // Assuming cost price is in itemTable
-          creditQuantity: item.itemQuantity, // Quantity sold
-          currentStock: newStock,
-          remark: `Sold to ${savedBill.supplierDisplayName}`,
-          createdDateTime: createdDateTime // Preserve the original createdDateTime
+          costPrice: matchingItem.itemCostPrice || 0, 
+          creditQuantity: item.itemQuantity, 
+          createdDateTime: createdDateTime 
         });
     
         // Save the tracking entry and update the item's stock in the item table

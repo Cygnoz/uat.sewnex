@@ -16,6 +16,10 @@ const TrialBalance = require("../../database/model/trialBalance");
 const { cleanData } = require("../../services/cleanData");
 const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
 
+
+const { ObjectId } = require('mongodb');
+
+
 // Fetch existing data
 const dataExist = async ( organizationId, supplierId, billId ) => {
     const [organizationExists, supplierExist, billExist, settings, existingPrefix, defaultAccount, supplierAccount  ] = await Promise.all([
@@ -968,7 +972,10 @@ async function itemTrack(savedDebitNote, itemTable) {
   const { items } = savedDebitNote;
 
   for (const item of items) {
-    const matchingItem = itemTable.find((entry) => entry._id.toString() === item.itemId.toString());
+
+    const itemIdAsObjectId = new ObjectId(item.itemId);
+
+    const matchingItem = itemTable.find((entry) => entry._id.equals(itemIdAsObjectId));
 
     if (!matchingItem) {
       console.error(`Item with ID ${item.itemId} not found in itemTable`);
@@ -981,12 +988,10 @@ async function itemTrack(savedDebitNote, itemTable) {
       operationId: savedDebitNote._id,
       transactionId: savedDebitNote.debitNote,
       action: "Debit Note",
-      date: savedDebitNote.supplierDebitDate,
       itemId: matchingItem._id,
       sellingPrice: matchingItem.itemSellingPrice || 0,
       costPrice: matchingItem.itemCostPrice || 0, 
       creditQuantity: item.itemQuantity, 
-      remark: `Sold to ${savedDebitNote.supplierDisplayName}`,
     });
     await newTrialEntry.save();
   }

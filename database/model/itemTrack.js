@@ -1,26 +1,28 @@
+// v1.3
+
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
 
 
 const itemTrackSchema = new Schema({
-    organizationId: {type:String},
-    operationId: {type:String},
+    organizationId: {type:String}, 
+    operationId: {type:String}, //Sales, Purchase ... id
     transactionId: {type:String}, //Prefix
     action: {type:String}, //Sale, Sale return, Purchase, Purchase Return,Opening Stock, Inventory Adjustment
  
-    date: {type:String},
+    itemId: {type: mongoose.Schema.Types.ObjectId, ref: 'Item'},
+    //itemName
 
-    itemId: {type:String},
-    itemName: {type:String},
+    sellingPrice:{ type:Number },
+    costPrice: { type: Number },
 
     creditQuantity: {type:Number},
     debitQuantity: {type:Number},
+        
+    createdDateTime: { type: Date, default: () => new Date() },
 
-    currentStock: {type:Number},
-    
-    remark: {type:String},
-});
-
+}); 
+// , { timestamps: true }
 const ItemTrack = mongoose.model("ItemTrack", itemTrackSchema);
 
 module.exports = ItemTrack;
