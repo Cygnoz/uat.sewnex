@@ -6,7 +6,7 @@ const itemsSchema = new Schema({
   // itemName: { type: String },
 
   itemQuantity: { type: Number },
-  returnQuantity: { type: Number },   // Don't use default: 0
+  returnQuantity: { type: Number, default: 0 },   
   itemCostPrice: { type: Number },
 
   itemTax:{ type:Number },

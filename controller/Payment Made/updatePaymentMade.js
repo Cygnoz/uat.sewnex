@@ -7,7 +7,7 @@ const { cleanData } = require("../../services/cleanData");
 
 
 
-// Update Payment made
+// Update Payment Made
 exports.updatePaymentMade = async (req, res) => {
     console.log("Update payment made:", req.body);
   
@@ -16,7 +16,7 @@ exports.updatePaymentMade = async (req, res) => {
       const { paymentId } = req.params;  
 
       // Fetch existing sales receipt
-      const existingPaymentMade = await getExistingPaymentMade(paymentId, organizationId);
+      const existingPaymentMade = await getExistingPaymentMade(paymentId, organizationId, res);
 
       // Extract paymentAmount values
       const existingPaymentMadeBills = existingPaymentMade.unpaidBills;
@@ -94,10 +94,91 @@ exports.updatePaymentMade = async (req, res) => {
 
 
 
+// Delete Payment Made
+exports.deletePaymentMade = async (req, res) => {
+  console.log("Delete payment made request received:", req.params);
+
+  try {
+      const { organizationId } = req.user;
+      const { paymentId } = req.params;
+
+      // Validate paymentId
+      if (!mongoose.Types.ObjectId.isValid(paymentId) || paymentId.length !== 24) {
+          return res.status(400).json({ message: `Invalid Payment Made ID: ${paymentId}` });
+      }
+
+      // Fetch existing payment made
+      const existingPaymentMade = await getExistingPaymentMade(paymentId, organizationId, res);
+
+      const { unpaidBills, supplierId } = existingPaymentMade;
+
+      const billIds = unpaidBills.map(bill => bill.billId);      
+
+      // Fetch the latest paymentMade for the given supplierId and organizationId
+      const latestPaymentMade = await PaymentMade.findOne({ 
+        organizationId, 
+        supplierId,
+        "unpaidBills.billId": { $in: billIds }, 
+      }).sort({ createdDateTime: -1 }); // Sort by createdDateTime in descending order
+    
+      if (!latestPaymentMade) {
+          console.log("No payment made found for this supplier.");
+          return res.status(404).json({ message: "No payment made found for this supplier." });
+      }
+    
+      // Check if the provided paymentId matches the latest one
+      if (latestPaymentMade._id.toString() !== paymentId) {
+        return res.status(400).json({
+          message: "Only the latest payment made can be deleted."
+        });
+      }
+
+      // Extract payment made bills
+      const existingPaymentMadeBills = existingPaymentMade.unpaidBills;
+
+      // Delete the payment made
+      const deletedPaymentMade = await existingPaymentMade.deleteOne();
+      if (!deletedPaymentMade) {
+          console.error("Failed to delete payment made.");
+          return res.status(500).json({ message: "Failed to delete payment made!" });
+      }
+
+      // Fetch existing TrialBalance's createdDateTime
+      const existingTrialBalance = await TrialBalance.findOne({ 
+        organizationId: existingPaymentMade.organizationId,
+        operationId: existingPaymentMade._id,
+      });  
+      // If there are existing entries, delete them
+      if (existingTrialBalance) {
+        await TrialBalance.deleteMany({
+          organizationId: existingPaymentMade.organizationId,
+          operationId: existingPaymentMade._id,
+        });
+        console.log(`Deleted existing TrialBalance entries for operationId: ${existingPaymentMade._id}`);
+      }
+
+      // Return balance amount after deletion
+      await returnBalanceAmount( existingPaymentMadeBills );
+
+      res.status(200).json({ message: "Payment made deleted successfully" });
+      console.log("Payment made deleted successfully with ID:", paymentId);
+
+  } catch (error) {
+      console.error("Error deleting payment made:", error);
+      res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+
+
+
+
+
+
 
 
 // Get Existing Sales Receipt
-async function getExistingPaymentMade(paymentId, organizationId) {
+async function getExistingPaymentMade(paymentId, organizationId, res) {
   const existingPaymentMade = await PaymentMade.findOne({ _id: paymentId, organizationId });
   if (!existingPaymentMade) {
       console.log("Payment made not found with ID:", paymentId);
@@ -128,6 +209,34 @@ async function getLatestPaymentMade(paymentId, organizationId, supplierId, billI
   }
 
   return latestPayment;
+}
+
+
+
+async function returnBalanceAmount(existingPaymentMadeBills) {
+  try {
+    for (const existingBills of existingPaymentMadeBills) {
+      const { billId, payment, amountDue } = existingBills;
+
+      // Find the bill by its ID
+      const bill = await Bill.findById(billId);
+      if (!bill) {
+        console.warn(`Bill not found with ID: ${billId}`);
+        continue;
+      }
+
+      // Update the bill's paidAmount and balanceAmount
+      bill.paidAmount -= payment;
+      bill.balanceAmount = amountDue;
+
+      // Save the updated bill
+      await bill.save();
+      console.log(`Updated Bill ID: ${billId} | Paid Amount: ${bill.paidAmount} | Balance Amount: ${bill.balanceAmount}`);
+    }
+  } catch (error) {
+    console.error("Error updating bill balances:", error);
+    throw new Error("Failed to update bill balances");
+  }
 }
 
 

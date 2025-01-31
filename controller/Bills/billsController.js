@@ -14,6 +14,8 @@ const Account = require("../../database/model/account");
 const { cleanData } = require("../../services/cleanData");
 const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
 
+const { ObjectId } = require('mongodb');
+
 
 // Fetch existing data
 const dataExist = async ( organizationId, supplierId ) => {
@@ -1130,36 +1132,31 @@ function validateSourceOfSupply(sourceOfSupply, organization, errors) {
     const { items } = savedBills;
   
     for (const item of items) {
-      // Find the matching item in itemTable by itemId
-      const matchingItem = itemTable.find((entry) => entry._id.toString() === item.itemId);
+
+      const itemIdAsObjectId = new ObjectId(item.itemId);
+
+      const matchingItem = itemTable.find((entry) => entry._id.equals(itemIdAsObjectId));
   
       if (!matchingItem) {
         console.error(`Item with ID ${item.itemId} not found in itemTable`);
         continue; // Skip this entry if not found
       }
-  
-      // Calculate the new stock level after the purchase
-      const newStock = matchingItem.currentStock + item.itemQuantity;
-  
+    
   
       // Create a new entry for item tracking
-      const newTrialEntry = new ItemTrack({
+      const newItemTrack = new ItemTrack({
         organizationId: savedBills.organizationId,
         operationId: savedBills._id,
         transactionId: savedBills.bill,
         action: "Bills",
-        date: savedBills.billDate,
         itemId: matchingItem._id,
-        itemName: matchingItem.itemName,
         sellingPrice: matchingItem.itemSellingPrice,
-        costPrice: matchingItem.itemCostPrice || 0, // Assuming cost price is in itemTable
-        creditQuantity: item.itemQuantity, // Quantity sold
-        currentStock: newStock,
-        remark: `Sold to ${savedBills.supplierDisplayName}`,
+        costPrice: matchingItem.itemCostPrice || 0, 
+        debitQuantity: item.itemQuantity, 
       });
   
-      // Save the tracking entry and update the item's stock in the item table
-      await newTrialEntry.save();
+      const savedItemTrack = await newItemTrack.save();
+      console.log("savedItemTrack",savedItemTrack);
   
     }
   }

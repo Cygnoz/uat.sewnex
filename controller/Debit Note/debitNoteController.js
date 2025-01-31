@@ -16,6 +16,10 @@ const TrialBalance = require("../../database/model/trialBalance");
 const { cleanData } = require("../../services/cleanData");
 const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
 
+
+const { ObjectId } = require('mongodb');
+
+
 // Fetch existing data
 const dataExist = async ( organizationId, supplierId, billId ) => {
     const [organizationExists, supplierExist, billExist, settings, existingPrefix, defaultAccount, supplierAccount  ] = await Promise.all([
@@ -187,6 +191,9 @@ exports.addDebitNote = async (req, res) => {
 
     // Update Purchase Bill
     await updateBillWithDebitNote(billId, items);
+
+    // Calculate stock 
+    await calculateStock(savedDebitNote);
       
     res.status(201).json({ message: "Debit Note created successfully",savedDebitNote });
     // console.log( "Debit Note created successfully:", savedDebitNote );
@@ -215,12 +222,8 @@ exports.getAllDebitNote = async (req, res) => {
           supplierId: data.supplierId._id,  
           supplierDisplayName: data.supplierId.supplierDisplayName,  
       };});
-    
-    const updatedDebitNotes = await Promise.all(
-      transformedData.map((debitNote) => calculateStock(debitNote))
-    );
 
-    const formattedObjects = multiCustomDateTime(updatedDebitNotes, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
+    const formattedObjects = multiCustomDateTime(transformedData, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
 
     res.status(200).json(formattedObjects);
   } catch (error) {
@@ -817,32 +820,38 @@ function validateBillData(data, items, billExist, errors) {
       errors.push(`Item ID ${dNItem.itemId} not found in provided bills.`);
     } else {
 
-      // validateField(dNItem.itemName !== billItem.itemName, `Item Name mismatch for ${billItem.itemId}: Expected ${billItem.itemName}, got ${dNItem.itemName}`, errors);
+      // validateField(dNItem.itemName !== billItem.itemName, 
+      // `Item Name mismatch for ${billItem.itemId}: Expected ${billItem.itemName}, got ${dNItem.itemName}`, errors);
 
-      validateField(dNItem.itemCostPrice !== billItem.itemCostPrice, `Item Cost Price mismatch for ${billItem.itemId}: Expected ${billItem.itemCostPrice}, got ${dNItem.itemCostPrice}`, errors);
+      validateField(dNItem.itemCostPrice !== billItem.itemCostPrice, 
+        `Item Cost Price mismatch for ${billItem.itemId}: Expected ${billItem.itemCostPrice}, got ${dNItem.itemCostPrice}`, errors);
 
-      validateField(dNItem.itemCgst !== billItem.itemCgst, `Item CGST mismatch for ${billItem.itemId}: Expected ${billItem.itemCgst}, got ${dNItem.itemCgst}`, errors);
+      validateField(dNItem.itemCgst !== billItem.itemCgst, 
+        `Item CGST mismatch for ${billItem.itemId}: Expected ${billItem.itemCgst}, got ${dNItem.itemCgst}`, errors);
       
-      validateField(dNItem.itemSgst !== billItem.itemSgst, `Item SGST mismatch for ${billItem.itemId}: Expected ${billItem.itemSgst}, got ${dNItem.itemSgst}`, errors);
+      validateField(dNItem.itemSgst !== billItem.itemSgst, 
+        `Item SGST mismatch for ${billItem.itemId}: Expected ${billItem.itemSgst}, got ${dNItem.itemSgst}`, errors);
       
-      validateField(dNItem.itemIgst !== billItem.itemIgst, `Item IGST mismatch for ${billItem.itemId}: Expected ${billItem.itemIgst}, got ${dNItem.itemIgst}`, errors);
+      validateField(dNItem.itemIgst !== billItem.itemIgst, 
+        `Item IGST mismatch for ${billItem.itemId}: Expected ${billItem.itemIgst}, got ${dNItem.itemIgst}`, errors);
       
-      if (!billItem.returnQuantity) {
-      
-        validateField(dNItem.stock !== billItem.itemQuantity, `Stock mismatch for ${billItem.itemId}: Expected ${billItem.itemQuantity}, got ${dNItem.stock}`, errors);
-      
+      if (billItem.returnQuantity === 0) {
+        validateField(dNItem.stock !== billItem.itemQuantity, 
+          `Stock mismatch for ${billItem.itemId}: Expected ${billItem.itemQuantity}, got ${dNItem.stock}`, errors);
       } else {
-      
         const expectedReturnQuantity = billItem.itemQuantity - billItem.returnQuantity;
-      
-        validateField(dNItem.stock !== expectedReturnQuantity, `Stock mismatch for ${billItem.itemId}: Expected ${expectedReturnQuantity}, got ${dNItem.stock}`, errors);
+        validateField(dNItem.stock !== expectedReturnQuantity, 
+          `Stock mismatch for ${billItem.itemId}: Expected ${expectedReturnQuantity}, got ${dNItem.stock}`, errors);
       }
       
-      validateField(dNItem.itemQuantity > billItem.itemQuantity, `Provided quantity (${dNItem.itemQuantity}) cannot exceed bill items quantity (${billItem.itemQuantity}).`, errors);
+      validateField(dNItem.itemQuantity > billItem.itemQuantity, 
+        `Provided quantity (${dNItem.itemQuantity}) cannot exceed bill items quantity (${billItem.itemQuantity}).`, errors);
       
-      validateField(dNItem.itemQuantity <= 0, `Quantity must be greater than 0 for item ${dNItem.itemId}.`, errors);
+      validateField(dNItem.itemQuantity <= 0, 
+        `Quantity must be greater than 0 for item ${dNItem.itemId}.`, errors);
       
-      validateField(dNItem.itemQuantity > dNItem.stock, `Provided quantity (${dNItem.itemQuantity}) cannot exceed stock available (${dNItem.stock}) for item ${dNItem.itemId}.`, errors);
+      validateField(dNItem.itemQuantity > dNItem.stock, 
+        `Provided quantity (${dNItem.itemQuantity}) cannot exceed stock available (${dNItem.stock}) for item ${dNItem.itemId}.`, errors);
     }
   });
 }
@@ -963,7 +972,10 @@ async function itemTrack(savedDebitNote, itemTable) {
   const { items } = savedDebitNote;
 
   for (const item of items) {
-    const matchingItem = itemTable.find((entry) => entry._id.toString() === item.itemId.toString());
+
+    const itemIdAsObjectId = new ObjectId(item.itemId);
+
+    const matchingItem = itemTable.find((entry) => entry._id.equals(itemIdAsObjectId));
 
     if (!matchingItem) {
       console.error(`Item with ID ${item.itemId} not found in itemTable`);
@@ -976,12 +988,10 @@ async function itemTrack(savedDebitNote, itemTable) {
       operationId: savedDebitNote._id,
       transactionId: savedDebitNote.debitNote,
       action: "Debit Note",
-      date: savedDebitNote.supplierDebitDate,
       itemId: matchingItem._id,
       sellingPrice: matchingItem.itemSellingPrice || 0,
       costPrice: matchingItem.itemCostPrice || 0, 
       creditQuantity: item.itemQuantity, 
-      remark: `Sold to ${savedDebitNote.supplierDisplayName}`,
     });
     await newTrialEntry.save();
   }
@@ -1027,38 +1037,28 @@ const calculateStock = async (debitNote) => {
     const { billId, items } = debitNote;
 
     // Fetch corresponding bills
-    const bills = await Bills.findById(billId);  
+    const bills = await Bills.findById(billId);
+    const stockData = [];
 
     if (bills) {
       items.forEach((debitItem) => {
-        const purchaseItem = bills.items.find(
+        const billItem = bills.items.find(
           (item) => item.itemId.toString() === debitItem.itemId.toString()
         );
 
-        if (purchaseItem) {
-          debitItem.stock = Math.max(purchaseItem.itemQuantity - purchaseItem.returnQuantity, 0);
-        } else {
-          debitItem.stock = 0;
-        }
-        if (debitItem.stock < 0) {
-          debitItem.stock = 0;
-        }
+        const stock = billItem
+          ? Math.max(billItem.quantity - billItem.returnQuantity, 0)
+          : 0;
+
+        stockData.push({ itemId: debitItem.itemId, stock });
       });
-    } else {
-      console.warn(`Bills with ID ${billId} not found.`);
     }
 
-    await DebitNote.findByIdAndUpdate(
-      debitNote._id,
-      { items },
-      { new: true }
-    );
-
-    return debitNote;
-} catch (error) {
-  console.error("Error in calculateStock:", error);
-  throw new Error("Failed to calculate stock for Credit Note.");
-}
+    return stockData; // Return computed values without modifying current CreditNote 
+  } catch (error) {
+    console.error("Error in calculateStock:", error);
+    throw new Error("Failed to calculate stock for Debit Note.");
+  }
 };
 
 

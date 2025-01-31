@@ -4,7 +4,6 @@ const PurchaseOrder = require('../../database/model/purchaseOrder');
 const Organization = require('../../database/model/organization');
 const Item = require('../../database/model/item');
 const Supplier = require('../../database/model/supplier');
-const Customer = require('../../database/model/customer');
 const Settings = require("../../database/model/settings")
 const Tax = require('../../database/model/tax');
 const Prefix = require("../../database/model/prefix");
@@ -285,9 +284,10 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
     let subTotal = 0;
     let totalTaxAmount = 0;
     let itemTotalDiscount= 0;
-    let totalItem = 0;
+    let totalItem = 0;  
     let transactionDiscountAmount = 0;
     let grandTotal = 0;
+    let withoutTaxAmount = 0;
   
     // Utility function to round values to two decimal places
     const roundToTwoDecimals = (value) => Number(value.toFixed(2));  
@@ -309,7 +309,7 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
       totalItem +=  parseInt(item.itemQuantity);
       subTotal += parseFloat(item.itemQuantity * item.itemCostPrice);
   
-      const withoutTaxAmount = (item.itemCostPrice * item.itemQuantity - itemDiscAmt);
+      withoutTaxAmount = (item.itemCostPrice * item.itemQuantity - itemDiscAmt);
       console.log("withoutTaxAmount:",withoutTaxAmount);
       
       // Handle tax calculation only for taxable items
@@ -358,23 +358,24 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
       console.log("");
     });
   
-    const total = (
-        (subTotal + totalTaxAmount + otherExpenseAmount + freightAmount - roundOffAmount) - itemTotalDiscount
-    );
+    const total = (subTotal + totalTaxAmount) - itemTotalDiscount;
+    const totalAmount = otherExpense( total, otherExpenseAmount, freightAmount, roundOffAmount );  
   
-    console.log(`Total: ${total} , Provided ${total}`);
     console.log(`subTotal: ${subTotal} , Provided ${cleanedData.subTotal}`);
     console.log(`totalTaxAmount: ${totalTaxAmount} , Provided ${cleanedData.totalTaxAmount}`);
     console.log(`otherExpenseAmount: ${otherExpenseAmount} , Provided ${cleanedData.otherExpenseAmount}`);
     console.log(`freightAmount: ${freightAmount} , Provided ${cleanedData.freightAmount}`);
     console.log(`roundOffAmount: ${roundOffAmount} , Provided ${cleanedData.roundOffAmount}`);
     console.log(`itemTotalDiscount: ${itemTotalDiscount} , Provided ${cleanedData.itemTotalDiscount}`);
-  
+    console.log(`Total: ${total}`);
+    console.log(`totalAmount: ${totalAmount}`);
+    
+
     // Transaction Discount
     let transDisAmt = calculateTransactionDiscount( cleanedData, total ); 
   
     // grandTotal amount calculation with including transactionDiscount
-    grandTotal = total - transDisAmt; 
+    grandTotal = totalAmount - transDisAmt; 
     console.log(`Grand Total: ${grandTotal} , Provided ${cleanedData.grandTotal}`);
   
     // Round the totals for comparison
@@ -413,13 +414,35 @@ exports. getLastPurchaseOrderPrefix = async (req, res) => {
   
   //TransactionDiscount
   function calculateTransactionDiscount( cleanedData, total ) {
-    const discountAmount = cleanedData.discountTransactionAmount || 0;
+    const discountAmount = cleanedData.transactionDiscount || 0;
   
     return cleanedData.transactionDiscountType === 'currency'
       ? discountAmount
       : (total * discountAmount) / 100;    //if percentage
   }
-  
+
+
+  //Other Expense
+  const otherExpense = ( total, otherExpenseAmount, freightAmount, roundOffAmount ) => {
+    if (otherExpenseAmount) {
+      const parsedAmount = parseFloat(otherExpenseAmount);
+      total += parsedAmount;
+      console.log(`Other Expense: ${otherExpenseAmount}`);
+    }
+    if (freightAmount) {
+      const parsedAmount = parseFloat(freightAmount);
+      total += parsedAmount;
+      console.log(`Freight Amount: ${freightAmount}`);
+    }
+    if (roundOffAmount) {
+      const parsedAmount = parseFloat(roundOffAmount);
+      total -= parsedAmount;
+      console.log(`Round Off Amount: ${roundOffAmount}`);
+    }
+    return total;  
+  };
+    
+
   
   //Mismatch Check
   function checkAmount(calculatedAmount, providedAmount, itemName, taxMode, errors) {
