@@ -2,7 +2,7 @@ const express = require("express")
 
 const router = new express.Router()
 
-const expenseController = require('../controller/expenseController');
+const expenseController = require('../controller/Expenses/expenseController');
 
 
 const checkPermission = require('../controller/permission');

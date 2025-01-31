@@ -1,28 +1,48 @@
-const Organization = require("../database/model/organization");
-const Expense = require("../database/model/expense");
-const Category = require("../database/model/expenseCategory");
-const Account = require("../database/model/account")
-const TrialBalance = require("../database/model/trialBalance");
-const Supplier = require('../database/model/supplier');
-const Tax = require('../database/model/tax');  
-const Prefix = require("../database/model/prefix");
+const Organization = require("../../database/model/organization");
+const Expense = require("../../database/model/expense");
+const Category = require("../../database/model/expenseCategory");
+const Account = require("../../database/model/account")
+const TrialBalance = require("../../database/model/trialBalance");
+const Supplier = require('../../database/model/supplier');
+const Tax = require('../../database/model/tax');  
+const Prefix = require("../../database/model/prefix");
 const moment = require("moment-timezone");
 const mongoose = require('mongoose');
+// const { ObjectId } = require('mongodb');
+
+const { cleanData } = require("../../services/cleanData");
+const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
 
 
 
 const dataExist = async (organizationId, supplierId) => {
-    const [organizationExists, expenseExists, categoryExists, accountExist, supplierExist, existingPrefix] = await Promise.all([
-      Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1, state: 1 }),
-      Expense.find({ organizationId }),
+    const [organizationExists, categoryExists, accountExist, supplierExist, existingPrefix] = await Promise.all([
+      Organization.findOne({ organizationId },{ organizationId: 1, organizationCountry: 1, state: 1 }),
       Category.find({ organizationId }),
       Account.find({ organizationId }),
       Supplier.findOne({ organizationId , _id:supplierId}, { _id: 1, supplierDisplayName: 1, taxType: 1, sourceOfSupply: 1, gstin_uin: 1, gstTreatment: 1 }),
       Prefix.findOne({ organizationId })
     ]);
     
-    return { organizationExists, expenseExists, categoryExists, accountExist, supplierExist, existingPrefix };
+    return { organizationExists, categoryExists, accountExist, supplierExist, existingPrefix };
   };
+
+
+
+  const expenseDataExist = async ( organizationId, expenseId ) => {    
+    const [organizationExists, allExpense, expense ] = await Promise.all([
+      Organization.findOne({ organizationId }, { organizationId: 1, timeZone: 1, dateFormatExp: 1, dateSplit: 1}),
+      Expense.find({ organizationId })
+      .populate('supplierId', 'supplierDisplayName')    
+      .lean(),
+      Expense.findOne({ organizationId , _id: expenseId }) 
+      .populate('supplierId', 'supplierDisplayName')    
+      .lean(),
+    ]);
+    return { organizationExists, allExpense, expense };
+  };
+
+
 
 
 
@@ -35,13 +55,30 @@ exports.addExpense = async (req, res) => {
     const { organizationId, id: userId, userName } = req.user;
 
       //Clean Data
-      const cleanedData = cleanExpenseData(req.body);
+      const cleanedData = cleanData(req.body);
 
-      const { supplierId } = cleanedData;
+      const { supplierId, paidThroughId, expense } = cleanedData;
+      const expenseIds = expense.map(e => e.expenseAccountId);
 
       //Validate Supplier
       if (supplierId && (!mongoose.Types.ObjectId.isValid(supplierId) || supplierId.length !== 24)) {
         return res.status(400).json({ message: `Invalid supplier ID: ${supplierId}` });
+      }
+
+      if ((!mongoose.Types.ObjectId.isValid(paidThroughId) || paidThroughId.length !== 24) && cleanedData.paidThroughId !== undefined ) {
+        return res.status(400).json({ message: `Select paid through id` });
+      }
+
+      // Validate expenseIds
+      const invalidExpenseIds = expenseIds.filter(expenseAccountId => !mongoose.Types.ObjectId.isValid(expenseAccountId) || expenseAccountId.length !== 24);
+      if (invalidExpenseIds.length > 0) {
+        return res.status(400).json({ message: `Invalid item IDs: ${invalidExpenseIds.join(', ')}` });
+      } 
+
+      // Check for duplicate expenseIds
+      const uniqueExpenseIds = new Set(expenseIds);
+      if (uniqueExpenseIds.size !== expenseIds.length) {
+        return res.status(400).json({ message: "Duplicate Expense found" });
       }
 
       // Validate organizationId
@@ -49,7 +86,7 @@ exports.addExpense = async (req, res) => {
 
       // Extract all account IDs from accountExist
       const accountIds = accountExist.map(account => account._id.toString());
-      // console.log(accountIds)
+      
       // Check if each expense's expenseAccountId exists in allAccounts
       if(!accountIds.includes(cleanedData))
       for (let expenseItem of cleanedData.expense) {
@@ -64,10 +101,7 @@ exports.addExpense = async (req, res) => {
       if (!validateInputs(cleanedData, organizationExists, res)) return;
 
       //Tax Mode
-      taxmode(cleanedData);
-  
-      //Date & Time
-      const openingDate = generateOpeningDate(organizationExists);
+      taxMode(cleanedData);
 
       // Calculate Expense 
       if (!calculateExpense( cleanedData, res )) return;
@@ -76,10 +110,9 @@ exports.addExpense = async (req, res) => {
       await expensePrefix(cleanedData, existingPrefix );
 
       // Create a new expense
-      const savedExpense = await createNewExpense(cleanedData, organizationId, openingDate, userId, userName);
-      // console.log("savedExpense:",savedExpense)
-      const savedTrialBalance= await createTrialBalance(savedExpense);
-      // console.log("savedTrialBalance:",savedTrialBalance)
+      const savedExpense = await createNewExpense(cleanedData, organizationId, userId, userName);
+      
+      await createTrialBalance(savedExpense);
 
       res.status(201).json({ message: "Expense created successfully." });
   } catch (error) {
@@ -93,26 +126,26 @@ exports.getAllExpense = async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
   
-      const { organizationExists, expenseExists } = await dataExist(organizationId);
+      const { organizationExists, allExpense } = await expenseDataExist(organizationId, null);
   
       if (!organizationExists) {
-        return res.status(404).json({
-          message: "Organization not found",
-        });
+        return res.status(404).json({ message: "Organization not found" });
       }
   
-      if (!expenseExists.length) {
-        return res.status(404).json({
-          message: "No expense found",
-        });
+      if (!allExpense) {
+        return res.status(404).json({ message: "No Expense found" });
       }
 
-      const AllExpense = expenseExists.map((history) => {
-        const { organizationId, ...rest } = history.toObject(); // Convert to plain object and omit organizationId
-        return rest;
-      });
+      const transformedExpense = allExpense.map(data => {
+        return {
+            ...data,
+            supplierId: data.supplierId._id,  
+            supplierDisplayName: data.supplierId.supplierDisplayName,  
+        };});
+        
+      const formattedObjects = multiCustomDateTime(transformedExpense, organizationExists.dateFormatExp, organizationExists.timeZone, organizationExists.dateSplit );    
   
-      res.status(200).json(AllExpense);
+      res.status(200).json(formattedObjects);
     } catch (error) {
       console.error("Error fetching Expense:", error);
       res.status(500).json({ message: "Internal server error." });
@@ -122,31 +155,26 @@ exports.getAllExpense = async (req, res) => {
 //get a expense
 exports.getOneExpense = async (req, res) => {
     try {
-      const expenseId = req.params.expenseId;
       const organizationId = req.user.organizationId;
+      const expenseId = req.params.expenseId;
+
+      if ( !expenseId || expenseId.length !== 24 ) return res.status(404).json({ message: "No expense found" });
   
-      const {organizationExists} = await dataExist(organizationId);
-  
-      if (!organizationExists) {
-        return res.status(404).json({
-          message: "Organization not found",
-        });
-      }
-  
-      // Find the Customer by supplierId and organizationId
-      const expense = await Expense.findOne({
-        _id: expenseId,
-        organizationId: organizationId,
-      });
-  
-      if (!expense) {
-        return res.status(404).json({
-          message: "expense not found",
-        });
-      }
-      expense.organizationId = undefined;
-    // delete expense.organizationId;
-      res.status(200).json(expense);
+      const { organizationExists, expense } = await expenseDataExist( organizationId, expenseId );
+
+      if (!organizationExists) return res.status(404).json({ message: "Organization not found" });
+
+      if (!expense) return res.status(404).json({ message: "No expense found" });
+      
+      const transformedExpense = {
+        ...expense,
+        supplierId: expense.supplierId._id,  
+        supplierDisplayName: expense.supplierId.supplierDisplayName,
+      };
+      
+      const formattedObjects = singleCustomDateTime(transformedExpense, organizationExists.dateFormatExp, organizationExists.timeZone, organizationExists.dateSplit );    
+
+      res.status(200).json(formattedObjects);
     } catch (error) {
       console.error("Error fetching expense:", error);
       res.status(500).json({ message: "Internal server error." });
@@ -154,147 +182,6 @@ exports.getOneExpense = async (req, res) => {
   };
 
 
-// //update expense
-// exports.updateExpense = async (req, res) => {
-//     console.log("Update expense:", req.body);
-    
-//     try {
-//         const expenseId = req.params.id;
-//         const {
-//             organizationId,
-//             expenseDate,
-//             expenseCategory,
-//             expenseName,
-//             amount,
-//             paymentMethod,
-//             expenseAccount, 
-//             expenseType, 
-//             hsnCode, 
-//             sacCode, 
-//             vendor, 
-//             gstTreatment, 
-//             vendorGSTIN, 
-//             source, 
-//             destination, 
-//             reverseCharge, 
-//             currency, 
-//             tax, 
-//             invoiceNo, 
-//             notes, 
-//             uploadFiles, 
-//             defaultMileageCategory, 
-//             defaultUnit, 
-//             startDate, 
-//             mileageRate, 
-//             date, 
-//             employee, 
-//             calculateMileageUsing, 
-//             distance
-//         } = req.body;
-
-//         // Validate organizationId
-//         const organizationExists = await Organization.findOne({
-//             organizationId: organizationId,
-//         });
-//         if (!organizationExists) {
-//             return res.status(404).json({
-//             message: "Organization not found",
-//             });
-//         }
-
-//         // Check if expenseName already exists for another expense
-//         const existingExpense = await Expense.findOne({ expenseName });
-//         if (existingExpense && existingExpense._id.toString() !== expenseId) {
-//             return res.status(400).json({ message: "expenseName already exists for another Expense" });
-//         }
-
-//         const currentDate = new Date();
-//         const day = String(currentDate.getDate()).padStart(2, "0");
-//         const month = String(currentDate.getMonth() + 1).padStart(2, "0");
-//         const year = currentDate.getFullYear();
-//         const formattedDate = `${day}-${month}-${year}`;
-
-//         const updatedExpense = await Expense.findByIdAndUpdate(
-//             expenseId,
-//             {
-//                 organizationId,
-//                 expenseDate: formattedDate,
-//                 expenseCategory,
-//                 expenseName,
-//                 amount,
-//                 paymentMethod,
-//                 expenseAccount, 
-//                 expenseType, 
-//                 hsnCode, 
-//                 sacCode, 
-//                 vendor, 
-//                 gstTreatment, 
-//                 vendorGSTIN, 
-//                 source, 
-//                 destination, 
-//                 reverseCharge, 
-//                 currency, 
-//                 tax, 
-//                 invoiceNo, 
-//                 notes, 
-//                 uploadFiles, 
-//                 defaultMileageCategory, 
-//                 defaultUnit, 
-//                 startDate, 
-//                 mileageRate, 
-//                 date, 
-//                 employee, 
-//                 calculateMileageUsing, 
-//                 distance
-//             },
-//             { new: true, runValidators: true }
-//         );
-
-//         if (!updatedExpense) {
-//             console.log("Expense not found with ID:", expenseId);
-//             return res.status(404).json({ message: "Expense not found" });
-//         }
-
-//         res.status(200).json({ message: "Expense updated successfully", expense: updatedExpense });
-//         console.log("Expense updated successfully:", updatedExpense);
-//     } catch (error) {
-//         console.error("Error updating expense:", error);
-//         res.status(500).json({ message: "Internal server error" });
-//     }
-// };
-
-// //delete expense
-// exports.deleteExpense = async (req, res) => {
-//     console.log("Delete expense:", req.body);
-//     try {
-//         const { id } = req.params;
-//         const { organizationId } = req.body;
-
-//         // Validate organizationId
-//         const organizationExists = await Organization.findOne({
-//             organizationId: organizationId,
-//         });
-//         if (!organizationExists) {
-//             return res.status(404).json({
-//             message: "Organization not found",
-//             });
-//         }
-
-//         const expense = await Expense.findById(id);
-
-//         if (!expense) {
-//             return res.status(404).json({ message: "Expense not found." });
-//         }
-
-//         await Expense.findByIdAndDelete(id);
-
-//         res.status(200).json({ message: "Expense deleted successfully." });
-//         console.log("Expense deleted successfully:", id);
-//     } catch (error) {
-//         console.error("Error deleting expense:", error);
-//         res.status(500).json({ message: "Internal server error." });
-//     }
-// };
 
 
 
@@ -556,21 +443,11 @@ function expensePrefix( cleanData, existingPrefix ) {
 }
 
 
-
-
-  //Clean Data 
-  function cleanExpenseData(data) {
-    const cleanData = (value) => (value === null || value === undefined || value === "" ? undefined : value);
-    return Object.keys(data).reduce((acc, key) => {
-      acc[key] = cleanData(data[key]);
-      return acc;
-    }, {});
-  }
   
 
   // Create New Expense
-  function createNewExpense(data, organizationId, openingDate, userId, userName) {
-    const newExpense = new Expense({ ...data, organizationId, createdDate: openingDate, userId, userName });
+  function createNewExpense(data, organizationId, userId, userName) {
+    const newExpense = new Expense({ ...data, organizationId, userId, userName });
     return newExpense.save();
   }
 
@@ -600,7 +477,7 @@ function expensePrefix( cleanData, existingPrefix ) {
 
 
   // Tax Mode
-  function taxmode( cleanedData ) {
+  function taxMode( cleanedData ) {
     if (!cleanedData.sourceOfSupply || !cleanedData.destinationOfSupply) {
       cleanedData.taxMode = 'None'; // Handle invalid or missing data
     } else if (cleanedData.sourceOfSupply === cleanedData.destinationOfSupply) {
@@ -999,55 +876,6 @@ function clearTaxFields(data) {
 
 
 
-  //Return Date and Time 
-function generateOpeningDate(organizationExists) {
-  const date = generateTimeAndDateForDB(
-      organizationExists.timeZoneExp,
-      organizationExists.dateFormatExp,
-      organizationExists.dateSplit
-    )
-  return date.dateTime;
-}
-
-
-// Function to generate time and date for storing in the database
-function generateTimeAndDateForDB(
-  timeZone,
-  dateFormat,
-  dateSplit,
-  baseTime = new Date(),
-  timeFormat = "HH:mm:ss",
-  timeSplit = ":"
-) {
-  // Convert the base time to the desired time zone
-  const localDate = moment.tz(baseTime, timeZone);
-
-  // Format date and time according to the specified formats
-  let formattedDate = localDate.format(dateFormat);
-
-  // Handle date split if specified
-  if (dateSplit) {
-    // Replace default split characters with specified split characters
-    formattedDate = formattedDate.replace(/[-/]/, dateSplit); // Adjust regex based on your date format separators
-  }
-
-  const formattedTime = localDate.format(timeFormat);
-  const timeZoneName = localDate.format("z"); // Get time zone abbreviation
-
-  // Combine the formatted date and time with the split characters and time zone
-  const dateTime = `${formattedDate} ${formattedTime
-    .split(":")
-    .join(timeSplit)} (${timeZoneName})`;
-
-  return {
-    date: formattedDate,
-    time: `${formattedTime} (${timeZoneName})`,
-    dateTime: dateTime,
-  };
-}
-
-
-
 
 
 
@@ -1130,3 +958,24 @@ const validGSTTreatments = [
   "Tax Deductor",
   "SEZ Developer",
 ];
+
+
+
+
+
+
+exports.dataExist = {
+  dataExist,
+  expenseDataExist
+};
+exports.validation = {
+  validateOrganizationSupplierAccount, 
+  validateInputs
+};
+exports.calculation = { 
+  taxMode,
+  calculateExpense
+};
+exports.accounts = { 
+  createTrialBalance
+};

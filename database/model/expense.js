@@ -3,7 +3,7 @@ const { Schema } = mongoose;
  
 
 const expenseTableSchema = new Schema({
-    expenseAccountId: { type: String },
+    expenseAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'Accounts' },
     expenseAccount: { type: String },
 
     note: { type: String },
@@ -32,7 +32,7 @@ const expenseSchema = new Schema({
     // employee: { type: String },
 
     paidThrough: {type:String},
-    paidThroughId: {type:String},
+    paidThroughId: { type: mongoose.Schema.Types.ObjectId, ref: 'Accounts' },
 
     expenseCategory: {type:String},
     expenseType: {type:String},
@@ -44,8 +44,8 @@ const expenseSchema = new Schema({
     distance: {type:Number},
     ratePerKm: {type:Number},
 
-    supplierId: {type:String},
-    supplierDisplayName: {type:String},
+    supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier' },
+    // supplierDisplayName: {type:String},
     gstTreatment: {type:String},
     gstin: {type:String},
     sourceOfSupply: {type:String},
@@ -62,9 +62,14 @@ const expenseSchema = new Schema({
     vat: { type: Number },
     grandTotal: { type: Number },
 
-    createdDate: { type: String },
+    expense: [expenseTableSchema],
 
-    expense: [expenseTableSchema]
+    createdDateTime: { type: Date, default: () => new Date() },
+    
+    //lastModifiedDate
+    lastModifiedDate:{type: Date},
+    
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 
 });
  
