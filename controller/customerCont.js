@@ -651,6 +651,7 @@ async function saveTrialBalanceAndHistory(savedCustomer, savedAccount, debitOpen
       organizationId: savedCustomer.organizationId,
       operationId: savedCustomer._id,
       date: savedCustomer.createdDate,
+      transactionId:'OB',
       accountId: savedAccount._id,
       accountName: savedAccount.accountName,
       action: "Opening Balance",

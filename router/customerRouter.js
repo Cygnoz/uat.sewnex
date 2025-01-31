@@ -2,7 +2,7 @@ const express = require("express")
 
 const router = new express.Router()
 
-const importController = require("../controller/importCustomer")
+// const importController = require("../controller/importCustomer")
 const customerController = require("../controller/customerCont")
 const customerSettings = require('../controller/customerSettings')
 const dashboardController = require("../controller/dashboardController")
@@ -47,7 +47,7 @@ router.put('/update-customer-settings',verifyToken,checkPermission('Created a Ne
 
 
 //Import
-router.post('/import-customer',verifyToken,checkPermission('Imported New Customers'), importController.importCustomer);
+// router.post('/import-customer',verifyToken,checkPermission('Imported New Customers'), importController.importCustomer);
 
 
 //Customer History
