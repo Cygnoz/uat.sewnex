@@ -4,7 +4,7 @@ const { Schema } = mongoose;
 
 const expenseTableSchema = new Schema({
     expenseAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'Accounts' },
-    expenseAccount: { type: String },
+    // expenseAccountName: { type: String },
 
     note: { type: String },
 
@@ -21,7 +21,7 @@ const expenseTableSchema = new Schema({
     igstAmount: { type: Number },
     vatAmount: { type: Number },
 
-    amount: { type: Number }
+    amount: { type: Number } // without tax amount
 });
 
 const expenseSchema = new Schema({
@@ -31,8 +31,8 @@ const expenseSchema = new Schema({
 
     // employee: { type: String },
 
-    paidThrough: {type:String},
-    paidThroughId: { type: mongoose.Schema.Types.ObjectId, ref: 'Accounts' },
+    paidThroughAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'Accounts' },
+    // paidThroughAccountName: {type:String},
 
     expenseCategory: {type:String},
     expenseType: {type:String},
@@ -57,7 +57,7 @@ const expenseSchema = new Schema({
 
     subTotal: {type:Number},
     sgst: { type: Number },
-    cgst: { type: Number },
+    cgst: { type: Number },        //*Amounts
     igst: { type: Number },
     vat: { type: Number },
     grandTotal: { type: Number },
@@ -74,5 +74,4 @@ const expenseSchema = new Schema({
 });
  
 const Expense = mongoose.model("Expense", expenseSchema);
- 
 module.exports = Expense;

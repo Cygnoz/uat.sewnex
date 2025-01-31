@@ -6,6 +6,7 @@ const TrialBalance = require("../../database/model/trialBalance");
 const Supplier = require('../../database/model/supplier');
 const Tax = require('../../database/model/tax');  
 const Prefix = require("../../database/model/prefix");
+const DefAcc  = require("../../database/model/defaultAccount");
 const moment = require("moment-timezone");
 const mongoose = require('mongoose');
 // const { ObjectId } = require('mongodb');
@@ -16,30 +17,46 @@ const { singleCustomDateTime, multiCustomDateTime } = require("../../services/ti
 
 
 const dataExist = async (organizationId, supplierId) => {
-    const [organizationExists, categoryExists, accountExist, supplierExist, existingPrefix] = await Promise.all([
+    const [organizationExists, categoryExists, accountExist, supplierExist, existingPrefix, defaultAccount] = await Promise.all([
       Organization.findOne({ organizationId },{ organizationId: 1, organizationCountry: 1, state: 1 }),
       Category.find({ organizationId }),
       Account.find({ organizationId }),
       Supplier.findOne({ organizationId , _id:supplierId}, { _id: 1, supplierDisplayName: 1, taxType: 1, sourceOfSupply: 1, gstin_uin: 1, gstTreatment: 1 }),
-      Prefix.findOne({ organizationId })
+      Prefix.findOne({ organizationId }),
+      DefAcc.findOne({ organizationId },{ outputCgst: 1, outputSgst: 1, outputIgst: 1 ,outputVat: 1 }),
     ]);
     
-    return { organizationExists, categoryExists, accountExist, supplierExist, existingPrefix };
+    return { organizationExists, categoryExists, accountExist, supplierExist, existingPrefix, defaultAccount };
   };
 
 
+  // Fetch Acc existing data
+  const accDataExists = async ( organizationId, expenseAccountId, paidThroughAccountId ) => {
+    const [ expenseAcc, paidThroughAcc ] = await Promise.all([
+      Account.findOne({ organizationId , _id: expenseAccountId, accountGroup: "Liability" }, { _id:1, accountName: 1 }),
+      Account.findOne({ organizationId , _id: paidThroughAccountId, accountSubhead: { $in: ["Cash", "Bank"] } }, { _id:1, accountName: 1 }),
+    ]);
+    return { expenseAcc, paidThroughAcc };
+  };
 
-  const expenseDataExist = async ( organizationId, expenseId ) => {    
-    const [organizationExists, allExpense, expense ] = await Promise.all([
-      Organization.findOne({ organizationId }, { organizationId: 1, timeZone: 1, dateFormatExp: 1, dateSplit: 1}),
+
+  const expenseDataExist = async ( organizationId, expenseId, expenseAccountId, paidThroughAccountId ) => {    
+    const [organizationExists, allExpense, expense, expenseAccount, paidThroughAccount ] = await Promise.all([
+      Organization.findOne({ organizationId }, { organizationId: 1, timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1}).lean(),
       Expense.find({ organizationId })
       .populate('supplierId', 'supplierDisplayName')    
       .lean(),
       Expense.findOne({ organizationId , _id: expenseId }) 
       .populate('supplierId', 'supplierDisplayName')    
       .lean(),
+      Account.findOne({ organizationId, _id: expenseAccountId })
+      .populate('expense.expenseAccountId', 'expenseAccountName')
+      .lean(),
+      Account.findOne({ organizationId, _id: expenseAccountId })
+      .populate('paidThroughAccountId', 'paidThroughAccountName')
+      .lean(),
     ]);
-    return { organizationExists, allExpense, expense };
+    return { organizationExists, allExpense, expense, expenseAccount, paidThroughAccount };
   };
 
 
@@ -57,7 +74,7 @@ exports.addExpense = async (req, res) => {
       //Clean Data
       const cleanedData = cleanData(req.body);
 
-      const { supplierId, paidThroughId, expense } = cleanedData;
+      const { supplierId, paidThroughAccountId, expense } = cleanedData;
       const expenseIds = expense.map(e => e.expenseAccountId);
 
       //Validate Supplier
@@ -65,14 +82,14 @@ exports.addExpense = async (req, res) => {
         return res.status(400).json({ message: `Invalid supplier ID: ${supplierId}` });
       }
 
-      if ((!mongoose.Types.ObjectId.isValid(paidThroughId) || paidThroughId.length !== 24) && cleanedData.paidThroughId !== undefined ) {
-        return res.status(400).json({ message: `Select paid through id` });
+      if ((!mongoose.Types.ObjectId.isValid(paidThroughAccountId) || paidThroughAccountId.length !== 24) && cleanedData.paidThroughAccountId !== undefined ) {
+        return res.status(400).json({ message: `Select paid through account` });
       }
 
       // Validate expenseIds
       const invalidExpenseIds = expenseIds.filter(expenseAccountId => !mongoose.Types.ObjectId.isValid(expenseAccountId) || expenseAccountId.length !== 24);
       if (invalidExpenseIds.length > 0) {
-        return res.status(400).json({ message: `Invalid item IDs: ${invalidExpenseIds.join(', ')}` });
+        return res.status(400).json({ message: `Invalid expense IDs: ${invalidExpenseIds.join(', ')}` });
       } 
 
       // Check for duplicate expenseIds
@@ -82,7 +99,7 @@ exports.addExpense = async (req, res) => {
       }
 
       // Validate organizationId
-      const { organizationExists, accountExist, supplierExist, existingPrefix } = await dataExist(organizationId, supplierId);
+      const { organizationExists, accountExist, supplierExist, existingPrefix, defaultAccount } = await dataExist(organizationId, supplierId);
 
       // Extract all account IDs from accountExist
       const accountIds = accountExist.map(account => account._id.toString());
@@ -96,12 +113,19 @@ exports.addExpense = async (req, res) => {
       }
 
       //Data Exist Validation
-      if (!validateOrganizationSupplierAccount( organizationExists, accountExist, supplierExist, supplierId, existingPrefix, res )) return;
+      if (!validateOrganizationSupplierAccount( organizationExists, accountExist, supplierExist, supplierId, existingPrefix, defaultAccount, res )) return;
 
-      if (!validateInputs(cleanedData, organizationExists, res)) return;
+      if (!validateInputs(cleanedData, organizationExists, defaultAccount, res)) return;
 
       //Tax Mode
       taxMode(cleanedData);
+
+      //Default Account
+      const { defAcc, error } = await defaultAccounting( cleanedData, defaultAccount, organizationExists );
+      if (error) { 
+        res.status(400).json({ message: error }); 
+        return false; 
+      }
 
       // Calculate Expense 
       if (!calculateExpense( cleanedData, res )) return;
@@ -140,10 +164,17 @@ exports.getAllExpense = async (req, res) => {
         return {
             ...data,
             supplierId: data.supplierId._id,  
-            supplierDisplayName: data.supplierId.supplierDisplayName,  
+            supplierDisplayName: data.supplierId.supplierDisplayName, 
+            paidThroughAccountId: data.paidThroughAccountId._id,
+            paidThroughAccountName: data.paidThroughAccountId.paidThroughAccountName,
+            expense: data.expense.map(exp => ({
+              ...exp,
+              expenseAccountId: exp.expenseAccountId._id,
+              expenseAccountName: exp.expenseAccountId.expenseAccountName,
+            }))
         };});
         
-      const formattedObjects = multiCustomDateTime(transformedExpense, organizationExists.dateFormatExp, organizationExists.timeZone, organizationExists.dateSplit );    
+      const formattedObjects = multiCustomDateTime(transformedExpense, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
   
       res.status(200).json(formattedObjects);
     } catch (error) {
@@ -170,9 +201,16 @@ exports.getOneExpense = async (req, res) => {
         ...expense,
         supplierId: expense.supplierId._id,  
         supplierDisplayName: expense.supplierId.supplierDisplayName,
+        paidThroughAccountId: expense.paidThroughAccountId._id,
+        paidThroughAccountName: expense.paidThroughAccountId.paidThroughAccountName,
+        expense: expense.expense.map(exp => ({
+          ...exp,
+          expenseAccountId: exp.expenseAccountId._id,
+          expenseAccountName: exp.expenseAccountId.expenseAccountName,
+        }))
       };
       
-      const formattedObjects = singleCustomDateTime(transformedExpense, organizationExists.dateFormatExp, organizationExists.timeZone, organizationExists.dateSplit );    
+      const formattedObjects = singleCustomDateTime(transformedExpense, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
 
       res.status(200).json(formattedObjects);
     } catch (error) {
@@ -454,7 +492,7 @@ function expensePrefix( cleanData, existingPrefix ) {
 
 
   // Validate Organization Supplier Account
-  function validateOrganizationSupplierAccount( organizationExists, accountExist, supplierExist, supplierId, existingPrefix, res ) {
+  function validateOrganizationSupplierAccount( organizationExists, accountExist, supplierExist, supplierId, existingPrefix, defaultAccount, res ) {
     if (!organizationExists) {
       res.status(404).json({ message: "Organization not found" });
       return false;
@@ -472,6 +510,10 @@ function expensePrefix( cleanData, existingPrefix ) {
       res.status(404).json({ message: "Prefix not found" });
       return false;
     }
+    if (!defaultAccount) {
+      res.status(404).json({ message: "Setup Accounts in settings" });
+      return false;
+    }
     return true;
   }
 
@@ -487,6 +529,55 @@ function expensePrefix( cleanData, existingPrefix ) {
     }
     return;
   }
+
+
+
+
+  //Default Account
+  async function defaultAccounting(data, defaultAccount, organizationExists) {
+    // 1. Fetch required accounts
+    const accounts = await accDataExists(
+      organizationExists.organizationId, 
+      data.expenseAccountId, 
+    );
+    
+    // 2. Check for missing required accounts
+    const errorMessage = getMissingAccountsError(data, defaultAccount, accounts);
+    if (errorMessage) {
+      return { defAcc: null, error: errorMessage };
+    }
+  
+    // 3. Update account references
+    assignAccountReferences(data, defaultAccount, accounts);
+    
+    return { defAcc: defaultAccount, error: null };
+  }
+  
+  function getMissingAccountsError(data, defaultAccount, accounts) {
+    const accountChecks = [
+      // Tax account checks
+      { condition: data.cgst, account: defaultAccount.outputCgst, message: "CGST Account" },
+      { condition: data.sgst, account: defaultAccount.outputSgst, message: "SGST Account" },
+      { condition: data.igst, account: defaultAccount.outputIgst, message: "IGST Account" },
+      { condition: data.vat, account: defaultAccount.outputVat, message: "VAT Account" },
+
+      // Transaction account checks
+    { condition: data.amount, account: accounts.expenseAcc, message: "Other Expense Account" },
+    ];
+  
+    const missingAccounts = accountChecks
+      .filter(({ condition, account }) => condition && !account)
+      .map(({ message }) => `${message} not found`);
+  
+    return missingAccounts.length ? missingAccounts.join(". ") : null;
+  }
+  
+  function assignAccountReferences(data, defaultAccount, accounts) {
+    if (data.amount) {
+      defaultAccount.expenseAccountId = accounts.expenseAcc?._id;
+    }
+  }
+
 
 
 
@@ -540,10 +631,10 @@ function expensePrefix( cleanData, existingPrefix ) {
        console.log("calculatedIgstAmount",calculatedIgstAmount);
        console.log("calculatedVatAmount",calculatedVatAmount);
 
-       checkAmount(calculatedCgstAmount, data.cgstAmount, data.expenseAccount, 'CGST',errors);
-       checkAmount(calculatedSgstAmount, data.sgstAmount, data.expenseAccount, 'SGST',errors);
-       checkAmount(calculatedIgstAmount, data.igstAmount, data.expenseAccount, 'IGST',errors);
-       checkAmount(calculatedVatAmount, data.vatAmount, data.expenseAccount, 'VAT',errors);
+       checkAmount(calculatedCgstAmount, data.cgstAmount, data.expenseAccountId, 'CGST',errors);
+       checkAmount(calculatedSgstAmount, data.sgstAmount, data.expenseAccountId, 'SGST',errors);
+       checkAmount(calculatedIgstAmount, data.igstAmount, data.expenseAccountId, 'IGST',errors);
+       checkAmount(calculatedVatAmount, data.vatAmount, data.expenseAccountId, 'VAT',errors);
      
        cgst += calculatedCgstAmount;
        sgst += calculatedSgstAmount;
@@ -687,8 +778,8 @@ function expensePrefix( cleanData, existingPrefix ) {
    
 
   //Validate inputs
-  function validateInputs(data, organizationExists, res) {
-    const validationErrors = validateExpenseData(data, organizationExists);
+  function validateInputs(data, organizationExists, defaultAccount, res) {
+    const validationErrors = validateExpenseData(data, organizationExists, defaultAccount);
   
     if (validationErrors.length > 0) {
       res.status(400).json({ message: validationErrors.join(", ") });
@@ -700,11 +791,11 @@ function expensePrefix( cleanData, existingPrefix ) {
 
 
   //Validate Data
-  function validateExpenseData(data, organizationExists) {
+  function validateExpenseData(data, organizationExists, defaultAccount) {
     const errors = [];
 
     //Basic Info
-    validateReqFields( data, errors);
+    validateReqFields( data, defaultAccount, errors);
     validateFloatFields(['distance', 'ratePerKm'], data, errors);
     // validateIntegerFields(['distance', 'ratePerKm'], data, errors);
     //validateAlphabetsFields(['department', 'designation'], data, errors);
@@ -726,10 +817,10 @@ function expensePrefix( cleanData, existingPrefix ) {
   }
 
   //Valid Req Fields
-  function validateReqFields( data, errors ) {
+  function validateReqFields( data, defaultAccount, errors ) {
     validateField( typeof data.expenseDate === 'undefined', "Please select Date", errors  );
-    validateField( typeof data.paidThrough === 'undefined', "Please select paid through", errors  );
-    validateField( data.expenseAccount === 'undefined', "Please select expense account", errors  );
+    validateField( typeof data.paidThroughAccountId === 'undefined', "Please select paid through account", errors  );
+    validateField( data.expenseAccountId === 'undefined', "Please select expense account", errors  );
 
     // Determine if it is Expense Mileage or Record Expense
     const isnotMileage = data.distance !== "undefined" && data.ratePerKm !== "undefined";
