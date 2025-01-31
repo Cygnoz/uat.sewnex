@@ -617,6 +617,7 @@ exports.getOneSupplierHistory = async (req, res) => {
         organizationId: savedSupplier.organizationId,
         operationId: savedSupplier._id,
         accountId: savedAccount._id,
+        transactionId:'OB',
         accountName: savedAccount.accountName,
         action: "Opening Balance",
         debitAmount: debitOpeningBalance,
