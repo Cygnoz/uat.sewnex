@@ -1,8 +1,19 @@
 const mongoose = require('mongoose');
-const moment = require('moment');
 const TrialBalance = require('../database/model/trialBalance');
 const Account = require('../database/model/account');
 const ItemTrack = require('../database/model/itemTrack');
+const Organization = require("../database/model/organization");
+const moment = require('moment-timezone');
+
+
+// Fetch existing data
+const dataExist = async ( organizationId ) => {
+    const [organizationExists ] = await Promise.all([
+      Organization.findOne({ organizationId }, { organizationId: 1, timeZoneExp: 1 }),
+    ]);
+    return { organizationExists };
+};
+
 
 // Helper function to validate dates
 function validateDates(startDate, endDate) {
@@ -12,9 +23,13 @@ function validateDates(startDate, endDate) {
 }
 
 // Helper function to parse dates
-function parseDate(dateStr) {
+function parseDate( timezone, dateStr, isEndDate = false ) {
     const [day, month, year] = dateStr.split('-');
-    return new Date(year, month - 1, day);
+    let date = moment.tz(`${year}-${month}-${day}`, timezone);
+    if (isEndDate) {
+        date = date.endOf('day');
+    }
+    return date.toDate();
 }
 
 // 1. Opening Balance
@@ -35,7 +50,7 @@ async function getClosingBalance(organizationId, endDate) {
     };
 }
 
-// 3. Purchase Account (Cost of Goods Sold)
+// 3. Purchase Account (Cost of Goods Sold)//
 async function getPurchaseAccount(organizationId, startDate, endDate) {
     const purchases = await TrialBalance.aggregate([
         {
@@ -145,7 +160,7 @@ async function getPurchaseAccount(organizationId, startDate, endDate) {
         {
             $group: {
                 _id: null,
-                sales: { $push: "$$ROOT" },
+                purchases: { $push: "$$ROOT" },
                 overallTotalDebit: { $sum: { $ifNull: ["$totalDebit", 0] } },
                 overallTotalCredit: { $sum: { $ifNull: ["$totalCredit", 0] } },
                 overallNetDebit: { $sum: { $ifNull: ["$netDebit", 0] } },
@@ -155,7 +170,7 @@ async function getPurchaseAccount(organizationId, startDate, endDate) {
         {
             $project: {
                 _id: 0,
-                sales: 1,
+                purchases: 1,
                 overallTotalDebit: { $ifNull: ["$overallTotalDebit", 0] },
                 overallTotalCredit: { $ifNull: ["$overallTotalCredit", 0] },
                 overallNetDebit: { $ifNull: ["$overallNetDebit", 0] },
@@ -173,7 +188,7 @@ async function getPurchaseAccount(organizationId, startDate, endDate) {
     };
 }
 
-// 4. Sales Account(Sales)
+// 4. Sales Account(Sales)//
 async function getSalesAccount(organizationId, startDate, endDate) {
     const sales = await TrialBalance.aggregate([
         {
@@ -279,7 +294,6 @@ async function getSalesAccount(organizationId, startDate, endDate) {
                 netCredit: { $ifNull: ["$netCredit", 0] }
             }
         },
-        // **Compute Overall Totals**
         {
             $group: {
                 _id: null,
@@ -312,9 +326,9 @@ async function getSalesAccount(organizationId, startDate, endDate) {
 }
 
 
-// 5. Direct Expense Account(Direct Expense)
+// 5. Direct Expense Account(Direct Expense)//
 async function getDirectExpenseAccount(organizationId, startDate, endDate) {
-    const expenses = await TrialBalance.aggregate([
+    const directExpenses = await TrialBalance.aggregate([
         {
             $match: {
                 organizationId,
@@ -418,11 +432,10 @@ async function getDirectExpenseAccount(organizationId, startDate, endDate) {
                 netCredit: { $ifNull: ["$netCredit", 0] }
             }
         },
-        // **Compute Overall Totals**
         {
             $group: {
                 _id: null,
-                sales: { $push: "$$ROOT" },
+                directExpenses: { $push: "$$ROOT" },
                 overallTotalDebit: { $sum: { $ifNull: ["$totalDebit", 0] } },
                 overallTotalCredit: { $sum: { $ifNull: ["$totalCredit", 0] } },
                 overallNetDebit: { $sum: { $ifNull: ["$netDebit", 0] } },
@@ -432,7 +445,7 @@ async function getDirectExpenseAccount(organizationId, startDate, endDate) {
         {
             $project: {
                 _id: 0,
-                sales: 1,
+                directExpenses: 1,
                 overallTotalDebit: { $ifNull: ["$overallTotalDebit", 0] },
                 overallTotalCredit: { $ifNull: ["$overallTotalCredit", 0] },
                 overallNetDebit: { $ifNull: ["$overallNetDebit", 0] },
@@ -441,8 +454,8 @@ async function getDirectExpenseAccount(organizationId, startDate, endDate) {
         }
     ]);
 
-    return expenses.length > 0 ? expenses[0] : {
-        expenses: [],
+    return directExpenses.length > 0 ? directExpenses[0] : {
+        directExpenses: [],
         overallTotalDebit: 0,
         overallTotalCredit: 0,
         overallNetDebit: 0,
@@ -450,13 +463,23 @@ async function getDirectExpenseAccount(organizationId, startDate, endDate) {
     };
 }
 
-// 6. Indirect Expense Account(Indirect Expense)
+// 6. Indirect Expense Account(Indirect Expense)//
 async function getIndirectExpenseAccount(organizationId, startDate, endDate) {
-    const expenses = await TrialBalance.aggregate([
+    const indirectExpenses = await TrialBalance.aggregate([
         {
             $match: {
                 organizationId,
-                createdDateTime: { $gte: startDate, $lte: endDate }
+                createdDateTime: { $gte: startDate, $lte: endDate },
+                $or: [
+                    { debitAmount: { $gt: 0 } },
+                    { creditAmount: { $gt: 0 } }
+                ]            
+            }
+        },
+        {
+            $addFields: {
+                totalDebit: "$debitAmount",
+                totalCredit: "$creditAmount"
             }
         },
         {
@@ -467,9 +490,7 @@ async function getIndirectExpenseAccount(organizationId, startDate, endDate) {
                 as: 'account'
             }
         },
-        {
-            $unwind: '$account'
-        },
+        { $unwind: '$account' },
         {
             $match: {
                 'account.accountSubhead': 'Indirect Expense'
@@ -477,22 +498,125 @@ async function getIndirectExpenseAccount(organizationId, startDate, endDate) {
         },
         {
             $group: {
-                _id: '$account.accountName',
+                _id: {
+                    accountSubhead: '$account.accountSubhead',
+                    accountId: '$accountId',
+                    accountName: '$account.accountName',
+                    month: { $dateToString: { format: "%B %Y", date: "$createdDateTime" } }
+                },
+                trialBalance: {
+                    $push: {
+                        _id: '$_id',
+                        operationId: '$operationId',
+                        transactionId:'$transactionId',
+                        action: '$action',
+                        remark: '$remark',
+                        debitAmount: '$debitAmount',
+                        creditAmount: '$creditAmount',
+                        createdDateTime: '$createdDateTime'
+                    }
+                },
                 totalDebit: { $sum: '$debitAmount' },
                 totalCredit: { $sum: '$creditAmount' }
             }
+        },
+        {
+            $project: {
+                _id: 0,
+                accountSubhead: '$_id.accountSubhead',
+                accounts: {
+                    accountName: '$_id.accountName',
+                    accountId: '$_id.accountId',
+                    month: '$_id.month',
+                    trialBalance: '$trialBalance',
+                    totalDebit: { $ifNull: ['$totalDebit', 0] },
+                    totalCredit: { $ifNull: ['$totalCredit', 0] },
+                    netDebit: {
+                        $cond: {
+                            if: { $gt: ['$totalDebit', '$totalCredit'] },
+                            then: { $subtract: ['$totalDebit', '$totalCredit'] },
+                            else: 0
+                        }
+                    },
+                    netCredit: {
+                        $cond: {
+                            if: { $gt: ['$totalCredit', '$totalDebit'] },
+                            then: { $subtract: ['$totalCredit', '$totalDebit'] },
+                            else: 0
+                        }
+                    }
+                }
+            }
+        },
+        {
+            $group: {
+                _id: "$accountSubhead",
+                accounts: { $push: "$accounts" },
+                totalDebit: { $sum: "$accounts.totalDebit" },
+                totalCredit: { $sum: "$accounts.totalCredit" },
+                netDebit: { $sum: "$accounts.netDebit" },
+                netCredit: { $sum: "$accounts.netCredit" }
+            }
+        },
+        {
+            $project: {
+                _id: 0,
+                accountSubhead: "$_id",
+                accounts: 1,
+                totalDebit: { $ifNull: ["$totalDebit", 0] },
+                totalCredit: { $ifNull: ["$totalCredit", 0] },
+                netDebit: { $ifNull: ["$netDebit", 0] },
+                netCredit: { $ifNull: ["$netCredit", 0] }
+            }
+        },
+        {
+            $group: {
+                _id: null,
+                indirectExpenses: { $push: "$$ROOT" },
+                overallTotalDebit: { $sum: { $ifNull: ["$totalDebit", 0] } },
+                overallTotalCredit: { $sum: { $ifNull: ["$totalCredit", 0] } },
+                overallNetDebit: { $sum: { $ifNull: ["$netDebit", 0] } },
+                overallNetCredit: { $sum: { $ifNull: ["$netCredit", 0] } }
+            }
+        },
+        {
+            $project: {
+                _id: 0,
+                indirectExpenses: 1,
+                overallTotalDebit: { $ifNull: ["$overallTotalDebit", 0] },
+                overallTotalCredit: { $ifNull: ["$overallTotalCredit", 0] },
+                overallNetDebit: { $ifNull: ["$overallNetDebit", 0] },
+                overallNetCredit: { $ifNull: ["$overallNetCredit", 0] }
+            }
         }
     ]);
-    return expenses;
+
+    return indirectExpenses.length > 0 ? indirectExpenses[0] : {
+        indirectExpenses: [],
+        overallTotalDebit: 0,
+        overallTotalCredit: 0,
+        overallNetDebit: 0,
+        overallNetCredit: 0
+    };
 }
 
-// 7. Indirect Income Account(Indirect Income)
+// 7. Indirect Income Account(Indirect Income)//
 async function getIndirectIncomeAccount(organizationId, startDate, endDate) {
-    const income = await TrialBalance.aggregate([
+    const indirectIncome = await TrialBalance.aggregate([
         {
             $match: {
                 organizationId,
-                createdDateTime: { $gte: startDate, $lte: endDate }
+                createdDateTime: { $gte: startDate, $lte: endDate },
+                $or: [
+                    { debitAmount: { $gt: 0 } },
+                    { creditAmount: { $gt: 0 } }
+                ]            
+            }
+        },
+        {
+            $addFields: {
+                totalDebit: "$debitAmount",
+                totalCredit: "$creditAmount"
             }
         },
         {
@@ -503,9 +627,7 @@ async function getIndirectIncomeAccount(organizationId, startDate, endDate) {
                 as: 'account'
             }
         },
-        {
-            $unwind: '$account'
-        },
+        { $unwind: '$account' },
         {
             $match: {
                 'account.accountSubhead': 'Indirect Income'
@@ -513,13 +635,106 @@ async function getIndirectIncomeAccount(organizationId, startDate, endDate) {
         },
         {
             $group: {
-                _id: '$account.accountName',
+                _id: {
+                    accountSubhead: '$account.accountSubhead',
+                    accountId: '$accountId',
+                    accountName: '$account.accountName',
+                    month: { $dateToString: { format: "%B %Y", date: "$createdDateTime" } }
+                },
+                trialBalance: {
+                    $push: {
+                        _id: '$_id',
+                        operationId: '$operationId',
+                        transactionId:'$transactionId',
+                        action: '$action',
+                        remark: '$remark',
+                        debitAmount: '$debitAmount',
+                        creditAmount: '$creditAmount',
+                        createdDateTime: '$createdDateTime'
+                    }
+                },
                 totalDebit: { $sum: '$debitAmount' },
                 totalCredit: { $sum: '$creditAmount' }
             }
+        },
+        {
+            $project: {
+                _id: 0,
+                accountSubhead: '$_id.accountSubhead',
+                accounts: {
+                    accountName: '$_id.accountName',
+                    accountId: '$_id.accountId',
+                    month: '$_id.month',
+                    trialBalance: '$trialBalance',
+                    totalDebit: { $ifNull: ['$totalDebit', 0] },
+                    totalCredit: { $ifNull: ['$totalCredit', 0] },
+                    netDebit: {
+                        $cond: {
+                            if: { $gt: ['$totalDebit', '$totalCredit'] },
+                            then: { $subtract: ['$totalDebit', '$totalCredit'] },
+                            else: 0
+                        }
+                    },
+                    netCredit: {
+                        $cond: {
+                            if: { $gt: ['$totalCredit', '$totalDebit'] },
+                            then: { $subtract: ['$totalCredit', '$totalDebit'] },
+                            else: 0
+                        }
+                    }
+                }
+            }
+        },
+        {
+            $group: {
+                _id: "$accountSubhead",
+                accounts: { $push: "$accounts" },
+                totalDebit: { $sum: "$accounts.totalDebit" },
+                totalCredit: { $sum: "$accounts.totalCredit" },
+                netDebit: { $sum: "$accounts.netDebit" },
+                netCredit: { $sum: "$accounts.netCredit" }
+            }
+        },
+        {
+            $project: {
+                _id: 0,
+                accountSubhead: "$_id",
+                accounts: 1,
+                totalDebit: { $ifNull: ["$totalDebit", 0] },
+                totalCredit: { $ifNull: ["$totalCredit", 0] },
+                netDebit: { $ifNull: ["$netDebit", 0] },
+                netCredit: { $ifNull: ["$netCredit", 0] }
+            }
+        },
+        {
+            $group: {
+                _id: null,
+                indirectIncome: { $push: "$$ROOT" },
+                overallTotalDebit: { $sum: { $ifNull: ["$totalDebit", 0] } },
+                overallTotalCredit: { $sum: { $ifNull: ["$totalCredit", 0] } },
+                overallNetDebit: { $sum: { $ifNull: ["$netDebit", 0] } },
+                overallNetCredit: { $sum: { $ifNull: ["$netCredit", 0] } }
+            }
+        },
+        {
+            $project: {
+                _id: 0,
+                indirectIncome: 1,
+                overallTotalDebit: { $ifNull: ["$overallTotalDebit", 0] },
+                overallTotalCredit: { $ifNull: ["$overallTotalCredit", 0] },
+                overallNetDebit: { $ifNull: ["$overallNetDebit", 0] },
+                overallNetCredit: { $ifNull: ["$overallNetCredit", 0] }
+            }
         }
     ]);
-    return income;
+
+    return indirectIncome.length > 0 ? indirectIncome[0] : {
+        indirectIncome: [],
+        overallTotalDebit: 0,
+        overallTotalCredit: 0,
+        overallNetDebit: 0,
+        overallNetCredit: 0
+    };
 }
 
 // 8. Equity Account(Equity)
@@ -728,20 +943,27 @@ async function getNonCurrentAssetAccount(organizationId, startDate, endDate) {
 
 
 
+
+
+
+
 exports.calculateTradingAccount = async (req, res) => {
     try {
         const { organizationId } = req.user;
         const { startDate, endDate } = req.params;
 
-        const start = parseDate(startDate);
-        const end = parseDate(endDate);
+        const { organizationExists } = await dataExist(organizationId);   
+
+        const start = parseDate(organizationExists.timeZoneExp, startDate);
+        const end = parseDate(organizationExists.timeZoneExp, endDate, true);
+        
         validateDates(start, end);
 
         const openingStock = await getOpeningBalance(organizationId, start);
         const closingStock = await getClosingBalance(organizationId, end);
         const purchases = await getPurchaseAccount(organizationId, start, end);
         const sales = await getSalesAccount(organizationId, start, end);
-        const directExpenses = await getDirectExpenseAccount(organizationId, start, end);
+        const directExpenses = await getDirectExpenseAccount(organizationId, start, end);        
                 
         const totalDebit = openingStock.total + purchases.overallTotalDebit + directExpenses.overallTotalDebit;
         const totalCredit = sales.overallTotalCredit + closingStock.total;
@@ -757,8 +979,9 @@ exports.calculateTradingAccount = async (req, res) => {
             carryForward = grossLoss;
             carryForwardType = "credit"; 
         }
-        
-        
+
+        const finalDebit = openingStock.total + purchases.overallTotalDebit + directExpenses.overallTotalDebit + grossProfit;
+        const finalCredit = sales.overallTotalCredit + closingStock.total + grossLoss;
 
         const result = {
             debit: [
@@ -772,6 +995,8 @@ exports.calculateTradingAccount = async (req, res) => {
                 { closingStock },
                 ...(carryForwardType === "credit" ? [{ grossLoss: carryForward }] : [])
             ],
+            finalDebit,
+            finalCredit,
             grossProfit,
             grossLoss
         };
@@ -797,26 +1022,80 @@ exports.calculateTradingAccount = async (req, res) => {
 
 
 
-exports.calculateProfitAndLoss = async (req, res) => {
+
+exports.calculateProfitAndLoss11 = async (req, res) => {
     try {
         const { organizationId } = req.user;
         const { startDate, endDate } = req.params;
 
-        const start = parseDate(startDate);
-        const end = parseDate(endDate);
+        const { organizationExists } = await dataExist(organizationId);   
+
+        const start = parseDate(organizationExists.timeZoneExp, startDate);
+        const end = parseDate(organizationExists.timeZoneExp, endDate, true);
+
         validateDates(start, end);
 
+        // Trading Account Calculations
+        const openingStock = await getOpeningBalance(organizationId, start);
+        const closingStock = await getClosingBalance(organizationId, end);
+        const purchases = await getPurchaseAccount(organizationId, start, end);
+        const sales = await getSalesAccount(organizationId, start, end);
+        const directExpenses = await getDirectExpenseAccount(organizationId, start, end);
+        
+        // Profit and Loss Calculations
         const indirectIncome = await getIndirectIncomeAccount(organizationId, start, end);
         const indirectExpenses = await getIndirectExpenseAccount(organizationId, start, end);
 
-        const netProfit = indirectIncome.totalCredit - indirectExpenses.totalDebit;
-        const netLoss = indirectExpenses.totalDebit - indirectIncome.totalCredit;
+        // Calculate total debit and credit for gross profit/loss
+        const totalDebit = openingStock.total + purchases.overallTotalDebit + directExpenses.overallTotalDebit;
+        const totalCredit = sales.overallTotalCredit + closingStock.total;
 
+        let grossProfit = 0, grossLoss = 0, carryForward = 0, carryForwardType = "";
+
+        if (totalCredit > totalDebit) {
+            grossProfit = totalCredit - totalDebit;
+            carryForward = grossProfit;
+            carryForwardType = "debit"; 
+        } else if (totalDebit > totalCredit) {
+            grossLoss = totalDebit - totalCredit;
+            carryForward = grossLoss;
+            carryForwardType = "credit"; 
+        }
+
+
+
+        // Prepare the debit and credit structure for P&L
         const result = {
-            income: indirectIncome,
-            expenses: indirectExpenses,
-            netProfit,
-            netLoss
+            debit: [
+                ...(grossLoss > 0 ? [{ "Gross Loss (c/d)": carryForward }] : []),
+                {
+                    "Indirect Expense": [
+                        {
+                            "overallTotalDebit": indirectExpenses.overallTotalDebit,
+                            "overallTotalCredit": indirectExpenses.overallTotalCredit,
+                            "overallNetDebit": indirectExpenses.overallNetDebit,
+                            "overallNetCredit": indirectExpenses.overallNetCredit
+                        }
+                    ]
+                },
+                ...(grossProfit > 0 ? [{ "Net Profit": grossProfit }] : []),
+                ...(grossLoss > 0 ? [{ "Net Loss": grossLoss }] : [])
+            ],
+            credit: [
+                ...(grossProfit > 0 ? [{ "Gross Profit (c/d)": carryForward }] : []),
+                {
+                    "Indirect Income": [
+                        {
+                            "overallTotalDebit": indirectIncome.overallTotalDebit,
+                            "overallTotalCredit": indirectIncome.overallTotalCredit,
+                            "overallNetDebit": indirectIncome.overallNetDebit,
+                            "overallNetCredit": indirectIncome.overallNetCredit
+                        }
+                    ]
+                },
+                ...(grossProfit > 0 ? [{ "Net Profit": grossProfit }] : []),
+                ...(grossLoss > 0 ? [{ "Net Loss": grossLoss }] : [])
+            ],
         };
 
         res.status(200).json({ success: true, data: result });
@@ -827,8 +1106,88 @@ exports.calculateProfitAndLoss = async (req, res) => {
 
 
 
+exports.calculateProfitAndLoss = async (req, res) => {
+    try {
+        const { organizationId } = req.user;
+        const { startDate, endDate } = req.params;
 
+        const { organizationExists } = await dataExist(organizationId);
+        const start = parseDate(organizationExists.timeZoneExp, startDate);
+        const end = parseDate(organizationExists.timeZoneExp, endDate, true);
 
+        validateDates(start, end);
+
+        // Trading Account Calculations
+        const openingStock = await getOpeningBalance(organizationId, start);
+        const closingStock = await getClosingBalance(organizationId, end);
+        const purchases = await getPurchaseAccount(organizationId, start, end);
+        const sales = await getSalesAccount(organizationId, start, end);
+        const directExpenses = await getDirectExpenseAccount(organizationId, start, end);
+
+        // Profit and Loss Calculations
+        const indirectIncome = await getIndirectIncomeAccount(organizationId, start, end);
+        const indirectExpenses = await getIndirectExpenseAccount(organizationId, start, end);
+
+        // Calculate total debit and credit for gross profit/loss
+        const totalDebit = openingStock.total + purchases.overallTotalDebit + directExpenses.overallTotalDebit;
+        const totalCredit = sales.overallTotalCredit + closingStock.total;
+
+        let grossProfit = 0, grossLoss = 0, carryForward = 0, carryForwardType = "";
+
+        if (totalCredit > totalDebit) {
+            grossProfit = totalCredit - totalDebit;
+            carryForward = grossProfit;
+            carryForwardType = "debit";
+        } else if (totalDebit > totalCredit) {
+            grossLoss = totalDebit - totalCredit;
+            carryForward = grossLoss;
+            carryForwardType = "credit";
+        }
+
+        // Calculate final debit and credit totals
+        const finalDebit = totalDebit + indirectExpenses.overallTotalDebit;
+        const finalCredit = totalCredit + indirectIncome.overallTotalCredit;
+
+        // Prepare result structured similarly to trading account
+        const result = {
+            // tradingAccount: {
+            //     debit: [
+            //         { openingStock },
+            //         { purchases },
+            //         { directExpenses },
+            //         ...(carryForwardType === "debit" ? [{ grossProfit: carryForward }] : [])
+            //     ],
+            //     credit: [
+            //         { sales },
+            //         { closingStock },
+            //         ...(carryForwardType === "credit" ? [{ grossLoss: carryForward }] : [])
+            //     ]
+            // },
+            profitAndLossAccount: {
+                debit: [
+                    { indirectExpenses },
+                    ...(grossProfit > 0 ? [{ netProfit: grossProfit }] : [])
+                ],
+                credit: [
+                    { indirectIncome },
+                    ...(grossLoss > 0 ? [{ netLoss: grossLoss }] : [])
+                ]
+            },
+            summary: {
+                finalDebit,
+                finalCredit,
+                grossProfit,
+                grossLoss
+            }
+        };
+
+        res.status(200).json({ success: true, data: result });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+  
 
 
 
@@ -851,7 +1210,11 @@ exports.calculateBalanceSheet = async (req, res) => {
         const { organizationId } = req.user;
         const { endDate } = req.params;
 
-        const end = parseDate(endDate);
+        const { organizationExists } = await dataExist( organizationId );   
+
+        // const start = parseDate(organizationExists.timeZoneExp, startDate);
+        const end = parseDate(organizationExists.timeZoneExp, endDate, true);
+
         validateDates(new Date(), end);
 
         const currentAssets = await getCurrentAssetAccount(organizationId, new Date(0), end);
@@ -1081,3 +1444,56 @@ async function calculateClosingStock(organizationId, endDate) {
         throw error;
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

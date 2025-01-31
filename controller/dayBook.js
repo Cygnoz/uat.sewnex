@@ -8,8 +8,8 @@ exports.getDayBook = async (req, res) => {
         const { startDate, endDate } = req.params; 
         const { organizationId } = req.user;
 
-        console.log('Input Start Date:', startDate);
-        console.log('Input End Date:', endDate);
+        console.log('Day Book Start Date:', startDate);
+        console.log('Day Book End Date:', endDate);
 
         // Validate date format (DD-MM-YYYY) for both dates
         if (!startDate || !endDate || 
@@ -52,9 +52,6 @@ exports.getDayBook = async (req, res) => {
         const startUTC = start.toISOString();
         const endUTC = end.toISOString();
 
-        // console.log('Start Date UTC:', startUTC);
-        // console.log('End Date UTC:', endUTC);
-
         // Get organization's timezone and date format
         const organization = await Organization.findOne({ organizationId });
         if (!organization) {
@@ -72,7 +69,11 @@ exports.getDayBook = async (req, res) => {
                     createdDateTime: {
                         $gte: new Date(startUTC),
                         $lte: new Date(endUTC)
-                    }
+                    },
+                    $or: [
+                        { debitAmount: { $gt: 0 } },  
+                        { creditAmount: { $gt: 0 } }
+                    ]
                 }
             },
             {
@@ -123,6 +124,7 @@ exports.getDayBook = async (req, res) => {
                 }
             }
         ]);
+        
 
         // Format the response and calculate cumulative totals
         let cumulativeTotalDebit = 0;
@@ -196,6 +198,8 @@ exports.getDayBook = async (req, res) => {
         });
     }
 };
+
+
 
 // Helper function to validate date
 function isValidDate(day, month, year) {
