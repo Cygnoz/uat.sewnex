@@ -27,7 +27,7 @@ const itemsSchema = new Schema({
   itemIgstAMount : { type:Number },
   itemVatAmount: { type: Number },
 
-  purchaseAccountId: {type:String}
+  // purchaseAccountId: {type:String}
 
 }, { _id: false });
 
