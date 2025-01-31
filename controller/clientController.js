@@ -737,6 +737,7 @@ async function insertAccounts(accounts,organizationId) {
         accountId: savedAccount._id,
         accountName: savedAccount.accountName,
         action: "Opening Balance",
+        transactionId:'OB',
         debitAmount: debitOpeningBalance,
         creditAmount: creditOpeningBalance,
         remark: 'Opening Balance'
