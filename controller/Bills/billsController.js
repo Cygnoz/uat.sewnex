@@ -388,7 +388,7 @@ async function defaultAccounting( data, defaultAccount, organizationExists ) {
     organizationExists.organizationId, 
     data.otherExpenseAccountId, 
     data.freightAccountId, 
-    data.depositAccountId
+    data.paidAccountId
   );
    // 2. Check for missing required accounts
    const errorMessage = getMissingAccountsError(data, defaultAccount, accounts);
