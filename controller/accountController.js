@@ -71,6 +71,7 @@ exports.addAccount = async (req, res) => {
       const trialEntry = new TrialBalance({
         organizationId: organizationId,
         operationId: newAccount._id,
+        transactionId:'OB',
         accountId: newAccount._id,
         action: "Opening Balance",
         debitAmount: cleanedData.debitOpeningBalance || 0,
