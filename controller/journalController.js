@@ -11,8 +11,8 @@ const { cleanData } = require("../services/cleanData");
 
 
 // Fetch existing data
-const dataExist = async ( organizationId, journalId ) => {
-    const [ existingOrganization, allJournal, journal, prefix ] = await Promise.all([
+const dataExist = async ( organizationId, id ) => {
+    const [ existingOrganization, allJournal, journal, existingPrefix ] = await Promise.all([
     Organization.findOne({ organizationId }).lean(),
 
     Journal.find({ organizationId })
@@ -22,17 +22,17 @@ const dataExist = async ( organizationId, journalId ) => {
     })
     .lean(),
     
-    Journal.findOne({ _id: journalId, organizationId })
+    Journal.findOne({ _id: id, organizationId })
     .populate({
     path: "transaction.accountId", // Populate the accountId field
     select: "accountName", // Include only the accountName field
     })    
     .lean(),
       
-    Prefix.findOne({ organizationId:organizationId,'series.status': true }).lean(),
+    Prefix.findOne({ organizationId:organizationId,'series.status': true })
 
     ]);
-    return { existingOrganization, allJournal, journal, prefix };
+    return { existingOrganization, allJournal, journal, existingPrefix };
   };
 
 // Add Journal Entry
@@ -53,16 +53,11 @@ exports.addJournalEntry = async (req, res) => {
         const uniqueItemIds = new Set(transactionIds);
         if (uniqueItemIds.size !== transactionIds.length) {            
           return res.status(400).json({ message: "Duplicate Accounts found" });
-        }        
+        }     
 
-        // Check if the organization exists
-        const existingOrganization = await Organization.findOne({ organizationId });
-        if (!existingOrganization) {
-            return res.status(404).json({
-                message: "No Organization Found.",
-            });
-        }
-        
+        // Data Exist
+        const { existingOrganization, existingPrefix } = await dataExist( organizationId );   
+
 
         // Check if all accounts exist for the given organization
         const allAccountIds = transaction.map(trans => trans.accountId);
@@ -70,66 +65,32 @@ exports.addJournalEntry = async (req, res) => {
             _id: { $in: allAccountIds },
             organizationId
         });
-
         if (existingAccounts.length !== allAccountIds.length) {
             return res.status(404).json({
                 message: "One or more accounts not found for the given organization."
             });
         }
 
-              //Validate Inputs  
+
+        //Data Exist Validation
+        if (!validateOrganizationPrefix( existingOrganization, existingPrefix, res )) return;
+        
+        //Validate Inputs  
         if (!validateInputs(cleanedData, existingOrganization.organizationId, res)) return;
 
-
-        // Check if the organizationId exists in the Prefix collection
-        const existingPrefix = await Prefix.findOne({ organizationId });
-        if (!existingPrefix) {
-            return res.status(404).json({ message: "No Prefix data found for the organization." });
-        }
-
-        // Ensure series is an array and contains items
-        if (!Array.isArray(existingPrefix.series)) {
-            return res.status(500).json({ message: "Series is not an array or is missing." });
-        }
-        if (existingPrefix.series.length === 0) {
-            return res.status(404).json({ message: "No series data found for the organization." });
-        }
+        //Prefix
+        await journalPrefix( cleanedData, existingPrefix );
         
-
-        // Find the series with status true
-        const activeSeries = existingPrefix.series.find(series => series.status === true);
-        if (!activeSeries) {
-            return res.status(404).json({ message: "No active series found for the organization." });
-        }
-        // Generate the journalId by joining journal and journalNum
-        const journalId = `${activeSeries.journal}${activeSeries.journalNum}`;
-
-        // Increment the journalNum for the active series
-        activeSeries.journalNum += 1;
-
-        // Save the updated prefix collection
-        await existingPrefix.save();
-        
-        cleanedData.journalId =journalId;
-
-        cleanedData.journalId =journalId;
-
         // Create a new journal entry
-        const newJournalEntry = new Journal({ ...cleanedData, organizationId });
+        const savedJournal = await createNewJournal(cleanedData, organizationId, userId, userName );      
 
-
-        
-        const entry = await newJournalEntry.save();
-        console.log("Journal entry",entry);
-
-        
 
         // Insert data into TrialBalance collection and update account balances
         for (const trans of transaction) {
             const newTrialEntry = new TrialBalance({
                 organizationId,
-                operationId:newJournalEntry._id,
-                transactionId: journalId,
+                operationId:savedJournal._id,
+                transactionId: cleanedData.journalId,
                 accountId: trans.accountId,
                 action: "Journal",
                 debitAmount: trans.debitAmount,
@@ -139,20 +100,124 @@ exports.addJournalEntry = async (req, res) => {
 
             const entry = await newTrialEntry.save();
             console.log("Trial entry",entry);
-
-            
         }
 
-        res.status(201).json({
-            message: "Journal entry created successfully."
-        });
-        console.log("Journal entry created successfully:", newJournalEntry);
+        res.status(201).json({ message: "Journal entry created successfully." });
+        console.log("Journal entry created successfully:", savedJournal);
     } catch (error) {
         console.error("Error creating journal entry:", error);
         res.status(500).json({ message: "Internal server error." });
     }
 };
 
+
+
+// Update Journal Entry 
+exports.updateJournalEntry = async (req, res) => {
+    console.log("Update Journal Entry:", req.body);
+
+    try {
+      const { organizationId } = req.user;
+      const { id } = req.params; 
+
+        // Fetch existing journal entry
+      const existingJournalEntry = await Journal.findOne({ _id: id, organizationId });
+      if (!existingJournalEntry) {
+        console.log("Journal entry not found with ID:", id);
+        return res.status(404).json({ message: "Journal entry not found!" });
+      }
+
+      //Clean Data
+      const cleanedData = cleanData(req.body);
+      cleanedData.transaction = cleanedData.transaction?.map(acc => cleanData(acc)) || [];
+
+      const { transaction } = cleanedData;
+
+      const transactionIds = transaction.map(t => t.accountId);
+        
+      // Check for duplicate transactionIds
+      const uniqueTransactionIds = new Set(transactionIds);
+      if (uniqueTransactionIds.size !== transactionIds.length) {            
+        return res.status(400).json({ message: "Duplicate Accounts found!" });
+      }  
+
+      // Ensure `journalId` field matches the existing journal entry
+      if (cleanedData.journalId !== existingJournalEntry.journalId) {
+        return res.status(400).json({
+          message: `The provided journalId does not match the existing record. Expected: ${existingJournalEntry.journalId}`,
+        });
+      }
+      
+      // Data Exist
+      const { existingOrganization, existingPrefix } = await dataExist( organizationId );   
+
+      // Check if all accounts exist for the given organization
+      const allAccountIds = transaction.map(trans => trans.accountId);
+      const existingAccounts = await Account.find({
+          _id: { $in: allAccountIds },
+          organizationId
+      });
+      if (existingAccounts.length !== allAccountIds.length) {
+          return res.status(404).json({
+              message: "One or more accounts not found for the given organization."
+          });
+      }
+
+      //Data Exist Validation
+      if (!validateOrganizationPrefix( existingOrganization, existingPrefix, res )) return;
+        
+      //Validate Inputs  
+      if (!validateInputs(cleanedData, existingOrganization.organizationId, res)) return;
+
+      const mongooseDocument = Journal.hydrate(existingJournalEntry);
+      Object.assign(mongooseDocument, cleanedData);
+      const savedJournal = await mongooseDocument.save();
+      if (!savedJournal) {
+        return res.status(500).json({ message: "Failed to update journal entry!" });
+      }
+
+      // Fetch existing TrialBalance's createdDateTime
+      const existingTrialBalance = await TrialBalance.findOne({
+        organizationId: savedJournal.organizationId,
+        operationId: savedJournal._id,
+      });  
+  
+      const createdDateTime = existingTrialBalance ? existingTrialBalance.createdDateTime : null;
+  
+      // If there are existing entries, delete them
+      if (existingTrialBalance) {
+        await TrialBalance.deleteMany({
+          organizationId: savedJournal.organizationId,
+          operationId: savedJournal._id,
+        });
+        console.log(`Deleted existing TrialBalance entries for operationId: ${savedJournal._id}`);
+      }
+
+      // Insert data into TrialBalance collection and update account balances
+      for (const trans of transaction) {
+        const newTrialEntry = new TrialBalance({
+            organizationId,
+            operationId:savedJournal._id,
+            transactionId: cleanedData.journalId,
+            accountId: trans.accountId,
+            action: "Journal",
+            debitAmount: trans.debitAmount,
+            creditAmount: trans.creditAmount,
+            remark: cleanedData.note,
+            createdDateTime: createdDateTime
+        });
+
+        const entry = await newTrialEntry.save();
+        console.log("Trial entry",entry);
+      }
+
+      res.status(200).json({ message: "Journal entry updated successfully", savedJournal });
+      // console.log("Journal entry updated successfully:", savedJournal);
+    } catch (error) {
+      console.error("Error updating journal entry:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+}
 
 
 // Get all Journal for a given organizationId
@@ -222,13 +287,102 @@ exports.getOneJournal = async (req, res) => {
 };
 
 
+// Delete Journal Entry 
+exports.deleteJournalEntry  = async (req, res) => {
+    console.log("Delete journal entry request received:", req.params);
+
+    try {
+        const { organizationId } = req.user;
+        const { id } = req.params;
+
+        // Validate id
+        if (!mongoose.Types.ObjectId.isValid(id) || id.length !== 24) {
+            return res.status(400).json({ message: `Invalid Journal Entry ID: ${id}` });
+        }
+
+        // Fetch existing journal entry
+        const existingJournalEntry = await Journal.findOne({ _id: id, organizationId });
+        if (!existingJournalEntry) {
+            console.log("Journal entry not found with ID:", id);
+            return res.status(404).json({ message: "Journal entry not found!" });
+        }
+
+        // Fetch existing TrialBalance's createdDateTime
+        const existingTrialBalance = await TrialBalance.findOne({
+          organizationId: existingSalesInvoice.organizationId,
+          operationId: existingSalesInvoice._id,
+        });  
+        // If there are existing entries, delete them
+        if (existingTrialBalance) {
+          await TrialBalance.deleteMany({
+            organizationId: existingJournalEntry.organizationId,
+            operationId: existingJournalEntry._id,
+          });
+          console.log(`Deleted existing TrialBalance entries for operationId: ${existingJournalEntry._id}`);
+        }
+
+        // Delete the journal entry
+        const deletedJournalEntry = await existingJournalEntry.deleteOne();
+        if (!deletedJournalEntry) {
+            console.error("Failed to delete journal entry!");
+            return res.status(500).json({ message: "Failed to delete journal entry!" });
+        }
+
+        res.status(200).json({ message: "Journal entry deleted successfully!" });
+        console.log("Journal entry deleted successfully with ID:", id);
+
+    } catch (error) {
+        console.error("Error deleting journal entry:", error);
+        res.status(500).json({ message: "Internal server error!" });
+    }
+  };
+
+
+
+
+
+// Create New Journal
+function createNewJournal( data, organizationId, userId, userName ) {
+    const newJournal = new Journal({ ...data, organizationId, status :"Sent", userId, userName });
+    return newJournal.save();
+}
+
+
+// Validate Organization Tax Currency
+function validateOrganizationPrefix( existingOrganization, existingPrefix, res ) {
+    if (!existingOrganization) {
+      res.status(404).json({ message: "Organization not found" });
+      return false;
+    }
+    if (!existingPrefix) {
+      res.status(404).json({ message: "Prefix not found" });
+      return false;
+    }
+    return true;
+}
+
+
+
+// Journal Prefix
+function journalPrefix( cleanData, existingPrefix ) {
+    const activeSeries = existingPrefix.series.find(series => series.status === true);
+    if (!activeSeries) {
+        return res.status(404).json({ message: "No active series found for the organization." });
+    }
+    cleanData.journalId = `${activeSeries.journal}${activeSeries.journalNum}`;
+  
+    activeSeries.journalNum += 1;
+  
+    existingPrefix.save() 
+}
+
 // Get Last Journal Prefix
 exports.getLastJournalPrefix = async (req, res) => {
     try {
         const organizationId = req.user.organizationId;
 
         // Find all accounts where organizationId matches
-        const { prefix } = await dataExist( organizationId, null );
+        const prefix = await Prefix.findOne({ organizationId:organizationId,'series.status': true });
 
         if (!prefix) {
             return res.status(404).json({
@@ -245,29 +399,6 @@ exports.getLastJournalPrefix = async (req, res) => {
         res.status(500).json({ message: "Internal server error." });
     }
 };
-
-
-
-
-
-
-
-
-
-
-  
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

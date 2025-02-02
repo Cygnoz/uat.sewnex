@@ -43,6 +43,12 @@ router.get('/get-one-journal/:id',verifyToken,checkPermission('Viewed Journal En
 
 router.get('/get-last-journal-prefix',verifyToken,checkPermission('Added a Journal Entry'),journalController.getLastJournalPrefix)
 
+router.put('/update-journal/:id',verifyToken,checkPermission('Edited Journal Entry'),journalController.updateJournalEntry)
+
+router.delete('/delete-journal/:id',verifyToken,checkPermission('Deleted Journal Entry'),journalController.deleteJournalEntry)
+
+
+
 
 
 
