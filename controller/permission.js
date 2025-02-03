@@ -29,12 +29,13 @@ const checkPermission = (permissionAction) => {
       );
       const actionTime = generatedDateTime.dateTime;
 
+      console.log("Role Permissions:", role.permissions); // Log permissions
+      console.log("Permission Action:", permissionAction); // Log the required permission
+
       // Find the permission in the role's permissions array
       const permission = role.permissions.find(p => p.note === permissionAction);
       // console.log(permissionAction);
       
-      
-
       // If the permission exists, log the activity and grant access
       if (permission) {
         const activity = new ActivityLog({
@@ -42,8 +43,7 @@ const checkPermission = (permissionAction) => {
           activity: `Accessed ${permission.note}`, // Log the note associated with the permission
           timestamp: actionTime,
         });
-        await activity.save();
-                
+        await activity.save();       
 
         return next();  // Permission granted, move to next middleware or route handler
       } else {

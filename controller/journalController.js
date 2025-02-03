@@ -56,8 +56,7 @@ exports.addJournalEntry = async (req, res) => {
         }     
 
         // Data Exist
-        const { existingOrganization, existingPrefix } = await dataExist( organizationId );   
-
+        const { existingOrganization, existingPrefix } = await dataExist( organizationId, id );   
 
         // Check if all accounts exist for the given organization
         const allAccountIds = transaction.map(trans => trans.accountId);
@@ -71,7 +70,6 @@ exports.addJournalEntry = async (req, res) => {
             });
         }
 
-
         //Data Exist Validation
         if (!validateOrganizationPrefix( existingOrganization, existingPrefix, res )) return;
         
@@ -83,7 +81,6 @@ exports.addJournalEntry = async (req, res) => {
         
         // Create a new journal entry
         const savedJournal = await createNewJournal(cleanedData, organizationId, userId, userName );      
-
 
         // Insert data into TrialBalance collection and update account balances
         for (const trans of transaction) {
@@ -149,7 +146,7 @@ exports.updateJournalEntry = async (req, res) => {
       }
       
       // Data Exist
-      const { existingOrganization, existingPrefix } = await dataExist( organizationId );   
+      const { existingOrganization, existingPrefix } = await dataExist( organizationId, id );   
 
       // Check if all accounts exist for the given organization
       const allAccountIds = transaction.map(trans => trans.accountId);
@@ -267,12 +264,11 @@ exports.getOneJournal = async (req, res) => {
             });
         }
 
-        
         console.log("Journal:", journal);
         
         journal.transaction = journal.transaction.map(acc => ({
             ...acc,        
-            accountId: acc.accountId?._id || undefined,
+            accountId: acc.accountId?._id?.toString() || undefined,
             accountName: acc.accountId?.accountName || undefined,
         }));
         
