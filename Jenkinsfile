@@ -1,51 +1,49 @@
 pipeline {
     agent any
-
     environment {
         CONTAINER_NAME = 'accounts-container'
-        DOCKER_PORT = '5001'
-        SERVER_IP = '147.93.29.97'  // Update with your server IP
-        SSH_KEY_CREDENTIALS_ID = 'd9e5f3c2-383d-4325-8dee-77763d2e4f3b'  // Your SSH credentials ID
+        SERVER_IP = '147.93.29.97'
+        SSH_KEY_CREDENTIALS_ID = 'your-ssh-credentials-id'
     }
-
     stages {
         stage('Checkout SCM') {
             steps {
-                echo "Checking out source code from GitHub..."
-                git branch: 'Accounts', url: 'https://github.com/Cygnoz/BillBizz.git'
+                echo "Checking out code from SCM..."
+                checkout scm
             }
         }
-
+        
         stage('Build Docker Image') {
             steps {
                 echo "Building Docker image..."
                 script {
+                    // Build your Docker image here
                     sh '''
-                        docker build -t ${CONTAINER_NAME} -f Dockerfile .
+                        docker build -t ${CONTAINER_NAME} .
                     '''
                 }
             }
         }
-
+        
         stage('Cleanup Old Container') {
             steps {
                 echo "Checking for existing container ${CONTAINER_NAME}..."
                 sshagent(credentials: [SSH_KEY_CREDENTIALS_ID]) {
                     script {
                         sh '''
-                            ssh -o StrictHostKeyChecking=no root@${SERVER_IP} << 'EOF'
+                            ssh -o StrictHostKeyChecking=no root@${SERVER_IP} "
                                 # Find the previous container ID (if any)
-                                container_id=$(docker ps -a -q -f name=${CONTAINER_NAME})
-                                
+                                container_id=\$(docker ps -a -q -f name=${CONTAINER_NAME})
+
                                 # If a container ID exists, stop and remove it
-                                if [ -n "$container_id" ]; then
-                                    echo "Container ${CONTAINER_NAME} found with ID: $container_id. Stopping and removing..."
-                                    docker stop $container_id
-                                    docker rm $container_id
+                                if [ -n "\$container_id" ]; then
+                                    echo 'Container ${CONTAINER_NAME} found with ID: \$container_id. Stopping and removing...'
+                                    docker stop \$container_id
+                                    docker rm \$container_id
                                 else
-                                    echo "No existing container with the name ${CONTAINER_NAME} found. Skipping cleanup..."
+                                    echo 'No existing container with the name ${CONTAINER_NAME} found. Skipping cleanup...'
                                 fi
-                            'EOF'
+                            "
                         '''
                     }
                 }
@@ -54,31 +52,25 @@ pipeline {
 
         stage('Deploy to Server') {
             steps {
-                echo "Deploying Docker container to server..."
+                echo "Deploying new container to the server..."
                 sshagent(credentials: [SSH_KEY_CREDENTIALS_ID]) {
                     script {
                         sh '''
-                            ssh -o StrictHostKeyChecking=no root@${SERVER_IP} << 'EOF'
+                            ssh -o StrictHostKeyChecking=no root@${SERVER_IP} "
                                 # Run the new container
-                                echo "Deploying new container..."
-                                docker run -d --name ${CONTAINER_NAME} -p ${DOCKER_PORT}:${DOCKER_PORT} ${CONTAINER_NAME}:latest
-                            EOF
+                                docker run -d --name ${CONTAINER_NAME} -p 5001:5001 ${CONTAINER_NAME}
+                            "
                         '''
                     }
                 }
             }
         }
-    }
 
-    post {
-        always {
-            echo "Cleaning up..."
-        }
-        success {
-            echo "Deployment completed successfully!"
-        }
-        failure {
-            echo "Deployment failed. Please check the logs."
+        stage('Post Actions') {
+            steps {
+                echo "Cleaning up..."
+                // Add any post deployment actions here
+            }
         }
     }
 }
