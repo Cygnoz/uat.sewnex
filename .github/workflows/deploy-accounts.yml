@@ -1,9 +1,9 @@
-name: Deploy Accounts to Ubuntu Server
+name: Deploy Accounts Service to Ubuntu Server
 
 on:
   push:
     branches:
-      - Accounts
+      - Accounts  # Trigger on push to the 'Accounts' branch
 
 jobs:
   deploy:
@@ -20,19 +20,23 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
 
-      - name: Deploy to Server
+      - name: Deploy Accounts to Server
         run: |
-          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
+          ssh -i ~/.ssh/id_rsa ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
+            # Navigate to your project directory
             cd ~/BillBizz
+
+            # Pull the latest code for the Accounts branch
+            git checkout Accounts
             git pull origin Accounts
 
-            # Stop and remove old containers before deployment
+            # Stop and remove old containers (if any)
             docker stop account-container || true
             docker rm account-container || true
 
-            # Build Docker image for account service
+            # Build the Docker image for Accounts
             docker build -t account-container -f Dockerfile.accounts .
 
-            # Run the new container with the correct port
+            # Run the new container for Accounts
             docker run -d --name account-container -p 5001:5001 account-container
           EOF
