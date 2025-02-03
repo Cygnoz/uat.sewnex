@@ -39,5 +39,5 @@ jobs:
 
             # Run the new container with the correct port
             echo "Deploying the new inventory-container..."
-            docker run -d --name inventory-container -p 5003:5003 inventory-container
+            docker run -d --name inventory-container -p 0.0.0.0:5003:5003 -p :::5003:5003 inventory-container
           EOF
