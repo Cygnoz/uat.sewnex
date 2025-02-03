@@ -33,9 +33,9 @@ jobs:
               docker rm inventory-container
             fi
 
-            # Build the Docker image using the updated Dockerfile in the Inventory branch
+            # Build the Docker image using the correct Dockerfile
             echo "Building the inventory-container image..."
-            docker build -t inventory-container -f Dockerfilein .
+            docker build -t inventory-container -f Dockerfile .
 
             # Run the new container with the correct port
             echo "Deploying the new inventory-container..."
