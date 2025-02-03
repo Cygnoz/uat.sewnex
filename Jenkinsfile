@@ -1,119 +1,76 @@
-##pipeline {
+pipeline {
     agent any
-
     environment {
-        // Define environment variables for AWS ECR and ECS
-        AWS_REGION = 'ap-south-1'
-        ECR_REPOSITORY = 'accounts'
-        IMAGE_NAME = 'accounts'
-        AWS_CREDENTIALS_ID = '2157424a-b8a7-45c0-90c2-bc0d407f6cea'
-        AWS_ACCOUNT_ID = '654654462146' // Add your AWS account ID here
-        SONARQUBE_PROJECT_KEY = 'billbizz-organization '
-        SONARQUBE_SCANNER_CREDENTIALS_ID = 'be0613da-d2cb-4749-b539-66f1b3e6da04' // Jenkins credentials ID for SonarQube token
-        ECS_CLUSTER_NAME = 'dev-billbizz' // Replace with your ECS cluster name
-        ECS_SERVICE_NAME = 'billbizz-accounts' // Replace with your ECS service name
-        ECS_TASK_DEFINITION_NAME = 'Accounts' // Replace with your ECS task definition name
+        CONTAINER_NAME = 'accounts-container'
+        SERVER_IP = '147.93.29.97'
+        SSH_KEY_CREDENTIALS_ID = 'd9e5f3c2-383d-4325-8dee-77763d2e4f3b'
     }
-
     stages {
-        stage('SonarQube Analysis') {
+        stage('Checkout SCM') {
             steps {
-                script {
-                    // Set up SonarQube Scanner
-                    scannerHome = tool 'sonarqube' // Replace with your SonarQube Scanner tool name
-                }
-                 withSonarQubeEnv('APIND_Sonarqube') { // Replace with your SonarQube server name
-    // Use the SonarQube Scanner with exclusions for specified files
-    withCredentials([string(credentialsId: "${SONARQUBE_SCANNER_CREDENTIALS_ID}", variable: 'SONAR_TOKEN')]) {
-        sh "${scannerHome}/bin/sonar-scanner \
-            -Dsonar.projectKey=${SONARQUBE_PROJECT_KEY} \
-            -Dsonar.sources=. \
-            -Dsonar.exclusions=**/dependency-check-report.html,**/trivyfs.txt,**/trivyimage.txt \
-            -Dsonar.login=${SONAR_TOKEN}"
-                }
+                echo "Checking out code from SCM..."
+                checkout scm
             }
         }
-        }
-           stage('Dependency-Check Analysis') {
-    steps {
-        script {
-            dependencyCheck additionalArguments: '-f HTML', 
-                            odcInstallation: 'Dependency-Check', // Ensure this name matches the configuration in Global Tool Configuration
-                            outdir: 'dependency-check-report', 
-                              scanpath: '.'
-                }
-            }
-        }
+        
         stage('Build Docker Image') {
             steps {
+                echo "Building Docker image..."
                 script {
-                    // Build Docker image
-                    sh 'docker build -t $IMAGE_NAME .'
+                    // Build your Docker image here
+                    sh '''
+                        docker build -t ${CONTAINER_NAME} .
+                    '''
                 }
             }
         }
-
-        stage('Login to ECR') {
+        
+        stage('Cleanup Old Container') {
             steps {
-                script {
-                    // Authenticate Docker to the AWS ECR
-                    withAWS(credentials: "${AWS_CREDENTIALS_ID}", region: "${AWS_REGION}") {
+                echo "Checking for existing container ${CONTAINER_NAME}..."
+                sshagent(credentials: [SSH_KEY_CREDENTIALS_ID]) {
+                    script {
                         sh '''
-                            aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+                            ssh -o StrictHostKeyChecking=no root@${SERVER_IP} "
+                                # Find the previous container ID (if any)
+                                container_id=\$(docker ps -a -q -f name=${CONTAINER_NAME})
+
+                                # If a container ID exists, stop and remove it
+                                if [ -n "\$container_id" ]; then
+                                    echo 'Container ${CONTAINER_NAME} found with ID: \$container_id. Stopping and removing...'
+                                    docker stop \$container_id
+                                    docker rm \$container_id
+                                else
+                                    echo 'No existing container with the name ${CONTAINER_NAME} found. Skipping cleanup...'
+                                fi
+                            "
                         '''
                     }
                 }
             }
         }
 
-        stage('Push Docker Image') {
+        stage('Deploy to Server') {
             steps {
-                script {
-                    // Tag and push Docker image to ECR
-                    sh 'docker tag $IMAGE_NAME:latest ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:latest'
-                    sh 'docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:latest'
-                }
-            }
-        }
-
-        stage('Update ECS Service') {
-            steps {
-                script {
-                    withAWS(credentials: "${AWS_CREDENTIALS_ID}", region: "${AWS_REGION}") {
+                echo "Deploying new container to the server..."
+                sshagent(credentials: [SSH_KEY_CREDENTIALS_ID]) {
+                    script {
                         sh '''
-                            # Fetch the latest task definition revision
-                            LATEST_TASK_DEFINITION=$(aws ecs describe-task-definition \
-                                --region ${AWS_REGION} \
-                                --task-definition ${ECS_TASK_DEFINITION_NAME} \
-                                --query 'taskDefinition.taskDefinitionArn' \
-                                --output text)
-
-                            # Check if the task definition was fetched successfully
-                            if [ -z "$LATEST_TASK_DEFINITION" ]; then
-                                echo "Error: Could not fetch the task definition ARN."
-                                exit 1
-                            fi
-
-                            # Update ECS Service to use the latest task definition
-                            aws ecs update-service \
-                                --region ${AWS_REGION} \
-                                --cluster ${ECS_CLUSTER_NAME} \
-                                --service ${ECS_SERVICE_NAME} \
-                                --force-new-deployment \
-                                --task-definition ${LATEST_TASK_DEFINITION}
+                            ssh -o StrictHostKeyChecking=no root@${SERVER_IP} "
+                                # Run the new container
+                                docker run -d --name ${CONTAINER_NAME} -p 5001:5001 ${CONTAINER_NAME}
+                            "
                         '''
                     }
                 }
             }
         }
-    }
 
-    post {
-        success {
-            echo 'Pipeline completed successfully!'
-        }
-        failure {
-            echo 'Pipeline failed.'
+        stage('Post Actions') {
+            steps {
+                echo "Cleaning up..."
+                // Add any post deployment actions here
+            }
         }
     }
 }
