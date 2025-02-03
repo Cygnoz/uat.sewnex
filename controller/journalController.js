@@ -56,7 +56,7 @@ exports.addJournalEntry = async (req, res) => {
         }     
 
         // Data Exist
-        const { existingOrganization, existingPrefix } = await dataExist( organizationId, id );   
+        const { existingOrganization, existingPrefix } = await dataExist( organizationId );   
 
         // Check if all accounts exist for the given organization
         const allAccountIds = transaction.map(trans => trans.accountId);
@@ -146,7 +146,7 @@ exports.updateJournalEntry = async (req, res) => {
       }
       
       // Data Exist
-      const { existingOrganization, existingPrefix } = await dataExist( organizationId, id );   
+      const { existingOrganization, existingPrefix } = await dataExist( organizationId );   
 
       // Check if all accounts exist for the given organization
       const allAccountIds = transaction.map(trans => trans.accountId);
@@ -268,7 +268,7 @@ exports.getOneJournal = async (req, res) => {
         
         journal.transaction = journal.transaction.map(acc => ({
             ...acc,        
-            accountId: acc.accountId?._id?.toString() || undefined,
+            accountId: acc.accountId?._id || undefined,
             accountName: acc.accountId?.accountName || undefined,
         }));
         
