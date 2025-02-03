@@ -2,7 +2,6 @@ pipeline {
     agent any
 
     environment {
-        // Define your environment variables
         CONTAINER_NAME = 'accounts-container'
         DOCKER_PORT = '5001'
         SERVER_IP = '147.93.29.97'  // Update with your server IP
@@ -15,8 +14,8 @@ pipeline {
                 echo "Checking for existing container ${CONTAINER_NAME}..."
                 sshagent(credentials: [SSH_KEY_CREDENTIALS_ID]) {
                     script {
-                        // Use a properly formatted multi-line string for the SSH command
-                        sh """
+                        // Run the SSH command with proper EOF syntax
+                        sh '''
                             ssh -o StrictHostKeyChecking=no root@${SERVER_IP} <<EOF
                                 # Check if the container with the same name exists
                                 if docker ps -a -q -f name=${CONTAINER_NAME}; then
@@ -27,7 +26,7 @@ pipeline {
                                     echo "No existing container with the name ${CONTAINER_NAME} found. Skipping cleanup..."
                                 fi
                             EOF
-                        """
+                        '''
                     }
                 }
             }
@@ -44,9 +43,9 @@ pipeline {
             steps {
                 echo "Building Docker image..."
                 script {
-                    sh """
+                    sh '''
                         docker build -t ${CONTAINER_NAME} -f Dockerfile .
-                    """
+                    '''
                 }
             }
         }
@@ -56,13 +55,13 @@ pipeline {
                 echo "Deploying Docker container to server..."
                 sshagent(credentials: [SSH_KEY_CREDENTIALS_ID]) {
                     script {
-                        sh """
+                        sh '''
                             ssh -o StrictHostKeyChecking=no root@${SERVER_IP} <<EOF
                                 # Run the new container
                                 echo "Deploying new container..."
                                 docker run -d --name ${CONTAINER_NAME} -p ${DOCKER_PORT}:${DOCKER_PORT} ${CONTAINER_NAME}:latest
                             EOF
-                        """
+                        '''
                     }
                 }
             }
@@ -72,7 +71,6 @@ pipeline {
     post {
         always {
             echo "Cleaning up..."
-            // Any cleanup tasks can go here
         }
         success {
             echo "Deployment completed successfully!"
