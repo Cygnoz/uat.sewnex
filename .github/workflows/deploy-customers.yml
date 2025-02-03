@@ -24,7 +24,7 @@ jobs:
         run: |
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
             cd ~/BillBizz
-            git pull origin Accounts
+            git pull origin Customers
 
             # Check if the container is already running, and stop & remove if it exists
             if docker ps -q -f name=customers-container; then
@@ -39,5 +39,5 @@ jobs:
 
             # Run the new container with the correct port
             echo "Deploying the new customers-container..."
-            docker run -d --name Customers-container -p 5002:5002 customers-container
+            docker run -d --name customers-container -p 5002:5002 customers-container
           EOF
