@@ -45,7 +45,7 @@ pipeline {
                                 else
                                     echo "No existing container with the name ${CONTAINER_NAME} found. Skipping cleanup..."
                                 fi
-                            EOF
+                            'EOF'
                         '''
                     }
                 }
