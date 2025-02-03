@@ -15,7 +15,7 @@ pipeline {
                 echo "Checking for existing container ${CONTAINER_NAME}..."
                 sshagent(credentials: [SSH_KEY_CREDENTIALS_ID]) {
                     script {
-                        // Use a multi-line string inside the `sh` block
+                        // Use a properly formatted multi-line string for the SSH command
                         sh """
                             ssh -o StrictHostKeyChecking=no root@${SERVER_IP} <<EOF
                                 # Check if the container with the same name exists
@@ -24,7 +24,7 @@ pipeline {
                                     docker stop ${CONTAINER_NAME}
                                     docker rm ${CONTAINER_NAME}
                                 else
-                                    echo "No existing container with the name ${CONTAINER_NAME} found."
+                                    echo "No existing container with the name ${CONTAINER_NAME} found. Skipping cleanup..."
                                 fi
                             EOF
                         """
