@@ -1,0 +1,40 @@
+name: Deploy to Ubuntu Server - Customers
+
+on:
+  push:
+    branches:
+      - Customers
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to Server
+        run: |
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
+            cd ~/BillBizz
+            git pull origin Customers
+
+            if docker ps -q -f name=customers-container; then
+              echo "Stopping and removing old customers-container..."
+              docker stop customers-container
+              docker rm customers-container
+            fi
+
+            echo "Building the customers-container image..."
+            docker build -t customers-container -f Dockerfile.customers .
+
+            echo "Deploying the new customers-container..."
+            docker run -d --name customers-container -p 5002:5002 customers-container
+          EOF
