@@ -1,10 +1,9 @@
-name: Deploy to Ubuntu Server (Accounts Branch)
+name: Deploy Accounts to Ubuntu Server
 
 on:
   push:
     branches:
-      - Accounts  # Only trigger this workflow for the Accounts branch
-  workflow_dispatch:  # Allows manual triggering too
+      - Accounts
 
 jobs:
   deploy:
@@ -25,15 +24,15 @@ jobs:
         run: |
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
             cd ~/BillBizz
-            git pull origin Accounts  # Pull the latest code for the Accounts branch
+            git pull origin Accounts
 
-            # Stop and remove only the container for the Accounts service
+            # Stop and remove old containers before deployment
             docker stop account-container || true
             docker rm account-container || true
 
-            # Build Docker image for the Account service
+            # Build Docker image for account service
             docker build -t account-container -f Dockerfile.accounts .
 
-            # Run the new container for the Account service with correct port
+            # Run the new container with the correct port
             docker run -d --name account-container -p 5001:5001 account-container
           EOF
