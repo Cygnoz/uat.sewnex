@@ -1,0 +1,43 @@
+name: Deploy to Ubuntu Server - Inventory
+
+on:
+  push:
+    branches:
+      - Inventory
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to Server
+        run: |
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
+            cd ~/BillBizz
+            git pull origin Inventory
+
+            # Check if the container is already running, and stop & remove if it exists
+            if docker ps -q -f name=inventory-container; then
+              echo "Stopping and removing old inventory-container..."
+              docker stop inventory-container
+              docker rm inventory-container
+            fi
+
+            # Build the Docker image using the updated Dockerfile
+            echo "Building the inventory-container image..."
+            docker build -t inventory-container -f Dockerfile .
+
+            # Run the new container with the correct port
+            echo "Deploying the new inventory-container..."
+            docker run -d --name inventory-container -p 5005:5005 inventory-container
+          EOF
