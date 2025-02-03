@@ -26,13 +26,18 @@ jobs:
             cd ~/BillBizz
             git pull origin Accounts
 
-            # Stop and remove old container
-            docker stop account-container || true
-            docker rm account-container || true
+            # Check if the container is already running, and stop & remove if it exists
+            if docker ps -q -f name=account-container; then
+              echo "Stopping and removing old account-container..."
+              docker stop account-container
+              docker rm account-container
+            fi
 
-            # Build the Docker image for the Accounts service
-            docker build -t account-container -f Dockerfile.accounts .
+            # Build the Docker image using the updated Dockerfile
+            echo "Building the account-container image..."
+            docker build -t account-container -f Dockerfile .
 
             # Run the new container with the correct port
+            echo "Deploying the new account-container..."
             docker run -d --name account-container -p 5001:5001 account-container
           EOF
