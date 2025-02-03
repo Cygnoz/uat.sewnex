@@ -1,0 +1,39 @@
+name: Deploy to Ubuntu Server (Accounts Branch)
+
+on:
+  push:
+    branches:
+      - Accounts  # Only trigger this workflow for the Accounts branch
+  workflow_dispatch:  # Allows manual triggering too
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to Server
+        run: |
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
+            cd ~/BillBizz
+            git pull origin Accounts  # Pull the latest code for the Accounts branch
+
+            # Stop and remove only the container for the Accounts service
+            docker stop account-container || true
+            docker rm account-container || true
+
+            # Build Docker image for the Account service
+            docker build -t account-container -f Dockerfile.accounts .
+
+            # Run the new container for the Account service with correct port
+            docker run -d --name account-container -p 5001:5001 account-container
+          EOF
