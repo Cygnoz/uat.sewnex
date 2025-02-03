@@ -737,13 +737,23 @@ async function getIndirectIncomeAccount(organizationId, startDate, endDate) {
     };
 }
 
-// 8. Equity Account(Equity)
+// 8. Equity Account(Equity)//
 async function getEquityAccount(organizationId, startDate, endDate) {
     const equity = await TrialBalance.aggregate([
         {
             $match: {
                 organizationId,
-                createdDateTime: { $gte: startDate, $lte: endDate }
+                createdDateTime: { $gte: startDate, $lte: endDate },
+                $or: [
+                    { debitAmount: { $gt: 0 } },
+                    { creditAmount: { $gt: 0 } }
+                ]            
+            }
+        },
+        {
+            $addFields: {
+                totalDebit: "$debitAmount",
+                totalCredit: "$creditAmount"
             }
         },
         {
@@ -754,9 +764,7 @@ async function getEquityAccount(organizationId, startDate, endDate) {
                 as: 'account'
             }
         },
-        {
-            $unwind: '$account'
-        },
+        { $unwind: '$account' },
         {
             $match: {
                 'account.accountSubhead': 'Equity'
@@ -764,22 +772,126 @@ async function getEquityAccount(organizationId, startDate, endDate) {
         },
         {
             $group: {
-                _id: '$account.accountName',
+                _id: {
+                    accountSubhead: '$account.accountSubhead',
+                    accountId: '$accountId',
+                    accountName: '$account.accountName',
+                    month: { $dateToString: { format: "%B %Y", date: "$createdDateTime" } }
+                },
+                trialBalance: {
+                    $push: {
+                        _id: '$_id',
+                        operationId: '$operationId',
+                        transactionId:'$transactionId',
+                        action: '$action',
+                        remark: '$remark',
+                        debitAmount: '$debitAmount',
+                        creditAmount: '$creditAmount',
+                        createdDateTime: '$createdDateTime'
+                    }
+                },
                 totalDebit: { $sum: '$debitAmount' },
                 totalCredit: { $sum: '$creditAmount' }
             }
+        },
+        {
+            $project: {
+                _id: 0,
+                accountSubhead: '$_id.accountSubhead',
+                accounts: {
+                    accountName: '$_id.accountName',
+                    accountId: '$_id.accountId',
+                    month: '$_id.month',
+                    trialBalance: '$trialBalance',
+                    totalDebit: { $ifNull: ['$totalDebit', 0] },
+                    totalCredit: { $ifNull: ['$totalCredit', 0] },
+                    netDebit: {
+                        $cond: {
+                            if: { $gt: ['$totalDebit', '$totalCredit'] },
+                            then: { $subtract: ['$totalDebit', '$totalCredit'] },
+                            else: 0
+                        }
+                    },
+                    netCredit: {
+                        $cond: {
+                            if: { $gt: ['$totalCredit', '$totalDebit'] },
+                            then: { $subtract: ['$totalCredit', '$totalDebit'] },
+                            else: 0
+                        }
+                    }
+                }
+            }
+        },
+        {
+            $group: {
+                _id: "$accountSubhead",
+                accounts: { $push: "$accounts" },
+                totalDebit: { $sum: "$accounts.totalDebit" },
+                totalCredit: { $sum: "$accounts.totalCredit" },
+                netDebit: { $sum: "$accounts.netDebit" },
+                netCredit: { $sum: "$accounts.netCredit" }
+            }
+        },
+        {
+            $project: {
+                _id: 0,
+                accountSubhead: "$_id",
+                accounts: 1,
+                totalDebit: { $ifNull: ["$totalDebit", 0] },
+                totalCredit: { $ifNull: ["$totalCredit", 0] },
+                netDebit: { $ifNull: ["$netDebit", 0] },
+                netCredit: { $ifNull: ["$netCredit", 0] }
+            }
+        },
+        // **Compute Overall Totals**
+        {
+            $group: {
+                _id: null,
+                equity: { $push: "$$ROOT" },
+                overallTotalDebit: { $sum: { $ifNull: ["$totalDebit", 0] } },
+                overallTotalCredit: { $sum: { $ifNull: ["$totalCredit", 0] } },
+                overallNetDebit: { $sum: { $ifNull: ["$netDebit", 0] } },
+                overallNetCredit: { $sum: { $ifNull: ["$netCredit", 0] } }
+            }
+        },
+        {
+            $project: {
+                _id: 0,
+                equity: 1,
+                overallTotalDebit: { $ifNull: ["$overallTotalDebit", 0] },
+                overallTotalCredit: { $ifNull: ["$overallTotalCredit", 0] },
+                overallNetDebit: { $ifNull: ["$overallNetDebit", 0] },
+                overallNetCredit: { $ifNull: ["$overallNetCredit", 0] }
+            }
         }
     ]);
-    return equity;
+
+    return equity.length > 0 ? equity[0] : {
+        equity: [],
+        overallTotalDebit: 0,
+        overallTotalCredit: 0,
+        overallNetDebit: 0,
+        overallNetCredit: 0
+    };
 }
 
-// 9. Current Liability Account(Current Liability)
+// 9. Current Liability Account(Current Liability)//
 async function getCurrentLiabilityAccount(organizationId, startDate, endDate) {
-    const liabilities = await TrialBalance.aggregate([
+    const currentLiabilities = await TrialBalance.aggregate([
         {
             $match: {
                 organizationId,
-                createdDateTime: { $gte: startDate, $lte: endDate }
+                createdDateTime: { $gte: startDate, $lte: endDate },
+                $or: [
+                    { debitAmount: { $gt: 0 } },
+                    { creditAmount: { $gt: 0 } }
+                ]            
+            }
+        },
+        {
+            $addFields: {
+                totalDebit: "$debitAmount",
+                totalCredit: "$creditAmount"
             }
         },
         {
@@ -790,9 +902,7 @@ async function getCurrentLiabilityAccount(organizationId, startDate, endDate) {
                 as: 'account'
             }
         },
-        {
-            $unwind: '$account'
-        },
+        { $unwind: '$account' },
         {
             $match: {
                 'account.accountSubhead': 'Current Liability'
@@ -800,22 +910,126 @@ async function getCurrentLiabilityAccount(organizationId, startDate, endDate) {
         },
         {
             $group: {
-                _id: '$account.accountName',
+                _id: {
+                    accountSubhead: '$account.accountSubhead',
+                    accountId: '$accountId',
+                    accountName: '$account.accountName',
+                    month: { $dateToString: { format: "%B %Y", date: "$createdDateTime" } }
+                },
+                trialBalance: {
+                    $push: {
+                        _id: '$_id',
+                        operationId: '$operationId',
+                        transactionId:'$transactionId',
+                        action: '$action',
+                        remark: '$remark',
+                        debitAmount: '$debitAmount',
+                        creditAmount: '$creditAmount',
+                        createdDateTime: '$createdDateTime'
+                    }
+                },
                 totalDebit: { $sum: '$debitAmount' },
                 totalCredit: { $sum: '$creditAmount' }
             }
+        },
+        {
+            $project: {
+                _id: 0,
+                accountSubhead: '$_id.accountSubhead',
+                accounts: {
+                    accountName: '$_id.accountName',
+                    accountId: '$_id.accountId',
+                    month: '$_id.month',
+                    trialBalance: '$trialBalance',
+                    totalDebit: { $ifNull: ['$totalDebit', 0] },
+                    totalCredit: { $ifNull: ['$totalCredit', 0] },
+                    netDebit: {
+                        $cond: {
+                            if: { $gt: ['$totalDebit', '$totalCredit'] },
+                            then: { $subtract: ['$totalDebit', '$totalCredit'] },
+                            else: 0
+                        }
+                    },
+                    netCredit: {
+                        $cond: {
+                            if: { $gt: ['$totalCredit', '$totalDebit'] },
+                            then: { $subtract: ['$totalCredit', '$totalDebit'] },
+                            else: 0
+                        }
+                    }
+                }
+            }
+        },
+        {
+            $group: {
+                _id: "$accountSubhead",
+                accounts: { $push: "$accounts" },
+                totalDebit: { $sum: "$accounts.totalDebit" },
+                totalCredit: { $sum: "$accounts.totalCredit" },
+                netDebit: { $sum: "$accounts.netDebit" },
+                netCredit: { $sum: "$accounts.netCredit" }
+            }
+        },
+        {
+            $project: {
+                _id: 0,
+                accountSubhead: "$_id",
+                accounts: 1,
+                totalDebit: { $ifNull: ["$totalDebit", 0] },
+                totalCredit: { $ifNull: ["$totalCredit", 0] },
+                netDebit: { $ifNull: ["$netDebit", 0] },
+                netCredit: { $ifNull: ["$netCredit", 0] }
+            }
+        },
+        // **Compute Overall Totals**
+        {
+            $group: {
+                _id: null,
+                currentLiabilities: { $push: "$$ROOT" },
+                overallTotalDebit: { $sum: { $ifNull: ["$totalDebit", 0] } },
+                overallTotalCredit: { $sum: { $ifNull: ["$totalCredit", 0] } },
+                overallNetDebit: { $sum: { $ifNull: ["$netDebit", 0] } },
+                overallNetCredit: { $sum: { $ifNull: ["$netCredit", 0] } }
+            }
+        },
+        {
+            $project: {
+                _id: 0,
+                currentLiabilities: 1,
+                overallTotalDebit: { $ifNull: ["$overallTotalDebit", 0] },
+                overallTotalCredit: { $ifNull: ["$overallTotalCredit", 0] },
+                overallNetDebit: { $ifNull: ["$overallNetDebit", 0] },
+                overallNetCredit: { $ifNull: ["$overallNetCredit", 0] }
+            }
         }
     ]);
-    return liabilities;
+
+    return currentLiabilities.length > 0 ? currentLiabilities[0] : {
+        currentLiabilities: [],
+        overallTotalDebit: 0,
+        overallTotalCredit: 0,
+        overallNetDebit: 0,
+        overallNetCredit: 0
+    };
 }
 
-// 10. Non-Current Liability Account(Non-Current Liability)
+// 10. Non-Current Liability Account(Non-Current Liability)//
 async function getNonCurrentLiabilityAccount(organizationId, startDate, endDate) {
-    const liabilities = await TrialBalance.aggregate([
+    const nonCurrentLiabilities = await TrialBalance.aggregate([
         {
             $match: {
                 organizationId,
-                createdDateTime: { $gte: startDate, $lte: endDate }
+                createdDateTime: { $gte: startDate, $lte: endDate },
+                $or: [
+                    { debitAmount: { $gt: 0 } },
+                    { creditAmount: { $gt: 0 } }
+                ]            
+            }
+        },
+        {
+            $addFields: {
+                totalDebit: "$debitAmount",
+                totalCredit: "$creditAmount"
             }
         },
         {
@@ -826,9 +1040,7 @@ async function getNonCurrentLiabilityAccount(organizationId, startDate, endDate)
                 as: 'account'
             }
         },
-        {
-            $unwind: '$account'
-        },
+        { $unwind: '$account' },
         {
             $match: {
                 'account.accountSubhead': 'Non-Current Liability'
@@ -836,22 +1048,126 @@ async function getNonCurrentLiabilityAccount(organizationId, startDate, endDate)
         },
         {
             $group: {
-                _id: '$account.accountName',
+                _id: {
+                    accountSubhead: '$account.accountSubhead',
+                    accountId: '$accountId',
+                    accountName: '$account.accountName',
+                    month: { $dateToString: { format: "%B %Y", date: "$createdDateTime" } }
+                },
+                trialBalance: {
+                    $push: {
+                        _id: '$_id',
+                        operationId: '$operationId',
+                        transactionId:'$transactionId',
+                        action: '$action',
+                        remark: '$remark',
+                        debitAmount: '$debitAmount',
+                        creditAmount: '$creditAmount',
+                        createdDateTime: '$createdDateTime'
+                    }
+                },
                 totalDebit: { $sum: '$debitAmount' },
                 totalCredit: { $sum: '$creditAmount' }
             }
+        },
+        {
+            $project: {
+                _id: 0,
+                accountSubhead: '$_id.accountSubhead',
+                accounts: {
+                    accountName: '$_id.accountName',
+                    accountId: '$_id.accountId',
+                    month: '$_id.month',
+                    trialBalance: '$trialBalance',
+                    totalDebit: { $ifNull: ['$totalDebit', 0] },
+                    totalCredit: { $ifNull: ['$totalCredit', 0] },
+                    netDebit: {
+                        $cond: {
+                            if: { $gt: ['$totalDebit', '$totalCredit'] },
+                            then: { $subtract: ['$totalDebit', '$totalCredit'] },
+                            else: 0
+                        }
+                    },
+                    netCredit: {
+                        $cond: {
+                            if: { $gt: ['$totalCredit', '$totalDebit'] },
+                            then: { $subtract: ['$totalCredit', '$totalDebit'] },
+                            else: 0
+                        }
+                    }
+                }
+            }
+        },
+        {
+            $group: {
+                _id: "$accountSubhead",
+                accounts: { $push: "$accounts" },
+                totalDebit: { $sum: "$accounts.totalDebit" },
+                totalCredit: { $sum: "$accounts.totalCredit" },
+                netDebit: { $sum: "$accounts.netDebit" },
+                netCredit: { $sum: "$accounts.netCredit" }
+            }
+        },
+        {
+            $project: {
+                _id: 0,
+                accountSubhead: "$_id",
+                accounts: 1,
+                totalDebit: { $ifNull: ["$totalDebit", 0] },
+                totalCredit: { $ifNull: ["$totalCredit", 0] },
+                netDebit: { $ifNull: ["$netDebit", 0] },
+                netCredit: { $ifNull: ["$netCredit", 0] }
+            }
+        },
+        // **Compute Overall Totals**
+        {
+            $group: {
+                _id: null,
+                nonCurrentLiabilities: { $push: "$$ROOT" },
+                overallTotalDebit: { $sum: { $ifNull: ["$totalDebit", 0] } },
+                overallTotalCredit: { $sum: { $ifNull: ["$totalCredit", 0] } },
+                overallNetDebit: { $sum: { $ifNull: ["$netDebit", 0] } },
+                overallNetCredit: { $sum: { $ifNull: ["$netCredit", 0] } }
+            }
+        },
+        {
+            $project: {
+                _id: 0,
+                nonCurrentLiabilities: 1,
+                overallTotalDebit: { $ifNull: ["$overallTotalDebit", 0] },
+                overallTotalCredit: { $ifNull: ["$overallTotalCredit", 0] },
+                overallNetDebit: { $ifNull: ["$overallNetDebit", 0] },
+                overallNetCredit: { $ifNull: ["$overallNetCredit", 0] }
+            }
         }
     ]);
-    return liabilities;
+
+    return nonCurrentLiabilities.length > 0 ? nonCurrentLiabilities[0] : {
+        nonCurrentLiabilities: [],
+        overallTotalDebit: 0,
+        overallTotalCredit: 0,
+        overallNetDebit: 0,
+        overallNetCredit: 0
+    };
 }
 
-// 11. Current Asset Account (including Cash and Bank)('account.accountSubhead': { $in: ['Current Asset', 'Cash', 'Bank'] })
+// 11. Current Asset Account (including Cash and Bank)('account.accountSubhead': { $in: ['Current Asset', 'Cash', 'Bank'] })//
 async function getCurrentAssetAccount(organizationId, startDate, endDate) {
-    const assets = await TrialBalance.aggregate([
+    const currentAssets = await TrialBalance.aggregate([
         {
             $match: {
                 organizationId,
-                createdDateTime: { $gte: startDate, $lte: endDate }
+                createdDateTime: { $gte: startDate, $lte: endDate },
+                $or: [
+                    { debitAmount: { $gt: 0 } },
+                    { creditAmount: { $gt: 0 } }
+                ]            
+            }
+        },
+        {
+            $addFields: {
+                totalDebit: "$debitAmount",
+                totalCredit: "$creditAmount"
             }
         },
         {
@@ -862,9 +1178,7 @@ async function getCurrentAssetAccount(organizationId, startDate, endDate) {
                 as: 'account'
             }
         },
-        {
-            $unwind: '$account'
-        },
+        { $unwind: '$account' },
         {
             $match: {
                 'account.accountSubhead': { $in: ['Current Asset', 'Cash', 'Bank'] }
@@ -872,22 +1186,126 @@ async function getCurrentAssetAccount(organizationId, startDate, endDate) {
         },
         {
             $group: {
-                _id: '$account.accountName',
+                _id: {
+                    accountSubhead: '$account.accountSubhead',
+                    accountId: '$accountId',
+                    accountName: '$account.accountName',
+                    month: { $dateToString: { format: "%B %Y", date: "$createdDateTime" } }
+                },
+                trialBalance: {
+                    $push: {
+                        _id: '$_id',
+                        operationId: '$operationId',
+                        transactionId:'$transactionId',
+                        action: '$action',
+                        remark: '$remark',
+                        debitAmount: '$debitAmount',
+                        creditAmount: '$creditAmount',
+                        createdDateTime: '$createdDateTime'
+                    }
+                },
                 totalDebit: { $sum: '$debitAmount' },
                 totalCredit: { $sum: '$creditAmount' }
             }
+        },
+        {
+            $project: {
+                _id: 0,
+                accountSubhead: '$_id.accountSubhead',
+                accounts: {
+                    accountName: '$_id.accountName',
+                    accountId: '$_id.accountId',
+                    month: '$_id.month',
+                    trialBalance: '$trialBalance',
+                    totalDebit: { $ifNull: ['$totalDebit', 0] },
+                    totalCredit: { $ifNull: ['$totalCredit', 0] },
+                    netDebit: {
+                        $cond: {
+                            if: { $gt: ['$totalDebit', '$totalCredit'] },
+                            then: { $subtract: ['$totalDebit', '$totalCredit'] },
+                            else: 0
+                        }
+                    },
+                    netCredit: {
+                        $cond: {
+                            if: { $gt: ['$totalCredit', '$totalDebit'] },
+                            then: { $subtract: ['$totalCredit', '$totalDebit'] },
+                            else: 0
+                        }
+                    }
+                }
+            }
+        },
+        {
+            $group: {
+                _id: "$accountSubhead",
+                accounts: { $push: "$accounts" },
+                totalDebit: { $sum: "$accounts.totalDebit" },
+                totalCredit: { $sum: "$accounts.totalCredit" },
+                netDebit: { $sum: "$accounts.netDebit" },
+                netCredit: { $sum: "$accounts.netCredit" }
+            }
+        },
+        {
+            $project: {
+                _id: 0,
+                accountSubhead: "$_id",
+                accounts: 1,
+                totalDebit: { $ifNull: ["$totalDebit", 0] },
+                totalCredit: { $ifNull: ["$totalCredit", 0] },
+                netDebit: { $ifNull: ["$netDebit", 0] },
+                netCredit: { $ifNull: ["$netCredit", 0] }
+            }
+        },
+        // **Compute Overall Totals**
+        {
+            $group: {
+                _id: null,
+                currentAssets: { $push: "$$ROOT" },
+                overallTotalDebit: { $sum: { $ifNull: ["$totalDebit", 0] } },
+                overallTotalCredit: { $sum: { $ifNull: ["$totalCredit", 0] } },
+                overallNetDebit: { $sum: { $ifNull: ["$netDebit", 0] } },
+                overallNetCredit: { $sum: { $ifNull: ["$netCredit", 0] } }
+            }
+        },
+        {
+            $project: {
+                _id: 0,
+                currentAssets: 1,
+                overallTotalDebit: { $ifNull: ["$overallTotalDebit", 0] },
+                overallTotalCredit: { $ifNull: ["$overallTotalCredit", 0] },
+                overallNetDebit: { $ifNull: ["$overallNetDebit", 0] },
+                overallNetCredit: { $ifNull: ["$overallNetCredit", 0] }
+            }
         }
     ]);
-    return assets;
+
+    return currentAssets.length > 0 ? currentAssets[0] : {
+        currentAssets: [],
+        overallTotalDebit: 0,
+        overallTotalCredit: 0,
+        overallNetDebit: 0,
+        overallNetCredit: 0
+    };
 }
 
-// 12. Non-Current Asset Account(Non-Current Asset)
+// 12. Non-Current Asset Account(Non-Current Asset)//
 async function getNonCurrentAssetAccount(organizationId, startDate, endDate) {
-    const assets = await TrialBalance.aggregate([
+    const nonCurrentAssets = await TrialBalance.aggregate([
         {
             $match: {
                 organizationId,
-                createdDateTime: { $gte: startDate, $lte: endDate }
+                createdDateTime: { $gte: startDate, $lte: endDate },
+                $or: [
+                    { debitAmount: { $gt: 0 } },
+                    { creditAmount: { $gt: 0 } }
+                ]            
+            }
+        },
+        {
+            $addFields: {
+                totalDebit: "$debitAmount",
+                totalCredit: "$creditAmount"
             }
         },
         {
@@ -898,9 +1316,7 @@ async function getNonCurrentAssetAccount(organizationId, startDate, endDate) {
                 as: 'account'
             }
         },
-        {
-            $unwind: '$account'
-        },
+        { $unwind: '$account' },
         {
             $match: {
                 'account.accountSubhead': 'Non-Current Asset'
@@ -908,13 +1324,107 @@ async function getNonCurrentAssetAccount(organizationId, startDate, endDate) {
         },
         {
             $group: {
-                _id: '$account.accountName',
+                _id: {
+                    accountSubhead: '$account.accountSubhead',
+                    accountId: '$accountId',
+                    accountName: '$account.accountName',
+                    month: { $dateToString: { format: "%B %Y", date: "$createdDateTime" } }
+                },
+                trialBalance: {
+                    $push: {
+                        _id: '$_id',
+                        operationId: '$operationId',
+                        transactionId:'$transactionId',
+                        action: '$action',
+                        remark: '$remark',
+                        debitAmount: '$debitAmount',
+                        creditAmount: '$creditAmount',
+                        createdDateTime: '$createdDateTime'
+                    }
+                },
                 totalDebit: { $sum: '$debitAmount' },
                 totalCredit: { $sum: '$creditAmount' }
             }
+        },
+        {
+            $project: {
+                _id: 0,
+                accountSubhead: '$_id.accountSubhead',
+                accounts: {
+                    accountName: '$_id.accountName',
+                    accountId: '$_id.accountId',
+                    month: '$_id.month',
+                    trialBalance: '$trialBalance',
+                    totalDebit: { $ifNull: ['$totalDebit', 0] },
+                    totalCredit: { $ifNull: ['$totalCredit', 0] },
+                    netDebit: {
+                        $cond: {
+                            if: { $gt: ['$totalDebit', '$totalCredit'] },
+                            then: { $subtract: ['$totalDebit', '$totalCredit'] },
+                            else: 0
+                        }
+                    },
+                    netCredit: {
+                        $cond: {
+                            if: { $gt: ['$totalCredit', '$totalDebit'] },
+                            then: { $subtract: ['$totalCredit', '$totalDebit'] },
+                            else: 0
+                        }
+                    }
+                }
+            }
+        },
+        {
+            $group: {
+                _id: "$accountSubhead",
+                accounts: { $push: "$accounts" },
+                totalDebit: { $sum: "$accounts.totalDebit" },
+                totalCredit: { $sum: "$accounts.totalCredit" },
+                netDebit: { $sum: "$accounts.netDebit" },
+                netCredit: { $sum: "$accounts.netCredit" }
+            }
+        },
+        {
+            $project: {
+                _id: 0,
+                accountSubhead: "$_id",
+                accounts: 1,
+                totalDebit: { $ifNull: ["$totalDebit", 0] },
+                totalCredit: { $ifNull: ["$totalCredit", 0] },
+                netDebit: { $ifNull: ["$netDebit", 0] },
+                netCredit: { $ifNull: ["$netCredit", 0] }
+            }
+        },
+        // **Compute Overall Totals**
+        {
+            $group: {
+                _id: null,
+                nonCurrentAssets: { $push: "$$ROOT" },
+                overallTotalDebit: { $sum: { $ifNull: ["$totalDebit", 0] } },
+                overallTotalCredit: { $sum: { $ifNull: ["$totalCredit", 0] } },
+                overallNetDebit: { $sum: { $ifNull: ["$netDebit", 0] } },
+                overallNetCredit: { $sum: { $ifNull: ["$netCredit", 0] } }
+            }
+        },
+        {
+            $project: {
+                _id: 0,
+                nonCurrentAssets: 1,
+                overallTotalDebit: { $ifNull: ["$overallTotalDebit", 0] },
+                overallTotalCredit: { $ifNull: ["$overallTotalCredit", 0] },
+                overallNetDebit: { $ifNull: ["$overallNetDebit", 0] },
+                overallNetCredit: { $ifNull: ["$overallNetCredit", 0] }
+            }
         }
     ]);
-    return assets;
+
+    return nonCurrentAssets.length > 0 ? nonCurrentAssets[0] : {
+        nonCurrentAssets: [],
+        overallTotalDebit: 0,
+        overallTotalCredit: 0,
+        overallNetDebit: 0,
+        overallNetCredit: 0
+    };
 }
 
 
@@ -1128,27 +1638,37 @@ exports.calculateProfitAndLoss = async (req, res) => {
         const indirectIncome = await getIndirectIncomeAccount(organizationId, start, end);
         const indirectExpenses = await getIndirectExpenseAccount(organizationId, start, end);
 
-        // Calculate total debit and credit for gross profit/loss
-        const totalDebit = openingStock.total + purchases.overallTotalDebit + directExpenses.overallTotalDebit;
-        const totalCredit = sales.overallTotalCredit + closingStock.total;
+        // Gross Profit/Loss Calculation
+        const totalDebitTradingAccount = openingStock.total + purchases.overallTotalDebit + directExpenses.overallTotalDebit;
+        const totalCreditTradingAccount = sales.overallTotalCredit + closingStock.total;
 
-        let grossProfit = 0, grossLoss = 0, carryForward = 0, carryForwardType = "";
-
-        if (totalCredit > totalDebit) {
-            grossProfit = totalCredit - totalDebit;
-            carryForward = grossProfit;
-            carryForwardType = "debit";
-        } else if (totalDebit > totalCredit) {
-            grossLoss = totalDebit - totalCredit;
-            carryForward = grossLoss;
-            carryForwardType = "credit";
+        
+        let grossProfit = 0, grossLoss = 0;
+        
+        if (totalCreditTradingAccount > totalDebitTradingAccount) {
+            grossProfit = totalCreditTradingAccount - totalDebitTradingAccount;
+        } else if (totalDebitTradingAccount > totalCreditTradingAccount) {
+            grossLoss = totalDebitTradingAccount - totalCreditTradingAccount;
         }
 
-        // Calculate final debit and credit totals
-        const finalDebit = totalDebit + indirectExpenses.overallTotalDebit;
-        const finalCredit = totalCredit + indirectIncome.overallTotalCredit;
+        // Net Profit/Loss Calculation
+        const totalDebitPL = grossLoss + indirectExpenses.overallTotalDebit;
+        const totalCreditPL = grossProfit + indirectIncome.overallTotalCredit;
 
-        // Prepare result structured similarly to trading account
+        let netProfit = 0, netLoss = 0;
+
+        if (totalCreditPL > totalDebitPL) {
+            netProfit = totalCreditPL - totalDebitPL;
+        } else if (totalDebitPL > totalCreditPL) {
+            netLoss = totalDebitPL - totalCreditPL;
+        }
+
+         
+
+        // Calculate final debit and credit totals
+        const finalDebit = totalDebitPL + netProfit;
+        const finalCredit = totalCreditPL + netLoss;
+
         const result = {
             // tradingAccount: {
             //     debit: [
@@ -1163,21 +1683,25 @@ exports.calculateProfitAndLoss = async (req, res) => {
             //         ...(carryForwardType === "credit" ? [{ grossLoss: carryForward }] : [])
             //     ]
             // },
-            profitAndLossAccount: {
+            // profitAndLossAccount: {
                 debit: [
+                    ...(grossLoss > 0 ? [{ "Gross Loss (c/d)": grossLoss }] : []),
                     { indirectExpenses },
-                    ...(grossProfit > 0 ? [{ netProfit: grossProfit }] : [])
+                    ...(netProfit > 0 ? [{ netProfit: netProfit }] : [])
                 ],
                 credit: [
+                    ...(grossProfit > 0 ? [{ "Gross Profit (c/d)": grossProfit }] : []),
                     { indirectIncome },
-                    ...(grossLoss > 0 ? [{ netLoss: grossLoss }] : [])
-                ]
-            },
+                    ...(netLoss > 0 ? [{ netLoss: netLoss }] : [])
+                ],
+            // },
             summary: {
                 finalDebit,
                 finalCredit,
                 grossProfit,
-                grossLoss
+                grossLoss,
+                netProfit, 
+                netLoss
             }
         };
 
@@ -1208,39 +1732,105 @@ exports.calculateProfitAndLoss = async (req, res) => {
 exports.calculateBalanceSheet = async (req, res) => {
     try {
         const { organizationId } = req.user;
-        const { endDate } = req.params;
+        const { startDate, endDate } = req.params;
 
-        const { organizationExists } = await dataExist( organizationId );   
-
-        // const start = parseDate(organizationExists.timeZoneExp, startDate);
+        const { organizationExists } = await dataExist(organizationId);
+        const start = parseDate(organizationExists.timeZoneExp, startDate);
         const end = parseDate(organizationExists.timeZoneExp, endDate, true);
 
-        validateDates(new Date(), end);
+        validateDates(start, end);
 
-        const currentAssets = await getCurrentAssetAccount(organizationId, new Date(0), end);
-        const nonCurrentAssets = await getNonCurrentAssetAccount(organizationId, new Date(0), end);
-        const currentLiabilities = await getCurrentLiabilityAccount(organizationId, new Date(0), end);
-        const nonCurrentLiabilities = await getNonCurrentLiabilityAccount(organizationId, new Date(0), end);
-        const equity = await getEquityAccount(organizationId, new Date(0), end);
+        // Trading Account Calculations
+        const openingStock = await getOpeningBalance(organizationId, start);
+        const closingStock = await getClosingBalance(organizationId, end);
+        const purchases = await getPurchaseAccount(organizationId, start, end);
+        const sales = await getSalesAccount(organizationId, start, end);
+        const directExpenses = await getDirectExpenseAccount(organizationId, start, end);
 
-        const totalAssets = currentAssets.totalDebit + nonCurrentAssets.totalDebit;
-        const totalLiabilities = currentLiabilities.totalCredit + nonCurrentLiabilities.totalCredit;
-        const totalEquity = equity.totalCredit;
+        // Profit and Loss Calculations
+        const indirectIncome = await getIndirectIncomeAccount(organizationId, start, end);
+        const indirectExpenses = await getIndirectExpenseAccount(organizationId, start, end);
+
+        //Balance Sheet Calculations
+        const currentAssets = await getCurrentAssetAccount(organizationId, start, end);
+        const nonCurrentAssets = await getNonCurrentAssetAccount(organizationId, start, end);
+        const currentLiabilities = await getCurrentLiabilityAccount(organizationId, start, end);
+        const nonCurrentLiabilities = await getNonCurrentLiabilityAccount(organizationId, start, end);
+        const equity = await getEquityAccount(organizationId, start, end);
+
+
+
+        // Gross Profit/Loss Calculation
+        const totalDebitTradingAccount = openingStock.total + purchases.overallNetDebit + directExpenses.overallNetDebit;
+        const totalCreditTradingAccount = sales.overallNetCredit + closingStock.total;
+
+        
+        let grossProfit = 0, grossLoss = 0;
+        
+        if (totalCreditTradingAccount > totalDebitTradingAccount) {
+            grossProfit = totalCreditTradingAccount - totalDebitTradingAccount;
+        } else if (totalDebitTradingAccount > totalCreditTradingAccount) {
+            grossLoss = totalDebitTradingAccount - totalCreditTradingAccount;
+        }
+
+        // Net Profit/Loss Calculation
+        const totalDebitPL = grossLoss + indirectExpenses.overallNetDebit;
+        const totalCreditPL = grossProfit + indirectIncome.overallNetCredit;
+
+        let netProfit = 0, netLoss = 0;
+
+        if (totalCreditPL > totalDebitPL) {
+            netProfit = totalCreditPL - totalDebitPL;
+        } else if (totalDebitPL > totalCreditPL) {
+            netLoss = totalDebitPL - totalCreditPL;
+        }
+
+
+        //Balance sheet calculation
+        const totalDebitBS = netLoss +  equity.overallNetDebit +  currentLiabilities.overallNetDebit + nonCurrentLiabilities.overallNetDebit ;
+        const totalCreditBS = netProfit + currentAssets.overallNetCredit +  nonCurrentAssets.overallNetCredit;
+
+        let finalProfit = 0, finalLoss = 0;
+
+        if (totalCreditBS > totalDebitBS) {
+            finalProfit = totalCreditBS - totalDebitBS;
+        } else if (totalDebitBS > totalCreditBS) {
+            finalLoss = totalDebitBS - totalCreditBS;
+        } 
+
+
+        // Calculate final debit and credit totals
+        const finalDebit = totalDebitBS ;
+        const finalCredit = totalCreditBS ;
+
+
+
+
+        // const totalAssets = currentAssets.totalDebit + nonCurrentAssets.totalDebit;
+        // const totalLiabilities = currentLiabilities.totalCredit + nonCurrentLiabilities.totalCredit;
+        // const totalEquity = equity.totalCredit;
 
         const result = {
-            assets: {
-                currentAssets,
-                nonCurrentAssets,
-                totalAssets
-            },
-            liabilities: {
-                currentLiabilities,
-                nonCurrentLiabilities,
-                totalLiabilities
-            },
-            equity,
-            totalEquity,
-            isBalanced: totalAssets === (totalLiabilities + totalEquity)
+            debit: [
+                { equity },
+                { currentLiabilities },
+                { nonCurrentLiabilities },
+                ...(netLoss > 0 ? [{ "Net Loss (c/d)": netLoss }] : [])
+            ],
+            credit: [
+                { currentAssets },
+                { nonCurrentAssets },
+                ...(netProfit > 0 ? [{ "Net Profit (c/d)": netProfit }] : [])
+            ],
+            summary: {
+                grossProfit,
+                grossLoss,
+                netProfit,
+                netLoss,
+                finalDebit,
+                finalCredit,
+                isBalanced: finalDebit === finalCredit
+            }
         };
 
         res.status(200).json({ success: true, data: result });
