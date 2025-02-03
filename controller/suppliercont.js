@@ -387,6 +387,60 @@ exports.getOneSupplierHistory = async (req, res) => {
   }
 };
 
+
+
+// Delete Supplier
+exports.deleteSupplier = async (req, res) => {
+  console.log("Delete supplier request received:", req.params);
+
+  try {
+      const { organizationId } = req.user;
+      const { supplierId } = req.params;
+
+      // Validate supplierId
+      if (!mongoose.Types.ObjectId.isValid(supplierId) || supplierId.length !== 24) {
+          return res.status(400).json({ message: `Supplier Invoice ID: ${supplierId}` });
+      }
+
+      // Fetch existing supplier
+      const existingSupplier = await Supplier.findOne({ _id: supplierId, organizationId });
+      if (!existingSupplier) {
+          console.log("Supplier not found with ID:", supplierId);
+          return res.status(404).json({ message: "Supplier not found!" });
+      }
+
+      // Fetch existing TrialBalance's createdDateTime
+      const existingTrialBalance = await TrialBalance.findOne({
+        organizationId: existingSupplier.organizationId,
+        operationId: existingSupplier._id,
+      });  
+      // If there are existing entries, supplier cannot be deleted
+      if (existingTrialBalance) {
+        console.log("Supplier cannot be deleted as it exists in TrialBalance with ID:", existingSupplier._id);
+        return res.status(400).json({ message: "Supplier cannot be deleted as it is referenced in TrialBalance!" });
+      }
+
+      // Delete the supplier
+      const deletedSupplier = await existingSupplier.deleteOne();
+      if (!deletedSupplier) {
+          console.error("Failed to delete supplier!");
+          return res.status(500).json({ message: "Failed to delete supplier!" });
+      }
+
+      res.status(200).json({ message: "Supplier deleted successfully!" });
+      console.log("Supplier deleted successfully with ID:", supplierId);
+
+  } catch (error) {
+      console.error("Error deleting supplier:", error);
+      res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+
+
+
+
+
   
     // Utility Functions
     const validSalutations = ["Mr.", "Mrs.", "Ms.", "Miss.", "Dr."];

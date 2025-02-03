@@ -22,6 +22,9 @@ router.get('/get-supplier/:supplierId',verifyToken,checkPermission('Viewed Suppl
 
 router.put('/update-supplier/:supplierId',verifyToken,checkPermission('Edited Supplier Information'), supplierCont.updateSupplier);
 
+router.delete('/delete-supplier/:supplierId',verifyToken, supplierCont.deleteSupplier);
+
+
 router.put('/update-supplier-status/:supplierId' ,verifyToken,checkPermission('Modified Supplier Status'),supplierCont.updateSupplierStatus)
 
 router.get('/supplier-additional-data',verifyToken, supplierCont.getSupplierAdditionalData);
