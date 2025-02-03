@@ -1,0 +1,38 @@
+name: Deploy Accounts to Ubuntu Server
+
+on:
+  push:
+    branches:
+      - Accounts
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to Server
+        run: |
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
+            cd ~/BillBizz
+            git pull origin Accounts
+
+            # Stop and remove old containers before deployment
+            docker stop account-container || true
+            docker rm account-container || true
+
+            # Build Docker image for account service
+            docker build -t account-container -f Dockerfile.accounts .
+
+            # Run the new container with the correct port
+            docker run -d --name account-container -p 5001:5001 account-container
+          EOF
