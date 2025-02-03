@@ -5,7 +5,7 @@ const Account = require("../database/model/account");
 const Prefix = require("../database/model/prefix");
 const Journal = require("../database/model/journal");
 const TrialBalance = require("../database/model/trialBalance");
-
+const mongoose = require('mongoose');
 const { singleCustomDateTime, multiCustomDateTime } = require("../services/timeConverter");
 const { cleanData } = require("../services/cleanData");
 
@@ -305,8 +305,8 @@ exports.deleteJournalEntry  = async (req, res) => {
 
         // Fetch existing TrialBalance's createdDateTime
         const existingTrialBalance = await TrialBalance.findOne({
-          organizationId: existingSalesInvoice.organizationId,
-          operationId: existingSalesInvoice._id,
+          organizationId: existingJournalEntry.organizationId,
+          operationId: existingJournalEntry._id,
         });  
         // If there are existing entries, delete them
         if (existingTrialBalance) {
