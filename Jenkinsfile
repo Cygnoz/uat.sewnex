@@ -35,17 +35,15 @@ pipeline {
                     script {
                         sh '''
                             ssh -o StrictHostKeyChecking=no root@${SERVER_IP} << 'EOF'
-                                # Check if the container is running
+                                # Check if the container with the same name is running
                                 if docker ps -q -f name=${CONTAINER_NAME}; then
-                                    echo "Stopping and removing the old container..."
+                                    echo "Container ${CONTAINER_NAME} is running. Stopping and removing it..."
                                     docker stop ${CONTAINER_NAME}
                                     docker rm ${CONTAINER_NAME}
-                                else
-                                    echo "No running container found for ${CONTAINER_NAME}. Proceeding with deployment..."
                                 fi
 
                                 # Run the new container
-                                echo "Running the new container..."
+                                echo "Deploying new container..."
                                 docker run -d --name ${CONTAINER_NAME} -p ${DOCKER_PORT}:${DOCKER_PORT} ${CONTAINER_NAME}:latest
                             EOF
                         '''
