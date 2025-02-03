@@ -479,28 +479,58 @@ exports.updateItem = async (req, res) => {
 // Delete an item
 exports.deleteItem = async (req, res) => {
   try {
-      const itemId = req.params;
       const organizationId = req.user.organizationId;
+      const {itemId} = req.params;
 
-
-    // Check if an Organization already exists
-    const existingOrganization = await Organization.findOne({ organizationId });
-    
-    if (!existingOrganization) {
-      return res.status(404).json({
-        message: "No Organization Found.",
-      });
-    }
-
-      const deletedItem = await Item.findByIdAndDelete(itemId);
-
-      if (!deletedItem) {
-          return res.status(404).json({ message: 'Item not found' });
+      // Validate customerId
+      if (!mongoose.Types.ObjectId.isValid(itemId) || itemId.length !== 24) {
+          return res.status(400).json({ message: `Item ID: ${itemId}` });
       }
 
-      res.json({ message: 'Item deleted successfully' });
+      // Fetch existing item
+      const existingItem = await Item.findOne({ _id: itemId, organizationId });
+      if (!existingItem) {
+          console.log("Item not found with ID:", itemId);
+          return res.status(404).json({ message: "Item not found!" });
+      }
+
+      const itemTrackCount = await ItemTrack.countDocuments({
+        organizationId: existingItem.organizationId,
+        itemId: existingItem._id,
+      });
+      if (itemTrackCount > 1) {
+        console.log("Item cannot be deleted as it exists in ItemTrack");
+        return res.status(400).json({ message: "Item cannot be deleted as it is referenced in ItemTrack!" });
+      } 
+
+      // If there is only one TrialBalance entry, delete it
+      if (itemTrackCount === 1) {
+        await ItemTrack.deleteOne({
+            organizationId: existingItem.organizationId,
+            itemId: existingItem._id,
+        });
+        console.log(`Deleted existing ItemTrack entry for itemId: ${existingItem._id}`);
+      }
+    
+      // Delete the associated item
+      const deletedItemTrackEntry = await ItemTrack.deleteOne();
+      if (!deletedItemTrackEntry) {
+          console.error("Failed to delete associated item!");
+          return res.status(500).json({ message: "Failed to delete associated item!" });
+      }
+
+      // Delete the item
+      const deletedItem = await existingItem.deleteOne();
+      if (!deletedItem) {
+          console.error("Failed to delete item!");
+          return res.status(500).json({ message: "Failed to delete item!" });
+      }
+
+      res.status(200).json({ message: "Item deleted successfully!" });
+      console.log("Item deleted successfully with ID:", itemId);
   } catch (error) {
-      res.status(500).json({ message: 'Server error', error });
+    console.error("Error deleting item:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 };
 
