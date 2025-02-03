@@ -1698,8 +1698,8 @@ exports.calculateTradingAccount = async (req, res) => {
         const sales = await getSalesAccount(organizationId, start, end);
         const directExpenses = await getDirectExpenseAccount(organizationId, start, end);        
                 
-        const totalDebit = openingStock.total + purchases.overallTotalDebit + directExpenses.overallTotalDebit - purchases.overallTotalCredit - directExpenses.overallTotalCredit;
-        const totalCredit = sales.overallTotalCredit + closingStock.total - sales.overallTotalDebit;
+        const totalDebit = openingStock.total + purchases.overallNetDebit + directExpenses.overallNetDebit - purchases.overallNetCredit - directExpenses.overallNetCredit;
+        const totalCredit = sales.overallNetCredit + closingStock.total - sales.overallNetDebit;
 
         let grossProfit = 0, grossLoss = 0, carryForward = 0, carryForwardType = "";
 
