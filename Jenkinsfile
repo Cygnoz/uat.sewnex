@@ -8,6 +8,7 @@ pipeline {
         SERVER_USER = 'root'  // Server SSH user
         SERVER_IP = '147.93.29.97'  // Server IP address
         DOCKER_PORT = '5001'  // Docker port for this service
+        SSH_KEY_CREDENTIALS_ID = 'd9e5f3c2-383d-4325-8dee-77763d2e4f3b'  // The ID of the SSH key credentials in Jenkins
     }
 
     stages {
@@ -35,20 +36,22 @@ pipeline {
                 script {
                     // SSH into the server and deploy the container
                     echo "Deploying Docker container to server..."
-                    sh """
-                    ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} << 'EOF'
-                        # Stop and remove the old container if it exists
-                        if docker ps -q -f name=${CONTAINER_NAME}; then
-                            echo "Stopping and removing old container..."
-                            docker stop ${CONTAINER_NAME}
-                            docker rm ${CONTAINER_NAME}
-                        fi
-                        
-                        # Run the new container on the specified port
-                        echo "Deploying the new container..."
-                        docker run -d --name ${CONTAINER_NAME} -p ${DOCKER_PORT}:${DOCKER_PORT} ${CONTAINER_NAME}
-                    EOF
-                    """
+                    sshagent(credentials: [SSH_KEY_CREDENTIALS_ID]) {
+                        sh """
+                        ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} << 'EOF'
+                            # Stop and remove the old container if it exists
+                            if docker ps -q -f name=${CONTAINER_NAME}; then
+                                echo "Stopping and removing old container..."
+                                docker stop ${CONTAINER_NAME}
+                                docker rm ${CONTAINER_NAME}
+                            fi
+                            
+                            # Run the new container on the specified port
+                            echo "Deploying the new container..."
+                            docker run -d --name ${CONTAINER_NAME} -p ${DOCKER_PORT}:${DOCKER_PORT} ${CONTAINER_NAME}
+                        EOF
+                        """
+                    }
                 }
             }
         }
