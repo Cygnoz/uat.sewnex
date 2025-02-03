@@ -9,6 +9,7 @@ const moment = require("moment-timezone");
 const TrialBalance = require("../database/model/trialBalance");
 const CustomerHistory = require("../database/model/customerHistory");
 const Settings = require("../database/model/settings")
+const mongoose = require('mongoose');
 
 const { singleCustomDateTime, multiCustomDateTime } = require("../services/timeConverter");
 const { cleanData } = require("../services/cleanData");
@@ -192,8 +193,6 @@ exports.getAllCustomer = async (req, res) => {
 
 
 
-
-
 //Get one Customer
 exports.getOneCustomer = async (req, res) => {
   try {
@@ -219,6 +218,7 @@ exports.getOneCustomer = async (req, res) => {
     res.status(500).json({ message: "Internal server error." });
   }
 };
+
 
 
 //Customer Transaction History (Trial Balance)
@@ -402,6 +402,55 @@ exports.getOneCustomerHistory = async (req, res) => {
   } catch (error) {
     console.error("Error fetching customer:", error);
     res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+
+
+// Delete Customer
+exports.deleteCustomer = async (req, res) => {
+  console.log("Delete customer request received:", req.params);
+
+  try {
+      const { organizationId } = req.user;
+      const { customerId } = req.params;
+
+      // Validate customerId
+      if (!mongoose.Types.ObjectId.isValid(customerId) || customerId.length !== 24) {
+          return res.status(400).json({ message: `Customer Invoice ID: ${customerId}` });
+      }
+
+      // Fetch existing customer
+      const existingCustomer = await Customer.findOne({ _id: customerId, organizationId });
+      if (!existingCustomer) {
+          console.log("Customer not found with ID:", customerId);
+          return res.status(404).json({ message: "Customer not found!" });
+      }
+
+      // Fetch existing TrialBalance's createdDateTime
+      const existingTrialBalance = await TrialBalance.findOne({
+        organizationId: existingCustomer.organizationId,
+        operationId: existingCustomer._id,
+      });  
+      // If there are existing entries, customer cannot be deleted
+      if (existingTrialBalance) {
+        console.log("Customer cannot be deleted as it exists in TrialBalance with ID:", existingCustomer._id);
+        return res.status(400).json({ message: "Customer cannot be deleted as it is referenced in TrialBalance!" });
+      }
+
+      // Delete the customer
+      const deletedCustomer = await existingCustomer.deleteOne();
+      if (!deletedCustomer) {
+          console.error("Failed to delete customer!");
+          return res.status(500).json({ message: "Failed to delete customer!" });
+      }
+
+      res.status(200).json({ message: "Customer deleted successfully!" });
+      console.log("Customer deleted successfully with ID:", customerId);
+
+  } catch (error) {
+      console.error("Error deleting customer:", error);
+      res.status(500).json({ message: "Internal server error" });
   }
 };
 

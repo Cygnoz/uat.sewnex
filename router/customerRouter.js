@@ -43,6 +43,9 @@ router.put('/update-customer-status/:customerId', verifyToken,checkPermission('M
 
 router.put('/update-customer-settings',verifyToken,checkPermission('Created a New Supplier'),customerSettings.updateCustomerSettings)
 
+router.delete('/delete-customer/:customerId', verifyToken,customerController.deleteCustomer);
+
+
 
 
 
