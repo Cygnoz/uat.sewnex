@@ -97,17 +97,24 @@ exports.editAccount = async (req, res) => {
     const { accountId } = req.params;
     const organizationId = req.user.organizationId;
 
+    // Fetch existing account
+    const existingAccount = await Account.findOne({ _id: accountId, organizationId });
+    if (!existingAccount) {
+      console.log("Account not found with ID:", accountId);
+      return res.status(404).json({ message: "Account not found!" });
+    }
+
     const cleanedData = cleanData(req.body);
 
     const { parentAccountId } = cleanedData;
 
-    const { existingOrganization, currencyExists, parentAccountExist, accountExist, trialBalance } = await dataExist(organizationId, parentAccountId, accountId);
+    const { existingOrganization, currencyExists, parentAccountExist } = await dataExist(organizationId, parentAccountId, null);      
 
     //Data Exist Validation
-    if (!validateDataExist( existingOrganization, currencyExists, parentAccountId, parentAccountExist, accountId, accountExist, res )) return;       
+    if (!validateDataExist( existingOrganization, currencyExists, parentAccountId, parentAccountExist, null, null, res )) return;     
 
     //Validate Inputs  
-    if (!validateInputs( cleanedData, organizationId, currencyExists, parentAccountExist, accountExist, trialBalance, res )) return; 
+    if (!validateInputs( cleanedData, organizationId, currencyExists, parentAccountExist, null, null, res )) return; 
 
     // Encrypt bankAccNum before storing it
     if(cleanedData.bankAccNum){ cleanedData.bankAccNum = encrypt(bankAccNum); }
