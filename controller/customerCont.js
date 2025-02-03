@@ -427,16 +427,45 @@ exports.deleteCustomer = async (req, res) => {
           return res.status(404).json({ message: "Customer not found!" });
       }
 
-      // Fetch existing TrialBalance's createdDateTime
-      const existingTrialBalance = await TrialBalance.findOne({
+      // Fetch existing Accounts
+      const existingAccount = await Account.findOne({
         organizationId: existingCustomer.organizationId,
-        operationId: existingCustomer._id,
-      });  
-      // If there are existing entries, customer cannot be deleted
-      if (existingTrialBalance) {
-        console.log("Customer cannot be deleted as it exists in TrialBalance with ID:", existingCustomer._id);
-        return res.status(400).json({ message: "Customer cannot be deleted as it is referenced in TrialBalance!" });
+        accountId: existingCustomer._id
+      }); 
+
+      if (!existingAccount) {
+        console.log("No associated account found for customer ID:", customerId);
+        return res.status(404).json({ message: "No associated account found!" });
       }
+
+      // Check if there are more than one TrialBalance entries for the account
+      const trialBalanceCount = await TrialBalance.countDocuments({
+          organizationId: existingCustomer.organizationId,
+          accountId: existingAccount._id,
+      });
+      
+      // If there is more than one TrialBalance entry, customer cannot be deleted
+      if (trialBalanceCount > 1) {
+          console.log("Customer cannot be deleted as it exists in TrialBalance");
+          return res.status(400).json({ message: "Customer cannot be deleted as it is referenced in TrialBalance!" });
+      } 
+
+      // If there is only one TrialBalance entry, delete it
+      if (trialBalanceCount === 1) {
+        await TrialBalance.deleteOne({
+            organizationId: existingCustomer.organizationId,
+            accountId: existingAccount._id,
+        });
+        console.log(`Deleted existing TrialBalance entry for accountId: ${existingAccount._id}`);
+      }
+
+      // Delete the associated account
+      const deletedAccount = await existingAccount.deleteOne();
+      if (!deletedAccount) {
+          console.error("Failed to delete associated account!");
+          return res.status(500).json({ message: "Failed to delete associated account!" });
+      }
+      console.log("Associated account deleted successfully with ID:", existingAccount._id);
 
       // Delete the customer
       const deletedCustomer = await existingCustomer.deleteOne();
