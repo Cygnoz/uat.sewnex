@@ -77,4 +77,7 @@ pipeline {
             echo "Deployment completed successfully!"
         }
         failure {
-            echo "De
+            echo "Deployment failed. Please check the logs."
+        }
+    }
+}
