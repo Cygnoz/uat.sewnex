@@ -34,11 +34,14 @@ pipeline {
                     script {
                         sh '''
                             ssh -o StrictHostKeyChecking=no root@${SERVER_IP} << 'EOF'
-                                # Check if the container with the same name exists
-                                if docker ps -a -q -f name=${CONTAINER_NAME}; then
-                                    echo "Container ${CONTAINER_NAME} found. Stopping and removing..."
-                                    docker stop ${CONTAINER_NAME}
-                                    docker rm ${CONTAINER_NAME}
+                                # Find the previous container ID (if any)
+                                container_id=$(docker ps -a -q -f name=${CONTAINER_NAME})
+                                
+                                # If a container ID exists, stop and remove it
+                                if [ -n "$container_id" ]; then
+                                    echo "Container ${CONTAINER_NAME} found with ID: $container_id. Stopping and removing..."
+                                    docker stop $container_id
+                                    docker rm $container_id
                                 else
                                     echo "No existing container with the name ${CONTAINER_NAME} found. Skipping cleanup..."
                                 fi
@@ -59,7 +62,7 @@ pipeline {
                                 # Run the new container
                                 echo "Deploying new container..."
                                 docker run -d --name ${CONTAINER_NAME} -p ${DOCKER_PORT}:${DOCKER_PORT} ${CONTAINER_NAME}:latest
-                            'EOF'
+                            EOF
                         '''
                     }
                 }
