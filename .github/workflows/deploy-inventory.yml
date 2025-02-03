@@ -35,7 +35,7 @@ jobs:
 
             # Build the Docker image using the updated Dockerfile in the Inventory branch
             echo "Building the inventory-container image..."
-            docker build -t inventory-container -f Dockerfile .
+            docker build -t inventory-container -f Dockerfilein .
 
             # Run the new container with the correct port
             echo "Deploying the new inventory-container..."
