@@ -16,7 +16,7 @@ pipeline {
                 sshagent(credentials: [SSH_KEY_CREDENTIALS_ID]) {
                     script {
                         sh '''
-                            ssh -o StrictHostKeyChecking=no root@${SERVER_IP} << 'EOF'
+                            ssh -o StrictHostKeyChecking=no root@${SERVER_IP} <<EOF
                                 # Check if the container with the same name exists
                                 if docker ps -a -q -f name=${CONTAINER_NAME}; then
                                     echo "Container ${CONTAINER_NAME} found. Stopping and removing..."
@@ -56,7 +56,7 @@ pipeline {
                 sshagent(credentials: [SSH_KEY_CREDENTIALS_ID]) {
                     script {
                         sh '''
-                            ssh -o StrictHostKeyChecking=no root@${SERVER_IP} << 'EOF'
+                            ssh -o StrictHostKeyChecking=no root@${SERVER_IP} <<EOF
                                 # Run the new container
                                 echo "Deploying new container..."
                                 docker run -d --name ${CONTAINER_NAME} -p ${DOCKER_PORT}:${DOCKER_PORT} ${CONTAINER_NAME}:latest
