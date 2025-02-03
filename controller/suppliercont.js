@@ -7,6 +7,7 @@ const moment = require("moment-timezone");
 const TrialBalance = require("../database/model/trialBalance");
 const SupplierHistory = require("../database/model/supplierHistory");
 const Settings = require("../database/model/settings")
+const mongoose = require('mongoose');
 
 const { singleCustomDateTime, multiCustomDateTime } = require("../services/timeConverter");
 const { cleanData } = require("../services/cleanData");
@@ -409,16 +410,45 @@ exports.deleteSupplier = async (req, res) => {
           return res.status(404).json({ message: "Supplier not found!" });
       }
 
-      // Fetch existing TrialBalance's createdDateTime
-      const existingTrialBalance = await TrialBalance.findOne({
+      // Fetch existing Accounts
+      const existingAccount = await Account.findOne({
         organizationId: existingSupplier.organizationId,
-        operationId: existingSupplier._id,
-      });  
-      // If there are existing entries, supplier cannot be deleted
-      if (existingTrialBalance) {
-        console.log("Supplier cannot be deleted as it exists in TrialBalance with ID:", existingSupplier._id);
-        return res.status(400).json({ message: "Supplier cannot be deleted as it is referenced in TrialBalance!" });
+        accountId: existingSupplier._id
+      }); 
+
+      if (!existingAccount) {
+        console.log("No associated account found for supplier ID:", existingSupplier);
+        return res.status(404).json({ message: "No associated account found!" });
       }
+
+      // Check if there are more than one TrialBalance entries for the account
+      const trialBalanceCount = await TrialBalance.countDocuments({
+          organizationId: existingSupplier.organizationId,
+          accountId: existingAccount._id,
+      });
+      
+      // If there is more than one TrialBalance entry, supplier cannot be deleted
+      if (trialBalanceCount > 1) {
+          console.log("Supplier cannot be deleted as it exists in TrialBalance");
+          return res.status(400).json({ message: "Supplier cannot be deleted as it is referenced in TrialBalance!" });
+      } 
+
+      // If there is only one TrialBalance entry, delete it
+      if (trialBalanceCount === 1) {
+        await TrialBalance.deleteOne({
+            organizationId: existingSupplier.organizationId,
+            accountId: existingAccount._id,
+        });
+        console.log(`Deleted existing TrialBalance entry for accountId: ${existingAccount._id}`);
+      }
+
+      // Delete the associated account
+      const deletedAccount = await existingAccount.deleteOne();
+      if (!deletedAccount) {
+          console.error("Failed to delete associated account!");
+          return res.status(500).json({ message: "Failed to delete associated account!" });
+      }
+      console.log("Associated account deleted successfully with ID:", existingAccount._id);
 
       // Delete the supplier
       const deletedSupplier = await existingSupplier.deleteOne();
