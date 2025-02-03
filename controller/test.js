@@ -1698,8 +1698,8 @@ exports.calculateTradingAccount = async (req, res) => {
         const sales = await getSalesAccount(organizationId, start, end);
         const directExpenses = await getDirectExpenseAccount(organizationId, start, end);        
                 
-        const totalDebit = openingStock.total + purchases.overallTotalDebit + directExpenses.overallTotalDebit;
-        const totalCredit = sales.overallTotalCredit + closingStock.total;
+        const totalDebit = openingStock.total + purchases.overallTotalDebit + directExpenses.overallTotalDebit - purchases.overallTotalCredit - directExpenses.overallTotalCredit;
+        const totalCredit = sales.overallTotalCredit + closingStock.total - sales.overallTotalDebit;
 
         let grossProfit = 0, grossLoss = 0, carryForward = 0, carryForwardType = "";
 
@@ -1713,8 +1713,8 @@ exports.calculateTradingAccount = async (req, res) => {
             carryForwardType = "credit"; 
         }
 
-        const finalDebit = openingStock.total + purchases.overallTotalDebit + directExpenses.overallTotalDebit + grossProfit;
-        const finalCredit = sales.overallTotalCredit + closingStock.total + grossLoss;
+        const finalDebit = totalDebit + grossProfit;
+        const finalCredit = totalCredit + grossLoss;
 
         const result = {
             debit: [
@@ -1770,8 +1770,8 @@ exports.calculateProfitAndLoss = async (req, res) => {
         const indirectExpenses = await getIndirectExpenseAccount(organizationId, start, end);
 
         // Gross Profit/Loss Calculation
-        const totalDebitTradingAccount = openingStock.total + purchases.overallTotalDebit + directExpenses.overallTotalDebit;
-        const totalCreditTradingAccount = sales.overallTotalCredit + closingStock.total;
+        const totalDebitTradingAccount = openingStock.total + purchases.overallTotalDebit + directExpenses.overallTotalDebit - purchases.overallTotalCredit - directExpenses.overallTotalCredit;
+        const totalCreditTradingAccount = sales.overallTotalCredit + closingStock.total - sales.overallTotalDebit;
 
         
         let grossProfit = 0, grossLoss = 0;
@@ -1783,8 +1783,8 @@ exports.calculateProfitAndLoss = async (req, res) => {
         }
 
         // Net Profit/Loss Calculation
-        const totalDebitPL = grossLoss + indirectExpenses.overallTotalDebit;
-        const totalCreditPL = grossProfit + indirectIncome.overallTotalCredit;
+        const totalDebitPL = grossLoss + indirectExpenses.overallTotalDebit - indirectExpenses.overallTotalCredit;
+        const totalCreditPL = grossProfit + indirectIncome.overallTotalCredit - indirectIncome.overallTotalDebit;
 
         let netProfit = 0, netLoss = 0;
 
