@@ -10,6 +10,28 @@ pipeline {
     }
 
     stages {
+        stage('Cleanup Old Container') {
+            steps {
+                echo "Checking for existing container ${CONTAINER_NAME}..."
+                sshagent(credentials: [SSH_KEY_CREDENTIALS_ID]) {
+                    script {
+                        sh '''
+                            ssh -o StrictHostKeyChecking=no root@${SERVER_IP} << 'EOF'
+                                # Check if the container with the same name exists
+                                if docker ps -a -q -f name=${CONTAINER_NAME}; then
+                                    echo "Container ${CONTAINER_NAME} found. Stopping and removing..."
+                                    docker stop ${CONTAINER_NAME}
+                                    docker rm ${CONTAINER_NAME}
+                                else
+                                    echo "No existing container with the name ${CONTAINER_NAME} found."
+                                fi
+                            EOF
+                        '''
+                    }
+                }
+            }
+        }
+
         stage('Checkout SCM') {
             steps {
                 echo "Checking out source code from GitHub..."
@@ -35,13 +57,6 @@ pipeline {
                     script {
                         sh '''
                             ssh -o StrictHostKeyChecking=no root@${SERVER_IP} << 'EOF'
-                                # Check if the container with the same name is running
-                                if docker ps -q -f name=${CONTAINER_NAME}; then
-                                    echo "Container ${CONTAINER_NAME} is running. Stopping and removing it..."
-                                    docker stop ${CONTAINER_NAME}
-                                    docker rm ${CONTAINER_NAME}
-                                fi
-
                                 # Run the new container
                                 echo "Deploying new container..."
                                 docker run -d --name ${CONTAINER_NAME} -p ${DOCKER_PORT}:${DOCKER_PORT} ${CONTAINER_NAME}:latest
@@ -62,7 +77,4 @@ pipeline {
             echo "Deployment completed successfully!"
         }
         failure {
-            echo "Deployment failed. Please check the logs."
-        }
-    }
-}
+            echo "De
