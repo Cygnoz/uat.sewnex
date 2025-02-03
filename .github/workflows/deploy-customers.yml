@@ -24,20 +24,20 @@ jobs:
         run: |
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
             cd ~/BillBizz
-            git pull origin Customers
+            git pull origin Accounts
 
             # Check if the container is already running, and stop & remove if it exists
-            if docker ps -q -f name=customers-container; then
-              echo "Stopping and removing old customers-container..."
-              docker stop customers-container
-              docker rm customers-container
+            if docker ps -q -f name=Customers-container; then
+              echo "Stopping and removing old Customers-container..."
+              docker stop Customers-container
+              docker rm Customers-container
             fi
 
             # Build the Docker image using the updated Dockerfile
-            echo "Building the customers-container image..."
-            docker build -t customers-container -f Dockerfile .
+            echo "Building the Customers-container image..."
+            docker build -t Customers-container -f Dockerfile .
 
             # Run the new container with the correct port
-            echo "Deploying the new customers-container..."
-            docker run -d --name customers-container -p 5002:5002 customers-container
+            echo "Deploying the new Customers-container..."
+            docker run -d --name Customers-container -p 5002:5002 Customers-container
           EOF
