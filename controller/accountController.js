@@ -5,6 +5,7 @@ const Account = require("../database/model/account")
 const TrialBalance = require("../database/model/trialBalance")
 const Currency = require("../database/model/currency");
 const crypto = require('crypto');
+const mongoose = require('mongoose');
 
 const { singleCustomDateTime, multiCustomDateTime } = require("../services/timeConverter");
 const { cleanData } = require("../services/cleanData");
@@ -146,7 +147,7 @@ exports.editAccount = async (req, res) => {
       return res.status(500).json({ message: "Failed to update account!" });
     }
 
-    // Fetch existing TrialBalance's createdDateTime
+    // Fetch existing TrialBalance's 
     const existingTrialBalance = await TrialBalance.findOne({
       organizationId: savedAccount.organizationId,
       operationId: savedAccount._id,
@@ -181,6 +182,66 @@ exports.editAccount = async (req, res) => {
   } catch (error) {
     console.error("Error updating Account:", error);
     res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+
+// Delete Account
+exports.deleteAccount = async (req, res) => {
+  console.log("Delete customer request received:", req.params);
+
+  try {
+      const { organizationId } = req.user;
+      const { accountId } = req.params;
+
+      // Validate customerId
+      if (!mongoose.Types.ObjectId.isValid(accountId) || accountId.length !== 24) {
+          return res.status(400).json({ message: `Account ID: ${accountId}` });
+      }
+
+      // Fetch existing account
+      const existingAccount = await Account.findOne({ _id: accountId, organizationId });
+      if (!existingAccount) {
+        console.log("Account not found with ID:", accountId);
+        return res.status(404).json({ message: "Account not found!" });
+      }
+
+      // Check trial balance count and handle early return if necessary
+      const trialBalanceResult = await trialBalanceCount(existingAccount, res);
+      if (trialBalanceResult) {
+        return; // Early return if trialBalanceCount sends a response
+      }
+
+      // systemAccounts check
+      if (existingAccount.systemAccounts === true) {
+        console.log("Account cannot be deleted for account ID:", accountId);
+        return res.status(404).json({ message: "This account cannot be deleted!" });
+      }
+
+      // Delete the associated account
+      const deletedAccount = await existingAccount.deleteOne();
+      if (!deletedAccount) {
+          console.error("Failed to delete associated account!");
+          return res.status(500).json({ message: "Failed to delete associated account!" });
+      }
+
+      // Fetch existing TrialBalance's 
+      const existingTrialBalance = await TrialBalance.findOne({
+        organizationId: existingAccount.organizationId,
+        accountId: existingAccount._id,
+      });  
+      const deleteExistingTrialBalance = await existingTrialBalance.deleteOne();
+      if (!deleteExistingTrialBalance) {
+        console.error("Failed to delete existing trail balance!");
+        return res.status(500).json({ message: "Failed to delete existing trail balance!" });
+      }
+
+      res.status(200).json({ message: "Account deleted successfully!" });
+      console.log("Account deleted successfully with ID:", accountId);
+
+  } catch (error) {
+      console.error("Error deleting customer:", error);
+      res.status(500).json({ message: "Internal server error" });
   }
 };
 
@@ -265,37 +326,6 @@ exports.getBankAccNum = async (req, res) => {
   } catch (error) {
       console.error("Error fetching bank account number:", error);
       res.status(500).json({ message: "Internal server error." });
-  }
-};
-
-
-//Delete account
-exports.deleteAccount = async (req, res) => {
-  try {
-    const { accountId } = req.params;
-    const organizationId = req.user.organizationId;
-
-    // Check if an account with the given organizationId and accountId exists
-    const { accountExist, trialBalance } = await dataExist(organizationId, null, accountId);
-
-    if (!accountExist) {
-      return res.status(404).json({ message: "Account not found" });
-    }
-    if (trialBalance.length > 1) {
-      return res.status(404).json({ message: "You cannot delete this account as it is associated with transactions." });
-    }
-    if (accountExist.delete === "false") {
-      return res.status(404).json({ message: "Account cannot be deleted" });
-    }
-
-    // Delete the account
-    await accountExist.delete();
-
-    res.status(200).json({ message: "Account deleted successfully.", deletedAccount: accountExist });
-    console.log("Account deleted successfully:", accountExist );
-  } catch (error) {
-    console.error("Error deleting Account:", error);
-    res.status(500).json({ message: "Internal server error." });
   }
 };
 
