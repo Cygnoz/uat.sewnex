@@ -92,7 +92,6 @@ const accDataExists = async ( organizationId, otherExpenseAccountId, freightAcco
 
 //Get one and All
 const salesDataExist = async ( organizationId, invoiceId ) => {    
-    
   const [organizationExists, allInvoice, invoice, invoiceJournal ] = await Promise.all([
     Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }).lean(),
     Invoice.find({ organizationId })
@@ -170,7 +169,7 @@ exports.addInvoice = async (req, res) => {
       if (!validateInputs( cleanedData, settings, customerExist, items, itemTable, organizationExists, defaultAccount, res)) return;
 
       //Tax Type
-      taxType(cleanedData, customerExist,organizationExists );
+      taxType(cleanedData, customerExist, organizationExists );
 
       //Default Account
       const { defAcc, error } = await defaultAccounting( cleanedData, defaultAccount, organizationExists );
@@ -287,6 +286,8 @@ exports.getAllSalesInvoice = async (req, res) => {
       return res.status(404).json({ message: "No Invoice found" });
     }
 
+    console.log("allInvoice",allInvoice);
+    
     
     const transformedInvoice = allInvoice.map(data => {
       return {

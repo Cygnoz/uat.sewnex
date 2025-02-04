@@ -214,7 +214,7 @@ try {
   const organizationId = req.user.organizationId;
   const orderId  = req.params.orderId;
 
-  if ( !orderId || orderId.length !== 24 ) return res.status(404).json({ message: "No Order found1" });
+  if ( !orderId || orderId.length !== 24 ) return res.status(404).json({ message: "No Order found" });
   
   const { organizationExists, order } = await salesDataExist( organizationId, orderId );
 
