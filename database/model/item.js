@@ -9,7 +9,7 @@ const itemSchema = new Schema({
     itemType: { type: String },
     itemName: { type: String},
     itemImage: { type: String },
-    sku: { type: String,},
+    sku: { type: String},
 
     //Unit
     unitName: { type: String },
