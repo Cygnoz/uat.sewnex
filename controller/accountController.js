@@ -421,6 +421,7 @@ const validStructure = {
 };
 
 
+
 //encryption 
 function encrypt(text) {
   try {
