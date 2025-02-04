@@ -400,7 +400,7 @@ exports.deleteSupplier = async (req, res) => {
 
       // Validate supplierId
       if (!mongoose.Types.ObjectId.isValid(supplierId) || supplierId.length !== 24) {
-          return res.status(400).json({ message: `Supplier Invoice ID: ${supplierId}` });
+          return res.status(400).json({ message: `Supplier ID: ${supplierId}` });
       }
 
       // Fetch existing supplier
