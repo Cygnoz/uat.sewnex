@@ -1,9 +1,9 @@
-pipeline {
+##############################pipeline {
     agent any
     environment {
-        CONTAINER_NAME = 'accounts-container'
+        CONTAINER_NAME = '##accounts-container'
         SERVER_IP = '147.93.29.97'
-        SSH_KEY_CREDENTIALS_ID = 'd9e5f3c2-383d-4325-8dee-77763d2e4f3b'
+        SSH_KEY_CREDENTIALS_ID = '###d9e5f3c2-383d-4325-8dee-77763d2e4f3b'
     }
     stages {
         stage('Checkout SCM') {
