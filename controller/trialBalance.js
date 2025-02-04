@@ -8,7 +8,6 @@ exports.getTrialBalance = async (req, res) => {
         const { startDate, endDate } = req.params;
         const { organizationId } = req.user;
 
-        // Validate date format (DD-MM-YYYY) for both dates
         if (!startDate || !endDate || 
             !/^\d{2}-\d{2}-\d{4}$/.test(startDate) || 
             !/^\d{2}-\d{2}-\d{4}$/.test(endDate)) {
@@ -18,7 +17,6 @@ exports.getTrialBalance = async (req, res) => {
             });
         }
 
-        // Convert DD-MM-YYYY to YYYY-MM-DD for both dates
         const [startDay, startMonth, startYear] = startDate.split('-');
         const [endDay, endMonth, endYear] = endDate.split('-');
         const formattedStartDate = `${startYear}-${startMonth}-${startDay}`;
@@ -27,7 +25,6 @@ exports.getTrialBalance = async (req, res) => {
         const start = new Date(`${formattedStartDate}T00:00:00`);
         const end = new Date(`${formattedEndDate}T23:59:59`);
 
-        // Validate date range
         if (start > end) {
             return res.status(400).json({
                 success: false,
@@ -35,11 +32,9 @@ exports.getTrialBalance = async (req, res) => {
             });
         }
 
-        // Convert to UTC
         const startUTC = start.toISOString();
         const endUTC = end.toISOString();
 
-        // Get organization's timezone
         const organization = await Organization.findOne({ organizationId });
         if (!organization) {
             return res.status(404).json({
@@ -48,26 +43,27 @@ exports.getTrialBalance = async (req, res) => {
             });
         }
 
-        // Find all transactions for the given date range
+        // **Fix: Ensure transactions where both debitAmount and creditAmount are 0 are filtered out**
         const transactions = await TrialBalances.find({
             organizationId: organizationId,
-            createdDateTime: {
-                $gte: new Date(startUTC),
-                $lte: new Date(endUTC)
-            }
+            createdDateTime: { $gte: new Date(startUTC), $lte: new Date(endUTC) },
+            $or: [ // Ensure we get only meaningful transactions
+                { debitAmount: { $gt: 0 } },
+                { creditAmount: { $gt: 0 } }
+            ]
         }).populate('accountId', 'accountName accountSubhead accountHead accountGroup');
 
-        // Restructure the response
         const accountMap = {};
 
         transactions.forEach(transaction => {
             const totalDebit = transaction.debitAmount || 0;
             const totalCredit = transaction.creditAmount || 0;
+            if (totalDebit === 0 && totalCredit === 0) return; // **Additional safety filter**
+
             const accountSubHead = transaction.accountId ? transaction.accountId.accountSubhead : 'Uncategorized';
             const accountName = transaction.accountId ? transaction.accountId.accountName : 'Unknown Account';
-            const transactionDate = moment(transaction.createdDateTime).format('MMMM YYYY'); // Format as "January 2025"
+            const transactionDate = moment(transaction.createdDateTime).format('MMMM YYYY');
 
-            // Initialize accountSubHead if it doesn't exist
             if (!accountMap[accountSubHead]) {
                 accountMap[accountSubHead] = {
                     accountSubHead,
@@ -77,11 +73,9 @@ exports.getTrialBalance = async (req, res) => {
                 };
             }
 
-            // Update totals for the account subhead
             accountMap[accountSubHead].totalDebit += totalDebit;
             accountMap[accountSubHead].totalCredit += totalCredit;
 
-            // Initialize accountName if it doesn't exist
             if (!accountMap[accountSubHead].accounts[accountName]) {
                 accountMap[accountSubHead].accounts[accountName] = {
                     accountName,
@@ -91,11 +85,9 @@ exports.getTrialBalance = async (req, res) => {
                 };
             }
 
-            // Update totals for the account name
             accountMap[accountSubHead].accounts[accountName].totalDebit += totalDebit;
             accountMap[accountSubHead].accounts[accountName].totalCredit += totalCredit;
 
-            // Initialize month if it doesn't exist
             if (!accountMap[accountSubHead].accounts[accountName].months[transactionDate]) {
                 accountMap[accountSubHead].accounts[accountName].months[transactionDate] = {
                     date: transactionDate,
@@ -105,11 +97,9 @@ exports.getTrialBalance = async (req, res) => {
                 };
             }
 
-            // Update totals for the month
             accountMap[accountSubHead].accounts[accountName].months[transactionDate].totalDebit += totalDebit;
             accountMap[accountSubHead].accounts[accountName].months[transactionDate].totalCredit += totalCredit;
 
-            // Add transaction data for the month
             accountMap[accountSubHead].accounts[accountName].months[transactionDate].data.push({
                 _id: transaction._id,
                 organizationId: transaction.organizationId,
@@ -129,25 +119,29 @@ exports.getTrialBalance = async (req, res) => {
             });
         });
 
-        // Convert accountMap to an array
-        const responseData = Object.values(accountMap).map(account => {
-            return {
+        // **Final filtering: Remove any accounts and months where both totalDebit and totalCredit are 0**
+        const responseData = Object.values(accountMap)
+            .filter(account => account.totalDebit > 0 || account.totalCredit > 0) // Remove empty accountSubHeads
+            .map(account => ({
                 accountSubHead: account.accountSubHead,
                 totalDebit: account.totalDebit,
                 totalCredit: account.totalCredit,
-                accounts: Object.values(account.accounts).map(acc => ({
-                    accountName: acc.accountName,
-                    totalDebit: acc.totalDebit,
-                    totalCredit: acc.totalCredit,
-                    months: Object.values(acc.months).map(month => ({
-                        date: month.date,
-                        totalDebit: month.totalDebit,
-                        totalCredit: month.totalCredit,
-                        data: month.data
+                accounts: Object.values(account.accounts)
+                    .filter(acc => acc.totalDebit > 0 || acc.totalCredit > 0) // Remove empty accounts
+                    .map(acc => ({
+                        accountName: acc.accountName,
+                        totalDebit: acc.totalDebit,
+                        totalCredit: acc.totalCredit,
+                        months: Object.values(acc.months)
+                            .filter(month => month.totalDebit > 0 || month.totalCredit > 0) // Remove empty months
+                            .map(month => ({
+                                date: month.date,
+                                totalDebit: month.totalDebit,
+                                totalCredit: month.totalCredit,
+                                data: month.data
+                            }))
                     }))
-                }))
-            };
-        });
+            }));
 
         res.status(200).json({
             success: true,
@@ -173,19 +167,3 @@ exports.getTrialBalance = async (req, res) => {
     }
 };
 
-// Helper function to validate date (same as in dayBook.js)
-function isValidDate(day, month, year) {
-    const d = parseInt(day, 10);
-    const m = parseInt(month, 10);
-    const y = parseInt(year, 10);
-
-    if (y < 1000 || y > 3000 || m < 1 || m > 12) return false;
-
-    const monthLength = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-
-    if (y % 400 === 0 || (y % 100 !== 0 && y % 4 === 0)) {
-        monthLength[1] = 29;
-    }
-
-    return d > 0 && d <= monthLength[m - 1];
-}
