@@ -39,5 +39,5 @@ jobs:
 
             # Run the new container
             echo "Deploying the new account-container..."
-            docker run -d --name account-container -p 5002:5002 account-container
+            docker run -d --name account-container -p 5001:5001 account-container
           EOF_SSH
