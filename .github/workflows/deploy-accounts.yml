@@ -26,26 +26,18 @@ jobs:
             cd ~/BillBizz
             git pull origin Accounts
 
-            # Check if the container is already running, and stop & remove if it exists
+            # Stop and remove old container
             if docker ps -q -f name=account-container; then
               echo "Stopping and removing old account-container..."
               docker stop account-container
               docker rm account-container
             fi
 
-            # Build the Docker image using an inline Dockerfile
+            # Build using the Dockerfile from the repository
             echo "Building the account-container image..."
-            docker build -t account-container - <<'EOF_DOCKER'
-            FROM node:22.11.0
-            WORKDIR /usr/src/app
-            COPY package*.json ./
-            RUN npm install
-            COPY . .
-            EXPOSE 5002
-            CMD ["node", "server.js"]
-            'EOF_DOCKER'
+            docker build -t account-container .
 
-            # Run the new container with the correct port
+            # Run the new container
             echo "Deploying the new account-container..."
             docker run -d --name account-container -p 5002:5002 account-container
-         'EOF_SSH'
+          EOF_SSH
