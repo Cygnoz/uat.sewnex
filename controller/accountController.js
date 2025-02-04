@@ -466,12 +466,12 @@ function decrypt(encryptedText) {
 
 
 // Validation function for account structure
-function validateAccountStructure(accountGroup, accountHead, accountSubhead) {
-  return (
-    validStructure[accountGroup]?.[accountHead]?.includes(accountSubhead) ||
-    false
-  );
-}
+// function validateAccountStructure(accountGroup, accountHead, accountSubhead) {
+//   return (
+//     validStructure[accountGroup]?.[accountHead]?.includes(accountSubhead) ||
+//     false
+//   );
+// }
 
 // Validation function for bank details
 function validateBankDetails(accountSubhead, bankDetails) {
@@ -625,6 +625,8 @@ function validateReqFields( data, errors ) {
 
 // Validation function for account structure
 function validateAccountStructure(accountGroup, accountHead, accountSubhead, parentAccountExist, errors) {
+  console.log("111111", accountGroup, accountHead, accountSubhead);
+  
   validateField(!validStructure[accountGroup]?.[accountHead]?.includes(accountSubhead) || false, "Invalid Account Group, Head, or Subhead.", errors);
   if(parentAccountExist){
     validateField(!validStructure[parentAccountExist.accountGroup]?.[parentAccountExist.accountHead]?.includes(parentAccountExist.accountSubhead) || false, "Invalid Parent Account.", errors);    
