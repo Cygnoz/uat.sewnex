@@ -124,7 +124,7 @@ async function getPurchaseAccount(organizationId, startDate, endDate) {
         }
     ]);
 
-    let structuredData = {};
+    let structuredData = { overallNetDebit: 0, overallNetCredit: 0 };
     
     // Add opening balance to structured data
     openingBalanceData.forEach(entry => {
@@ -132,7 +132,9 @@ async function getPurchaseAccount(organizationId, startDate, endDate) {
             openingBalance: {
                 totalDebit: entry.totalDebit || 0,
                 totalCredit: entry.totalCredit || 0
-            }
+            },
+            overallNetDebit: 0,
+            overallNetCredit: 0
         };
     });
 
@@ -141,7 +143,11 @@ async function getPurchaseAccount(organizationId, startDate, endDate) {
         const { accountName, month } = entry._id;
         
         if (!structuredData[accountName]) {
-            structuredData[accountName] = { openingBalance: { totalDebit: 0, totalCredit: 0 } };
+            structuredData[accountName] = { 
+                openingBalance: { totalDebit: 0, totalCredit: 0 },
+                overallNetDebit: 0,
+                overallNetCredit: 0
+            };
         }
         structuredData[accountName][month] = {
             trialBalance: entry.trialBalance,
@@ -150,10 +156,19 @@ async function getPurchaseAccount(organizationId, startDate, endDate) {
             netDebit: Math.max(entry.totalDebit - entry.totalCredit, 0),
             netCredit: Math.max(entry.totalCredit - entry.totalDebit, 0)
         };
+
+        // Update overall net debit and credit per account
+        structuredData[accountName].overallNetDebit += Math.max(entry.totalDebit - entry.totalCredit, 0);
+        structuredData[accountName].overallNetCredit += Math.max(entry.totalCredit - entry.totalDebit, 0);
+        
+        // Update overall net debit and credit for the entire account subhead
+        structuredData.overallNetDebit += Math.max(entry.totalDebit - entry.totalCredit, 0);
+        structuredData.overallNetCredit += Math.max(entry.totalCredit - entry.totalDebit, 0);
     });
 
     return structuredData;
 }
+
 
 // 4. Sales Account(Sales)//
 async function getSalesAccount(organizationId, startDate, endDate) {
@@ -229,7 +244,7 @@ async function getSalesAccount(organizationId, startDate, endDate) {
         }
     ]);
 
-    let structuredData = {};
+    let structuredData = { overallNetDebit: 0, overallNetCredit: 0 };
     
     // Add opening balance to structured data
     openingBalanceData.forEach(entry => {
@@ -237,7 +252,9 @@ async function getSalesAccount(organizationId, startDate, endDate) {
             openingBalance: {
                 totalDebit: entry.totalDebit || 0,
                 totalCredit: entry.totalCredit || 0
-            }
+            },
+            overallNetDebit: 0,
+            overallNetCredit: 0
         };
     });
 
@@ -246,7 +263,11 @@ async function getSalesAccount(organizationId, startDate, endDate) {
         const { accountName, month } = entry._id;
         
         if (!structuredData[accountName]) {
-            structuredData[accountName] = { openingBalance: { totalDebit: 0, totalCredit: 0 } };
+            structuredData[accountName] = { 
+                openingBalance: { totalDebit: 0, totalCredit: 0 },
+                overallNetDebit: 0,
+                overallNetCredit: 0
+            };
         }
         structuredData[accountName][month] = {
             trialBalance: entry.trialBalance,
@@ -255,10 +276,19 @@ async function getSalesAccount(organizationId, startDate, endDate) {
             netDebit: Math.max(entry.totalDebit - entry.totalCredit, 0),
             netCredit: Math.max(entry.totalCredit - entry.totalDebit, 0)
         };
+
+        // Update overall net debit and credit per account
+        structuredData[accountName].overallNetDebit += Math.max(entry.totalDebit - entry.totalCredit, 0);
+        structuredData[accountName].overallNetCredit += Math.max(entry.totalCredit - entry.totalDebit, 0);
+        
+        // Update overall net debit and credit for the entire account subhead
+        structuredData.overallNetDebit += Math.max(entry.totalDebit - entry.totalCredit, 0);
+        structuredData.overallNetCredit += Math.max(entry.totalCredit - entry.totalDebit, 0);
     });
 
     return structuredData;
 }
+
 
 // 5. Direct Expense Account(Direct Expense)//
 async function getDirectExpenseAccount(organizationId, startDate, endDate) {
@@ -334,7 +364,7 @@ async function getDirectExpenseAccount(organizationId, startDate, endDate) {
         }
     ]);
 
-    let structuredData = {};
+    let structuredData = { overallNetDebit: 0, overallNetCredit: 0 };
     
     // Add opening balance to structured data
     openingBalanceData.forEach(entry => {
@@ -342,7 +372,9 @@ async function getDirectExpenseAccount(organizationId, startDate, endDate) {
             openingBalance: {
                 totalDebit: entry.totalDebit || 0,
                 totalCredit: entry.totalCredit || 0
-            }
+            },
+            overallNetDebit: 0,
+            overallNetCredit: 0
         };
     });
 
@@ -351,7 +383,11 @@ async function getDirectExpenseAccount(organizationId, startDate, endDate) {
         const { accountName, month } = entry._id;
         
         if (!structuredData[accountName]) {
-            structuredData[accountName] = { openingBalance: { totalDebit: 0, totalCredit: 0 } };
+            structuredData[accountName] = { 
+                openingBalance: { totalDebit: 0, totalCredit: 0 },
+                overallNetDebit: 0,
+                overallNetCredit: 0
+            };
         }
         structuredData[accountName][month] = {
             trialBalance: entry.trialBalance,
@@ -360,10 +396,19 @@ async function getDirectExpenseAccount(organizationId, startDate, endDate) {
             netDebit: Math.max(entry.totalDebit - entry.totalCredit, 0),
             netCredit: Math.max(entry.totalCredit - entry.totalDebit, 0)
         };
+
+        // Update overall net debit and credit per account
+        structuredData[accountName].overallNetDebit += Math.max(entry.totalDebit - entry.totalCredit, 0);
+        structuredData[accountName].overallNetCredit += Math.max(entry.totalCredit - entry.totalDebit, 0);
+        
+        // Update overall net debit and credit for the entire account subhead
+        structuredData.overallNetDebit += Math.max(entry.totalDebit - entry.totalCredit, 0);
+        structuredData.overallNetCredit += Math.max(entry.totalCredit - entry.totalDebit, 0);
     });
 
     return structuredData;
 }
+
 
 // 6. Indirect Expense Account(Indirect Expense)//
 async function getIndirectExpenseAccount(organizationId, startDate, endDate) {
@@ -439,7 +484,7 @@ async function getIndirectExpenseAccount(organizationId, startDate, endDate) {
         }
     ]);
 
-    let structuredData = {};
+    let structuredData = { overallNetDebit: 0, overallNetCredit: 0 };
     
     // Add opening balance to structured data
     openingBalanceData.forEach(entry => {
@@ -447,7 +492,9 @@ async function getIndirectExpenseAccount(organizationId, startDate, endDate) {
             openingBalance: {
                 totalDebit: entry.totalDebit || 0,
                 totalCredit: entry.totalCredit || 0
-            }
+            },
+            overallNetDebit: 0,
+            overallNetCredit: 0
         };
     });
 
@@ -456,7 +503,11 @@ async function getIndirectExpenseAccount(organizationId, startDate, endDate) {
         const { accountName, month } = entry._id;
         
         if (!structuredData[accountName]) {
-            structuredData[accountName] = { openingBalance: { totalDebit: 0, totalCredit: 0 } };
+            structuredData[accountName] = { 
+                openingBalance: { totalDebit: 0, totalCredit: 0 },
+                overallNetDebit: 0,
+                overallNetCredit: 0
+            };
         }
         structuredData[accountName][month] = {
             trialBalance: entry.trialBalance,
@@ -465,10 +516,19 @@ async function getIndirectExpenseAccount(organizationId, startDate, endDate) {
             netDebit: Math.max(entry.totalDebit - entry.totalCredit, 0),
             netCredit: Math.max(entry.totalCredit - entry.totalDebit, 0)
         };
+
+        // Update overall net debit and credit per account
+        structuredData[accountName].overallNetDebit += Math.max(entry.totalDebit - entry.totalCredit, 0);
+        structuredData[accountName].overallNetCredit += Math.max(entry.totalCredit - entry.totalDebit, 0);
+        
+        // Update overall net debit and credit for the entire account subhead
+        structuredData.overallNetDebit += Math.max(entry.totalDebit - entry.totalCredit, 0);
+        structuredData.overallNetCredit += Math.max(entry.totalCredit - entry.totalDebit, 0);
     });
 
     return structuredData;
 }
+
 
 // 7. Indirect Income Account(Indirect Income)//
 async function getIndirectIncomeAccount(organizationId, startDate, endDate) {
@@ -544,7 +604,7 @@ async function getIndirectIncomeAccount(organizationId, startDate, endDate) {
         }
     ]);
 
-    let structuredData = {};
+    let structuredData = { overallNetDebit: 0, overallNetCredit: 0 };
     
     // Add opening balance to structured data
     openingBalanceData.forEach(entry => {
@@ -552,7 +612,9 @@ async function getIndirectIncomeAccount(organizationId, startDate, endDate) {
             openingBalance: {
                 totalDebit: entry.totalDebit || 0,
                 totalCredit: entry.totalCredit || 0
-            }
+            },
+            overallNetDebit: 0,
+            overallNetCredit: 0
         };
     });
 
@@ -561,7 +623,11 @@ async function getIndirectIncomeAccount(organizationId, startDate, endDate) {
         const { accountName, month } = entry._id;
         
         if (!structuredData[accountName]) {
-            structuredData[accountName] = { openingBalance: { totalDebit: 0, totalCredit: 0 } };
+            structuredData[accountName] = { 
+                openingBalance: { totalDebit: 0, totalCredit: 0 },
+                overallNetDebit: 0,
+                overallNetCredit: 0
+            };
         }
         structuredData[accountName][month] = {
             trialBalance: entry.trialBalance,
@@ -570,10 +636,19 @@ async function getIndirectIncomeAccount(organizationId, startDate, endDate) {
             netDebit: Math.max(entry.totalDebit - entry.totalCredit, 0),
             netCredit: Math.max(entry.totalCredit - entry.totalDebit, 0)
         };
+
+        // Update overall net debit and credit per account
+        structuredData[accountName].overallNetDebit += Math.max(entry.totalDebit - entry.totalCredit, 0);
+        structuredData[accountName].overallNetCredit += Math.max(entry.totalCredit - entry.totalDebit, 0);
+        
+        // Update overall net debit and credit for the entire account subhead
+        structuredData.overallNetDebit += Math.max(entry.totalDebit - entry.totalCredit, 0);
+        structuredData.overallNetCredit += Math.max(entry.totalCredit - entry.totalDebit, 0);
     });
 
     return structuredData;
 }
+
 
 // 8. Equity Account(Equity)//
 async function getEquityAccount(organizationId, startDate, endDate) {
@@ -649,7 +724,7 @@ async function getEquityAccount(organizationId, startDate, endDate) {
         }
     ]);
 
-    let structuredData = {};
+    let structuredData = { overallNetDebit: 0, overallNetCredit: 0 };
     
     // Add opening balance to structured data
     openingBalanceData.forEach(entry => {
@@ -657,7 +732,9 @@ async function getEquityAccount(organizationId, startDate, endDate) {
             openingBalance: {
                 totalDebit: entry.totalDebit || 0,
                 totalCredit: entry.totalCredit || 0
-            }
+            },
+            overallNetDebit: 0,
+            overallNetCredit: 0
         };
     });
 
@@ -666,7 +743,11 @@ async function getEquityAccount(organizationId, startDate, endDate) {
         const { accountName, month } = entry._id;
         
         if (!structuredData[accountName]) {
-            structuredData[accountName] = { openingBalance: { totalDebit: 0, totalCredit: 0 } };
+            structuredData[accountName] = { 
+                openingBalance: { totalDebit: 0, totalCredit: 0 },
+                overallNetDebit: 0,
+                overallNetCredit: 0
+            };
         }
         structuredData[accountName][month] = {
             trialBalance: entry.trialBalance,
@@ -675,10 +756,19 @@ async function getEquityAccount(organizationId, startDate, endDate) {
             netDebit: Math.max(entry.totalDebit - entry.totalCredit, 0),
             netCredit: Math.max(entry.totalCredit - entry.totalDebit, 0)
         };
+
+        // Update overall net debit and credit per account
+        structuredData[accountName].overallNetDebit += Math.max(entry.totalDebit - entry.totalCredit, 0);
+        structuredData[accountName].overallNetCredit += Math.max(entry.totalCredit - entry.totalDebit, 0);
+        
+        // Update overall net debit and credit for the entire account subhead
+        structuredData.overallNetDebit += Math.max(entry.totalDebit - entry.totalCredit, 0);
+        structuredData.overallNetCredit += Math.max(entry.totalCredit - entry.totalDebit, 0);
     });
 
     return structuredData;
 }
+
 
 // 9. Current Liability Account(Current Liability)//
 async function getCurrentLiabilityAccount(organizationId, startDate, endDate) {
@@ -754,7 +844,7 @@ async function getCurrentLiabilityAccount(organizationId, startDate, endDate) {
         }
     ]);
 
-    let structuredData = {};
+    let structuredData = { overallNetDebit: 0, overallNetCredit: 0 };
     
     // Add opening balance to structured data
     openingBalanceData.forEach(entry => {
@@ -762,7 +852,9 @@ async function getCurrentLiabilityAccount(organizationId, startDate, endDate) {
             openingBalance: {
                 totalDebit: entry.totalDebit || 0,
                 totalCredit: entry.totalCredit || 0
-            }
+            },
+            overallNetDebit: 0,
+            overallNetCredit: 0
         };
     });
 
@@ -771,7 +863,11 @@ async function getCurrentLiabilityAccount(organizationId, startDate, endDate) {
         const { accountName, month } = entry._id;
         
         if (!structuredData[accountName]) {
-            structuredData[accountName] = { openingBalance: { totalDebit: 0, totalCredit: 0 } };
+            structuredData[accountName] = { 
+                openingBalance: { totalDebit: 0, totalCredit: 0 },
+                overallNetDebit: 0,
+                overallNetCredit: 0
+            };
         }
         structuredData[accountName][month] = {
             trialBalance: entry.trialBalance,
@@ -780,10 +876,19 @@ async function getCurrentLiabilityAccount(organizationId, startDate, endDate) {
             netDebit: Math.max(entry.totalDebit - entry.totalCredit, 0),
             netCredit: Math.max(entry.totalCredit - entry.totalDebit, 0)
         };
+
+        // Update overall net debit and credit per account
+        structuredData[accountName].overallNetDebit += Math.max(entry.totalDebit - entry.totalCredit, 0);
+        structuredData[accountName].overallNetCredit += Math.max(entry.totalCredit - entry.totalDebit, 0);
+        
+        // Update overall net debit and credit for the entire account subhead
+        structuredData.overallNetDebit += Math.max(entry.totalDebit - entry.totalCredit, 0);
+        structuredData.overallNetCredit += Math.max(entry.totalCredit - entry.totalDebit, 0);
     });
 
     return structuredData;
 }
+
 
 // 10. Non-Current Liability Account(Non-Current Liability)//
 async function getNonCurrentLiabilityAccount(organizationId, startDate, endDate) {
@@ -859,7 +964,7 @@ async function getNonCurrentLiabilityAccount(organizationId, startDate, endDate)
         }
     ]);
 
-    let structuredData = {};
+    let structuredData = { overallNetDebit: 0, overallNetCredit: 0 };
     
     // Add opening balance to structured data
     openingBalanceData.forEach(entry => {
@@ -867,7 +972,9 @@ async function getNonCurrentLiabilityAccount(organizationId, startDate, endDate)
             openingBalance: {
                 totalDebit: entry.totalDebit || 0,
                 totalCredit: entry.totalCredit || 0
-            }
+            },
+            overallNetDebit: 0,
+            overallNetCredit: 0
         };
     });
 
@@ -876,7 +983,11 @@ async function getNonCurrentLiabilityAccount(organizationId, startDate, endDate)
         const { accountName, month } = entry._id;
         
         if (!structuredData[accountName]) {
-            structuredData[accountName] = { openingBalance: { totalDebit: 0, totalCredit: 0 } };
+            structuredData[accountName] = { 
+                openingBalance: { totalDebit: 0, totalCredit: 0 },
+                overallNetDebit: 0,
+                overallNetCredit: 0
+            };
         }
         structuredData[accountName][month] = {
             trialBalance: entry.trialBalance,
@@ -885,10 +996,19 @@ async function getNonCurrentLiabilityAccount(organizationId, startDate, endDate)
             netDebit: Math.max(entry.totalDebit - entry.totalCredit, 0),
             netCredit: Math.max(entry.totalCredit - entry.totalDebit, 0)
         };
+
+        // Update overall net debit and credit per account
+        structuredData[accountName].overallNetDebit += Math.max(entry.totalDebit - entry.totalCredit, 0);
+        structuredData[accountName].overallNetCredit += Math.max(entry.totalCredit - entry.totalDebit, 0);
+        
+        // Update overall net debit and credit for the entire account subhead
+        structuredData.overallNetDebit += Math.max(entry.totalDebit - entry.totalCredit, 0);
+        structuredData.overallNetCredit += Math.max(entry.totalCredit - entry.totalDebit, 0);
     });
 
     return structuredData;
 }
+
 
 // 11. Current Asset Account (including Cash and Bank)('account.accountSubhead': { $in: ['Current Asset', 'Cash', 'Bank'] })//
 async function getCurrentAssetAccount(organizationId, startDate, endDate) {
@@ -966,7 +1086,7 @@ async function getCurrentAssetAccount(organizationId, startDate, endDate) {
         }
     ]);
 
-    let structuredData = {};
+    let structuredData = { overallNetDebit: 0, overallNetCredit: 0 };
     
     // Add opening balance to structured data
     openingBalanceData.forEach(entry => {
@@ -974,7 +1094,9 @@ async function getCurrentAssetAccount(organizationId, startDate, endDate) {
             openingBalance: {
                 totalDebit: entry.totalDebit || 0,
                 totalCredit: entry.totalCredit || 0
-            }
+            },
+            overallNetDebit: 0,
+            overallNetCredit: 0
         };
     });
 
@@ -983,7 +1105,11 @@ async function getCurrentAssetAccount(organizationId, startDate, endDate) {
         const { accountName, month } = entry._id;
         
         if (!structuredData[accountName]) {
-            structuredData[accountName] = { openingBalance: { totalDebit: 0, totalCredit: 0 } };
+            structuredData[accountName] = { 
+                openingBalance: { totalDebit: 0, totalCredit: 0 },
+                overallNetDebit: 0,
+                overallNetCredit: 0
+            };
         }
         structuredData[accountName][month] = {
             trialBalance: entry.trialBalance,
@@ -992,17 +1118,18 @@ async function getCurrentAssetAccount(organizationId, startDate, endDate) {
             netDebit: Math.max(entry.totalDebit - entry.totalCredit, 0),
             netCredit: Math.max(entry.totalCredit - entry.totalDebit, 0)
         };
+
+        // Update overall net debit and credit per account
+        structuredData[accountName].overallNetDebit += Math.max(entry.totalDebit - entry.totalCredit, 0);
+        structuredData[accountName].overallNetCredit += Math.max(entry.totalCredit - entry.totalDebit, 0);
+        
+        // Update overall net debit and credit for the entire account subhead
+        structuredData.overallNetDebit += Math.max(entry.totalDebit - entry.totalCredit, 0);
+        structuredData.overallNetCredit += Math.max(entry.totalCredit - entry.totalDebit, 0);
     });
 
     return structuredData;
 }
-
-
-
-
-
-
-
 
 
 // 12. Non-Current Asset Account(Non-Current Asset)//
@@ -1079,7 +1206,7 @@ async function getNonCurrentAssetAccount(organizationId, startDate, endDate) {
         }
     ]);
 
-    let structuredData = {};
+    let structuredData = { overallNetDebit: 0, overallNetCredit: 0 };
     
     // Add opening balance to structured data
     openingBalanceData.forEach(entry => {
@@ -1087,7 +1214,9 @@ async function getNonCurrentAssetAccount(organizationId, startDate, endDate) {
             openingBalance: {
                 totalDebit: entry.totalDebit || 0,
                 totalCredit: entry.totalCredit || 0
-            }
+            },
+            overallNetDebit: 0,
+            overallNetCredit: 0
         };
     });
 
@@ -1096,7 +1225,11 @@ async function getNonCurrentAssetAccount(organizationId, startDate, endDate) {
         const { accountName, month } = entry._id;
         
         if (!structuredData[accountName]) {
-            structuredData[accountName] = { openingBalance: { totalDebit: 0, totalCredit: 0 } };
+            structuredData[accountName] = { 
+                openingBalance: { totalDebit: 0, totalCredit: 0 },
+                overallNetDebit: 0,
+                overallNetCredit: 0
+            };
         }
         structuredData[accountName][month] = {
             trialBalance: entry.trialBalance,
@@ -1105,6 +1238,14 @@ async function getNonCurrentAssetAccount(organizationId, startDate, endDate) {
             netDebit: Math.max(entry.totalDebit - entry.totalCredit, 0),
             netCredit: Math.max(entry.totalCredit - entry.totalDebit, 0)
         };
+
+        // Update overall net debit and credit per account
+        structuredData[accountName].overallNetDebit += Math.max(entry.totalDebit - entry.totalCredit, 0);
+        structuredData[accountName].overallNetCredit += Math.max(entry.totalCredit - entry.totalDebit, 0);
+        
+        // Update overall net debit and credit for the entire account subhead
+        structuredData.overallNetDebit += Math.max(entry.totalDebit - entry.totalCredit, 0);
+        structuredData.overallNetCredit += Math.max(entry.totalCredit - entry.totalDebit, 0);
     });
 
     return structuredData;
