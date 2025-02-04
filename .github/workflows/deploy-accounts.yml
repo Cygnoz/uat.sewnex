@@ -43,9 +43,9 @@ jobs:
             COPY . .
             EXPOSE 5002
             CMD ["node", "server.js"]
-            EOF_DOCKER
+            'EOF_DOCKER'
 
             # Run the new container with the correct port
             echo "Deploying the new account-container..."
             docker run -d --name account-container -p 5002:5002 account-container
-          EOF_SSH
+         'EOF_SSH'
