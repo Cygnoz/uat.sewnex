@@ -52,7 +52,7 @@ const dataExist = async (organizationId, supplierId) => {
       Account.findOne({ organizationId, _id: expenseAccountId })
       .populate('expense.expenseAccountId', 'expenseAccountName')
       .lean(),
-      Account.findOne({ organizationId, _id: expenseAccountId })
+      Account.findOne({ organizationId, _id: paidThroughAccountId })
       .populate('paidThroughAccountId', 'paidThroughAccountName')
       .lean(),
     ]);
@@ -162,14 +162,15 @@ exports.getAllExpense = async (req, res) => {
       if (!allExpense) {
         return res.status(404).json({ message: "No Expense found" });
       }
-      // console.log("allExpense",allExpense);
-
+      
       const transformedExpense = allExpense.map(data => {
+        console.log("...........",data);
+        
         return {
             ...data,
             supplierId: data.supplierId._id,  
             supplierDisplayName: data.supplierId.supplierDisplayName, 
-            paidThroughAccountId: data.paidThroughAccountId._id,
+            paidThroughAccountId: data.paidThroughAccountId,
             paidThroughAccountName: data.paidThroughAccountId.paidThroughAccountName,
             expense: data.expense.map(exp => ({
               ...exp,
