@@ -139,7 +139,10 @@ const mItemDataExists = async (organizationId) => {
       },
   ]);
 
+  
+  
   const itemTrackMap = itemTracks.reduce((acc, itemTrack) => {
+    console.log( "1",itemTrack._id, itemTrack.totalDebit, itemTrack.totalCredit);
       const sortedEntries = itemTrack.data.sort((a, b) =>
           new Date(a.createdDateTime) - new Date(b.createdDateTime)
       );
