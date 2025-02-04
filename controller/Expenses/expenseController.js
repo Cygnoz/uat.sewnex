@@ -101,6 +101,8 @@ exports.addExpense = async (req, res) => {
       // Validate organizationId
       const { organizationExists, accountExist, supplierExist, existingPrefix, defaultAccount } = await dataExist(organizationId, supplierId);
 
+      const { paidThroughAcc } = await accDataExists( organizationId, cleanedData.paidThroughAccountId );
+
       // Extract all account IDs from accountExist
       const accountIds = accountExist.map(account => account._id.toString());
       
@@ -115,7 +117,7 @@ exports.addExpense = async (req, res) => {
       //Data Exist Validation
       if (!validateOrganizationSupplierAccount( organizationExists, accountExist, supplierExist, supplierId, existingPrefix, defaultAccount, res )) return;
 
-      if (!validateInputs(cleanedData, organizationExists, defaultAccount, res)) return;
+      if (!validateInputs(cleanedData, organizationExists, defaultAccount, paidThroughAcc, res)) return;
 
       //Tax Mode
       taxMode(cleanedData);
@@ -136,7 +138,8 @@ exports.addExpense = async (req, res) => {
       // Create a new expense
       const savedExpense = await createNewExpense(cleanedData, organizationId, userId, userName);
       
-      await createTrialBalance(savedExpense);
+      //Journal
+      await journal(savedExpense, defAcc, paidThroughAcc);
 
       res.status(201).json({ message: "Expense created successfully." });
   } catch (error) {
@@ -159,6 +162,7 @@ exports.getAllExpense = async (req, res) => {
       if (!allExpense) {
         return res.status(404).json({ message: "No Expense found" });
       }
+      // console.log("allExpense",allExpense);
 
       const transformedExpense = allExpense.map(data => {
         return {
@@ -173,6 +177,9 @@ exports.getAllExpense = async (req, res) => {
               expenseAccountName: exp.expenseAccountId.expenseAccountName,
             }))
         };});
+
+        console.log("transformedExpense",transformedExpense);
+        
         
       const formattedObjects = multiCustomDateTime(transformedExpense, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
   
@@ -539,6 +546,7 @@ function expensePrefix( cleanData, existingPrefix ) {
     const accounts = await accDataExists(
       organizationExists.organizationId, 
       data.expenseAccountId, 
+      data.paidThroughAccountId
     );
     
     // 2. Check for missing required accounts
@@ -549,7 +557,6 @@ function expensePrefix( cleanData, existingPrefix ) {
   
     // 3. Update account references
     assignAccountReferences(data, defaultAccount, accounts);
-    
     return { defAcc: defaultAccount, error: null };
   }
   
@@ -560,9 +567,6 @@ function expensePrefix( cleanData, existingPrefix ) {
       { condition: data.sgst, account: defaultAccount.outputSgst, message: "SGST Account" },
       { condition: data.igst, account: defaultAccount.outputIgst, message: "IGST Account" },
       { condition: data.vat, account: defaultAccount.outputVat, message: "VAT Account" },
-
-      // Transaction account checks
-    { condition: data.amount, account: accounts.expenseAcc, message: "Other Expense Account" },
     ];
   
     const missingAccounts = accountChecks
@@ -573,7 +577,7 @@ function expensePrefix( cleanData, existingPrefix ) {
   }
   
   function assignAccountReferences(data, defaultAccount, accounts) {
-    if (data.amount) {
+    if (data.expenseAccountId) {
       defaultAccount.expenseAccountId = accounts.expenseAcc?._id;
     }
   }
@@ -721,65 +725,12 @@ function expensePrefix( cleanData, existingPrefix ) {
 
 
 
-
-
-
-  async function createTrialBalance (savedExpense) {
-
-    const { organizationId, paidThrough, paidThroughId, expenseDate, expense } = savedExpense;
-
-    // Calculate the total credit amount by summing up the amount for all expense items
-    const totalCreditAmount = expense.reduce((sum, expenseItem) => sum + parseFloat(expenseItem.amount), 0);
-
-    // Create a single credit entry for the paidThrough account
-    const creditEntry = new TrialBalance({
-        organizationId,
-        operationId: savedExpense._id,
-        transactionId: savedExpense._id,
-        date: expenseDate,
-        accountId: paidThroughId,
-        accountName: paidThrough,
-        action: "Expense",
-        creditAmount: totalCreditAmount,
-        remark: "Total credit for expenses"
-    });
-
-    await creditEntry.save();
-    console.log("Credit Entry:", creditEntry);
-
-    // Loop through each expense item to create individual debit entries
-    for (const expenseItem of expense) {
-        const { expenseAccountId, expenseAccount, note, amount } = expenseItem;
-
-        // Create a debit entry for the expense account
-        const debitEntry = new TrialBalance({
-            organizationId,
-            operationId: savedExpense._id,
-            transactionId: savedExpense._id,
-            date: expenseDate,
-            accountId: expenseAccountId,
-            accountName: expenseAccount,
-            action: "Expense",
-            debitAmount: parseFloat(amount),
-            remark: note
-        });
-
-        await debitEntry.save();
-        console.log("Debit Entry:", debitEntry);
-    }
-}
-
-
-
-
-
-
   
    
 
   //Validate inputs
-  function validateInputs(data, organizationExists, defaultAccount, res) {
-    const validationErrors = validateExpenseData(data, organizationExists, defaultAccount);
+  function validateInputs(data, organizationExists, defaultAccount, paidThroughAcc, res) {
+    const validationErrors = validateExpenseData(data, organizationExists, defaultAccount, paidThroughAcc);
   
     if (validationErrors.length > 0) {
       res.status(400).json({ message: validationErrors.join(", ") });
@@ -791,11 +742,11 @@ function expensePrefix( cleanData, existingPrefix ) {
 
 
   //Validate Data
-  function validateExpenseData(data, organizationExists, defaultAccount) {
+  function validateExpenseData(data, organizationExists, defaultAccount, paidThroughAcc) {
     const errors = [];
 
     //Basic Info
-    validateReqFields( data, defaultAccount, errors);
+    validateReqFields( data, errors);
     validateFloatFields(['distance', 'ratePerKm'], data, errors);
     // validateIntegerFields(['distance', 'ratePerKm'], data, errors);
     //validateAlphabetsFields(['department', 'designation'], data, errors);
@@ -817,7 +768,7 @@ function expensePrefix( cleanData, existingPrefix ) {
   }
 
   //Valid Req Fields
-  function validateReqFields( data, defaultAccount, errors ) {
+  function validateReqFields( data, errors ) {
     validateField( typeof data.expenseDate === 'undefined', "Please select Date", errors  );
     validateField( typeof data.paidThroughAccountId === 'undefined', "Please select paid through account", errors  );
     validateField( data.expenseAccountId === 'undefined', "Please select expense account", errors  );
@@ -1054,9 +1005,167 @@ const validGSTTreatments = [
 
 
 
+async function journal( savedExpense, defAcc, paidThroughAcc ) { 
+  const cgst = {
+    organizationId: savedExpense.organizationId,
+    operationId: savedExpense._id,
+    transactionId: savedExpense.expenseNumber,
+    date: savedExpense.createdDate,
+    accountId: defAcc.outputCgst || undefined,
+    action: "Expense",
+    debitAmount: savedExpense.cgst || 0,
+    creditAmount: 0,
+    remark: savedExpense.expense.note,
+  };
+  const sgst = {
+    organizationId: savedExpense.organizationId,
+    operationId: savedExpense._id,
+    transactionId: savedExpense.expenseNumber,
+    date: savedExpense.createdDate,
+    accountId: defAcc.outputSgst || undefined,
+    action: "Expense",
+    debitAmount: savedExpense.sgst || 0,
+    creditAmount: 0,
+    remark: savedExpense.expense.note,
+  };
+  const igst = {
+    organizationId: savedExpense.organizationId,
+    operationId: savedExpense._id,
+    transactionId: savedExpense.expenseNumber,
+    date: savedExpense.createdDate,
+    accountId: defAcc.outputIgst || undefined,
+    action: "Expense",
+    debitAmount: savedExpense.igst || 0,
+    creditAmount: 0,
+    remark: savedExpense.expense.note,
+  };
+  const vat = {
+    organizationId: savedExpense.organizationId,
+    operationId: savedExpense._id,
+    transactionId: savedExpense.expenseNumber,
+    date: savedExpense.createdDate,
+    accountId: defAcc.outputVat || undefined,
+    action: "Expense",
+    debitAmount: savedExpense.vat || 0,
+    creditAmount: 0,
+    remark: savedExpense.expense.note,
+  };
+  const paidThroughAccount = {
+    organizationId: savedExpense.organizationId,
+    operationId: savedExpense._id,
+    transactionId: savedExpense.expenseNumber,
+    accountId: paidThroughAcc || undefined,
+    action: "Expense",
+    debitAmount: 0,
+    creditAmount: savedExpense.grandTotal || 0,
+    remark: savedExpense.expense.note,
+  };
+
+  
+
+  let expenseTotalDebit = 0;
+
+  if (Array.isArray(savedExpense.expense)) {
+    savedExpense.expense.forEach((entry) => {
+      console.log( "Account Log", entry.expenseAccountId, entry.amount );      
+      expenseTotalDebit += entry.amount || 0;
+    });
+    console.log("Total Debit Amount from expense:", expenseTotalDebit);
+  } else {
+    console.error("Expense is not an array or is undefined.");
+  }
+
+  
+
+
+  console.log("cgst", cgst.debitAmount,  cgst.creditAmount);
+  console.log("sgst", sgst.debitAmount,  sgst.creditAmount);
+  console.log("igst", igst.debitAmount,  igst.creditAmount);
+  console.log("vat", vat.debitAmount,  vat.creditAmount);
+  console.log("paidThroughAccount", paidThroughAccount.debitAmount,  paidThroughAccount.creditAmount);
+  console.log("Total expense amount:", expenseTotalDebit);
+
+
+
+  const  debitAmount = expenseTotalDebit + cgst.debitAmount  + sgst.debitAmount + igst.debitAmount +  vat.debitAmount;
+  console.log("Total Debit Amount: ", debitAmount );
+
+
+  //Expense
+  savedExpense.expense.forEach((entry) => {
+    const data = {
+      organizationId: savedExpense.organizationId,
+      operationId: savedExpense._id,
+      transactionId: savedExpense.expenseNumber,
+      date: savedExpense.createdDateTime,
+      accountId: entry.expenseAccountId || undefined,
+      action: "Expense",
+      debitAmount: entry.amount || 0,
+      creditAmount: 0,
+      remark: entry.note,
+    };
+    createTrialEntry( data )
+  });
+
+
+
+  //Tax
+  if(savedExpense.cgst){
+    createTrialEntry( cgst )
+  }
+  if(savedExpense.sgst){
+    createTrialEntry( sgst )
+  }
+  if(savedExpense.igst){
+    createTrialEntry( igst )
+  }
+  if(savedExpense.vat){
+    createTrialEntry( vat )
+  }
+  if(savedExpense.paidThroughAccountId){
+    createTrialEntry( paidThroughAccount )
+  }
+
+
+
+  async function createTrialEntry( data ) {
+    const newTrialEntry = new TrialBalance({
+        organizationId:data.organizationId,
+        operationId:data.operationId,
+        transactionId: data.transactionId,
+        date:data.date,
+        accountId: data.accountId,
+        action: data.action,
+        debitAmount: data.debitAmount || 0,
+        creditAmount: data.creditAmount || 0,
+        remark: data.remark
+  });
+  
+  await newTrialEntry.save();
+  console.log("newTrialEntry:",newTrialEntry);
+  
+  }
+  
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 exports.dataExist = {
   dataExist,
+  accDataExists,
   expenseDataExist
 };
 exports.validation = {
@@ -1068,5 +1177,5 @@ exports.calculation = {
   calculateExpense
 };
 exports.accounts = { 
-  createTrialBalance
+  journal
 };

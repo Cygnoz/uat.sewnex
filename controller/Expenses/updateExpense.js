@@ -13,9 +13,9 @@ const { dataExist, validation, calculation, accounts } = require("../Expenses/ex
 
 
 
-// Update Purchase Bill 
-exports.updateBill = async (req, res) => {
-    console.log("Update bill:", req.body);
+// Update Expense 
+exports.updateExpense = async (req, res) => {
+    console.log("Update expense:", req.body);
   
     try {
       const { organizationId } = req.user;
@@ -31,14 +31,13 @@ exports.updateBill = async (req, res) => {
       // Clean input data
       const cleanedData = cleanData(req.body);
 
-      const { supplierId, paidThroughId, expense } = cleanedData;
-
+      const { supplierId, paidThroughAccountId, expense } = cleanedData;
       const expenseIds = expense.map(e => e.expenseAccountId);
     
       // Validate _id's
       const validateAllIds = validateIds({
         supplierId,
-        paidThroughId,
+        paidThroughAccountId,
         expenseIds,
         cleanedData
       });
@@ -54,7 +53,9 @@ exports.updateBill = async (req, res) => {
       }
 
       // Fetch related data
-      const { organizationExists, accountExist, supplierExist, existingPrefix } = await dataExist.dataExist( organizationId, supplierId );   
+      const { organizationExists, accountExist, supplierExist, existingPrefix, defaultAccount } = await dataExist.dataExist( organizationId, supplierId );  
+      
+      const { paidThroughAcc } = await dataExist.accDataExists( organizationId, cleanedData.paidThroughAccountId );
       
       // Extract all account IDs from accountExist
       const accountIds = accountExist.map(account => account._id.toString());
@@ -68,13 +69,20 @@ exports.updateBill = async (req, res) => {
       }
   
       //Data Exist Validation
-      if (!validation.validateOrganizationSupplierAccount( organizationExists, accountExist, supplierExist, supplierId, existingPrefix, res )) return;
+      if (!validation.validateOrganizationSupplierAccount( organizationExists, accountExist, supplierExist, supplierId, existingPrefix, defaultAccount, res )) return;
         
       // Validate Inputs
-      if (!validation.validateInputs(cleanedData, organizationExists, res)) return;
+      if (!validation.validateInputs(cleanedData, organizationExists, defaultAccount, paidThroughAcc, res)) return;
   
       // Tax Type 
       calculation.taxMode(cleanedData);
+
+      //Default Account
+      const { defAcc, error } = await defaultAccounting( cleanedData, defaultAccount, organizationExists );
+      if (error) { 
+        res.status(400).json({ message: error }); 
+        return false; 
+      }
 
       // Calculate Expense 
       if (!calculation.calculateExpense( cleanedData, res )) return;
@@ -82,16 +90,16 @@ exports.updateBill = async (req, res) => {
       const mongooseDocument = Expense.hydrate(existingExpense);
       Object.assign(mongooseDocument, cleanedData);
       const savedExpense = await mongooseDocument.save();
-
       if (!savedExpense) {
         return res.status(500).json({ message: "Failed to update expense" });
       }
 
-      await createTrialBalance(savedExpense);
+      //Journal
+      await journal(savedExpense, defAcc, paidThroughAcc);
   
       res.status(200).json({ message: "Expense updated successfully", savedExpense });  
     } catch (error) {
-      console.error("Error updating bill:", error);
+      console.error("Error updating expense:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   };
@@ -102,15 +110,15 @@ exports.updateBill = async (req, res) => {
 
 
 
-  function validateIds({ supplierId, paidThroughId, expenseIds, cleanedData }) {
+  function validateIds({ supplierId, paidThroughAccountId, expenseIds, cleanedData }) {
       // Validate Supplier ID
       if (!mongoose.Types.ObjectId.isValid(supplierId) || supplierId.length !== 24) {
         return res.status(400).json({ message: `Invalid supplier ID: ${supplierId}` });
       }
     
       // Validate paidThrough Account ID if applicable
-      if ((!mongoose.Types.ObjectId.isValid(paidThroughId) || paidThroughId.length !== 24) && cleanedData.paidThroughId !== undefined) {
-        return "Select paidThrough account";
+      if ((!mongoose.Types.ObjectId.isValid(paidThroughAccountId) || paidThroughAccountId.length !== 24) && cleanedData.paidThroughAccountId !== undefined) {
+        return "Select paid through account!";
       }
     
       // Validate expenseIds
@@ -134,66 +142,164 @@ exports.updateBill = async (req, res) => {
 
 
 
-    async function createTrialBalance (savedExpense) {
 
-        // Fetch existing TrialBalance's createdDateTime
-        const existingTrialBalance = await TrialBalance.findOne({
-            organizationId: savedExpense.organizationId,
-            operationId: savedExpense._id,
-        });  
-    
-        const createdDateTime = existingTrialBalance ? existingTrialBalance.createdDateTime : null;
-    
-        // If there are existing entries, delete them
-        if (existingTrialBalance) {
-            await TrialBalance.deleteMany({
-            organizationId: savedExpense.organizationId,
-            operationId: savedExpense._id,
-            });
-            console.log(`Deleted existing TrialBalance entries for operationId: ${savedBill._id}`);
-        }
 
-        const { organizationId, paidThrough, paidThroughId, expenseDate, expense } = savedExpense;
-    
-        // Calculate the total credit amount by summing up the amount for all expense items
-        const totalCreditAmount = expense.reduce((sum, expenseItem) => sum + parseFloat(expenseItem.amount), 0);
-    
-        // Create a single credit entry for the paidThrough account
-        const creditEntry = new TrialBalance({
-            organizationId,
-            operationId: savedExpense._id,
-            transactionId: savedExpense._id,
-            date: expenseDate,
-            accountId: paidThroughId,
-            accountName: paidThrough,
-            action: "Expense",
-            creditAmount: totalCreditAmount,
-            remark: "Total credit for expenses",
-            createdDateTime: createdDateTime
+
+    async function journal( savedExpense, defAcc, paidThroughAcc ) { 
+
+      // Fetch existing TrialBalance's createdDateTime
+      const existingTrialBalance = await TrialBalance.findOne({
+        organizationId: savedExpense.organizationId,
+        operationId: savedExpense._id,
+      });  
+
+      const createdDateTime = existingTrialBalance ? existingTrialBalance.createdDateTime : null;
+
+      // If there are existing entries, delete them
+      if (existingTrialBalance) {
+        await TrialBalance.deleteMany({
+          organizationId: savedExpense.organizationId,
+          operationId: savedExpense._id,
         });
+        console.log(`Deleted existing TrialBalance entries for operationId: ${savedExpense._id}`);
+      }
+
+      const cgst = {
+        organizationId: savedExpense.organizationId,
+        operationId: savedExpense._id,
+        transactionId: savedExpense.expenseNumber,
+        date: savedExpense.createdDate,
+        accountId: defAcc.outputCgst || undefined,
+        action: "Expense",
+        debitAmount: savedExpense.cgst || 0,
+        creditAmount: 0,
+        remark: savedExpense.expense.note,
+      };
+      const sgst = {
+        organizationId: savedExpense.organizationId,
+        operationId: savedExpense._id,
+        transactionId: savedExpense.expenseNumber,
+        date: savedExpense.createdDate,
+        accountId: defAcc.outputSgst || undefined,
+        action: "Expense",
+        debitAmount: savedExpense.sgst || 0,
+        creditAmount: 0,
+        remark: savedExpense.expense.note,
+      };
+      const igst = {
+        organizationId: savedExpense.organizationId,
+        operationId: savedExpense._id,
+        transactionId: savedExpense.expenseNumber,
+        date: savedExpense.createdDate,
+        accountId: defAcc.outputIgst || undefined,
+        action: "Expense",
+        debitAmount: savedExpense.igst || 0,
+        creditAmount: 0,
+        remark: savedExpense.expense.note,
+      };
+      const vat = {
+        organizationId: savedExpense.organizationId,
+        operationId: savedExpense._id,
+        transactionId: savedExpense.expenseNumber,
+        date: savedExpense.createdDate,
+        accountId: defAcc.outputVat || undefined,
+        action: "Expense",
+        debitAmount: savedExpense.vat || 0,
+        creditAmount: 0,
+        remark: savedExpense.expense.note,
+      };
+      const paidThroughAccount = {
+        organizationId: savedExpense.organizationId,
+        operationId: savedExpense._id,
+        transactionId: savedExpense.expenseNumber,
+        accountId: paidThroughAcc || undefined,
+        action: "Expense",
+        debitAmount: 0,
+        creditAmount: savedExpense.grandTotal || 0,
+        remark: savedExpense.expense.note,
+      };
     
-        await creditEntry.save();
-        console.log("Credit Entry:", creditEntry);
+      
     
-        // Loop through each expense item to create individual debit entries
-        for (const expenseItem of expense) {
-            const { expenseAccountId, expenseAccount, note, amount } = expenseItem;
+      let expenseTotalDebit = 0;
     
-            // Create a debit entry for the expense account
-            const debitEntry = new TrialBalance({
-                organizationId,
-                operationId: savedExpense._id,
-                transactionId: savedExpense._id,
-                date: expenseDate,
-                accountId: expenseAccountId,
-                accountName: expenseAccount,
-                action: "Expense",
-                debitAmount: parseFloat(amount),
-                remark: note,
-                createdDateTime: createdDateTime
-            });
+      if (Array.isArray(savedExpense.expense)) {
+        savedExpense.expense.forEach((entry) => {
+          console.log( "Account Log", entry.expenseAccountId, entry.amount );      
+          expenseTotalDebit += entry.amount || 0;
+        });
+        console.log("Total Debit Amount from expense:", expenseTotalDebit);
+      } else {
+        console.error("Expense is not an array or is undefined.");
+      }
     
-            await debitEntry.save();
-            console.log("Debit Entry:", debitEntry);
-        }
+      
+    
+    
+      console.log("cgst", cgst.debitAmount,  cgst.creditAmount);
+      console.log("sgst", sgst.debitAmount,  sgst.creditAmount);
+      console.log("igst", igst.debitAmount,  igst.creditAmount);
+      console.log("vat", vat.debitAmount,  vat.creditAmount);
+      console.log("paidThroughAccount", paidThroughAccount.debitAmount,  paidThroughAccount.creditAmount);
+      console.log("Total expense amount:", expenseTotalDebit);
+    
+    
+    
+      const  debitAmount = expenseTotalDebit + cgst.debitAmount  + sgst.debitAmount + igst.debitAmount +  vat.debitAmount;
+      console.log("Total Debit Amount: ", debitAmount );
+    
+    
+      //Expense
+      savedExpense.expense.forEach((entry) => {
+        const data = {
+          organizationId: savedExpense.organizationId,
+          operationId: savedExpense._id,
+          transactionId: savedExpense.expenseNumber,
+          date: savedExpense.createdDateTime,
+          accountId: entry.expenseAccountId || undefined,
+          action: "Expense",
+          debitAmount: entry.amount || 0,
+          creditAmount: 0,
+          remark: entry.note,
+        };
+        createTrialEntry( data, createdDateTime )
+      });
+    
+    
+    
+      //Tax
+      if(savedExpense.cgst){
+        createTrialEntry( cgst, createdDateTime )
+      }
+      if(savedExpense.sgst){
+        createTrialEntry( sgst, createdDateTime )
+      }
+      if(savedExpense.igst){
+        createTrialEntry( igst, createdDateTime )
+      }
+      if(savedExpense.vat){
+        createTrialEntry( vat, createdDateTime )
+      }
+      if(savedExpense.paidThroughAccountId){
+        createTrialEntry( paidThroughAccount, createdDateTime )
+      }
+    
+    
+    
+      async function createTrialEntry( data, createdDateTime ) {
+        const newTrialEntry = new TrialBalance({
+            organizationId:data.organizationId,
+            operationId:data.operationId,
+            transactionId: data.transactionId,
+            date:data.date,
+            accountId: data.accountId,
+            action: data.action,
+            debitAmount: data.debitAmount || 0,
+            creditAmount: data.creditAmount || 0,
+            remark: data.remark,
+            createdDateTime: createdDateTime
+      });
+      await newTrialEntry.save();
+      console.log("newTrialEntry:",newTrialEntry);
+      }     
     }

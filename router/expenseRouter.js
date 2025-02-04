@@ -3,7 +3,7 @@ const express = require("express")
 const router = new express.Router()
 
 const expenseController = require('../controller/Expenses/expenseController');
-
+const updateExpense = require('../controller/Expenses/updateExpense');
 
 const checkPermission = require('../controller/permission');
 const { verifyToken } = require('../controller/middleware');
@@ -13,7 +13,7 @@ router.post('/add-expense', verifyToken, expenseController.addExpense);
 router.get('/get-all-expense', verifyToken, expenseController.getAllExpense);
 router.get('/get-one-expense/:expenseId', verifyToken, expenseController.getOneExpense);
 router.get('/get-last-expense-prefix', verifyToken, expenseController.getLastExpensePrefix);
-// router.put('/update-expense/:id', verifyToken, expenseController.updateExpense);
+router.put('/update-expense/:expenseId', verifyToken, updateExpense.updateExpense);
 // router.delete('/delete-expense/:id', verifyToken, expenseController.deleteExpense);
 
 // expenseCategory
