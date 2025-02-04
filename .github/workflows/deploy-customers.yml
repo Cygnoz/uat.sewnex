@@ -1,9 +1,9 @@
-name: Deploy to Ubuntu Server - Customers
+name: Deploy to Ubuntu Server - Accounts
 
 on:
   push:
     branches:
-      - Customers
+      - Accounts
 
 jobs:
   deploy:
@@ -24,45 +24,28 @@ jobs:
         run: |
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
             cd ~/BillBizz
-            git pull origin Customers
+            git pull origin Accounts
 
             # Check if the container is already running, and stop & remove if it exists
-            if docker ps -q -f name=customers-container; then
-              echo "Stopping and removing old customers-container..."
-              docker stop customers-container
-              docker rm customers-container
+            if docker ps -q -f name=account-container; then
+              echo "Stopping and removing old account-container..."
+              docker stop account-container
+              docker rm account-container
             fi
 
-            # Build the Docker image using the updated Dockerfile
-            echo "Building the customers-container image..."
-            docker build -t customers-container -f Dockerfile .
+            # Build the Docker image using an inline Dockerfile
+            echo "Building the account-container image..."
+            docker build -t account-container - <<EOF_DOCKER
+            FROM node:22.11.0
+            WORKDIR /usr/src/app
+            COPY package*.json ./
+            RUN npm install
+            COPY . .
+            EXPOSE 5002
+            CMD ["node", "server.js"]
+            EOF_DOCKER
 
             # Run the new container with the correct port
-            echo "Deploying the new customers-container..."
-            docker run -d --name customers-container -p 5002:5002 customers-container
+            echo "Deploying the new account-container..."
+            docker run -d --name account-container -p 5002:5002 account-container
           EOF
-
-      - name: Create Dockerfile
-        run: |
-          cat <<EOL > Dockerfile
-          # Use an official Node.js runtime as a parent image
-          FROM node:22.11.0
-
-          # Set the working directory inside the container
-          WORKDIR /usr/src/app
-
-          # Copy the package.json and package-lock.json files to the working directory
-          COPY package*.json ./
-
-          # Install the dependencies
-          RUN npm install
-
-          # Copy the rest of the application code to the working directory
-          COPY . .
-
-          # Expose the port the app runs on
-          EXPOSE 5002
-
-          # Define the command to run your application
-          CMD [ "node", "server.js" ]
-          EOL
