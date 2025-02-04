@@ -1177,5 +1177,6 @@ exports.calculation = {
   calculateExpense
 };
 exports.accounts = { 
+  defaultAccounting,
   journal
 };

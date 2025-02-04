@@ -67,7 +67,7 @@ const expenseSchema = new Schema({
     createdDateTime: { type: Date, default: () => new Date() },
     
     //lastModifiedDate
-    lastModifiedDate:{type: Date},
+    // lastModifiedDate:{type: Date},
     
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 

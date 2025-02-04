@@ -78,7 +78,7 @@ exports.updateExpense = async (req, res) => {
       calculation.taxMode(cleanedData);
 
       //Default Account
-      const { defAcc, error } = await defaultAccounting( cleanedData, defaultAccount, organizationExists );
+      const { defAcc, error } = await accounts.defaultAccounting( cleanedData, defaultAccount, organizationExists );
       if (error) { 
         res.status(400).json({ message: error }); 
         return false; 
@@ -101,6 +101,58 @@ exports.updateExpense = async (req, res) => {
     } catch (error) {
       console.error("Error updating expense:", error);
       res.status(500).json({ message: "Internal server error" });
+    }
+  };
+
+
+
+  // Delete Expense
+  exports.deleteExpense = async (req, res) => {
+    console.log("Delete expense request received:", req.params);
+
+    try {
+        const { organizationId } = req.user;
+        const { expenseId } = req.params;
+
+        // Validate expenseId
+        if (!mongoose.Types.ObjectId.isValid(expenseId) || expenseId.length !== 24) {
+            return res.status(400).json({ message: `Invalid Purchase Bill ID: ${expenseId}` });
+        }
+
+        // Fetch existing expense
+        const existingExpense = await Expense.findOne({ _id: expenseId, organizationId });
+        if (!existingExpense) {
+            console.log("Expense not found with ID:", expenseId);
+            return res.status(404).json({ message: "Expense not found" });
+        }
+
+        // Fetch existing TrialBalance's 
+        const existingTrialBalance = await TrialBalance.findOne({
+          organizationId: existingExpense.organizationId,
+          operationId: existingExpense._id,
+        });  
+        // If there are existing entries, delete them
+        if (existingTrialBalance) {
+          await TrialBalance.deleteMany({
+            organizationId: existingExpense.organizationId,
+            operationId: existingExpense._id,
+          });
+          console.log(`Deleted existing TrialBalance entries for operationId: ${existingExpense._id}`);
+        }
+
+        // Delete the expense
+        const deletedExpense = await existingExpense.deleteOne();
+        if (!deletedExpense) {
+            console.error("Failed to delete expense.");
+            return res.status(500).json({ message: "Failed to delete expense!" });
+        }
+
+        res.status(200).json({ message: "Expense deleted successfully!" });
+        console.log("Expense deleted successfully with ID:", expenseId);
+
+    } catch (error) {
+        console.error("Error deleting expense:", error);
+        res.status(500).json({ message: "Internal server error" });
     }
   };
 

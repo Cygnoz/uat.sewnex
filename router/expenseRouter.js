@@ -14,7 +14,7 @@ router.get('/get-all-expense', verifyToken, expenseController.getAllExpense);
 router.get('/get-one-expense/:expenseId', verifyToken, expenseController.getOneExpense);
 router.get('/get-last-expense-prefix', verifyToken, expenseController.getLastExpensePrefix);
 router.put('/update-expense/:expenseId', verifyToken, updateExpense.updateExpense);
-// router.delete('/delete-expense/:id', verifyToken, expenseController.deleteExpense);
+router.delete('/delete-expense/:expenseId', verifyToken, updateExpense.deleteExpense);
 
 // expenseCategory
 router.post('/add-category', verifyToken, expenseController.addCategory);
