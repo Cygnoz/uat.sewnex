@@ -18,6 +18,10 @@ const accountSchema = new Schema({
 
     description: {type:String},
 
+    //Opening Balance
+    debitOpeningBalance: {type:Number},
+    creditOpeningBalance: {type:Number},
+
     bankAccNum: {type:String},
     bankIfsc: {type:String},
     bankCurrency: {type:String},
