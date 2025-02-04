@@ -1,18 +1,25 @@
-name: Deploy to Ubuntu Server - Accounts
+name: Build and Deploy Docker Container
 
 on:
   push:
     branches:
-      - Accounts
+      - main  # or the branch containing your Dockerfile
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest  # This uses the Ubuntu runner
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
+      # Step 1: Checkout the repository to the GitHub runner
+      - name: Checkout code
+        uses: actions/checkout@v2
 
+      # Step 2: Build Docker image from the Dockerfile
+      - name: Build Docker image
+        run: |
+          docker build -t accounts:latest -f Dockerfile .
+
+      # Step 3: Set up SSH Key for deployment to the server
       - name: Set up SSH Key
         run: |
           mkdir -p ~/.ssh
@@ -20,24 +27,13 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
 
+      # Step 4: SSH into the server and deploy the container
       - name: Deploy to Server
         run: |
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF_SSH'
-            cd ~/BillBizz
-            git pull origin Accounts
+            # Stop and remove the existing 'accounts' container if it's running
+            docker ps -q --filter "name=accounts" | grep -q . && docker stop accounts && docker rm accounts || echo "No existing container to remove"
 
-            # Stop and remove old container
-            if docker ps -q -f name=account-container; then
-              echo "Stopping and removing old account-container..."
-              docker stop account-container
-              docker rm account-container
-            fi
-
-            # Build using the Dockerfile from the repository
-            echo "Building the account-container image..."
-            docker build -t account-container .
-
-            # Run the new container
-            echo "Deploying the new account-container..."
-            docker run -d --name account-container -p 5001:5001 account-container
+            # Run the new container on port 5001:5001
+            docker run -d --name accounts -p 5001:5001 accounts:latest
           EOF_SSH
