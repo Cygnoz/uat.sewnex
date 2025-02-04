@@ -185,7 +185,7 @@ exports.addCreditNote = async (req, res) => {
     // Update Sales Invoice
     await updateSalesInvoiceWithCreditNote(invoiceId, items);
 
-    // Calculate stock
+    // Calculate stock 
     await calculateStock(savedCreditNote);
       
     res.status(201).json({ message: "Credit Note created successfully",savedCreditNote });
@@ -812,7 +812,7 @@ function validateInvoiceData(data, items, invoiceExist, errors) {
       validateField(CNItem.igst !== invoiceItem.igst, 
                     `Item IGST mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.igst}, got ${CNItem.igst}`, 
                     errors);
-      if (!invoiceItem.returnQuantity) {
+      if (invoiceItem.returnQuantity === 0) {
         validateField(CNItem.stock !== invoiceItem.quantity, 
                     `Stock mismatch for ${invoiceItem.itemId}: Expected ${invoiceItem.quantity}, got ${CNItem.stock}`, 
                     errors);
@@ -1003,40 +1003,31 @@ const calculateStock = async (creditNote) => {
   try {
     const { invoiceId, items } = creditNote;
 
+    // Fetch corresponding invoice
     const salesInvoice = await Invoice.findById(invoiceId);
+    const stockData = [];
 
     if (salesInvoice) {
       items.forEach((creditItem) => {
-        const salesItem = salesInvoice.items.find(
+        const invoiceItem = salesInvoice.items.find(
           (item) => item.itemId.toString() === creditItem.itemId.toString()
         );
 
-        if (salesItem) {
-          creditItem.stock = Math.max(salesItem.quantity - salesItem.returnQuantity, 0);
-        } else {
-          creditItem.stock = 0;
-        }
-        if (creditItem.stock < 0) {
-          creditItem.stock = 0;
-        }
+        const stock = invoiceItem ? Math.max(invoiceItem.quantity - invoiceItem.returnQuantity) : 0;
+        console.log("stock........................",stock,stockData);
+        
+
+        stockData.push({ itemId: creditItem.itemId, stock });
       });
-    } else {
-      console.warn(`Sales Invoice with ID ${invoiceId} not found.`);
     }
 
-    await CreditNote.findByIdAndUpdate(
-      creditNote._id,
-      { items },
-      { new: true }
-    );
-
-    return creditNote;
-    
+    return stockData; // Return computed values without modifying current CreditNote 
   } catch (error) {
     console.error("Error in calculateStock:", error);
     throw new Error("Failed to calculate stock for Credit Note.");
   }
 };
+
 
 
 

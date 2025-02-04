@@ -1,0 +1,43 @@
+name: Deploy to Ubuntu Server - Sales
+
+on:
+  push:
+    branches:
+      - Sales
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to Server
+        run: |
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
+            cd ~/BillBizz
+            git pull origin Sales
+
+            # Check if the container is already running, and stop & remove if it exists
+            if docker ps -q -f name=sales-container; then
+              echo "Stopping and removing old sales-container..."
+              docker stop sales-container
+              docker rm sales-container
+            fi
+
+            # Build the Docker image using the correct Dockerfile
+            echo "Building the sales-container image..."
+            docker build -t sales-container -f Dockerfile .
+
+            # Run the new container with the correct port mapping
+            echo "Deploying the new sales-container..."
+            docker run -d --name sales-container -p 0.0.0.0:5007:5007 sales-container
+          EOF

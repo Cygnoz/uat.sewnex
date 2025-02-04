@@ -31,7 +31,7 @@ exports.updateInvoice = async (req, res) => {
         });
       }
 
-      // Fetch existing sales order
+      // Fetch existing sales invoice
       const existingSalesInvoice = await SalesInvoice.findOne({ _id: invoiceId, organizationId });
       if (!existingSalesInvoice) {
         console.log("Sales invoice not found with ID:", invoiceId);

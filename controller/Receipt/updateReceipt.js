@@ -130,7 +130,7 @@ exports.deleteSalesReceipt = async (req, res) => {
         });
       }
 
-      // Extract invoices
+      // Extract sales receipt invoices
       const existingSalesReceiptInvoice = existingSalesReceipt.invoice;
 
       // Delete the sales receipt
