@@ -417,7 +417,7 @@ exports.deleteCustomer = async (req, res) => {
 
       // Validate customerId
       if (!mongoose.Types.ObjectId.isValid(customerId) || customerId.length !== 24) {
-          return res.status(400).json({ message: `Customer Invoice ID: ${customerId}` });
+          return res.status(400).json({ message: `Customer ID: ${customerId}` });
       }
 
       // Fetch existing customer
