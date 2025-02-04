@@ -94,8 +94,8 @@ exports.addAccount = async (req, res) => {
 exports.editAccount = async (req, res) => {
   console.log("Edit Account:", req.body);
   try {
-    const { accountId } = req.params;
     const organizationId = req.user.organizationId;
+    const { accountId } = req.params;
 
     // Fetch existing account
     const existingAccount = await Account.findOne({ _id: accountId, organizationId });
@@ -106,7 +106,19 @@ exports.editAccount = async (req, res) => {
 
     const cleanedData = cleanData(req.body);
 
-    const { parentAccountId } = cleanedData;
+    const { parentAccountId, systemAccounts } = cleanedData;
+
+    // Check trial balance count and handle early return if necessary
+    const trialBalanceResult = await trialBalanceCount(existingAccount, res);
+    if (trialBalanceResult) {
+      return; // Early return if trialBalanceCount sends a response
+    }
+
+    // systemAccounts check
+    if (systemAccounts === true) {
+      console.log("Account cannot be edited for account ID:", accountId);
+      return res.status(404).json({ message: "This account cannot be edited!" });
+    }
 
     const { existingOrganization, currencyExists, parentAccountExist } = await dataExist(organizationId, parentAccountId, null);      
 
@@ -116,17 +128,53 @@ exports.editAccount = async (req, res) => {
     //Validate Inputs  
     if (!validateInputs( cleanedData, organizationId, currencyExists, parentAccountExist, null, null, res )) return; 
 
+    // Check if an accounts with the same name already exists
+    const existingAccountName = await Account.findOne({ accountName: cleanedData.accountName, organizationId: organizationId, _id: { $ne: accountId } });   // Exclude the current account
+    if (existingAccountName) {
+      console.log("Account with the provided Account Name already exists");
+      return res.status(409).json({ message: "Account with the provided Account Name already exists."});        
+    }  
+
     // Encrypt bankAccNum before storing it
-    if(cleanedData.bankAccNum){ cleanedData.bankAccNum = encrypt(bankAccNum); }
+    if(cleanedData.bankAccNum){ cleanedData.bankAccNum = encrypt(cleanedData.bankAccNum); }
 
     // Save updated account
-    Object.assign(accountExist, cleanedData);
-    const savedAccount = await accountExist.save();
-
+    const mongooseDocument = Account.hydrate(existingAccount);
+    Object.assign(mongooseDocument, cleanedData);
+    const savedAccount = await mongooseDocument.save();
     if (!savedAccount) {
-      console.error("Account could not be saved.");
-      return res.status(500).json({ message: "Failed to Update account." });
-    } 
+      return res.status(500).json({ message: "Failed to update account!" });
+    }
+
+    // Fetch existing TrialBalance's createdDateTime
+    const existingTrialBalance = await TrialBalance.findOne({
+      organizationId: savedAccount.organizationId,
+      operationId: savedAccount._id,
+    });  
+
+    const createdDateTime = existingTrialBalance ? existingTrialBalance.createdDateTime : null;
+
+    // If there is only one TrialBalance entry, delete it
+    if (existingTrialBalance) {
+      await TrialBalance.deleteOne({
+        organizationId: savedAccount.organizationId,
+        accountId: savedAccount._id,
+      });
+    }
+
+    const trialEntry = new TrialBalance({
+      organizationId: organizationId,
+      operationId: savedAccount._id,
+      transactionId:'OB',
+      accountId: savedAccount._id,
+      action: "Opening Balance",
+      debitAmount: cleanedData.debitOpeningBalance || 0,
+      creditAmount: cleanedData.creditOpeningBalance || 0,
+      remark: savedAccount.remark,
+      createdDateTime: createdDateTime
+    });
+    await trialEntry.save();
+
 
     res.status(200).json({ message: "Account updated successfully." });
     console.log("Account updated successfully:");
@@ -310,6 +358,25 @@ function calculateCumulativeSum(transactions) {
   });
 }
 
+
+
+
+async function trialBalanceCount(existingAccount, res) {
+  // Check if there are more than one TrialBalance entries for the account
+  const trialBalanceCount = await TrialBalance.countDocuments({
+    organizationId: existingAccount.organizationId,
+    accountId: existingAccount._id,
+  });
+
+  // If there is more than one TrialBalance entry, account cannot be changed
+  if (trialBalanceCount > 1) {
+    console.log("Account cannot be changed as it exists in TrialBalance");
+    res.status(400).json({ message: "Account cannot be changed as it is referenced in TrialBalance!" });
+    return true; // Indicate that a response was sent
+  }
+
+  return false; // Indicate that no response was sent
+}
 
 
 
