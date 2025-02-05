@@ -132,6 +132,9 @@ exports.addExpense = async (req, res) => {
       // Calculate Expense 
       if (!calculateExpense( cleanedData, res )) return;
 
+      //Purchase Journal      
+      if (!expenseJournal( cleanedData, res )) return; 
+
       //Prefix
       await expensePrefix(cleanedData, existingPrefix );
 
@@ -537,6 +540,53 @@ function expensePrefix( cleanData, existingPrefix ) {
     }
     return;
   }
+
+
+
+
+
+  function expenseJournal(cleanedData, res) {
+    const errors = [];
+    
+    // Utility function to round values to two decimal places
+    const roundToTwoDecimals = (value) => Number(value.toFixed(2));
+  
+    // Group items by salesAccountId and calculate debit amounts
+    const accountEntries = {};
+  
+    cleanedData.expense.forEach(exp => {
+            
+            const accountId = exp.expenseNumber;
+  
+            if (!accountId) {
+  
+              errors.push({
+                message: `Purchase Account not found for item ${item.itemName}`,
+              });
+              return; 
+            }
+      
+            const debitAmount = roundToTwoDecimals(item.itemCostPrice * item.itemQuantity);
+  
+            if (!accountEntries[accountId]) {
+              accountEntries[accountId] = { accountId, debitAmount: 0 };
+            }
+            // Accumulate the debit amount
+            accountEntries[accountId].debitAmount += debitAmount;
+    });
+  
+    // Push the grouped entries into cleanedData.journal
+    cleanedData.purchaseJournal = Object.values(accountEntries);
+    console.log("purchaseJournal:", cleanedData.purchaseJournal);  
+    
+    // Handle response or further processing
+    if (errors.length > 0) {
+      res.status(400).json({ success: false, message:"Purchase journal error", errors });
+      return false;
+    }
+    return true;
+  }
+
 
 
 
