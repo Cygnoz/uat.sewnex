@@ -171,123 +171,308 @@ async function getPurchaseAccount(organizationId, startDate, endDate) {
 
 
 // 4. Sales Account(Sales)//
-async function getSalesAccount(organizationId, startDate, endDate) {
-    // Compute opening balance per account
-    const openingBalanceData = await TrialBalance.aggregate([
-        {
-            $match: {
-                organizationId,
-                createdDateTime: { $lt: startDate },
-                $or: [{ debitAmount: { $gt: 0 } }, { creditAmount: { $gt: 0 } }]
-            }
-        },
-        {
-            $lookup: {
-                from: 'accounts',
-                localField: 'accountId',
-                foreignField: '_id',
-                as: 'account'
-            }
-        },
-        { $unwind: '$account' },
-        { $match: { 'account.accountSubhead': 'Sales' } },
-        {
-            $group: {
-                _id: '$accountId',
-                accountName: { $first: '$account.accountName' },
-                totalDebit: { $sum: '$debitAmount' },
-                totalCredit: { $sum: '$creditAmount' }
-            }
-        }
-    ]);
-
-    // Fetch sales data within the given date range
-    const salesData = await TrialBalance.aggregate([
-        {
-            $match: {
-                organizationId,
-                createdDateTime: { $gte: startDate, $lte: endDate },
-                $or: [{ debitAmount: { $gt: 0 } }, { creditAmount: { $gt: 0 } }]
-            }
-        },
-        {
-            $lookup: {
-                from: 'accounts',
-                localField: 'accountId',
-                foreignField: '_id',
-                as: 'account'
-            }
-        },
-        { $unwind: '$account' },
-        { $match: { 'account.accountSubhead': 'Sales' } },
-        {
-            $group: {
-                _id: {
-                    accountName: '$account.accountName',
-                    month: { $dateToString: { format: "%B %Y", date: "$createdDateTime" } }
-                },
-                trialBalance: {
-                    $push: {
-                        _id: '$_id',
-                        operationId: '$operationId',
-                        transactionId: '$transactionId',
-                        action: '$action',
-                        remark: '$remark',
-                        debitAmount: '$debitAmount',
-                        creditAmount: '$creditAmount',
-                        createdDateTime: '$createdDateTime'
-                    }
-                },
-                totalDebit: { $sum: '$debitAmount' },
-                totalCredit: { $sum: '$creditAmount' }
-            }
-        }
-    ]);
-
-    let structuredData = { overallNetDebit: 0, overallNetCredit: 0 };
-    
-    // Add opening balance to structured data
-    openingBalanceData.forEach(entry => {
-        structuredData[entry.accountName] = {
-            openingBalance: {
-                totalDebit: entry.totalDebit || 0,
-                totalCredit: entry.totalCredit || 0
+async function getReportAccount(organizationId, startDate, endDate, accountSubHead) {
+    try {
+        const openingBalances = await TrialBalance.aggregate([
+            {
+                $match: {
+                    organizationId: organizationId,
+                    createdDateTime: { $lt: startDate }
+                }
             },
-            overallNetDebit: 0,
-            overallNetCredit: 0
-        };
-    });
+            {
+                $lookup: {
+                    from: "accounts",
+                    localField: "accountId",
+                    foreignField: "_id",
+                    as: "accountDetails"
+                }
+            },
+            { $unwind: "$accountDetails" },
+            { $match: { "accountDetails.accountSubhead": accountSubHead } },
+            {
+                $group: {
+                    _id: "$accountId",
+                    accountName: { $first: "$accountDetails.accountName" },
+                    totalDebit: { $sum: "$debitAmount" },
+                    totalCredit: { $sum: "$creditAmount" }
+                }
+            }
+        ]);
 
-    // Merge sales data into structured data
-    salesData.forEach(entry => {
-        const { accountName, month } = entry._id;
-        
-        if (!structuredData[accountName]) {
-            structuredData[accountName] = { 
-                openingBalance: { totalDebit: 0, totalCredit: 0 },
-                overallNetDebit: 0,
-                overallNetCredit: 0
+        const transactions = await TrialBalance.aggregate([
+            {
+                $match: {
+                    organizationId: organizationId,
+                    createdDateTime: { $gte: startDate, $lte: endDate }
+                }
+            },
+            {
+                $lookup: {
+                    from: "accounts",
+                    localField: "accountId",
+                    foreignField: "_id",
+                    as: "accountDetails"
+                }
+            },
+            { $unwind: "$accountDetails" },
+            { $match: { "accountDetails.accountSubhead": accountSubHead } },
+            {
+                $match: {
+                    $or: [{ debitAmount: { $ne: 0 } }, { creditAmount: { $ne: 0 } }]
+                }
+            },
+            {
+                $project: {
+                    accountId: "$accountId",
+                    accountName: "$accountDetails.accountName",
+                    transactionId: "$transactionId",
+                    operationId: "$operationId",
+                    date: "$createdDateTime",
+                    debitAmount: "$debitAmount",
+                    creditAmount: "$creditAmount"
+                }
+            },
+            {
+                $addFields: {
+                    month: {
+                        $dateToString: {
+                            format: "%B %Y",
+                            date: "$date"
+                        }
+                    }
+                }
+            },
+            {
+                $group: {
+                    _id: { accountId: "$accountId", accountName: "$accountName", month: "$month" },
+                    transactions: {
+                        $push: {
+                            transactionId: "$transactionId",
+                            operationId: "$operationId",
+                            date: "$date",
+                            debitAmount: "$debitAmount",
+                            creditAmount: "$creditAmount"
+                        }
+                    },
+                    totalDebit: { $sum: "$debitAmount" },
+                    totalCredit: { $sum: "$creditAmount" }
+                }
+            },
+            {
+                $group: {
+                    _id: "$_id.accountId",
+                    accountName: { $first: "$_id.accountName" },
+                    overallNetDebit: { $sum: "$totalDebit" },
+                    overallNetCredit: { $sum: "$totalCredit" },
+                    entries: {
+                        $push: {
+                            date: "$_id.month",
+                            transactions: "$transactions",
+                            overAllNetDebit: "$totalDebit",
+                            overAllNetCredit: "$totalCredit"
+                        }
+                    }
+                }
+            }
+        ]);
+
+        let overallNetDebit = 0;
+        let overallNetCredit = 0;
+
+        const finalResult = transactions.map((account) => {
+            const openingBalance = openingBalances.find(ob => ob._id.equals(account._id));
+            const openingEntry = {
+                date: "Opening Balance",
+                transactions: [],
+                overAllNetDebit: openingBalance ? openingBalance.totalDebit : 0,
+                overAllNetCredit: openingBalance ? openingBalance.totalCredit : 0
             };
-        }
-        structuredData[accountName][month] = {
-            trialBalance: entry.trialBalance,
-            totalDebit: entry.totalDebit || 0,
-            totalCredit: entry.totalCredit || 0,
-            netDebit: Math.max(entry.totalDebit - entry.totalCredit, 0),
-            netCredit: Math.max(entry.totalCredit - entry.totalDebit, 0)
+
+            account.entries.unshift(openingEntry);
+            account.overallNetDebit += openingEntry.overAllNetDebit;
+            account.overallNetCredit += openingEntry.overAllNetCredit;
+
+            overallNetDebit += account.overallNetDebit;
+            overallNetCredit += account.overallNetCredit;
+
+            return {
+                accountId: account._id,
+                accountName: account.accountName,
+                overallNetDebit: account.overallNetDebit,
+                overallNetCredit: account.overallNetCredit,
+                entries: account.entries
+            };
+        });
+
+        return {
+            overallNetDebit,
+            overallNetCredit,
+            data: finalResult
         };
 
-        // Update overall net debit and credit per account
-        structuredData[accountName].overallNetDebit += Math.max(entry.totalDebit - entry.totalCredit, 0);
-        structuredData[accountName].overallNetCredit += Math.max(entry.totalCredit - entry.totalDebit, 0);
-        
-        // Update overall net debit and credit for the entire account subhead
-        structuredData.overallNetDebit += Math.max(entry.totalDebit - entry.totalCredit, 0);
-        structuredData.overallNetCredit += Math.max(entry.totalCredit - entry.totalDebit, 0);
-    });
-
-    return structuredData;
+    } catch (error) {
+        console.error("Error fetching data:", error);
+        return { overallNetDebit: 0, overallNetCredit: 0, data: [] };
+    }
 }
+
+
+
+//
+async function getReportAccountForAssets(organizationId, startDate, endDate) {
+    try {
+        const accountSubHeadFilter = { $in: ['Current Asset', 'Cash', 'Bank'] };
+
+        const openingBalances = await TrialBalance.aggregate([
+            {
+                $match: {
+                    organizationId: organizationId,
+                    createdDateTime: { $lt: startDate }
+                }
+            },
+            {
+                $lookup: {
+                    from: "accounts",
+                    localField: "accountId",
+                    foreignField: "_id",
+                    as: "accountDetails"
+                }
+            },
+            { $unwind: "$accountDetails" },
+            { $match: { "accountDetails.accountSubhead": accountSubHeadFilter } }, // Updated match condition
+            {
+                $group: {
+                    _id: "$accountId",
+                    accountName: { $first: "$accountDetails.accountName" },
+                    totalDebit: { $sum: "$debitAmount" },
+                    totalCredit: { $sum: "$creditAmount" }
+                }
+            }
+        ]);
+
+        const transactions = await TrialBalance.aggregate([
+            {
+                $match: {
+                    organizationId: organizationId,
+                    createdDateTime: { $gte: startDate, $lte: endDate }
+                }
+            },
+            {
+                $lookup: {
+                    from: "accounts",
+                    localField: "accountId",
+                    foreignField: "_id",
+                    as: "accountDetails"
+                }
+            },
+            { $unwind: "$accountDetails" },
+            { $match: { "accountDetails.accountSubhead": accountSubHeadFilter } }, // Updated match condition
+            {
+                $match: {
+                    $or: [{ debitAmount: { $ne: 0 } }, { creditAmount: { $ne: 0 } }]
+                }
+            },
+            {
+                $project: {
+                    accountId: "$accountId",
+                    accountName: "$accountDetails.accountName",
+                    transactionId: "$transactionId",
+                    operationId: "$operationId",
+                    date: "$createdDateTime",
+                    debitAmount: "$debitAmount",
+                    creditAmount: "$creditAmount"
+                }
+            },
+            {
+                $addFields: {
+                    month: {
+                        $dateToString: {
+                            format: "%B %Y",
+                            date: "$date"
+                        }
+                    }
+                }
+            },
+            {
+                $group: {
+                    _id: { accountId: "$accountId", accountName: "$accountName", month: "$month" },
+                    transactions: {
+                        $push: {
+                            transactionId: "$transactionId",
+                            operationId: "$operationId",
+                            date: "$date",
+                            debitAmount: "$debitAmount",
+                            creditAmount: "$creditAmount"
+                        }
+                    },
+                    totalDebit: { $sum: "$debitAmount" },
+                    totalCredit: { $sum: "$creditAmount" }
+                }
+            },
+            {
+                $group: {
+                    _id: "$_id.accountId",
+                    accountName: { $first: "$_id.accountName" },
+                    overallNetDebit: { $sum: "$totalDebit" },
+                    overallNetCredit: { $sum: "$totalCredit" },
+                    entries: {
+                        $push: {
+                            date: "$_id.month",
+                            transactions: "$transactions",
+                            overAllNetDebit: "$totalDebit",
+                            overAllNetCredit: "$totalCredit"
+                        }
+                    }
+                }
+            }
+        ]);
+
+        let overallNetDebit = 0;
+        let overallNetCredit = 0;
+
+        const finalResult = transactions.map((account) => {
+            const openingBalance = openingBalances.find(ob => ob._id.equals(account._id));
+            const openingEntry = {
+                date: "Opening Balance",
+                transactions: [],
+                overAllNetDebit: openingBalance ? openingBalance.totalDebit : 0,
+                overAllNetCredit: openingBalance ? openingBalance.totalCredit : 0
+            };
+
+            account.entries.unshift(openingEntry);
+            account.overallNetDebit += openingEntry.overAllNetDebit;
+            account.overallNetCredit += openingEntry.overAllNetCredit;
+
+            overallNetDebit += account.overallNetDebit;
+            overallNetCredit += account.overallNetCredit;
+
+            return {
+                accountId: account._id,
+                accountName: account.accountName,
+                overallNetDebit: account.overallNetDebit,
+                overallNetCredit: account.overallNetCredit,
+                entries: account.entries
+            };
+        });
+
+        return {
+            overallNetDebit,
+            overallNetCredit,
+            data: finalResult
+        };
+
+    } catch (error) {
+        console.error("Error fetching asset accounts report:", error);
+        return { overallNetDebit: 0, overallNetCredit: 0, data: [] };
+    }
+}
+
+
+
+    
+
+
 
 
 // 5. Direct Expense Account(Direct Expense)//
@@ -1294,9 +1479,10 @@ exports.calculateTradingAccount = async (req, res) => {
 
         const openingStock = await getOpeningBalance(organizationId, start);
         const closingStock = await getClosingBalance(organizationId, end);
-        const purchases = await getPurchaseAccount(organizationId, start, end);
-        const sales = await getSalesAccount(organizationId, start, end);
-        const directExpenses = await getDirectExpenseAccount(organizationId, start, end);        
+
+        const purchases = await getReportAccount(organizationId, start, end,'Cost of Goods Sold');
+        const sales = await getReportAccount(organizationId, start, end,'Sales');
+        const directExpenses = await getReportAccount(organizationId, start, end,'Direct Expense');        
                 
         const totalDebit = openingStock.total + purchases.overallNetDebit + directExpenses.overallNetDebit - purchases.overallNetCredit - directExpenses.overallNetCredit;
         const totalCredit = sales.overallNetCredit + closingStock.total - sales.overallNetDebit;
@@ -1312,9 +1498,11 @@ exports.calculateTradingAccount = async (req, res) => {
             carryForward = grossLoss;
             carryForwardType = "credit"; 
         }
-
-        const finalDebit = totalDebit + grossProfit;
+        
+        console.log(openingStock.total , purchases.overallNetDebit ,directExpenses.overallNetDebit , purchases.overallNetCredit , directExpenses.overallNetCredit);
+        
         const finalCredit = totalCredit + grossLoss;
+        const finalDebit = totalDebit + grossProfit;
 
         const result = {
             debit: [
@@ -1361,13 +1549,14 @@ exports.calculateProfitAndLoss = async (req, res) => {
         // Trading Account Calculations
         const openingStock = await getOpeningBalance(organizationId, start);
         const closingStock = await getClosingBalance(organizationId, end);
-        const purchases = await getPurchaseAccount(organizationId, start, end);
-        const sales = await getSalesAccount(organizationId, start, end);
-        const directExpenses = await getDirectExpenseAccount(organizationId, start, end);
+
+        const purchases = await getReportAccount(organizationId, start, end,'Cost of Goods Sold');
+        const sales = await getReportAccount(organizationId, start, end,'Sales');
+        const directExpenses = await getReportAccount(organizationId, start, end,'Direct Expense'); 
 
         // Profit and Loss Calculations
-        const indirectIncome = await getIndirectIncomeAccount(organizationId, start, end);
-        const indirectExpenses = await getIndirectExpenseAccount(organizationId, start, end);
+        const indirectIncome = await getReportAccount(organizationId, start, end,'Indirect Income');
+        const indirectExpenses = await getReportAccount(organizationId, start, end,'Indirect Expense');
 
         // Gross Profit/Loss Calculation
         const totalDebitTradingAccount = openingStock.total + purchases.overallNetDebit + directExpenses.overallNetDebit - purchases.overallNetCredit - directExpenses.overallNetCredit;
@@ -1474,20 +1663,21 @@ exports.calculateBalanceSheet = async (req, res) => {
         // Trading Account Calculations
         const openingStock = await getOpeningBalance(organizationId, start);
         const closingStock = await getClosingBalance(organizationId, end);
-        const purchases = await getPurchaseAccount(organizationId, start, end);
-        const sales = await getSalesAccount(organizationId, start, end);
-        const directExpenses = await getDirectExpenseAccount(organizationId, start, end);
+
+        const purchases = await getReportAccount(organizationId, start, end,'Cost of Goods Sold');
+        const sales = await getReportAccount(organizationId, start, end,'Sales');
+        const directExpenses = await getReportAccount(organizationId, start, end,'Direct Expense'); 
 
         // Profit and Loss Calculations
-        const indirectIncome = await getIndirectIncomeAccount(organizationId, start, end);
-        const indirectExpenses = await getIndirectExpenseAccount(organizationId, start, end);
+        const indirectIncome = await getReportAccount(organizationId, start, end,'Indirect Income');
+        const indirectExpenses = await getReportAccount(organizationId, start, end,'Indirect Expense');
 
         //Balance Sheet Calculations
-        const currentAssets = await getCurrentAssetAccount(organizationId, start, end);
-        const nonCurrentAssets = await getNonCurrentAssetAccount(organizationId, start, end);
-        const currentLiabilities = await getCurrentLiabilityAccount(organizationId, start, end);
-        const nonCurrentLiabilities = await getNonCurrentLiabilityAccount(organizationId, start, end);
-        const equity = await getEquityAccount(organizationId, start, end);
+        const currentAssets = await getReportAccountForAssets(organizationId, start, end);
+        const nonCurrentAssets = await getReportAccount(organizationId, start, end,'Non-Current Asset');
+        const currentLiabilities = await getReportAccount(organizationId, start, end,'Non-Current Liability');
+        const nonCurrentLiabilities = await getReportAccount(organizationId, start, end,'Current Liability');
+        const equity = await getReportAccount(organizationId, start, end,'Equity');
 
 
 
