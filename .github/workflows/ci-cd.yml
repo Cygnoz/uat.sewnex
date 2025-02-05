@@ -1,25 +1,18 @@
-name: Build and Deploy Docker Container
+name: Deploy to Ubuntu Server - Accounts
 
 on:
   push:
     branches:
-      - main  # or the branch containing your Dockerfile
+      - Accounts
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest  # This uses the Ubuntu runner
+    runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Checkout the repository to the GitHub runner
-      - name: Checkout code
-        uses: actions/checkout@v2
+      - name: Checkout Code
+        uses: actions/checkout@v3
 
-      # Step 2: Build Docker image from the Dockerfile
-      - name: Build Docker image
-        run: |
-          docker build -t accounts:latest -f Dockerfile .
-
-      # Step 3: Set up SSH Key for deployment to the server
       - name: Set up SSH Key
         run: |
           mkdir -p ~/.ssh
@@ -27,13 +20,32 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
 
-      # Step 4: SSH into the server and deploy the container
       - name: Deploy to Server
         run: |
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF_SSH'
-            # Stop and remove the existing 'accounts' container if it's running
-            docker ps -q --filter "name=accounts" | grep -q . && docker stop accounts && docker rm accounts || echo "No existing container to remove"
+            cd ~/BillBizz
+            git checkout Accounts
+            git pull
 
-            # Run the new container on port 5001:5001
-            docker run -d --name accounts -p 5001:5001 accounts:latest
+            # Remove only the old account-container if it exists
+            if docker ps -a --format '{{.Names}}' | grep -q "^account-container$"; then
+              echo "Removing old account-container..."
+              docker rm -f account-container
+            fi
+
+            # Build the Docker image using an inline Dockerfile
+            echo "Building the account-container image..."
+            docker build -t account-container - <<'EOF_DOCKER'
+            FROM node:22.11.0
+            WORKDIR /usr/src/app
+            COPY package*.json ./
+            RUN npm install
+            COPY . .
+            EXPOSE 5001
+            CMD ["node", "server.js"]
+            EOF_DOCKER
+
+            # Run the new container with the correct port mapping
+            echo "Deploying the new account-container..."
+            docker run -d --name account-container -p 5001:5001 account-container
           EOF_SSH
