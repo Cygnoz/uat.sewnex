@@ -14,6 +14,7 @@ const key = Buffer.from(process.env.ENCRYPTION_KEY, 'utf8');
 const iv = Buffer.from(process.env.ENCRYPTION_IV, 'utf8'); 
 
 
+
 // Fetch existing data
 const dataExist = async ( organizationId, parentAccountId, accountId ) => {
   const [ existingOrganization, currencyExists, parentAccountExist, accountExist, trialBalance, allAccount ] = await Promise.all([
@@ -269,7 +270,7 @@ exports.getAllAccount = async (req, res) => {
       
     res.status(200).json(formattedObjects);
   } catch (error) {
-    console.error("Error fetching accounts:", error);
+    console.error("Error fetching accounts111:", error);
     res.status(500).json({ message: "Internal server error.", error: error });
   }
 };
@@ -280,6 +281,16 @@ exports.getOneAccount = async (req, res) => {
   try {
     const { accountId } = req.params;
     const organizationId = req.user.organizationId;
+    
+    // Check if accountId is provided
+    if (!accountId) {
+      return res.status(400).json({ message: "Account ID is required." });
+    }
+
+    // Check if accountId is a valid ObjectId
+    if (!mongoose.Types.ObjectId.isValid(accountId)) { 
+      return res.status(400).json({ message: "Invalid Account ID." });
+    }
 
     // Find the account by accountId 
     const { existingOrganization, accountExist } = await dataExist(organizationId, null, accountId);
@@ -298,7 +309,7 @@ exports.getOneAccount = async (req, res) => {
     
     res.status(200).json(formattedObjects);
   } catch (error) {
-    console.error("Error fetching account:", error);
+    console.error("Error fetching account1122:", error);
     res.status(500).json({ message: "Internal server error." });
   }
 };
