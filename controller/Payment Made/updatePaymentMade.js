@@ -17,6 +17,8 @@ exports.updatePaymentMade = async (req, res) => {
 
       // Fetch existing sales receipt
       const existingPaymentMade = await getExistingPaymentMade(paymentId, organizationId, res);
+      // console.log("existingPaymentMade",existingPaymentMade);
+      
 
       // Extract paymentAmount values
       const existingPaymentMadeBills = existingPaymentMade.unpaidBills;
@@ -29,9 +31,10 @@ exports.updatePaymentMade = async (req, res) => {
       const billIds = unpaidBills.map(unpaidBill => unpaidBill.billId);
 
       // Fetch the latest payment made for the given supplierId and organizationId
-      await getLatestPaymentMade(paymentId, organizationId, supplierId, billIds);
-
-      // cleanedData.paidThroughAccountId = cleanedData.paidThrough;
+      const latestPaymentMade = await getLatestPaymentMade(paymentId, organizationId, supplierId, billIds, res);
+      if (latestPaymentMade) {
+        return; 
+      }
     
       // Validate _id's
       const validateAllIds = validateIds({ billIds, supplierId });
@@ -175,11 +178,14 @@ exports.deletePaymentMade = async (req, res) => {
 
 
 
-
-
 // Get Existing Sales Receipt
 async function getExistingPaymentMade(paymentId, organizationId, res) {
-  const existingPaymentMade = await PaymentMade.findOne({ _id: paymentId, organizationId });
+  console.log("paymentId",paymentId);
+  console.log("organizationId",organizationId);
+
+  const existingPaymentMade = await PaymentMade.findOne({ _id: paymentId, organizationId: organizationId });
+  console.log("existingPaymentMade",existingPaymentMade);
+  
   if (!existingPaymentMade) {
       console.log("Payment made not found with ID:", paymentId);
       return res.status(404).json({ message: "Payment made not found" });
@@ -189,7 +195,7 @@ async function getExistingPaymentMade(paymentId, organizationId, res) {
 
 
 // Get Latest Payment Made
-async function getLatestPaymentMade(paymentId, organizationId, supplierId, billIds) {
+async function getLatestPaymentMade(paymentId, organizationId, supplierId, billIds, res) {
   const latestPayment = await PaymentMade.findOne({ 
       organizationId, 
       supplierId,

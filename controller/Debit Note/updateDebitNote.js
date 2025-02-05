@@ -32,7 +32,10 @@ exports.updateDebitNote = async (req, res) => {
       const itemIds = items.map(item => item.itemId);
 
       // Fetch the latest debit note for the given supplierId and organizationId
-      await getLatestDebitNote(debitId, organizationId, supplierId, billId, itemIds, res);
+      const latestDebitNote = await getLatestDebitNote(debitId, organizationId, supplierId, billId, itemIds, res);
+      if (latestDebitNote) {
+        return; 
+      }
     
       // Validate _id's
       const validateAllIds = validateIds({
