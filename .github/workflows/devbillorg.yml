@@ -28,8 +28,8 @@ jobs:
             git pull
 
             # Remove old container if it exists
-            if docker ps -a --format '{{.Names}}' | grep -q "^organization-container$"; then
-              docker rm -f organization-container
+            if docker ps -a --format '{{.Names}}' | grep -q "^devbillorganization$"; then
+              docker rm -f devbillorganization
             fi
 
             # Create Dockerfile
@@ -42,8 +42,8 @@ jobs:
             echo 'CMD ["node", "server.js"]' >> Dockerfile
 
             # Build and run the container
-            docker build -t organization-container .
-            docker run -d --name organization-container -p 5004:5004 organization-container
+            docker build -t devbillorganization .
+            docker run -d --name devbillorganization -p 5004:5004 devbillorganization
 
             # Cleanup Dockerfile
             rm Dockerfile
