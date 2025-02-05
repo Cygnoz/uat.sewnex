@@ -41,7 +41,7 @@ const dataExist = async (organizationId, supplierId) => {
 
 
   const expenseDataExist = async ( organizationId, expenseId, expenseAccountId, paidThroughAccountId ) => {    
-    const [organizationExists, allExpense, expense, expenseAccount, paidThroughAccount ] = await Promise.all([
+    const [organizationExists, allExpense, expense, expenseAccount, paidThroughAccount, expenseJournal] = await Promise.all([
       Organization.findOne({ organizationId }, { organizationId: 1, timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1}).lean(),
       Expense.find({ organizationId })
       .populate('supplierId', 'supplierDisplayName')    
@@ -55,8 +55,11 @@ const dataExist = async (organizationId, supplierId) => {
       Account.findOne({ organizationId, _id: paidThroughAccountId })
       .populate('paidThroughAccountId', 'paidThroughAccountName')
       .lean(),
+      TrialBalance.find({ organizationId: organizationId, operationId : expenseId })
+      .populate('accountId', 'accountName')    
+      .lean(),
     ]);
-    return { organizationExists, allExpense, expense, expenseAccount, paidThroughAccount };
+    return { organizationExists, allExpense, expense, expenseAccount, paidThroughAccount, expenseJournal };
   };
 
 
@@ -134,9 +137,6 @@ exports.addExpense = async (req, res) => {
 
       //Purchase Journal      
       if (!expenseJournal( cleanedData, res )) return; 
-
-      //Prefix
-      await expensePrefix(cleanedData, existingPrefix );
 
       // Create a new expense
       const savedExpense = await createNewExpense(cleanedData, organizationId, userId, userName);
@@ -431,6 +431,38 @@ exports.deleteCategory = async (req, res) => {
 };
 
 
+// Get Expense Journal
+exports.expenseJournal = async (req, res) => {
+  try {
+      const organizationId = req.user.organizationId;
+      const { expenseId } = req.params;
+
+      const { expenseJournal } = await expenseDataExist( organizationId, expenseId );      
+
+      if (!expenseJournal) {
+          return res.status(404).json({
+              message: "No Journal found for the Expense.",
+          });
+      }
+
+      const transformedJournal = expenseJournal.map(exp => {
+        return {
+            ...exp,
+            accountId: exp.accountId?._id,  
+            accountName: exp.accountId?.accountName,  
+        };
+    });
+
+    console.log("Transformed Journal:", transformedJournal);
+      
+      res.status(200).json(transformedJournal);
+  } catch (error) {
+      console.error("Error fetching journal:", error);
+      res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+
 function removeSpaces(body) {
     const cleanedBody = {};
 
@@ -541,51 +573,6 @@ function expensePrefix( cleanData, existingPrefix ) {
     return;
   }
 
-
-
-
-
-  function expenseJournal(cleanedData, res) {
-    const errors = [];
-    
-    // Utility function to round values to two decimal places
-    const roundToTwoDecimals = (value) => Number(value.toFixed(2));
-  
-    // Group items by salesAccountId and calculate debit amounts
-    const accountEntries = {};
-  
-    cleanedData.expense.forEach(exp => {
-            
-            const accountId = exp.expenseNumber;
-  
-            if (!accountId) {
-  
-              errors.push({
-                message: `Purchase Account not found for item ${item.itemName}`,
-              });
-              return; 
-            }
-      
-            const debitAmount = roundToTwoDecimals(item.itemCostPrice * item.itemQuantity);
-  
-            if (!accountEntries[accountId]) {
-              accountEntries[accountId] = { accountId, debitAmount: 0 };
-            }
-            // Accumulate the debit amount
-            accountEntries[accountId].debitAmount += debitAmount;
-    });
-  
-    // Push the grouped entries into cleanedData.journal
-    cleanedData.purchaseJournal = Object.values(accountEntries);
-    console.log("purchaseJournal:", cleanedData.purchaseJournal);  
-    
-    // Handle response or further processing
-    if (errors.length > 0) {
-      res.status(400).json({ success: false, message:"Purchase journal error", errors });
-      return false;
-    }
-    return true;
-  }
 
 
 
