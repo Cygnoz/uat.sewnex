@@ -20,7 +20,7 @@ const dataExist = async ( organizationId, parentAccountId, accountId ) => {
     Organization.findOne({ organizationId }).lean(),
     Currency.find({ organizationId }, { currencyCode: 1, _id: 0 }).lean(),
     Account.findOne({ organizationId , _id : parentAccountId}).lean(),
-    Account.findOne({ _id: accountId, organizationId: organizationId })
+    Account.findOne({ _id: accountId, organizationId: organizationId },{bankAccNum: 0})
     .populate('parentAccountId', 'accountName')    
     .lean(),
     TrialBalance.find({ accountId: accountId, organizationId: organizationId })
