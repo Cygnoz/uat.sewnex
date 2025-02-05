@@ -1,4 +1,4 @@
-name: Deploy to Ubuntu Server - Accounts
+name: Deploy to Ubuntu Server - Customers
 
 on:
   push:
