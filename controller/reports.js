@@ -224,13 +224,13 @@ async function getReportAccount(organizationId, startDate, endDate, accountSubHe
             },
             {
                 $project: {
-                    accountId: "$accountId",
+                    accountId: 1,
                     accountName: "$accountDetails.accountName",
-                    transactionId: "$transactionId",
-                    operationId: "$operationId",
+                    transactionId: 1,
+                    operationId: 1,
                     date: "$createdDateTime",
-                    debitAmount: "$debitAmount",
-                    creditAmount: "$creditAmount"
+                    debitAmount: 1,
+                    creditAmount: 1
                 }
             },
             {
@@ -281,17 +281,18 @@ async function getReportAccount(organizationId, startDate, endDate, accountSubHe
         let overallNetCredit = 0;
 
         const finalResult = transactions.map((account) => {
-            const openingBalance = openingBalances.find(ob => ob._id.equals(account._id));
+            const openingBalance = openingBalances.find(ob => ob._id.equals(account._id)) || { totalDebit: 0, totalCredit: 0 };
+
             const openingEntry = {
                 date: "Opening Balance",
                 transactions: [],
-                overAllNetDebit: openingBalance ? openingBalance.totalDebit : 0,
-                overAllNetCredit: openingBalance ? openingBalance.totalCredit : 0
+                overAllNetDebit: openingBalance.totalDebit,
+                overAllNetCredit: openingBalance.totalCredit
             };
 
             account.entries.unshift(openingEntry);
-            account.overallNetDebit += openingEntry.overAllNetDebit;
-            account.overallNetCredit += openingEntry.overAllNetCredit;
+            account.overallNetDebit += openingBalance.totalDebit;
+            account.overallNetCredit += openingBalance.totalCredit;
 
             overallNetDebit += account.overallNetDebit;
             overallNetCredit += account.overallNetCredit;
@@ -432,12 +433,12 @@ async function getReportAccountForAssets(organizationId, startDate, endDate) {
         let overallNetCredit = 0;
 
         const finalResult = transactions.map((account) => {
-            const openingBalance = openingBalances.find(ob => ob._id.equals(account._id));
+            const openingBalance = openingBalances.find(ob => ob._id.equals(account._id)) || { totalDebit: 0, totalCredit: 0 };
             const openingEntry = {
                 date: "Opening Balance",
                 transactions: [],
-                overAllNetDebit: openingBalance ? openingBalance.totalDebit : 0,
-                overAllNetCredit: openingBalance ? openingBalance.totalCredit : 0
+                overAllNetDebit: openingBalance.totalDebit,
+                overAllNetCredit: openingBalance.totalCredit
             };
 
             account.entries.unshift(openingEntry);
@@ -1498,9 +1499,7 @@ exports.calculateTradingAccount = async (req, res) => {
             carryForward = grossLoss;
             carryForwardType = "credit"; 
         }
-        
-        console.log(openingStock.total , purchases.overallNetDebit ,directExpenses.overallNetDebit , purchases.overallNetCredit , directExpenses.overallNetCredit);
-        
+                
         const finalCredit = totalCredit + grossLoss;
         const finalDebit = totalDebit + grossProfit;
 
