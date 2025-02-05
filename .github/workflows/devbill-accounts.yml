@@ -27,12 +27,12 @@ jobs:
             git checkout Accounts
             git pull
 
-            # Remove old container if exists
-            if docker ps -a --format '{{.Names}}' | grep -q "^account-container$"; then
-              docker rm -f account-container
+            # Remove old container if it exists
+            if docker ps -a --format '{{.Names}}' | grep -q "^devbillaccounts$"; then
+              docker rm -f devbillaccounts
             fi
 
-            # Create Dockerfile using echo commands
+            # Create Dockerfile
             echo 'FROM node:22.11.0' > Dockerfile
             echo 'WORKDIR /usr/src/app' >> Dockerfile
             echo 'COPY package*.json ./' >> Dockerfile
@@ -42,8 +42,8 @@ jobs:
             echo 'CMD ["node", "server.js"]' >> Dockerfile
 
             # Build and run the container
-            docker build -t account-container .
-            docker run -d --name account-container -p 5001:5001 account-container
+            docker build -t devbillaccounts .
+            docker run -d --name devbillaccounts -p 5001:5001 devbillaccounts
 
             # Cleanup Dockerfile
             rm Dockerfile
