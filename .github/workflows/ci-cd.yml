@@ -1,0 +1,39 @@
+name: Build and Deploy Docker Container
+
+on:
+  push:
+    branches:
+      - main  # or the branch containing your Dockerfile
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest  # This uses the Ubuntu runner
+
+    steps:
+      # Step 1: Checkout the repository to the GitHub runner
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      # Step 2: Build Docker image from the Dockerfile
+      - name: Build Docker image
+        run: |
+          docker build -t accounts:latest -f Dockerfile .
+
+      # Step 3: Set up SSH Key for deployment to the server
+      - name: Set up SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+      # Step 4: SSH into the server and deploy the container
+      - name: Deploy to Server
+        run: |
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF_SSH'
+            # Stop and remove the existing 'accounts' container if it's running
+            docker ps -q --filter "name=accounts" | grep -q . && docker stop accounts && docker rm accounts || echo "No existing container to remove"
+
+            # Run the new container on port 5001:5001
+            docker run -d --name accounts -p 5001:5001 accounts:latest
+          EOF_SSH

@@ -1,4 +1,4 @@
-##############################pipeline {
+@##############################pipeline {
     agent any
     environment {
         CONTAINER_NAME = '##accounts-container'
