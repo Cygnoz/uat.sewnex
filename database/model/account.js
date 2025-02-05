@@ -8,7 +8,7 @@ const accountSchema = new Schema({
     organizationId: {type:String},
     accountName: {type:String},
     accountCode: {type:String},
-    accountId: {type:String},
+    accountId: {type: mongoose.Schema.Types.ObjectId, ref: 'Accounts'},
 
     accountSubhead: {type:String},
     accountHead: {type:String},
