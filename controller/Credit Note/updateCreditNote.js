@@ -30,7 +30,10 @@ exports.updateCreditNote = async (req, res) => {
       const itemIds = items.map(item => item.itemId);
 
       // Fetch the latest credit note for the given customerId and organizationId
-      await getLatestCreditNote(creditId, organizationId, customerId, invoiceId, itemIds, res);
+      const latestCreditNote = await getLatestCreditNote(creditId, organizationId, customerId, invoiceId, itemIds, res);
+      if (latestCreditNote) {
+        return; 
+      }
     
       // Validate _id's
       const validateAllIds = validateIds({

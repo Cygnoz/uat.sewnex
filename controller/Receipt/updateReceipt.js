@@ -29,7 +29,10 @@ exports.updateReceipt = async (req, res) => {
       const invoiceIds = invoice.map(inv => inv.invoiceId);
 
       // Fetch the latest receipt for the given customerId and organizationId
-      await getLatestReceipt(receiptId, organizationId, customerId, invoiceIds);
+      const latestReceipt = await getLatestReceipt(receiptId, organizationId, customerId, invoiceIds, res);
+      if (latestReceipt) {
+        return; 
+      }
     
       // Validate _id's
       const validateAllIds = validateIds({ invoiceIds, customerId });
@@ -184,7 +187,7 @@ async function getExistingSalesReceipt(receiptId, organizationId, res) {
 
 
 // Get Latest Receipt
-async function getLatestReceipt(receiptId, organizationId, customerId, invoiceIds) {
+async function getLatestReceipt(receiptId, organizationId, customerId, invoiceIds, res) {
   const latestReceipt = await SalesReceipt.findOne({ 
       organizationId, 
       customerId,
