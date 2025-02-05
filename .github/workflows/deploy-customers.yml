@@ -27,23 +27,38 @@ jobs:
             git checkout Customers
             git pull
 
-            # Remove old container if exists
-            if docker ps -a --format '{{.Names}}' | grep -q "^customers-container$"; then
-              docker rm -f customers-container
+            # Remove old container if it exists
+            if docker ps -a --format '{{.Names}}' | grep -q "^devbillcustomers$"; then
+              docker rm -f devbillcustomers
             fi
 
-            # Create Dockerfile using echo commands
-            echo 'FROM node:22.11.0' > Dockerfile
-            echo 'WORKDIR /usr/src/app' >> Dockerfile
-            echo 'COPY package*.json ./' >> Dockerfile
-            echo 'RUN npm install' >> Dockerfile
-            echo 'COPY . .' >> Dockerfile
-            echo 'EXPOSE 5002' >> Dockerfile
-            echo 'CMD ["node", "server.js"]' >> Dockerfile
+            # Create Dockerfile
+            cat <<EOF > Dockerfile
+            # Use an official Node.js runtime as a parent image
+            FROM node:22.11.0
+
+            # Set the working directory inside the container
+            WORKDIR /usr/src/app
+
+            # Copy the package.json and package-lock.json files to the working directory
+            COPY package*.json ./
+
+            # Install the dependencies
+            RUN npm install
+
+            # Copy the rest of the application code to the working directory
+            COPY . .
+
+            # Expose the port the app runs on
+            EXPOSE 5002
+
+            # Define the command to run your application
+            CMD ["node", "server.js"]
+            EOF
 
             # Build and run the container
-            docker build -t customers-container .
-            docker run -d --name Customers-container -p 5002:5002 customers-container
+            docker build -t devbillcustomers .
+            docker run -d --name devbillcustomers -p 5002:5002 devbillcustomers
 
             # Cleanup Dockerfile
             rm Dockerfile
