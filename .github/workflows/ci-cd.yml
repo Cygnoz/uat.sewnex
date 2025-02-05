@@ -27,25 +27,24 @@ jobs:
             git checkout Accounts
             git pull
 
-            # Remove only the old account-container if it exists
+            # Remove old container if exists
             if docker ps -a --format '{{.Names}}' | grep -q "^account-container$"; then
-              echo "Removing old account-container..."
               docker rm -f account-container
             fi
 
-            # Build the Docker image using an inline Dockerfile
-            echo "Building the account-container image..."
-            docker build -t account-container - <<EOF_DOCKER
-FROM node:22.11.0
-WORKDIR /usr/src/app
-COPY package*.json ./
-RUN npm install
-COPY . .
-EXPOSE 5001
-CMD ["node", "server.js"]
-EOF_DOCKER
+            # Create Dockerfile using echo commands
+            echo 'FROM node:22.11.0' > Dockerfile
+            echo 'WORKDIR /usr/src/app' >> Dockerfile
+            echo 'COPY package*.json ./' >> Dockerfile
+            echo 'RUN npm install' >> Dockerfile
+            echo 'COPY . .' >> Dockerfile
+            echo 'EXPOSE 5001' >> Dockerfile
+            echo 'CMD ["node", "server.js"]' >> Dockerfile
 
-            # Run the new container with the correct port mapping
-            echo "Deploying the new account-container..."
+            # Build and run the container
+            docker build -t account-container .
             docker run -d --name account-container -p 5001:5001 account-container
+
+            # Cleanup Dockerfile
+            rm Dockerfile
           EOF_SSH
