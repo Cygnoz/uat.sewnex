@@ -1604,12 +1604,12 @@ exports.calculateProfitAndLoss = async (req, res) => {
             // },
             // profitAndLossAccount: {
                 debit: [
-                    ...(grossLoss > 0 ? [{ "grossLoss(c/d)": grossLoss }] : []),
+                    ...(grossLoss > 0 ? [{ "grossLossCd": grossLoss }] : []),
                     { indirectExpenses },
                     ...(netProfit > 0 ? [{ netProfit: netProfit }] : [])
                 ],
                 credit: [
-                    ...(grossProfit > 0 ? [{ "grossProfit(c/d)": grossProfit }] : []),
+                    ...(grossProfit > 0 ? [{ "grossProfitCd": grossProfit }] : []),
                     { indirectIncome },
                     ...(netLoss > 0 ? [{ netLoss: netLoss }] : [])
                 ],
@@ -1733,13 +1733,13 @@ exports.calculateBalanceSheet = async (req, res) => {
             debit: [
                 { currentAssets },
                 { nonCurrentAssets },
-                ...(netProfit > 0 ? [{ "netProfit(c/d)": netProfit }] : [])
+                ...(netProfit > 0 ? [{ "netProfitCd": netProfit }] : [])
             ],
             credit: [
                 { equity },
                 { currentLiabilities },
                 { nonCurrentLiabilities },
-                ...(netLoss > 0 ? [{ "netLoss(c/d)": netLoss }] : [])
+                ...(netLoss > 0 ? [{ "netLossCd": netLoss }] : [])
             ],
             summary: {
                 grossProfit,
