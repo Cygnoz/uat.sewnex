@@ -129,7 +129,7 @@ exports.verifyOtp = async (req, res) => {
           nbf: Math.floor(Date.now() / 1000), // token valid from now 
         },
         process.env.JWT_SECRET, // JWT secret from environment variables
-        { expiresIn: '12h' }
+        // { expiresIn: '12h' }
       );
 
       // Remove sensitive data from response

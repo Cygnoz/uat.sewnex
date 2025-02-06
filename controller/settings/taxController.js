@@ -431,6 +431,7 @@ async function insertAccounts( accounts, organizationId, accId ) {
         operationId: savedAccount._id,
         accountId: savedAccount._id,
         accountName: savedAccount.accountName,
+        transactionId:'OB',
         action: "Opening Balance",
         debitAmount: debitOpeningBalance,
         creditAmount: creditOpeningBalance,
