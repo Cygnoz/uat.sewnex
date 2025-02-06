@@ -39,8 +39,7 @@ const createRolesForOrganization = async (organizationId) => {
         description: 'Admin',
         roleName: 'Admin',
         permissions: [
-          
-          
+                  
           // Organization Module
           { action: "OrganizationView", note: "Viewed Organization Details" },
           { action: "OrganizationSetup", note: "Setup/Modified Organization Details" },
@@ -81,7 +80,7 @@ const createRolesForOrganization = async (organizationId) => {
           { action: "CustomersEdit", note: "Edited Customer information" },
           { action: "CustomersStatus", note: "Modified Customer Status" },
           { action: "CustomerImport", note: "Imported New Customers" },
-
+          { action: "CustomerDelete", note: "Deleted Customer information" },
 
           // Accounts Module
           { action: "AccountNumber", note: "Viewed Account Number" },
@@ -92,7 +91,8 @@ const createRolesForOrganization = async (organizationId) => {
           
           { action: "JournalAdd", note: "Added a Journal Entry" },
           { action: "JournalView", note: "Viewed Journal Entry" },
-
+          { action: "JournalEdit", note: "Edited Journal Entry" },
+          { action: "JournalDelete", note: "Deleted Journal Entry" },
 
           // Inventory Module
           { action: "ItemAdd", note: "Created a New Item" },
@@ -121,13 +121,12 @@ const createRolesForOrganization = async (organizationId) => {
           { action: "SupplierEdit", note: "Edited Supplier Information" },
           { action: "SupplierStatus", note: "Modified Supplier Status" },
           { action: "SupplierImport", note: "Import New Suppliers" },
-    
+          { action: "SupplierDelete", note: "Deleted Supplier Information" },
           
         ],
       },
     ];
     
-
     await Role.insertMany(roles);
     console.log("Roles created successfully for organization:", organizationId);
     return { success: true, message: "Roles created successfully." };
