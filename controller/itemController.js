@@ -276,7 +276,7 @@ exports.addItem = async (req, res) => {
       const bmcr = { brandExist, manufacturerExist, categoriesExist, rackExist };
       
 
-      if (!validateOrganizationTaxCurrency(organizationExists, taxExists, settingsExist, res)) return;     
+      if (!validateOrganizationTaxCurrency(organizationExists, taxExists, settingsExist, null, res)) return;     
 
 
        // Check for duplicate item name
@@ -662,7 +662,7 @@ const isDuplicateSKUExist = async (sku, organizationId, itemId, res) => {
 
 
 // Validate Organization Tax Currency
-function validateOrganizationTaxCurrency(organizationExists, taxExists, allItem, settingsExist, res) {
+function validateOrganizationTaxCurrency(organizationExists, taxExists, settingsExist, itemId, res) {
   if (!organizationExists) {
     res.status(404).json({ message: "Organization not found" });
     return false;
@@ -671,8 +671,8 @@ function validateOrganizationTaxCurrency(organizationExists, taxExists, allItem,
     res.status(404).json({ message: "Tax not found" });
     return false;
   }
-  if (!allItem) {
-    res.status(404).json({ message: "Currency not found" });
+  if (!itemId) {
+    res.status(404).json({ message: "Item not found" });
     return false;
   }
   if (!settingsExist) {
