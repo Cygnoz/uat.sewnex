@@ -1,6 +1,6 @@
 const CPS = require('../model/cps');
 const Organization = require('../../database/model/organization');
-// const Service = require('../../database/model/service');
+const Service = require('../model/service');
 const mongoose = require("mongoose");
 const { cleanData } = require("../../services/cleanData");
 const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
