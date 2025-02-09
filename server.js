@@ -6,6 +6,7 @@ const helmet = require('helmet');
 
 const server = express();
 const inventoryRouter = require("./router/inventoryRouter");
+const sewnexRouter = require("./router/sewnexRouter");
 require('./database/connection/connection');
 
 server.use(express.json({ limit: '10mb' })); 
@@ -26,6 +27,7 @@ server.options('*', (req, res) => {
 
 server.use(helmet()); 
 server.use(inventoryRouter); 
+server.use(sewnexRouter);
 
 const PORT = 5003
 
