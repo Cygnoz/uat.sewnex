@@ -27,11 +27,11 @@ function verifyToken(req, res, next) {
                 }
             } else {
 
-                const requestIP = req.ip || req.connection.remoteAddress; // Get request IP
-                const requestUserAgent = req.headers['user-agent']; // Get request User-Agent
+                // const requestIP = req.ip || req.connection.remoteAddress; // Get request IP
+                // const requestUserAgent = req.headers['user-agent']; // Get request User-Agent
 
                 // Extract userId and organizationId from authData
-                const { id: userId, organizationId, userName, ip, userAgent } = authData;
+                const { id: userId, organizationId, userName } = authData;
 
 
                 // Check if the IP and User-Agent match
