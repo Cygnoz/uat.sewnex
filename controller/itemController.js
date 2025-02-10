@@ -227,7 +227,7 @@ const mItemDataExists = async (organizationId) => {
 
 // BMCR existing data
 const bmcrDataExist = async (organizationId) => {
-  const [brandExist, manufacturerExist, categoriesExist, rackExist] = await Promise.all([
+  const [brandExist, manufacturerExist, categoriesExist, rackExist ] = await Promise.all([
     BMCR.find({ type: 'brand', organizationId }, { brandName: 1, _id: 0 }),
     BMCR.find({ type: 'manufacturer', organizationId }, { manufacturerName: 1, _id: 0 }),
     BMCR.find({ type: 'category', organizationId }, { categoriesName: 1, _id: 0 }),
