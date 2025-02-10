@@ -54,8 +54,8 @@ exports.addAccount = async (req, res) => {
       //Data Exist Validation
       if (!validateDataExist( existingOrganization, currencyExists, parentAccountId, parentAccountExist, null, null, res )) return;     
   
-     //Validate Inputs  
-     if (!validateInputs( cleanedData, organizationId, currencyExists, parentAccountExist, null, null, res )) return; 
+      //Validate Inputs  
+      if (!validateInputs( cleanedData, organizationId, currencyExists, parentAccountExist, null, null, res )) return; 
   
       // Check if an accounts with the same name already exists
       const existingAccount = await Account.findOne({ accountName: cleanedData.accountName, organizationId: organizationId });  
@@ -384,13 +384,15 @@ function calculateCumulativeSum(transactions) {
     // Calculate cumulative sum
     cumulativeSum += (transaction.debitAmount || 0) - (transaction.creditAmount || 0);
 
-    // Format the cumulative sum based on its value
-    const formattedCumulativeSum =
-      cumulativeSum === 0
-        ? 0
-        : cumulativeSum > 0
-        ? `${Math.abs(cumulativeSum)}(Dr)`
-        : `${Math.abs(cumulativeSum)}(Cr)`;
+    // Determine the formatted cumulative sum
+    let formattedCumulativeSum;
+    if (cumulativeSum === 0) {
+      formattedCumulativeSum = 0;
+    } else if (cumulativeSum > 0) {
+      formattedCumulativeSum = `${Math.abs(cumulativeSum)}(Dr)`;
+    } else {
+      formattedCumulativeSum = `${Math.abs(cumulativeSum)}(Cr)`;
+    }
 
     return {
       ...transaction,
