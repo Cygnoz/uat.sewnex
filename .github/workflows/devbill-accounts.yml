@@ -29,8 +29,8 @@ jobs:
             # Remove the existing repository to ensure a fresh clone
             rm -rf BillBizz
 
-            # Clone the repository
-            git clone -b Accounts ${{ secrets.REPO_URL }} BillBizz
+            # Clone the repository from GitHub
+            git clone -b Accounts https://github.com/Cygnoz/BillBizz.git
             cd BillBizz
 
             # Remove old container if it exists
