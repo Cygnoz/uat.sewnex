@@ -1,4 +1,4 @@
-name: Deploy to Ubuntu Server - Full Repo
+name: Deploy to Ubuntu Server - Accounts
 
 on:
   push:
@@ -23,19 +23,9 @@ jobs:
       - name: Deploy to Server
         run: |
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF_SSH'
-            # Navigate to home directory
-            cd ~
-
-            # Remove the existing repository to ensure a fresh clone
-            rm -rf BillBizz
-
-            # Clone the full repository from GitHub
-            git clone https://github.com/Cygnoz/BillBizz.git
-            cd BillBizz
-
-            # Checkout the latest Accounts branch
+            cd ~/BillBizz
             git checkout Accounts
-            git pull origin Accounts
+            git pull
 
             # Remove old container if it exists
             if docker ps -a --format '{{.Names}}' | grep -q "^devbillaccounts$"; then
@@ -53,4 +43,8 @@ jobs:
 
             # Build and run the container
             docker build -t devbillaccounts .
-            docker run -d --name devbillaccounts -p 5001:5001
+            docker run -d --name devbillaccounts -p 5001:5001 devbillaccounts
+
+            # Cleanup Dockerfile
+            rm Dockerfile
+          EOF_SSH
