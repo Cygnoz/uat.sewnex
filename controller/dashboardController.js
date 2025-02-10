@@ -106,83 +106,61 @@ const topSellingProductsUtil = async (organizationId) => {
     const items = await Item.find({ organizationId });
 
     if (items.length === 0) {
-      return { topSellingProducts: [], stockLevel: [] };
+      return { topSellingProducts: [], frequentlyOrderedItems: [], totalSoldValue: 0 };
     }
 
     let topSellingProduct = [];
-    let stockLevel = [];
     let totalSoldValue = 0;
+
     for (const item of items) {
-      // Find all sales (action: 'Sale') for this item in ItemTrack for top-selling products
+      // Fetch all sales (action: 'Sale') for this item
       const purchaseTrack = await ItemTrack.find({
         itemId: item._id,
-        organizationId: organizationId,
-        action: "Sale", // This is required only for topSellingProducts
+        organizationId,
+        action: "Sale",
       });
 
-      // For stockLevel, we remove the action filter
-      const latestTrack = await ItemTrack.findOne({
-        itemId: item._id,
-        organizationId: organizationId,
-      }).sort({ _id: -1 }); // Get the most recent entry for stock
+      // Get the latest stock entry
+      const latestTrack = await ItemTrack.findOne({ itemId: item._id, organizationId }).sort({ _id: -1 });
 
-      // Proceed with top-selling product calculations if there are sales records
       if (purchaseTrack.length > 0) {
-        // Calculate the total units sold (sum of debitQuantity)
+        // Calculate total units sold
         const unitBought = purchaseTrack.reduce((total, track) => total + track.creditQuantity, 0);
 
-        // Calculate the sale volume (unitBought * sellingPrice)
+        // Calculate sale volume
         const saleVolume = unitBought * (item.sellingPrice || 0);
-        totalSoldValue += saleVolume; // Add saleVolume to total
-        // console.log( "total sales value",totalSalesValue)
+        totalSoldValue += saleVolume;
 
-        // Determine the stock status
+        // Determine stock status
         const status = latestTrack && latestTrack.currentStock < 0 ? "Out Of Stock" : "In Stock";
 
-        // Add the product details to the topSellingProducts array
+        // Push to topSellingProduct
         topSellingProduct.push({
           itemName: item.itemName,
           itemId: item._id,
-          saleVolume: saleVolume,
-          unitBought: unitBought,
-          status: status,
-          itemImage: item.itemImage, // Assuming itemImage is available in the Item collection
-        });
-      }
-
-      // Add the stock information to the stockLevel array regardless of sales
-      if (latestTrack) {
-        stockLevel.push({
-          stock: latestTrack.currentStock,
-          itemName: item.itemName,
-          itemId: item._id,
+          saleVolume,
+          unitBought,
+          status,
         });
       }
     }
-    
-    const frequentlyOrderedItems = topSellingProduct
-  .sort((a, b) => b.unitBought - a.unitBought)
-  .slice(0, 4)
-  .map(({ itemImage, ...rest }) => rest); // Exclude itemImage
 
-
-    // Sort the topSellingProducts by unitBought in descending order
+    // Sort and filter top-selling products
     const topSellingProducts = topSellingProduct.sort((a, b) => b.saleVolume - a.saleVolume).slice(0, 5);
-    
 
-    // Sort the stockLevel array by stock value (currentStock) in descending order
-    const stockLevels = stockLevel.sort((a, b) => b.stock - a.stock).slice(0, 5);
-    // console.log( "stockLevels",stockLevels);
-    // console.log( "frequentlyOrderedItems",frequentlyOrderedItems)
-    // console.log( "total sales value",totalSalesValue)
+    // Sort and filter frequently ordered items (excluding itemImage)
+    const frequentlyOrderedItems = topSellingProduct
+      .sort((a, b) => b.unitBought - a.unitBought)
+      .slice(0, 4)
+      .map(({ itemImage, ...rest }) => rest);
 
-    // Return both topSellingProducts and stockLevel
-    return { topSellingProducts , frequentlyOrderedItems,totalSoldValue};
+    return { topSellingProducts, frequentlyOrderedItems, totalSoldValue };
   } catch (error) {
-    console.error("Error fetching top-selling products or stock levels:", error);
-    throw new Error("An error occurred while calculating top-selling products or stock levels.");
+    console.error("Error fetching top-selling products:", error);
+    throw new Error("An error occurred while calculating top-selling products.");
   }
 };
+
 
 const getTopSellingProductCategory = async (organizationId) => {
   try {

@@ -1,11 +1,12 @@
 // v1.0
 
 const mongoose = require('mongoose');
+const { Schema } = mongoose;
 
 
 
 const parameterSchema = new Schema({
-    parameterId: {type: mongoose.Schema.Types.ObjectId, ref: 'CSP'},
+    parameterId: {type: mongoose.Schema.Types.ObjectId, ref: 'CPS'},
     //parameterName  
 }, { _id: false });
 
@@ -13,7 +14,7 @@ const parameterSchema = new Schema({
 
 
 const styleSchema = new Schema({
-    styleId: {type: mongoose.Schema.Types.ObjectId, ref: 'CSP'},
+    styleId: {type: mongoose.Schema.Types.ObjectId, ref: 'CPS'},
     //styleName
     styleRate: { type: Number },
 
@@ -29,7 +30,7 @@ const serviceSchema = new mongoose.Schema({
     serviceName: { type: String},
     serviceImage: { type: String},
 
-    categoryId:{ type: mongoose.Schema.Types.ObjectId, ref: 'CSP' }, 
+    categoryId:{ type: mongoose.Schema.Types.ObjectId, ref: 'CPS' }, 
     //Category Name
     
     unit: { type: String },

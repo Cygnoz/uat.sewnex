@@ -5,8 +5,8 @@ const Settings = require('../database/model/settings');
 const Bmcr = require('../database/model/bmcr');
 
 
-//Get ItemDropdowm and get item settings field
-exports.getItemDropdowm = async (req, res) => {
+//Get ItemDropDown and get item settings field
+exports.getItemDropDown = async (req, res) => {
     const organizationId = req.user.organizationId;
     try {
         // Check if an Organization already exists

@@ -13,8 +13,8 @@ const dashboardController = require("../controller/dashboardController")
 const checkPermission = require('../controller/permission');
 const { verifyToken } = require('../controller/middleware');
 
-//item dropdowm
-router.get('/get-itemDropdown',verifyToken, itemDropdownController.getItemDropdowm);
+//item Drop Down
+router.get('/get-itemDropdown',verifyToken, itemDropdownController.getItemDropDown);
 
 router.get('/get-inventory-Dashboard/:date',verifyToken, dashboardController.calculateTotalInventoryValue);
 
@@ -108,8 +108,6 @@ router.get('/get-item-transaction/:id',verifyToken, itemSettingsController.itemT
 // router.put('/update-bmcr', bmcrController.updateBmcr);
 // router.delete('/delete-bmcr/:id',bmcrController.deleteBmcr)
 
-// //item dropdowm
-// router.put('/get-itemDropdown', itemDropdownController.getItemDropdowm);
 
  
 // //items settings

@@ -392,7 +392,7 @@ exports.deleteUnitConversion = async (req, res) => {
     const { id } = req.params;
 
     // Find the unit containing the unitConversion with the specified _id
-    const unit = await Unit.findOne({ "unitConversion._id": id });
+    const unit = await Unit.findOne({ "unitConversion._id": id,organizationId });
 
     if (!unit) {
       return res.status(404).json({ message: "Unit not found containing the unit conversion" });

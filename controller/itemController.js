@@ -279,11 +279,11 @@ exports.addItem = async (req, res) => {
       if (!validateOrganizationTaxCurrency(organizationExists, taxExists, settingsExist, null, res)) return;     
 
 
-       // Check for duplicate item name
-       if (!settingsExist.itemDuplicateName && await isDuplicateItemName(itemName, organizationId, res)) return;
+      // Check for duplicate item name
+      if (!settingsExist.itemDuplicateName && await isDuplicateItemName(itemName, organizationId, res)) return;
     
-       // Check for duplicate SKU
-       if (cleanedData.sku !== undefined && await isDuplicateSKU(sku, organizationId, res)) return;
+      // Check for duplicate SKU
+      if (cleanedData.sku !== undefined && await isDuplicateSKU(sku, organizationId, res)) return;
 
 
       //Validate Inputs  
