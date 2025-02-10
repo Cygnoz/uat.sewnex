@@ -1674,8 +1674,8 @@ exports.calculateBalanceSheet = async (req, res) => {
         //Balance Sheet Calculations
         const currentAssets = await getReportAccountForAssets(organizationId, start, end);
         const nonCurrentAssets = await getReportAccount(organizationId, start, end,'Non-Current Asset');
-        const currentLiabilities = await getReportAccount(organizationId, start, end,'Non-Current Liability');
-        const nonCurrentLiabilities = await getReportAccount(organizationId, start, end,'Current Liability');
+        const nonCurrentLiabilities  = await getReportAccount(organizationId, start, end,'Non-Current Liability');
+        const currentLiabilities = await getReportAccount(organizationId, start, end,'Current Liability');
         const equity = await getReportAccount(organizationId, start, end,'Equity');
 
 
