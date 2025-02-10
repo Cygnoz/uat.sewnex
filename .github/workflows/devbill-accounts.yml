@@ -1,4 +1,4 @@
-name: Deploy to Ubuntu Server - Accounts
+name: Deploy to Ubuntu Server - Full Repo
 
 on:
   push:
@@ -29,9 +29,13 @@ jobs:
             # Remove the existing repository to ensure a fresh clone
             rm -rf BillBizz
 
-            # Clone the repository from GitHub
-            git clone -b Accounts https://github.com/Cygnoz/BillBizz.git
+            # Clone the full repository from GitHub
+            git clone https://github.com/Cygnoz/BillBizz.git
             cd BillBizz
+
+            # Checkout the latest Accounts branch
+            git checkout Accounts
+            git pull origin Accounts
 
             # Remove old container if it exists
             if docker ps -a --format '{{.Names}}' | grep -q "^devbillaccounts$"; then
@@ -49,8 +53,4 @@ jobs:
 
             # Build and run the container
             docker build -t devbillaccounts .
-            docker run -d --name devbillaccounts -p 5001:5001 devbillaccounts
-
-            # Cleanup Dockerfile
-            rm Dockerfile
-          EOF_SSH
+            docker run -d --name devbillaccounts -p 5001:5001
