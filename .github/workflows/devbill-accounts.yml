@@ -23,9 +23,15 @@ jobs:
       - name: Deploy to Server
         run: |
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF_SSH'
-            cd ~/BillBizz
-            git checkout Accounts
-            git pull
+            # Navigate to home directory
+            cd ~
+
+            # Remove the existing repository to ensure a fresh clone
+            rm -rf BillBizz
+
+            # Clone the repository
+            git clone -b Accounts ${{ secrets.REPO_URL }} BillBizz
+            cd BillBizz
 
             # Remove old container if it exists
             if docker ps -a --format '{{.Names}}' | grep -q "^devbillaccounts$"; then
