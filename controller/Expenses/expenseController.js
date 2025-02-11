@@ -50,10 +50,10 @@ const dataExist = async (organizationId, supplierId) => {
       .populate('supplierId', 'supplierDisplayName')    
       .lean(),
       Account.findOne({ organizationId, _id: expenseAccountId })
-      .populate('expense.expenseAccountId', 'expenseAccountName')
+      .populate('expense.expenseAccountId', 'accountName')
       .lean(),
       Account.findOne({ organizationId, _id: paidThroughAccountId })
-      .populate('paidThroughAccountId', 'paidThroughAccountName')
+      .populate('paidThroughAccountId', 'accountName')
       .lean(),
       TrialBalance.find({ organizationId: organizationId, operationId : expenseId })
       .populate('accountId', 'accountName')    
@@ -171,14 +171,14 @@ exports.getAllExpense = async (req, res) => {
         
         return {
             ...data,
-            supplierId: data.supplierId._id,  
+            supplierId: data.supplierId,  
             supplierDisplayName: data.supplierId.supplierDisplayName, 
             paidThroughAccountId: data.paidThroughAccountId,
-            paidThroughAccountName: data.paidThroughAccountId.paidThroughAccountName,
+            paidThroughAccountName: data.paidThroughAccountId.accountName,
             expense: data.expense.map(exp => ({
               ...exp,
               expenseAccountId: exp.expenseAccountId._id,
-              expenseAccountName: exp.expenseAccountId.expenseAccountName,
+              expenseAccountName: exp.expenseAccountId.accountName,
             }))
         };});
 
