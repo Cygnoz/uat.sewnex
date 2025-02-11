@@ -135,9 +135,6 @@ exports.addExpense = async (req, res) => {
       // Calculate Expense 
       if (!calculateExpense( cleanedData, res )) return;
 
-      //Purchase Journal      
-      if (!expenseJournal( cleanedData, res )) return; 
-
       //Prefix
       await expensePrefix(cleanedData, existingPrefix );
 

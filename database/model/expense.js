@@ -24,6 +24,14 @@ const expenseTableSchema = new Schema({
     amount: { type: Number } // without tax amount
 });
 
+
+const journalSchema = new Schema({
+  accountId: {type: mongoose.Schema.Types.ObjectId, ref: 'Accounts'},
+  debitAmount: {type:Number},
+  creditAmount: {type:Number},
+}, { _id: false });
+
+
 const expenseSchema = new Schema({
     organizationId:{ type : String },
     expenseDate: { type: String },
@@ -63,6 +71,8 @@ const expenseSchema = new Schema({
     grandTotal: { type: Number },
 
     expense: [expenseTableSchema],
+
+    expenseJournal:[ journalSchema ], 
 
     createdDateTime: { type: Date, default: () => new Date() },
     
