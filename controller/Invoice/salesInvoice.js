@@ -305,7 +305,7 @@ exports.getAllSalesInvoice = async (req, res) => {
    const currentDate = new Date();
 
    // Process and update statuses, storing results in updatedInvoices
-   await Promise.all(transformedInvoice.map(async (invoice) => {
+   const updatedData = await Promise.all(transformedInvoice.map(async (invoice) => {
     const { organizationId, balanceAmount, dueDate, paidStatus: currentStatus, ...rest } = invoice;
     
     let newStatus;
@@ -324,7 +324,7 @@ exports.getAllSalesInvoice = async (req, res) => {
     return { ...rest, balanceAmount, dueDate, paidStatus: newStatus };
   }));   
   
-   const formattedObjects = multiCustomDateTime(transformedInvoice, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
+   const formattedObjects = multiCustomDateTime(updatedData, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
 
 
     res.status(200).json( formattedObjects );
