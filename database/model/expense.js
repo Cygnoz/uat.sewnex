@@ -22,7 +22,7 @@ const expenseTableSchema = new Schema({
     vatAmount: { type: Number },
 
     amount: { type: Number } // without tax amount
-});
+}, { _id: false });
 
 
 const expenseSchema = new Schema({

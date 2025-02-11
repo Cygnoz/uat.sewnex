@@ -41,25 +41,23 @@ const dataExist = async (organizationId, supplierId) => {
 
 
   const expenseDataExist = async ( organizationId, expenseId, expenseAccountId, paidThroughAccountId ) => {    
-    const [organizationExists, allExpense, expense, expenseAccount, paidThroughAccount, expenseJournal] = await Promise.all([
+    const [organizationExists, allExpense, expense, expenseJournal] = await Promise.all([
       Organization.findOne({ organizationId }, { organizationId: 1, timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1}).lean(),
       Expense.find({ organizationId })
       .populate('supplierId', 'supplierDisplayName')    
-      .lean(),
-      Expense.findOne({ organizationId , _id: expenseId }) 
-      .populate('supplierId', 'supplierDisplayName')    
-      .lean(),
-      Account.findOne({ organizationId, _id: expenseAccountId })
+      .populate('paidThroughAccountId', 'accountName') 
       .populate('expense.expenseAccountId', 'accountName')
       .lean(),
-      Account.findOne({ organizationId, _id: paidThroughAccountId })
-      .populate('paidThroughAccountId', 'accountName')
+      Expense.findOne({ organizationId , _id: expenseId }) 
+      .populate('supplierId', 'supplierDisplayName') 
+      .populate('paidThroughAccountId', 'accountName') 
+      .populate('expense.expenseAccountId', 'accountName')   
       .lean(),
       TrialBalance.find({ organizationId: organizationId, operationId : expenseId })
       .populate('accountId', 'accountName')    
       .lean(),
     ]);
-    return { organizationExists, allExpense, expense, expenseAccount, paidThroughAccount, expenseJournal };
+    return { organizationExists, allExpense, expense, expenseJournal };
   };
 
 
@@ -170,16 +168,16 @@ exports.getAllExpense = async (req, res) => {
         console.log("...........",data);
         
         return {
-            ...data,
-            supplierId: data.supplierId,  
-            supplierDisplayName: data.supplierId.supplierDisplayName, 
-            paidThroughAccountId: data.paidThroughAccountId,
-            paidThroughAccountName: data.paidThroughAccountId.accountName,
-            expense: data.expense.map(exp => ({
-              ...exp,
-              expenseAccountId: exp.expenseAccountId._id,
-              expenseAccountName: exp.expenseAccountId.accountName,
-            }))
+          ...data,
+          supplierId: data.supplierId._id,  
+          supplierDisplayName: data.supplierId.supplierDisplayName, 
+          paidThroughAccountId: data.paidThroughAccountId,
+          paidThroughAccountName: data.paidThroughAccountId.accountName,
+          expense: data.expense.map(exp => ({
+            ...exp,
+            expenseAccountId: exp.expenseAccountId._id,
+            expenseAccountName: exp.expenseAccountId.accountName,
+          }))
         };});
 
         console.log("transformedExpense",transformedExpense);
@@ -213,11 +211,11 @@ exports.getOneExpense = async (req, res) => {
         supplierId: expense.supplierId._id,  
         supplierDisplayName: expense.supplierId.supplierDisplayName,
         paidThroughAccountId: expense.paidThroughAccountId._id,
-        paidThroughAccountName: expense.paidThroughAccountId.paidThroughAccountName,
+        paidThroughAccountName: expense.paidThroughAccountId.accountName,
         expense: expense.expense.map(exp => ({
           ...exp,
           expenseAccountId: exp.expenseAccountId._id,
-          expenseAccountName: exp.expenseAccountId.expenseAccountName,
+          expenseAccountName: exp.expenseAccountId.accountName,
         }))
       };
       
