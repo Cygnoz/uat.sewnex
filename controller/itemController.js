@@ -802,6 +802,8 @@ function validateReqFields( data, errors ) {
   validateField(typeof data.costPrice !== 'undefined' && typeof data.purchaseAccountId === 'undefined',"Purchase Account required", errors);
 
   validateField(typeof data.openingStock !== 'undefined' && typeof data.costPrice === 'undefined',"Cost Price required", errors);
+
+  validateField(data.internalManufacturingItem === true && typeof data.chooseService === 'undefined', "Please select service!", errors);
 }
 
 // Validation function for account structure

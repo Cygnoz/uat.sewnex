@@ -18,8 +18,13 @@ const itemSchema = new Schema({
             unitName: { type: String }, 
             conversionRate: { type: Number }, // eg: 5 (1 unitName = 5 alterUnit)  
         }
-    ],
+    ], 
 
+    // Sewnex additional variable
+    //** */
+    internalManufacturingItem: { type: Boolean },
+    chooseService: { type: String },
+    //** */
 
     returnableItem: { type: Boolean },
     hsnCode: { type: String },
