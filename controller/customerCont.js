@@ -304,7 +304,6 @@ exports.updateCustomerStatus = async (req, res) => {
       message: "Customer status updated successfully.",
       status: existingCustomer.status,
     });
-    console.log("Customer status updated successfully.");
   } catch (error) {
     console.error("Error updating customer status:", error);
     res.status(500).json({ message: "Internal server error." });
