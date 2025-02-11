@@ -1,15 +1,13 @@
-//v1.2
+//v1.0
 
 const mongoose = require('mongoose')
 const { Schema } = mongoose
 
-const itemsSchema = new Schema({
+const serviceSchema = new Schema({
 
-  itemId: {type: mongoose.Schema.Types.ObjectId, ref: 'Item'},
+  orderServiceId: {type: mongoose.Schema.Types.ObjectId, ref: 'SewnexOrderService'},
   //itemName
 
-  quantity: {type:Number},
-  returnQuantity: { type: Number, default: 0 }, 
   sellingPrice: {type:Number},
 
   taxPreference: {type:String},
@@ -29,7 +27,7 @@ const itemsSchema = new Schema({
   discountType: {type:String}, //Currency,Percentage
   discountAmount: {type:Number}, 
   itemAmount: {type:Number},
-  salesAccountId: {type:String}
+  // salesAccountId: {type:String}
 
   }, { _id: false });
 
@@ -41,47 +39,17 @@ const journalSchema = new Schema({
   }, { _id: false });
 
 
-const SalesInvoiceSchema = new Schema ({
+const SewnexOrderSchema = new Schema ({
 
   organizationId: { type: String, index: true },
   
   customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
   //customerName
-  placeOfSupply: { type: String },  
-  reference: { type: String },
+  placeOfSupply: { type: String },
 
-  salesInvoice: { type: String }, //prefix
-  //salesPersonId: { type: String }, //next phase
-  //salesPersonName: { type: String }, //next phase
-
-  salesOrderNumber: { type: String },
+  salesOrder: { type: String }, //prefix
   
-  //new
-  paymentTerms: { type: String },
-  deliveryMethod: { type: String },
-  expectedShipmentDate: { type: String },
-
-  salesInvoiceDate: { type: String },
-  dueDate: { type: String },
-
-  // subject: { type: String },
-  
-  items: [itemsSchema],  
-  
-  note: { type: String },
-  tc: { type: String },
-
-  //new
-  otherExpenseAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'Accounts' },
-  otherExpenseAmount: { type: Number },
-  otherExpenseReason: { type: String },
-  
-  vehicleNumber: { type: String },
-  
-  freightAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'Accounts' },
-  freightAmount: { type: Number },
-  
-  roundOffAmount: { type: Number },
+  service: [serviceSchema],  
 
   discountTransactionType: { type: String }, // Currency,Percentage
   discountTransactionAmount: { type: Number },
@@ -108,14 +76,9 @@ const SalesInvoiceSchema = new Schema ({
 
   paidStatus: { type: String },
 
-  salesOrderId: { type: String },
-
   salesJournal:[ journalSchema ], 
 
   createdDateTime: { type: Date, default: () => new Date() },
-
-  //lastModifiedDate
-  // lastModifiedDate:{type: Date},
 
   editLimit: {type: Boolean, default: true},   // true - before taxation file date  |  false - after taxation file date
 
@@ -125,9 +88,9 @@ const SalesInvoiceSchema = new Schema ({
 })
 
 
-const SalesInvoice = mongoose.model("SalesInvoice", SalesInvoiceSchema);
+const SewnexOrder = mongoose.model("SewnexOrder", SewnexOrderSchema);
 
-module.exports = SalesInvoice;
+module.exports = SewnexOrder;
 
 
 
