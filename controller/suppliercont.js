@@ -246,8 +246,9 @@ exports.updateSupplierStatus = async (req, res) => {
   try {
     const { supplierId } = req.params;
     const {organizationId , userName , userId} = req.user;
-    const { status } = req.body; 
-    const { organizationExists, existingSupplier } = await dataExist( organizationId, customerId);
+    const cleanedData = cleanData(req.body); 
+
+    const { organizationExists, existingSupplier } = await dataExist( organizationId, supplierId);
     if (!organizationExists) {
       return res.status(404).json({
         message: "Organization not found",
@@ -259,16 +260,19 @@ exports.updateSupplierStatus = async (req, res) => {
         message: "supplier not found",
       });
     }
-    existingSupplier.status = status;
 
-    await existingSupplier.save();
+    const mongooseDocument = Supplier.hydrate(existingSupplier);
+    Object.assign(mongooseDocument, cleanedData);
+    await mongooseDocument.save();
+
+    // await existingSupplier.save();
      const supplierHistoryEntry = new SupplierHistory({
       organizationId,
       operationId: existingSupplier._id,
       supplierId,
       supplierDisplayName: existingSupplier.supplierDisplayName,
       title: "supplier Status Modified",
-      description: `Supplier status updated to ${status} by ${userName}`,
+      description: `Supplier status updated to ${cleanedData.status} by ${userName}`,
       userId: userId,
       userName: userName,
     });
@@ -278,7 +282,6 @@ exports.updateSupplierStatus = async (req, res) => {
       message: "Supplier status updated successfully.",
       status: existingSupplier.status,
     });
-    console.log("supplier status updated successfully.");
   } catch (error) {
     console.error("Error updating supplier status:", error);
     res.status(500).json({ message: "Internal server error." });
