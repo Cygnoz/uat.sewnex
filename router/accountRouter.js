@@ -7,6 +7,7 @@ const journalController = require("../controller/journalController")
 
 const checkPermission = require('../controller/permission');
 const { verifyToken } = require('../controller/middleware');
+const { nexVerifyToken } = require('../controller/nexMiddleware');
 
 
 
@@ -60,6 +61,8 @@ router.get('/get-one-trial-balance/:accountId',verifyToken,checkPermission('View
 
 
 
+//Nexportal
+router.get('/get-all-account-nexportal',nexVerifyToken,accountController.getAllAccount)
 
 
 module.exports = router
