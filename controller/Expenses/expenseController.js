@@ -169,8 +169,8 @@ exports.getAllExpense = async (req, res) => {
         
         return {
           ...data,
-          supplierId: data.supplierId._id,  
-          supplierDisplayName: data.supplierId.supplierDisplayName, 
+          supplierId: data.supplierId ? data.supplierId._id : undefined,  
+          supplierDisplayName: data.supplierId ? data.supplierId.supplierDisplayName : undefined, 
           paidThroughAccountId: data.paidThroughAccountId,
           paidThroughAccountName: data.paidThroughAccountId.accountName,
           expense: data.expense.map(exp => ({
@@ -208,8 +208,8 @@ exports.getOneExpense = async (req, res) => {
       
       const transformedExpense = {
         ...expense,
-        supplierId: expense.supplierId._id,  
-        supplierDisplayName: expense.supplierId.supplierDisplayName,
+        supplierId: data.supplierId ? data.supplierId._id : undefined,  
+          supplierDisplayName: data.supplierId ? data.supplierId.supplierDisplayName : undefined,
         paidThroughAccountId: expense.paidThroughAccountId._id,
         paidThroughAccountName: expense.paidThroughAccountId.accountName,
         expense: expense.expense.map(exp => ({
