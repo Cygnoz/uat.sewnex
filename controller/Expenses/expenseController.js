@@ -138,6 +138,9 @@ exports.addExpense = async (req, res) => {
       //Purchase Journal      
       if (!expenseJournal( cleanedData, res )) return; 
 
+      //Prefix
+      await expensePrefix(cleanedData, existingPrefix );
+
       // Create a new expense
       const savedExpense = await createNewExpense(cleanedData, organizationId, userId, userName);
       
