@@ -29,7 +29,7 @@ const itemsSchema = new Schema({
   
   itemAmount: { type: Number },
 
-  // purchaseAccountId: {type:String}
+  purchaseAccountId: {type:String}
 },{ _id: false });
 
 const purchaseOrderSchema = new mongoose.Schema({

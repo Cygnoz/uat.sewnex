@@ -1246,7 +1246,7 @@ async function journal( savedDebitNote, defAcc, supplierAccount, depositAccount 
     operationId: savedDebitNote._id,
     transactionId: savedDebitNote.billNumber,
     date: savedDebitNote.createdDate,
-    accountId: depositAccount._id || undefined,
+    accountId: depositAccount?._id || undefined,
     action: "Debit Note",
     debitAmount: savedDebitNote.grandTotal || 0,
     creditAmount: 0,
