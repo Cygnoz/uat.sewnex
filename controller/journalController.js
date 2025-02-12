@@ -5,7 +5,10 @@ const Account = require("../database/model/account");
 const Prefix = require("../database/model/prefix");
 const Journal = require("../database/model/journal");
 const TrialBalance = require("../database/model/trialBalance");
+
 const mongoose = require('mongoose');
+const moment = require("moment-timezone");
+
 const { singleCustomDateTime, multiCustomDateTime } = require("../services/timeConverter");
 const { cleanData } = require("../services/cleanData");
 
@@ -14,7 +17,6 @@ const { cleanData } = require("../services/cleanData");
 const dataExist = async ( organizationId, id ) => {
     const [ existingOrganization, allJournal, journal, existingPrefix ] = await Promise.all([
     Organization.findOne({ organizationId }).lean(),
-
     Journal.find({ organizationId })
     .populate({
     path: "transaction.accountId", 
@@ -78,6 +80,8 @@ exports.addJournalEntry = async (req, res) => {
 
         //Prefix
         await journalPrefix( cleanedData, existingPrefix );
+
+        cleanedData.createdDateTime = moment.tz(cleanedData.date, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", existingOrganization.timeZoneExp).toISOString();     
         
         // Create a new journal entry
         const savedJournal = await createNewJournal(cleanedData, organizationId, userId, userName );      
@@ -92,6 +96,7 @@ exports.addJournalEntry = async (req, res) => {
                 action: "Journal",
                 debitAmount: trans.debitAmount,
                 creditAmount: trans.creditAmount,
+                createdDateTime:cleanedData.createdDateTime,
                 remark: cleanedData.note
             });
 
@@ -166,6 +171,8 @@ exports.updateJournalEntry = async (req, res) => {
       //Validate Inputs  
       if (!validateInputs(cleanedData, existingOrganization.organizationId, res)) return;
 
+      cleanedData.createdDateTime = moment.tz(cleanedData.date, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", existingOrganization.timeZoneExp).toISOString();     
+
       const mongooseDocument = Journal.hydrate(existingJournalEntry);
       Object.assign(mongooseDocument, cleanedData);
       const savedJournal = await mongooseDocument.save();
@@ -178,9 +185,7 @@ exports.updateJournalEntry = async (req, res) => {
         organizationId: savedJournal.organizationId,
         operationId: savedJournal._id,
       });  
-  
-      const createdDateTime = existingTrialBalance ? existingTrialBalance.createdDateTime : null;
-  
+    
       // If there are existing entries, delete them
       if (existingTrialBalance) {
         await TrialBalance.deleteMany({
@@ -201,7 +206,7 @@ exports.updateJournalEntry = async (req, res) => {
             debitAmount: trans.debitAmount,
             creditAmount: trans.creditAmount,
             remark: cleanedData.note,
-            createdDateTime: createdDateTime
+            createdDateTime: cleanedData.createdDateTime
         });
 
         const entry = await newTrialEntry.save();
