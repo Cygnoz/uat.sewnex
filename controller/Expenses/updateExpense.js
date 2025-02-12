@@ -16,10 +16,16 @@ const { dataExist, validation, calculation, accounts } = require("../Expenses/ex
 // Update Expense 
 exports.updateExpense = async (req, res) => {
     console.log("Update expense:", req.body);
+    console.log("Update expense request params:", req.params);
   
     try {
       const { organizationId } = req.user;
       const { expenseId } = req.params;  
+
+      // Validate expenseId
+      if (!expenseId || !mongoose.Types.ObjectId.isValid(expenseId)) {
+        return res.status(400).json({ message: "Invalid or missing expense ID" });
+      }
 
       // Fetch existing expense
       const existingExpense = await Expense.findOne({ _id: expenseId, organizationId });
@@ -164,7 +170,7 @@ exports.updateExpense = async (req, res) => {
 
   function validateIds({ supplierId, paidThroughAccountId, expenseIds, cleanedData }) {
       // Validate Supplier ID
-      if (!mongoose.Types.ObjectId.isValid(supplierId) || supplierId.length !== 24) {
+      if (supplierId && (!mongoose.Types.ObjectId.isValid(supplierId) || supplierId.length !== 24)) {
         return res.status(400).json({ message: `Invalid supplier ID: ${supplierId}` });
       }
     
