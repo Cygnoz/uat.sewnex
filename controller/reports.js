@@ -80,8 +80,27 @@ async function getReportAccount(organizationId, startDate, endDate, accountSubHe
                     totalDebit: { $sum: "$debitAmount" },
                     totalCredit: { $sum: "$creditAmount" }
                 }
+            },
+            {
+                $set: {
+                    totalDebit: {
+                        $cond: {
+                            if: { $gt: ["$totalDebit", "$totalCredit"] },
+                            then: { $subtract: ["$totalDebit", "$totalCredit"] },
+                            else: 0
+                        }
+                    },
+                    totalCredit: {
+                        $cond: {
+                            if: { $gt: ["$totalCredit", "$totalDebit"] },
+                            then: { $subtract: ["$totalCredit", "$totalDebit"] },
+                            else: 0
+                        }
+                    }
+                }
             }
         ]);
+        
 
         const transactions = await TrialBalance.aggregate([
             {
@@ -143,6 +162,24 @@ async function getReportAccount(organizationId, startDate, endDate, accountSubHe
                 }
             },
             {
+                $set: {
+                    totalDebit: {
+                        $cond: {
+                            if: { $gt: ["$totalDebit", "$totalCredit"] },
+                            then: { $subtract: ["$totalDebit", "$totalCredit"] },
+                            else: 0
+                        }
+                    },
+                    totalCredit: {
+                        $cond: {
+                            if: { $gt: ["$totalCredit", "$totalDebit"] },
+                            then: { $subtract: ["$totalCredit", "$totalDebit"] },
+                            else: 0
+                        }
+                    }
+                }
+            },
+            {
                 $group: {
                     _id: "$_id.accountId",
                     accountName: { $first: "$_id.accountName" },
@@ -157,8 +194,28 @@ async function getReportAccount(organizationId, startDate, endDate, accountSubHe
                         }
                     }
                 }
+            },
+            {
+                $set: {
+                    overallNetDebit: {
+                        $cond: {
+                            if: { $gt: ["$overallNetDebit", "$overallNetCredit"] },
+                            then: { $subtract: ["$overallNetDebit", "$overallNetCredit"] },
+                            else: 0
+                        }
+                    },
+                    overallNetCredit: {
+                        $cond: {
+                            if: { $gt: ["$overallNetCredit", "$overallNetDebit"] },
+                            then: { $subtract: ["$overallNetCredit", "$overallNetDebit"] },
+                            else: 0
+                        }
+                    }
+                }
             }
         ]);
+        
+        
 
         let overallNetDebit = 0;
         let overallNetCredit = 0;
@@ -188,6 +245,15 @@ async function getReportAccount(organizationId, startDate, endDate, accountSubHe
                 entries: account.entries
             };
         });
+
+        // Adjusting overallNetDebit and overallNetCredit based on the condition
+        if (overallNetDebit > overallNetCredit) {
+            overallNetDebit -= overallNetCredit;
+            overallNetCredit = 0;
+        } else if (overallNetCredit > overallNetDebit) {
+            overallNetCredit -= overallNetDebit;
+            overallNetDebit = 0;
+        }
 
         return {
             overallNetDebit,
@@ -232,6 +298,24 @@ async function getReportAccountForAssets(organizationId, startDate, endDate) {
                     totalDebit: { $sum: "$debitAmount" },
                     totalCredit: { $sum: "$creditAmount" }
                 }
+            },
+            {
+                $set: {
+                    totalDebit: {
+                        $cond: {
+                            if: { $gt: ["$totalDebit", "$totalCredit"] },
+                            then: { $subtract: ["$totalDebit", "$totalCredit"] },
+                            else: 0
+                        }
+                    },
+                    totalCredit: {
+                        $cond: {
+                            if: { $gt: ["$totalCredit", "$totalDebit"] },
+                            then: { $subtract: ["$totalCredit", "$totalDebit"] },
+                            else: 0
+                        }
+                    }
+                }
             }
         ]);
 
@@ -295,6 +379,24 @@ async function getReportAccountForAssets(organizationId, startDate, endDate) {
                 }
             },
             {
+                $set: {
+                    totalDebit: {
+                        $cond: {
+                            if: { $gt: ["$totalDebit", "$totalCredit"] },
+                            then: { $subtract: ["$totalDebit", "$totalCredit"] },
+                            else: 0
+                        }
+                    },
+                    totalCredit: {
+                        $cond: {
+                            if: { $gt: ["$totalCredit", "$totalDebit"] },
+                            then: { $subtract: ["$totalCredit", "$totalDebit"] },
+                            else: 0
+                        }
+                    }
+                }
+            },
+            {
                 $group: {
                     _id: "$_id.accountId",
                     accountName: { $first: "$_id.accountName" },
@@ -306,6 +408,24 @@ async function getReportAccountForAssets(organizationId, startDate, endDate) {
                             transactions: "$transactions",
                             overAllNetDebit: "$totalDebit",
                             overAllNetCredit: "$totalCredit"
+                        }
+                    }
+                }
+            },
+            {
+                $set: {
+                    overallNetDebit: {
+                        $cond: {
+                            if: { $gt: ["$overallNetDebit", "$overallNetCredit"] },
+                            then: { $subtract: ["$overallNetDebit", "$overallNetCredit"] },
+                            else: 0
+                        }
+                    },
+                    overallNetCredit: {
+                        $cond: {
+                            if: { $gt: ["$overallNetCredit", "$overallNetDebit"] },
+                            then: { $subtract: ["$overallNetCredit", "$overallNetDebit"] },
+                            else: 0
                         }
                     }
                 }
@@ -339,6 +459,15 @@ async function getReportAccountForAssets(organizationId, startDate, endDate) {
                 entries: account.entries
             };
         });
+
+        // Adjusting overallNetDebit and overallNetCredit based on the condition
+        if (overallNetDebit > overallNetCredit) {
+            overallNetDebit -= overallNetCredit;
+            overallNetCredit = 0;
+        } else if (overallNetCredit > overallNetDebit) {
+            overallNetCredit -= overallNetDebit;
+            overallNetDebit = 0;
+        }
 
         return {
             overallNetDebit,
@@ -382,6 +511,24 @@ async function getReportAccountForLiability(organizationId, startDate, endDate) 
                     totalDebit: { $sum: "$debitAmount" },
                     totalCredit: { $sum: "$creditAmount" }
                 }
+            },
+            {
+                $set: {
+                    totalDebit: {
+                        $cond: {
+                            if: { $gt: ["$totalDebit", "$totalCredit"] },
+                            then: { $subtract: ["$totalDebit", "$totalCredit"] },
+                            else: 0
+                        }
+                    },
+                    totalCredit: {
+                        $cond: {
+                            if: { $gt: ["$totalCredit", "$totalDebit"] },
+                            then: { $subtract: ["$totalCredit", "$totalDebit"] },
+                            else: 0
+                        }
+                    }
+                }
             }
         ]);
 
@@ -445,6 +592,24 @@ async function getReportAccountForLiability(organizationId, startDate, endDate) 
                 }
             },
             {
+                $set: {
+                    totalDebit: {
+                        $cond: {
+                            if: { $gt: ["$totalDebit", "$totalCredit"] },
+                            then: { $subtract: ["$totalDebit", "$totalCredit"] },
+                            else: 0
+                        }
+                    },
+                    totalCredit: {
+                        $cond: {
+                            if: { $gt: ["$totalCredit", "$totalDebit"] },
+                            then: { $subtract: ["$totalCredit", "$totalDebit"] },
+                            else: 0
+                        }
+                    }
+                }
+            },
+            {
                 $group: {
                     _id: "$_id.accountId",
                     accountName: { $first: "$_id.accountName" },
@@ -456,6 +621,24 @@ async function getReportAccountForLiability(organizationId, startDate, endDate) 
                             transactions: "$transactions",
                             overAllNetDebit: "$totalDebit",
                             overAllNetCredit: "$totalCredit"
+                        }
+                    }
+                }
+            },
+            {
+                $set: {
+                    overallNetDebit: {
+                        $cond: {
+                            if: { $gt: ["$overallNetDebit", "$overallNetCredit"] },
+                            then: { $subtract: ["$overallNetDebit", "$overallNetCredit"] },
+                            else: 0
+                        }
+                    },
+                    overallNetCredit: {
+                        $cond: {
+                            if: { $gt: ["$overallNetCredit", "$overallNetDebit"] },
+                            then: { $subtract: ["$overallNetCredit", "$overallNetDebit"] },
+                            else: 0
                         }
                     }
                 }
@@ -489,6 +672,15 @@ async function getReportAccountForLiability(organizationId, startDate, endDate) 
                 entries: account.entries
             };
         });
+
+        // Adjusting overallNetDebit and overallNetCredit based on the condition
+        if (overallNetDebit > overallNetCredit) {
+            overallNetDebit -= overallNetCredit;
+            overallNetCredit = 0;
+        } else if (overallNetCredit > overallNetDebit) {
+            overallNetCredit -= overallNetDebit;
+            overallNetDebit = 0;
+        }
 
         return {
             overallNetDebit,
