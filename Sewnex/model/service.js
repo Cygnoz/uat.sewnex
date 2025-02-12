@@ -12,7 +12,6 @@ const parameterSchema = new Schema({
 
 
 
-
 const styleSchema = new Schema({
     styleId: {type: mongoose.Schema.Types.ObjectId, ref: 'CPS'},
     //styleName
@@ -21,8 +20,6 @@ const styleSchema = new Schema({
 }, { _id: false });
 
 
-
-    
 
 const serviceSchema = new mongoose.Schema({
     organizationId: { type: String},
@@ -49,6 +46,10 @@ const serviceSchema = new mongoose.Schema({
     parameter: [parameterSchema],
 
     style: [styleSchema],
+
+    //styleTotal:{type:Number},
+    //serviceAmount:{type:Number},
+    //grandTotal:{type:Number},
 });
 
 const Service = mongoose.model('Service', serviceSchema);
