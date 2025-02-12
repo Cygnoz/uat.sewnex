@@ -67,16 +67,11 @@ exports.updateExpense = async (req, res) => {
       const accountIds = accountExist.map(account => account._id.toString());
       
       // Check if each expense's expenseAccountId exists in allAccounts
-      // if(!accountIds.includes(cleanedData))
-      // for (let expenseItem of cleanedData.expense) {
-      //     if (!accountIds.includes(expenseItem.expenseAccountId)) {
-      //         return res.status(404).json({ message: `Account with ID ${expenseItem.expenseAccountId} not found` });
-      //     }
-      // }
+      if(!accountIds.includes(cleanedData))
       for (let expenseItem of cleanedData.expense) {
-        if (!accountIds.includes(expenseItem.expenseAccountId)) {
-            return res.status(404).json({ message: `Account with ID ${expenseItem.expenseAccountId} not found` });
-        }
+          if (!accountIds.includes(expenseItem.expenseAccountId)) {
+              return res.status(404).json({ message: `Account with ID ${expenseItem.expenseAccountId} not found` });
+          }
       }
   
       //Data Exist Validation
