@@ -16,7 +16,7 @@ const taxController = require("../controller/settings/taxController")
 
 const checkPermission = require('../controller/permission');
 const { verifyToken } = require('../controller/middleware');
-// const { nexVerifyToken } = require('../controller/nexMiddleware');
+const { nexVerifyToken } = require('../controller/nexMiddleware');
 
 
 
@@ -134,21 +134,21 @@ router.put('/status-prefix',verifyToken,checkPermission('Modified Prefix Status'
 
 //Internal
 
-router.get('/get-all-organization',organizationController.getAllOrganization)
+router.get('/get-all-organization',nexVerifyToken,organizationController.getAllOrganization)
 
-router.get('/get-all-client',clientController.getAllClient)
+router.get('/get-all-client',nexVerifyToken,clientController.getAllClient)
 
-router.delete('/delete-organization/:organizationId',organizationController.deleteOrganization)
+router.delete('/delete-organization/:organizationId',nexVerifyToken,organizationController.deleteOrganization)
 
-router.get('/delete-all',clientController.deleteAll)
+router.get('/delete-all',nexVerifyToken,clientController.deleteAll)
 
 
 
 
 //Nex Portal
-router.get('/get-one-organization-nex/:organizationId',clientController.getOneOrganizationNex)
+router.get('/get-one-organization-nex/:organizationId',nexVerifyToken,clientController.getOneOrganizationNex)
 
-router.post('/create-client',clientController.createOrganizationAndClient)
+router.post('/create-client',nexVerifyToken,clientController.createOrganizationAndClient)
 
 
 
