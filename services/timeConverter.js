@@ -1,10 +1,10 @@
-//v1.5
+//v1.6
 
 const moment = require("moment-timezone");
 
 // Single function to format date and time
 function singleCustomDateTime(data, dateFormat, timeZone, dateSplit) {
-  const dateTimeMoment = moment(data.dateTime).tz(timeZone);
+  const dateTimeMoment = moment(data.createdDateTime).tz(timeZone);
 
   // Format the date with split character
   let createdDate = dateTimeMoment.format(dateFormat);
@@ -28,9 +28,9 @@ function multiCustomDateTime(objects, dateFormat, timeZone, dateSplit) {
   }
 
   return objects.map(obj => {    
-    if (!obj.createdDateTime) {
-      throw new Error("Each object must have a createdDateTime property.");
-    }
+    // if (!obj.createdDateTime) {
+    //   throw new Error("Each object must have a createdDateTime property.");
+    // }
 
     const formatted = singleCustomDateTime(obj, dateFormat, timeZone, dateSplit);
 
