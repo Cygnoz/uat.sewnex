@@ -985,8 +985,8 @@ exports.calculateBalanceSheet = async (req, res) => {
 
 
         //Balance sheet calculation
-        const totalDebitBS = netLoss +  equity.overallNetDebit +  currentLiabilities.overallNetDebit + nonCurrentLiabilities.overallNetDebit ;
-        const totalCreditBS = netProfit + currentAssets.overallNetCredit +  nonCurrentAssets.overallNetCredit;
+        const totalCreditBS  = netLoss +  equity.overallNetCredit +  currentLiabilities.overallNetCredit + nonCurrentLiabilities.overallNetCredit - equity.overallNetDebit - currentLiabilities.overallNetDebit - nonCurrentLiabilities.overallNetDebit ;
+        const totalDebitBS = netProfit + currentAssets.overallNetDebit +  nonCurrentAssets.overallNetDebit - currentAssets.overallNetCredit - nonCurrentAssets.overallNetCredit;
 
         // let finalProfit = 0, finalLoss = 0;
 
