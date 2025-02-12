@@ -1012,13 +1012,15 @@ exports.calculateBalanceSheet = async (req, res) => {
             debit: [
                 { currentAssets },
                 { nonCurrentAssets },
-                ...(netProfit > 0 ? [{ "netProfitCd": netProfit }] : [])
+                ...(netLoss > 0 ? [{ "netLossCd": netLoss }] : [])
+
+                
             ],
             credit: [
                 { equity },
                 { currentLiabilities },
                 { nonCurrentLiabilities },
-                ...(netLoss > 0 ? [{ "netLossCd": netLoss }] : [])
+                ...(netProfit > 0 ? [{ "netProfitCd": netProfit }] : [])
             ],
             summary: {
                 grossProfit,
