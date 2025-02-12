@@ -1,10 +1,10 @@
-//v1.5
+//v1.6
 
 const moment = require("moment-timezone");
 
 // Single function to format date and time
 function singleCustomDateTime(data, dateFormat, timeZone, dateSplit) {
-  const dateTimeMoment = moment(data.dateTime).tz(timeZone);
+  const dateTimeMoment = moment(data.createdDateTime).tz(timeZone);
 
   // Format the date with split character
   let createdDate = dateTimeMoment.format(dateFormat);
