@@ -174,8 +174,8 @@ exports.getDayBook = async (req, res) => {
             success: true,
             data: formattedTransactions,
             totals: {
-                totalDebit: cumulativeTotalDebit,
-                totalCredit: cumulativeTotalCredit
+                totalDebit: cumulativeTotalDebit.toFixed(2),
+                totalCredit: cumulativeTotalCredit.toFixed(2)
             },
             debug: {
                 dateRange: {

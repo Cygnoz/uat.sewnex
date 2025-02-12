@@ -1,5 +1,4 @@
 const TrialBalances = require('../database/model/trialBalance');
-const Accounts = require('../database/model/account');
 const Organization = require('../database/model/organization');
 const moment = require('moment');
 
@@ -32,9 +31,6 @@ exports.getTrialBalance = async (req, res) => {
             });
         }
 
-        const startUTC = start.toISOString();
-        const endUTC = end.toISOString();
-
         const organization = await Organization.findOne({ organizationId });
         if (!organization) {
             return res.status(404).json({
@@ -43,25 +39,40 @@ exports.getTrialBalance = async (req, res) => {
             });
         }
 
-        // **Fix: Ensure transactions where both debitAmount and creditAmount are 0 are filtered out**
+        // Fetch transactions, filtering out zero debit and credit amounts
         const transactions = await TrialBalances.find({
-            organizationId: organizationId,
-            createdDateTime: { $gte: new Date(startUTC), $lte: new Date(endUTC) },
-            $or: [ // Ensure we get only meaningful transactions
+            organizationId,
+            createdDateTime: { $gte: start, $lte: end },
+            $or: [
                 { debitAmount: { $gt: 0 } },
                 { creditAmount: { $gt: 0 } }
             ]
         }).populate('accountId', 'accountName accountSubhead accountHead accountGroup');
 
         const accountMap = {};
+        let totalDebit = 0;
+        let totalCredit = 0;
 
         transactions.forEach(transaction => {
-            const totalDebit = transaction.debitAmount || 0;
-            const totalCredit = transaction.creditAmount || 0;
-            if (totalDebit === 0 && totalCredit === 0) return; // **Additional safety filter**
+            let debit = transaction.debitAmount || 0;
+            let credit = transaction.creditAmount || 0;
 
-            const accountSubHead = transaction.accountId ? transaction.accountId.accountSubhead : 'Uncategorized';
-            const accountName = transaction.accountId ? transaction.accountId.accountName : 'Unknown Account';
+            if (debit === 0 && credit === 0) return;
+
+            // Apply logic to ensure either debit or credit is non-zero at transaction level
+            if (debit > credit) {
+                debit -= credit;
+                credit = 0;
+            } else if (credit > debit) {
+                credit -= debit;
+                debit = 0;
+            }
+
+            totalDebit += debit;
+            totalCredit += credit;
+
+            const accountSubHead = transaction.accountId?.accountSubhead || 'Uncategorized';
+            const accountName = transaction.accountId?.accountName || 'Unknown Account';
             const transactionDate = moment(transaction.createdDateTime).format('MMMM YYYY');
 
             if (!accountMap[accountSubHead]) {
@@ -73,8 +84,8 @@ exports.getTrialBalance = async (req, res) => {
                 };
             }
 
-            accountMap[accountSubHead].totalDebit += totalDebit;
-            accountMap[accountSubHead].totalCredit += totalCredit;
+            accountMap[accountSubHead].totalDebit += debit;
+            accountMap[accountSubHead].totalCredit += credit;
 
             if (!accountMap[accountSubHead].accounts[accountName]) {
                 accountMap[accountSubHead].accounts[accountName] = {
@@ -85,8 +96,8 @@ exports.getTrialBalance = async (req, res) => {
                 };
             }
 
-            accountMap[accountSubHead].accounts[accountName].totalDebit += totalDebit;
-            accountMap[accountSubHead].accounts[accountName].totalCredit += totalCredit;
+            accountMap[accountSubHead].accounts[accountName].totalDebit += debit;
+            accountMap[accountSubHead].accounts[accountName].totalCredit += credit;
 
             if (!accountMap[accountSubHead].accounts[accountName].months[transactionDate]) {
                 accountMap[accountSubHead].accounts[accountName].months[transactionDate] = {
@@ -97,8 +108,8 @@ exports.getTrialBalance = async (req, res) => {
                 };
             }
 
-            accountMap[accountSubHead].accounts[accountName].months[transactionDate].totalDebit += totalDebit;
-            accountMap[accountSubHead].accounts[accountName].months[transactionDate].totalCredit += totalCredit;
+            accountMap[accountSubHead].accounts[accountName].months[transactionDate].totalDebit += debit;
+            accountMap[accountSubHead].accounts[accountName].months[transactionDate].totalCredit += credit;
 
             accountMap[accountSubHead].accounts[accountName].months[transactionDate].data.push({
                 _id: transaction._id,
@@ -111,29 +122,50 @@ exports.getTrialBalance = async (req, res) => {
                 accountHead: transaction.accountId?.accountHead,
                 accountGroup: transaction.accountId?.accountGroup,
                 action: transaction.action,
-                debitAmount: totalDebit,
-                creditAmount: totalCredit,
+                debitAmount: debit,
+                creditAmount: credit,
                 createdDateTime: transaction.createdDateTime,
                 createdDate: moment(transaction.createdDateTime).format('DD/MMM/YYYY'),
                 createdTime: moment(transaction.createdDateTime).format('hh:mm:ss A'),
             });
         });
 
-        // **Final filtering: Remove any accounts and months where both totalDebit and totalCredit are 0**
+        // Apply debit-credit adjustment at each level
+        function adjustBalance(obj) {
+            if (obj.totalDebit > obj.totalCredit) {
+                obj.totalDebit -= obj.totalCredit;
+                obj.totalCredit = 0;
+            } else if (obj.totalCredit > obj.totalDebit) {
+                obj.totalCredit -= obj.totalDebit;
+                obj.totalDebit = 0;
+            }
+        }
+
+        Object.values(accountMap).forEach(accountSubHead => {
+            adjustBalance(accountSubHead);
+            Object.values(accountSubHead.accounts).forEach(account => {
+                adjustBalance(account);
+                Object.values(account.months).forEach(month => {
+                    adjustBalance(month);
+                });
+            });
+        });
+
+        // Format response and remove empty accounts and months
         const responseData = Object.values(accountMap)
-            .filter(account => account.totalDebit > 0 || account.totalCredit > 0) // Remove empty accountSubHeads
+            .filter(account => account.totalDebit > 0 || account.totalCredit > 0)
             .map(account => ({
                 accountSubHead: account.accountSubHead,
                 totalDebit: account.totalDebit,
                 totalCredit: account.totalCredit,
                 accounts: Object.values(account.accounts)
-                    .filter(acc => acc.totalDebit > 0 || acc.totalCredit > 0) // Remove empty accounts
+                    .filter(acc => acc.totalDebit > 0 || acc.totalCredit > 0)
                     .map(acc => ({
                         accountName: acc.accountName,
                         totalDebit: acc.totalDebit,
                         totalCredit: acc.totalCredit,
                         months: Object.values(acc.months)
-                            .filter(month => month.totalDebit > 0 || month.totalCredit > 0) // Remove empty months
+                            .filter(month => month.totalDebit > 0 || month.totalCredit > 0)
                             .map(month => ({
                                 date: month.date,
                                 totalDebit: month.totalDebit,
@@ -143,13 +175,23 @@ exports.getTrialBalance = async (req, res) => {
                     }))
             }));
 
+        // Apply final adjustment at summary level
+        adjustBalance({ totalDebit, totalCredit });
+
         res.status(200).json({
             success: true,
             data: responseData,
+            summary: {
+                totalDebit,
+                totalCredit,
+                ...(totalCredit > totalDebit ? { "finalCredit": parseFloat((totalCredit - totalDebit).toFixed(2)) } : {}),
+                ...(totalDebit > totalCredit ? { "finalDebit": parseFloat((totalDebit - totalCredit).toFixed(2)) } : {}),
+
+            },
             debug: {
                 dateRange: {
-                    start: startUTC,
-                    end: endUTC
+                    start: start.toISOString(),
+                    end: end.toISOString()
                 },
                 timezone: organization.timeZone
             }
@@ -159,11 +201,7 @@ exports.getTrialBalance = async (req, res) => {
         console.error('Error in getTrialBalance:', error);
         res.status(500).json({
             success: false,
-            message: error.message,
-            debug: {
-                stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-            }
+            message: error.message
         });
     }
 };
-
