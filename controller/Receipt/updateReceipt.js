@@ -72,6 +72,8 @@ exports.updateReceipt = async (req, res) => {
       // Re-fetch the updated invoice to get the latest `amountDue` and `balanceAmount`
       await SalesReceipt.find({ _id: { $in: updatedData.invoice.map(receipt => receipt.invoiceId) } });  
 
+      cleanedData.createdDateTime = moment.tz(cleanedData.paymentDate, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp).toISOString();           
+
       const mongooseDocument = SalesReceipt.hydrate(existingSalesReceipt);
       Object.assign(mongooseDocument, cleanedData);
       const savedSalesReceipt = await mongooseDocument.save();
@@ -537,23 +539,12 @@ function isAlphanumeric(value) {
 
 
 async function journal( savedReceipt, depositAcc, customerAccount ) { 
-    
-    // Fetch existing TrialBalance's createdDateTime
-    const existingTrialBalance = await TrialBalance.findOne({
+
+    await TrialBalance.deleteMany({
         organizationId: savedReceipt.organizationId,
         operationId: savedReceipt._id,
-    });  
+    });
 
-    const createdDateTime = existingTrialBalance ? existingTrialBalance.createdDateTime : null;
-
-    // If there are existing entries, delete them
-    if (existingTrialBalance) {
-      await TrialBalance.deleteMany({
-        organizationId: savedReceipt.organizationId,
-        operationId: savedReceipt._id,
-      });
-      console.log(`Deleted existing TrialBalance entries for operationId: ${savedReceipt._id}`);
-    }
         
     const customerPaid = {
       organizationId: savedReceipt.organizationId,
@@ -564,6 +555,7 @@ async function journal( savedReceipt, depositAcc, customerAccount ) {
       debitAmount: 0,
       creditAmount: savedReceipt.amountReceived || 0,
       remark: savedReceipt.note,
+      createdDateTime:savedReceipt.createdDateTime
     };
     const depositAccount = {
       organizationId: savedReceipt.organizationId,
@@ -574,6 +566,7 @@ async function journal( savedReceipt, depositAcc, customerAccount ) {
       debitAmount: savedReceipt.amountReceived || 0,
       creditAmount: 0,
       remark: savedReceipt.note,
+      createdDateTime:savedReceipt.createdDateTime
     };
     
     console.log("customerPaid", customerPaid.debitAmount,  customerPaid.creditAmount);
@@ -585,15 +578,15 @@ async function journal( savedReceipt, depositAcc, customerAccount ) {
     console.log("Total Debit Amount: ", debitAmount );
     console.log("Total Credit Amount: ", creditAmount );
     
-    createTrialEntry( customerPaid, createdDateTime )
-    createTrialEntry( depositAccount, createdDateTime )
+    createTrialEntry( customerPaid )
+    createTrialEntry( depositAccount )
 }
   
   
 
 
   
-async function createTrialEntry( data, createdDateTime ) {
+async function createTrialEntry( data ) {
     const newTrialEntry = new TrialBalance({
         organizationId:data.organizationId,
         operationId:data.operationId,
@@ -603,7 +596,7 @@ async function createTrialEntry( data, createdDateTime ) {
         debitAmount: data.debitAmount,
         creditAmount: data.creditAmount,
         remark: data.remark,
-        createdDateTime: createdDateTime
+        createdDateTime: data.createdDateTime
     });
     
     await newTrialEntry.save();

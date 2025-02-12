@@ -17,13 +17,15 @@ const { cleanData } = require("../../services/cleanData");
 const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
 
 const { ObjectId } = require('mongodb');
+const moment = require("moment-timezone");
+
 
 
 
 // Fetch existing data
 const dataExist = async ( organizationId, customerId ) => {
     const [organizationExists, customerExist , settings, existingPrefix, defaultAccount, customerAccount ] = await Promise.all([
-      Organization.findOne({ organizationId }),
+      Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1, timeZoneExp: 1 }),
       Customer.findOne({ organizationId , _id:customerId }, { _id: 1, customerDisplayName: 1, taxType: 1 }),
       Settings.findOne({ organizationId },{ stockBelowZero:1, salesOrderAddress: 1, salesOrderCustomerNote: 1, salesOrderTermsCondition: 1, salesOrderClose: 1, restrictSalesOrderClose: 1, termCondition: 1 ,customerNote: 1 }),
       Prefix.findOne({ organizationId }),
@@ -100,7 +102,6 @@ const salesDataExist = async ( organizationId, invoiceId ) => {
     .lean(),
     Invoice.findOne({ organizationId , _id: invoiceId })
     .populate('items.itemId', 'itemName')
-    .populate('items.itemId', 'itemImage')
     .populate('customerId', 'customerDisplayName')    
     .lean(),
     TrialBalance.find({ organizationId: organizationId, operationId : invoiceId })
@@ -192,7 +193,7 @@ exports.addInvoice = async (req, res) => {
         cleanedData._id = undefined;
       }
 
-      cleanedData.createdDateTime = moment.tz(cleanedData.salesInvoiceDate, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp).toISOString();     
+      cleanedData.createdDateTime = moment.tz(cleanedData.salesInvoiceDate, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp).toISOString();           
       
       const savedInvoice = await createNewInvoice(cleanedData, organizationId, userId, userName );      
       
@@ -287,10 +288,7 @@ exports.getAllSalesInvoice = async (req, res) => {
 
     if (!allInvoice) {
       return res.status(404).json({ message: "No Invoice found" });
-    }
-
-    console.log("allInvoice",allInvoice);
-    
+    }    
     
     const transformedInvoice = allInvoice.map(data => {
       return {
@@ -366,7 +364,6 @@ try {
           ...item,
           itemId: item.itemId._id,
           itemName: item.itemId.itemName,
-          itemImage: item.itemId.itemImage,
         })),  
     };
   
@@ -673,15 +670,15 @@ validateField( typeof data.salesInvoiceDate === 'undefined', "Invoice Date requi
 validateField( typeof data.items === 'undefined', "Select an item", errors  );
 validateField( Array.isArray(data.items) && data.items.length === 0, "Select an item", errors );
 
-validateField( typeof data.otherExpenseAmount !== 'undefined' && typeof data.otherExpenseReason === 'undefined', "Please enter other expense reason", errors  );
+validateField( typeof data.otherExpenseAmount !== 'undefined' && Number(data.otherExpenseAmount) > 0 && typeof data.otherExpenseReason === 'undefined', "Please enter other expense reason", errors  );
 
-validateField( typeof data.otherExpenseAmount !== 'undefined' && typeof data.otherExpenseAccountId === 'undefined', "Please select expense account", errors  );
-validateField( typeof data.freightAmount !== 'undefined' && typeof data.freightAccountId === 'undefined', "Please select freight account", errors  );
+validateField( typeof data.otherExpenseAmount !== 'undefined' && Number(data.otherExpenseAmount) > 0 && typeof data.otherExpenseAccountId === 'undefined', "Please select expense account", errors  );
+validateField( typeof data.freightAmount !== 'undefined' && Number(data.freightAmount) > 0 && typeof data.freightAccountId === 'undefined', "Please select freight account", errors  );
 
-validateField( typeof data.roundOffAmount !== 'undefined' && !(data.roundOffAmount >= 0 && data.roundOffAmount <= 1), "Round Off Amount must be between 0 and 1", errors );
+validateField( typeof data.roundOffAmount !== 'undefined' && !( Number(data.roundOffAmount) >= 0 && Number(data.roundOffAmount) <= 1), "Round Off Amount must be between 0 and 1", errors );
 
-validateField( typeof data.paidAmount !== 'undefined' && !(data.paidAmount <= data.totalAmount), "Excess payment amount", errors );
-validateField( typeof data.paidAmount !== 'undefined' && !(data.paidAmount >= 0 ), "Negative payment amount", errors );
+validateField( typeof data.paidAmount !== 'undefined' && ( Number(data.paidAmount) > Number(data.totalAmount)), "Excess payment amount", errors );
+validateField( typeof data.paidAmount !== 'undefined' && ( Number(data.paidAmount) < 0 ), "Negative payment amount", errors );
 
 validateField( typeof defaultAccount.salesDiscountAccount === 'undefined', "No Sales Discount Account found", errors  );
 
@@ -1204,6 +1201,7 @@ async function journal( savedInvoice, defAcc, customerAccount ) {
     debitAmount: savedInvoice.totalDiscount || 0,
     creditAmount: 0,
     remark: savedInvoice.note,
+    createdDateTime:savedInvoice.createdDateTime
   };
   // const sale = {
   //   organizationId: savedInvoice.organizationId,
@@ -1226,6 +1224,7 @@ async function journal( savedInvoice, defAcc, customerAccount ) {
     debitAmount: 0,
     creditAmount: savedInvoice.cgst || 0,
     remark: savedInvoice.note,
+    createdDateTime:savedInvoice.createdDateTime
   };
   const sgst = {
     organizationId: savedInvoice.organizationId,
@@ -1237,6 +1236,7 @@ async function journal( savedInvoice, defAcc, customerAccount ) {
     debitAmount: 0,
     creditAmount: savedInvoice.sgst || 0,
     remark: savedInvoice.note,
+    createdDateTime:savedInvoice.createdDateTime
   };
   const igst = {
     organizationId: savedInvoice.organizationId,
@@ -1248,6 +1248,7 @@ async function journal( savedInvoice, defAcc, customerAccount ) {
     debitAmount: 0,
     creditAmount: savedInvoice.igst || 0,
     remark: savedInvoice.note,
+    createdDateTime:savedInvoice.createdDateTime
   };
   const vat = {
     organizationId: savedInvoice.organizationId,
@@ -1259,6 +1260,7 @@ async function journal( savedInvoice, defAcc, customerAccount ) {
     debitAmount: 0,
     creditAmount: savedInvoice.vat || 0,
     remark: savedInvoice.note,
+    createdDateTime:savedInvoice.createdDateTime
   };
   const customer = {
     organizationId: savedInvoice.organizationId,
@@ -1270,6 +1272,7 @@ async function journal( savedInvoice, defAcc, customerAccount ) {
     debitAmount: savedInvoice.totalAmount || 0,
     creditAmount: 0,
     remark: savedInvoice.note,
+    createdDateTime:savedInvoice.createdDateTime
   };
   const customerPaid = {
     organizationId: savedInvoice.organizationId,
@@ -1281,6 +1284,7 @@ async function journal( savedInvoice, defAcc, customerAccount ) {
     debitAmount: 0,
     creditAmount: savedInvoice.paidAmount || 0,
     remark: savedInvoice.note,
+    createdDateTime:savedInvoice.createdDateTime
   };
   const depositAccount = {
     organizationId: savedInvoice.organizationId,
@@ -1292,6 +1296,7 @@ async function journal( savedInvoice, defAcc, customerAccount ) {
     debitAmount: savedInvoice.paidAmount || 0,
     creditAmount: 0,
     remark: savedInvoice.note,
+    createdDateTime:savedInvoice.createdDateTime
   };
   const otherExpense = {
     organizationId: savedInvoice.organizationId,
@@ -1303,6 +1308,7 @@ async function journal( savedInvoice, defAcc, customerAccount ) {
     debitAmount: 0,
     creditAmount: savedInvoice.otherExpenseAmount || 0,
     remark: savedInvoice.note,
+    createdDateTime:savedInvoice.createdDateTime
   };
   const freight = {
     organizationId: savedInvoice.organizationId,
@@ -1314,6 +1320,7 @@ async function journal( savedInvoice, defAcc, customerAccount ) {
     debitAmount: 0,
     creditAmount: savedInvoice.freightAmount || 0,
     remark: savedInvoice.note,
+    createdDateTime:savedInvoice.createdDateTime
   };
   const roundOff = {
     organizationId: savedInvoice.organizationId,
@@ -1325,6 +1332,7 @@ async function journal( savedInvoice, defAcc, customerAccount ) {
     debitAmount: savedInvoice.roundOffAmount || 0,
     creditAmount: 0,
     remark: savedInvoice.note,
+    createdDateTime:savedInvoice.createdDateTime
   };
 
   let salesTotalDebit = 0;
@@ -1385,6 +1393,7 @@ async function journal( savedInvoice, defAcc, customerAccount ) {
         debitAmount: 0,
         creditAmount: entry.creditAmount || 0,
         remark: savedInvoice.note,
+        createdDateTime:savedInvoice.createdDateTime
       };
       createTrialEntry( data )
     });
@@ -1452,7 +1461,8 @@ async function createTrialEntry( data ) {
       action: data.action,
       debitAmount: data.debitAmount,
       creditAmount: data.creditAmount,
-      remark: data.remark
+      remark: data.remark,
+      createdDateTime:data.createdDateTime
 });
 await newTrialEntry.save();
 }
@@ -1484,21 +1494,16 @@ async function itemTrack(savedInvoice, itemTable) {
 
   for (const item of items) {
 
-    const itemIdAsObjectId = new ObjectId(item.itemId);
-
-    // Find the matching item
-    const matchingItem = itemTable.find((entry) => entry._id.equals(itemIdAsObjectId));
+    const matchingItem = itemTable.find((entry) => 
+      entry._id.toString() === item.itemId.toString() 
+    );
 
     if (!matchingItem) {
       console.error(`Item with ID ${item.itemId} not found in itemTable`);
       continue; 
     }
 
-    // const newStock = matchingItem.currentStock - item.quantity;
-    // if (newStock < 0) {
-    //   console.error(`Insufficient stock for item ${item.itemName}`);
-    //   continue; 
-    // }
+
 
     const newItemTrack = new ItemTrack({
       organizationId: savedInvoice.organizationId,
@@ -1509,6 +1514,7 @@ async function itemTrack(savedInvoice, itemTable) {
       sellingPrice: matchingItem.sellingPrice || 0,
       costPrice: matchingItem.costPrice || 0, 
       creditQuantity: item.quantity, 
+      createdDateTime: savedInvoice.createdDateTime 
     });
 
     const savedItemTrack = await newItemTrack.save();
