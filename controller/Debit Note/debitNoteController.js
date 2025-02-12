@@ -7,7 +7,6 @@ const Settings = require("../../database/model/settings");
 const ItemTrack = require("../../database/model/itemTrack");
 const Prefix = require("../../database/model/prefix");
 const mongoose = require('mongoose');
-const moment = require("moment-timezone");
 const DefAcc  = require("../../database/model/defaultAccount");
 const Account = require("../../database/model/account");
 const TrialBalance = require("../../database/model/trialBalance");
@@ -18,12 +17,13 @@ const { singleCustomDateTime, multiCustomDateTime } = require("../../services/ti
 
 
 const { ObjectId } = require('mongodb');
+const moment = require("moment-timezone");
 
 
 // Fetch existing data
 const dataExist = async ( organizationId, supplierId, billId ) => {
     const [organizationExists, supplierExist, billExist, settings, existingPrefix, defaultAccount, supplierAccount  ] = await Promise.all([
-      Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
+      Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1, timeZoneExp: 1 }),
       Supplier.findOne({ organizationId , _id:supplierId}, { _id: 1, supplierDisplayName: 1, taxType: 1 }),
       Bills.findOne({ organizationId, _id:billId }, { _id: 1, billNumber: 1, billDate: 1, orderNumber: 1, supplierId: 1, sourceOfSupply: 1, destinationOfSupply: 1, items: 1 }),
       Settings.findOne({ organizationId }),
@@ -180,6 +180,8 @@ exports.addDebitNote = async (req, res) => {
 
     //Prefix
     await debitNotePrefix(cleanedData, existingPrefix );
+
+    cleanedData.createdDateTime = moment.tz(cleanedData.supplierDebitDate, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp).toISOString();           
 
     const savedDebitNote = await createNewDebitNote(cleanedData, organizationId, userId, userName );
 
@@ -737,6 +739,9 @@ function validateField(condition, errorMsg, errors) {
 //Valid Req Fields
 function validateReqFields( data, supplierExist, errors ) {
 validateField( typeof data.supplierId === 'undefined', "Please select a Supplier", errors  );
+validateField( typeof data.supplierDebitDate === 'undefined', "Please select Supplier Debit Date", errors  );
+
+
 
 validateField( supplierExist.taxType == 'GST' && typeof data.sourceOfSupply === 'undefined', "Source of supply required", errors  );
 validateField( supplierExist.taxType == 'GST' && typeof data.destinationOfSupply === 'undefined', "Destination of supply required", errors  );
@@ -973,9 +978,9 @@ async function itemTrack(savedDebitNote, itemTable) {
 
   for (const item of items) {
 
-    const itemIdAsObjectId = new ObjectId(item.itemId);
-
-    const matchingItem = itemTable.find((entry) => entry._id.equals(itemIdAsObjectId));
+    const matchingItem = itemTable.find((entry) => 
+      entry._id.toString() === item.itemId.toString() 
+    );
 
     if (!matchingItem) {
       console.error(`Item with ID ${item.itemId} not found in itemTable`);
@@ -991,7 +996,8 @@ async function itemTrack(savedDebitNote, itemTable) {
       itemId: matchingItem._id,
       sellingPrice: matchingItem.itemSellingPrice || 0,
       costPrice: matchingItem.itemCostPrice || 0, 
-      creditQuantity: item.itemQuantity, 
+      creditQuantity: item.itemQuantity,
+      createdDateTime: savedDebitNote.createdDateTime  
     });
     await newTrialEntry.save();
   }
@@ -1178,79 +1184,86 @@ async function journal( savedDebitNote, defAcc, supplierAccount, depositAccount 
   const cgst = {
     organizationId: savedDebitNote.organizationId,
     operationId: savedDebitNote._id,
-    transactionId: savedDebitNote.billNumber,
+    transactionId: savedDebitNote.debitNote,
     date: savedDebitNote.createdDate,
     accountId: defAcc.inputCgst || undefined,
     action: "Purchase Return",
     debitAmount:  0,
     creditAmount: savedDebitNote.cgst || 0,
     remark: savedDebitNote.note,
+    createdDateTime:savedDebitNote.createdDateTime
   };
   const sgst = {
     organizationId: savedDebitNote.organizationId,
     operationId: savedDebitNote._id,
-    transactionId: savedDebitNote.billNumber,
+    transactionId: savedDebitNote.debitNote,
     date: savedDebitNote.createdDate,
     accountId: defAcc.inputSgst || undefined,
     action: "Purchase Return",
     debitAmount: 0,
     creditAmount: savedDebitNote.sgst || 0,
     remark: savedDebitNote.note,
+    createdDateTime:savedDebitNote.createdDateTime
   };
   const igst = {
     organizationId: savedDebitNote.organizationId,
     operationId: savedDebitNote._id,
-    transactionId: savedDebitNote.billNumber,
+    transactionId: savedDebitNote.debitNote,
     date: savedDebitNote.createdDate,
     accountId: defAcc.inputIgst || undefined,
     action: "Purchase Return",
     debitAmount: 0,
     creditAmount: savedDebitNote.igst || 0,
     remark: savedDebitNote.note,
+    createdDateTime:savedDebitNote.createdDateTime
   };
   const vat = {
     organizationId: savedDebitNote.organizationId,
     operationId: savedDebitNote._id,
-    transactionId: savedDebitNote.billNumber,
+    transactionId: savedDebitNote.debitNote,
     date: savedDebitNote.createdDate,
     accountId: defAcc.inputVat || undefined,
     action: "Purchase Return",
     debitAmount: 0,
     creditAmount: savedDebitNote.vat || 0,
     remark: savedDebitNote.note,
+    createdDateTime:savedDebitNote.createdDateTime
   };
   const supplierCredit = {
     organizationId: savedDebitNote.organizationId,
     operationId: savedDebitNote._id,
-    transactionId: savedDebitNote.billNumber,
+    transactionId: savedDebitNote.debitNote,
     date: savedDebitNote.createdDate,
     accountId: supplierAccount._id || undefined,
     action: "Purchase Return",
     debitAmount: savedDebitNote.grandTotal || 0,
     creditAmount:  0,
     remark: savedDebitNote.note,
+    createdDateTime:savedDebitNote.createdDateTime
   };
   const supplierReceived = {
     organizationId: savedDebitNote.organizationId,
     operationId: savedDebitNote._id,
-    transactionId: savedDebitNote.billNumber,
+    transactionId: savedDebitNote.debitNote,
     date: savedDebitNote.createdDate,
     accountId: supplierAccount._id || undefined,
     action: "Debit Note",
     debitAmount: 0,
     creditAmount: savedDebitNote.grandTotal || 0,
     remark: savedDebitNote.note,
+    createdDateTime:savedDebitNote.createdDateTime
   };
   const depositAccounts = {
     organizationId: savedDebitNote.organizationId,
     operationId: savedDebitNote._id,
-    transactionId: savedDebitNote.billNumber,
+    transactionId: savedDebitNote.debitNote,
     date: savedDebitNote.createdDate,
     accountId: depositAccount?._id || undefined,
     action: "Debit Note",
     debitAmount: savedDebitNote.grandTotal || 0,
     creditAmount: 0,
     remark: savedDebitNote.note,
+    createdDateTime:savedDebitNote.createdDateTime
   };
 
   let purchaseTotalDebit = 0;
@@ -1317,13 +1330,14 @@ const creditAmount =
     const data = {
       organizationId: savedDebitNote.organizationId,
       operationId: savedDebitNote._id,
-      transactionId: savedDebitNote.billNumber,
+      transactionId: savedDebitNote.debitNote,
       date: savedDebitNote.createdDate,
       accountId: entry.accountId || undefined,
       action: "Purchase Return",
       debitAmount: entry.debitAmount || 0,
       creditAmount: 0,
       remark: savedDebitNote.note,
+      createdDateTime:savedDebitNote.createdDateTime
     };
     
     createTrialEntry( data )
@@ -1351,7 +1365,7 @@ const creditAmount =
   createTrialEntry( supplierCredit )
   
   //Paid
-  if(savedDebitNote.grandTotal){
+  if(savedDebitNote.paymentMode ==='Cash'){
     createTrialEntry( supplierReceived )
     createTrialEntry( depositAccounts )
   }
@@ -1370,7 +1384,8 @@ async function createTrialEntry( data ) {
       action: data.action,
       debitAmount: data.debitAmount || 0,
       creditAmount: data.creditAmount || 0,
-      remark: data.remark
+      remark: data.remark,
+      createdDateTime:data.createdDateTime
 });
 
 await newTrialEntry.save();

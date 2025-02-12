@@ -3,13 +3,13 @@ const Supplier = require('../../database/model/supplier');
 const PurchasePayment = require('../../database/model/paymentMade');
 const PurchaseBill = require('../../database/model/bills')
 const mongoose = require('mongoose');
-const moment = require("moment-timezone");
 const Prefix = require("../../database/model/prefix");
 const Account = require("../../database/model/account");
 const TrialBalance = require("../../database/model/trialBalance");
 const { cleanData } = require("../../services/cleanData");
 const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
 
+const moment = require("moment-timezone");
 
 
 // Fetch existing data
@@ -17,7 +17,7 @@ const dataExist = async (organizationId, unpaidBills ,supplierId, ) => {
   const billIds = unpaidBills.map(unpaidBill => unpaidBill.billId);
   
   const [organizationExists, supplierExists , paymentTable , existingPrefix ] = await Promise.all([
-    Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
+    Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1, timeZoneExp: 1 }),
     Supplier.findOne({ organizationId, _id: supplierId  }, { _id: 1, supplierDisplayName: 1 }),
     PurchaseBill.find({ organizationId , _id : { $in: billIds}},{ _id: 1, billNumber: 1 , billDate: 1 , dueDate:1 , grandTotal: 1 , balanceAmount : 1 }),
     Prefix.findOne({ organizationId })
@@ -55,8 +55,6 @@ const accDataExists = async ( organizationId, paidThroughAccountId, supplierId )
     Account.findOne({ organizationId , _id: paidThroughAccountId, accountHead: "Asset" }, { _id:1, accountName: 1 }),
     Account.findOne({ organizationId , accountId:supplierId },{ _id:1, accountName:1 })
   ]);
-  console.log("paidThroughAccount....................",paidThroughAccount, paidThroughAccountId)
-
   return { paidThroughAccount, supplierAccount };
 };
 
@@ -121,15 +119,15 @@ exports.addPayment = async (req, res) => {
     const validatedBills = validateUnpaidBills(updatedData.unpaidBills);
     
     // Process unpaid bills and calculate `amountDue`
-    const paymentResults = await processUnpaidBills(validatedBills);
-    
-    console.log('Payment processing complete:', paymentResults);
-    
+    await processUnpaidBills(validatedBills);
+        
     // Generate prefix for vendor payment
     await vendorPaymentPrefix(cleanedData, existingPrefix);
   
     // Re-fetch the updated bills to get the latest `amountDue` and `balanceAmount`
     const updatedBills = await PurchaseBill.find({ _id: { $in: updatedData.unpaidBills.map(bill => bill.billId) } });
+
+    cleanedData.createdDateTime = moment.tz(cleanedData.paymentDate, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp).toISOString();           
 
     // Create and save new payment
     const payment = await createNewPayment(updatedData, organizationId, userId, userName);
@@ -639,6 +637,7 @@ async function journal( payment, paidThroughAccount, supplierAccount ) {
     debitAmount: payment.amountPaid || 0,
     creditAmount: 0,
     remark: payment.note,
+    createdDateTime:payment.createdDateTime
   };
   const paidThroughAcc = {
     organizationId: payment.organizationId,
@@ -649,6 +648,7 @@ async function journal( payment, paidThroughAccount, supplierAccount ) {
     debitAmount: 0,
     creditAmount: payment.amountPaid || 0,
     remark: payment.note,
+    createdDateTime:payment.createdDateTime
   };
   
 
@@ -678,7 +678,9 @@ async function createTrialEntry( data ) {
       action: data.action,
       debitAmount: data.debitAmount,
       creditAmount: data.creditAmount,
-      remark: data.remark
+      remark: data.remark,
+      createdDateTime:data.createdDateTime
+
 });
 
 await newTrialEntry.save();

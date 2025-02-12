@@ -8,7 +8,7 @@ const { dataExist, validation, calculation, accounts } = require("../Bills/bills
 const { cleanData } = require("../../services/cleanData");
 
 const { ObjectId } = require('mongodb');
-
+const moment = require("moment-timezone");
 
 // Update Purchase Bill 
 exports.updateBill = async (req, res) => {
@@ -103,7 +103,9 @@ exports.updateBill = async (req, res) => {
       if (!calculation.calculateBills(cleanedData, itemTable, res)) return;
 
       //Sales Journal      
-      if (!accounts.purchaseJournal( cleanedData, res )) return; 
+      if (!accounts.purchaseJournal( cleanedData, res )) return;
+      
+      cleanedData.createdDateTime = moment.tz(cleanedData.billDate, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp).toISOString();           
 
       const mongooseDocument = Bills.hydrate(existingBill);
       Object.assign(mongooseDocument, cleanedData);
@@ -263,18 +265,15 @@ exports.updateBill = async (req, res) => {
   // Item Track Function
   async function itemTrack(savedBill, itemTable, organizationId, billId) {
 
-    // Fetch existing itemTrack entries
-    const existingItemTracks = await ItemTrack.find({ organizationId, operationId: billId });
-    
-    const createdDateTime = existingItemTracks[0] ? existingItemTracks[0].createdDateTime : null; 
-
+      await ItemTrack.deleteMany({ organizationId, operationId: billId });
+      
       const { items } = savedBill;
 
       for (const item of items) {
 
-        const itemIdAsObjectId = new ObjectId(item.itemId);
-
-        const matchingItem = itemTable.find((entry) => entry._id.equals(itemIdAsObjectId));
+        const matchingItem = itemTable.find((entry) => 
+          entry._id.toString() === item.itemId.toString() 
+        );
     
         if (!matchingItem) {
           console.error(`Item with ID ${item.itemId} not found in itemTable`);
@@ -290,18 +289,14 @@ exports.updateBill = async (req, res) => {
           itemId: matchingItem._id,
           sellingPrice: matchingItem.itemSellingPrice,
           costPrice: matchingItem.itemCostPrice || 0, 
-          creditQuantity: item.itemQuantity, 
-          createdDateTime: createdDateTime 
+          debitQuantity: item.itemQuantity, 
+          createdDateTime: savedBill.createdDateTime 
         });
     
         // Save the tracking entry and update the item's stock in the item table
         await newTrialEntry.save();
 
-        // Delete existing itemTrack entries for the operation
-        if (existingItemTracks.length > 0) {
-          await ItemTrack.deleteMany({ organizationId, operationId: billId });
-          console.log(`Deleted existing itemTrack entries for operationId: ${billId}`);
-        }
+        
       }
   }
 
@@ -315,23 +310,12 @@ exports.updateBill = async (req, res) => {
 
   async function journal( savedBill, defAcc, supplierAccount ) { 
     
-    // Fetch existing TrialBalance's createdDateTime
-    const existingTrialBalance = await TrialBalance.findOne({
-      organizationId: savedBill.organizationId,
-      operationId: savedBill._id,
-    });  
 
-    const createdDateTime = existingTrialBalance ? existingTrialBalance.createdDateTime : null;
-
-    // If there are existing entries, delete them
-    if (existingTrialBalance) {
-      await TrialBalance.deleteMany({
+    await TrialBalance.deleteMany({
         organizationId: savedBill.organizationId,
         operationId: savedBill._id,
-        // createdDateTime: createdDateTime,  // Delete only entries with the same createdDateTime
-      });
-      console.log(`Deleted existing TrialBalance entries for operationId: ${savedBill._id}`);
-    }
+    });
+
     
     const discount = {
       organizationId: savedBill.organizationId,
@@ -343,6 +327,7 @@ exports.updateBill = async (req, res) => {
       debitAmount: 0,
       creditAmount: savedBill.totalDiscount || 0,
       remark: savedBill.note,
+      createdDateTime:savedBill.createdDateTime
     };
     // const purchase = {
     //   organizationId: savedBill.organizationId,
@@ -366,6 +351,7 @@ exports.updateBill = async (req, res) => {
       debitAmount: savedBill.cgst || 0,
       creditAmount: 0,
       remark: savedBill.note,
+      createdDateTime:savedBill.createdDateTime
     };
     const sgst = {
       organizationId: savedBill.organizationId,
@@ -377,6 +363,7 @@ exports.updateBill = async (req, res) => {
       debitAmount: savedBill.sgst || 0,
       creditAmount: 0,
       remark: savedBill.note,
+      createdDateTime:savedBill.createdDateTime
     };
     const igst = {
       organizationId: savedBill.organizationId,
@@ -388,6 +375,7 @@ exports.updateBill = async (req, res) => {
       debitAmount: savedBill.igst || 0,
       creditAmount: 0,
       remark: savedBill.note,
+      createdDateTime:savedBill.createdDateTime
     };
     const vat = {
       organizationId: savedBill.organizationId,
@@ -399,6 +387,7 @@ exports.updateBill = async (req, res) => {
       debitAmount: savedBill.vat || 0,
       creditAmount: 0,
       remark: savedBill.note,
+      createdDateTime:savedBill.createdDateTime
     };
     const supplier = {
       organizationId: savedBill.organizationId,
@@ -410,6 +399,7 @@ exports.updateBill = async (req, res) => {
       debitAmount: 0,
       creditAmount: savedBill.grandTotal || 0,
       remark: savedBill.note,
+      createdDateTime:savedBill.createdDateTime
     };
     const supplierPaid = {
       organizationId: savedBill.organizationId,
@@ -421,6 +411,7 @@ exports.updateBill = async (req, res) => {
       debitAmount: savedBill.paidAmount || 0,
       creditAmount: 0,
       remark: savedBill.note,
+      createdDateTime:savedBill.createdDateTime
     };
     const paidAccount = {
       organizationId: savedBill.organizationId,
@@ -432,6 +423,7 @@ exports.updateBill = async (req, res) => {
       debitAmount: 0,
       creditAmount: savedBill.paidAmount || 0,
       remark: savedBill.note,
+      createdDateTime:savedBill.createdDateTime
     };
     const otherExpense = {
       organizationId: savedBill.organizationId,
@@ -443,6 +435,7 @@ exports.updateBill = async (req, res) => {
       debitAmount: savedBill.otherExpenseAmount || 0,
       creditAmount: 0,
       remark: savedBill.note,
+      createdDateTime:savedBill.createdDateTime
     };
     const freight = {
       organizationId: savedBill.organizationId,
@@ -454,6 +447,7 @@ exports.updateBill = async (req, res) => {
       debitAmount: savedBill.freightAmount || 0,
       creditAmount: 0,
       remark: savedBill.note,
+      createdDateTime:savedBill.createdDateTime
     };
     const roundOff = {
       organizationId: savedBill.organizationId,
@@ -465,6 +459,7 @@ exports.updateBill = async (req, res) => {
       debitAmount: 0,
       creditAmount: savedBill.roundOffAmount || 0,
       remark: savedBill.note,
+      createdDateTime:savedBill.createdDateTime
     };
 
     let purchaseTotalDebit = 0;
@@ -488,25 +483,24 @@ exports.updateBill = async (req, res) => {
     
 
     console.log("cgst", cgst.debitAmount,  cgst.creditAmount);
-  console.log("sgst", sgst.debitAmount,  sgst.creditAmount);
-  console.log("igst", igst.debitAmount,  igst.creditAmount);
-  console.log("vat", vat.debitAmount,  vat.creditAmount);
+    console.log("sgst", sgst.debitAmount,  sgst.creditAmount);
+    console.log("igst", igst.debitAmount,  igst.creditAmount);
+    console.log("vat", vat.debitAmount,  vat.creditAmount);
 
-  // console.log("purchase", purchase.debitAmount,  purchase.creditAmount);
-  console.log("supplier", supplier.debitAmount,  supplier.creditAmount);
-  console.log("discount", discount.debitAmount,  discount.creditAmount);
+    // console.log("purchase", purchase.debitAmount,  purchase.creditAmount);
+    console.log("supplier", supplier.debitAmount,  supplier.creditAmount);
+    console.log("discount", discount.debitAmount,  discount.creditAmount);
 
-  
-  console.log("otherExpense", otherExpense.debitAmount,  otherExpense.creditAmount);
-  console.log("freight", freight.debitAmount,  freight.creditAmount);
-  console.log("roundOff", roundOff.debitAmount,  roundOff.creditAmount);
+    console.log("otherExpense", otherExpense.debitAmount,  otherExpense.creditAmount);
+    console.log("freight", freight.debitAmount,  freight.creditAmount);
+    console.log("roundOff", roundOff.debitAmount,  roundOff.creditAmount);
 
-  console.log("supplierPaid", supplierPaid.debitAmount,  supplierPaid.creditAmount);
-  console.log("paidAccount", paidAccount.debitAmount,  paidAccount.creditAmount);
+    console.log("supplierPaid", supplierPaid.debitAmount,  supplierPaid.creditAmount);
+    console.log("paidAccount", paidAccount.debitAmount,  paidAccount.creditAmount);
 
-  // const  debitAmount = cgst.debitAmount  + sgst.debitAmount + igst.debitAmount +  vat.debitAmount + purchase.debitAmount + supplier.debitAmount + discount.debitAmount + otherExpense.debitAmount + freight.debitAmount + roundOff.debitAmount + supplierPaid.debitAmount + paidAccount.debitAmount ;
-  // const  creditAmount = cgst.creditAmount  + sgst.creditAmount + igst.creditAmount +  vat.creditAmount + purchase.creditAmount + supplier.creditAmount + discount.creditAmount + otherExpense.creditAmount + freight.creditAmount + roundOff.creditAmount + supplierPaid.creditAmount + paidAccount.creditAmount ;
-  const debitAmount = 
+    // const  debitAmount = cgst.debitAmount  + sgst.debitAmount + igst.debitAmount +  vat.debitAmount + purchase.debitAmount + supplier.debitAmount + discount.debitAmount + otherExpense.debitAmount + freight.debitAmount + roundOff.debitAmount + supplierPaid.debitAmount + paidAccount.debitAmount ;
+    // const  creditAmount = cgst.creditAmount  + sgst.creditAmount + igst.creditAmount +  vat.creditAmount + purchase.creditAmount + supplier.creditAmount + discount.creditAmount + otherExpense.creditAmount + freight.creditAmount + roundOff.creditAmount + supplierPaid.creditAmount + paidAccount.creditAmount ;
+    const debitAmount = 
     cgst.debitAmount  + 
     sgst.debitAmount  + 
     igst.debitAmount  + 
@@ -520,7 +514,7 @@ exports.updateBill = async (req, res) => {
     supplierPaid.debitAmount  + 
     paidAccount.debitAmount ;
 
-  const creditAmount = 
+    const creditAmount = 
     cgst.creditAmount  + 
     sgst.creditAmount  + 
     igst.creditAmount  + 
@@ -552,8 +546,9 @@ exports.updateBill = async (req, res) => {
         debitAmount: entry.debitAmount || 0,
         creditAmount: 0,
         remark: savedBill.note,
+        createdDateTime:savedBill.createdDateTime
       };
-      createTrialEntry( data, createdDateTime )
+      createTrialEntry( data )
     });
 
       
@@ -565,45 +560,45 @@ exports.updateBill = async (req, res) => {
 
   //Tax
   if(savedBill.cgst){
-    createTrialEntry( cgst, createdDateTime )
+    createTrialEntry( cgst )
   }
   if(savedBill.sgst){
-    createTrialEntry( sgst, createdDateTime )
+    createTrialEntry( sgst )
   }
   if(savedBill.igst){
-    createTrialEntry( igst, createdDateTime )
+    createTrialEntry( igst )
   }
   if(savedBill.vat){
-    createTrialEntry( vat, createdDateTime )
+    createTrialEntry( vat )
   }
 
   //Discount  
   if(savedBill.totalDiscount){
-    createTrialEntry( discount, createdDateTime )
+    createTrialEntry( discount )
   }
 
   //Other Expense
   if(savedBill.otherExpenseAmount){
-    createTrialEntry( otherExpense, createdDateTime )
+    createTrialEntry( otherExpense )
   }
 
   //Freight
   if(savedBill.freightAmount){
-    createTrialEntry( freight, createdDateTime )
+    createTrialEntry( freight )
   }
   
   //Round Off
   if(savedBill.roundOffAmount){
-    createTrialEntry( roundOff, createdDateTime )
+    createTrialEntry( roundOff )
   }
  
   //supplier
-  createTrialEntry( supplier, createdDateTime )
+  createTrialEntry( supplier )
   
   //Paid
   if(savedBill.paidAmount){
-    createTrialEntry( supplierPaid, createdDateTime )
-    createTrialEntry( paidAccount, createdDateTime )
+    createTrialEntry( supplierPaid )
+    createTrialEntry( paidAccount )
   }
 }
 
@@ -611,7 +606,7 @@ exports.updateBill = async (req, res) => {
 
 
 
-  async function createTrialEntry( data, createdDateTime ) {
+  async function createTrialEntry( data ) {
     const newTrialEntry = new TrialBalance({
       organizationId:data.organizationId,
       operationId:data.operationId,
@@ -622,7 +617,7 @@ exports.updateBill = async (req, res) => {
       debitAmount: data.debitAmount || 0,
       creditAmount: data.creditAmount || 0,
       remark: data.remark,
-      createdDateTime: createdDateTime
+      createdDateTime: data.createdDateTime,
     });
     
     await newTrialEntry.save();

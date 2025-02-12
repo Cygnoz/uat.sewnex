@@ -15,12 +15,13 @@ const { cleanData } = require("../../services/cleanData");
 const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
 
 const { ObjectId } = require('mongodb');
+const moment = require("moment-timezone");
 
 
 // Fetch existing data
 const dataExist = async ( organizationId, supplierId ) => {
     const [organizationExists, supplierExist, existingPrefix, settings, defaultAccount , supplierAccount] = await Promise.all([
-      Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
+      Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1, timeZoneExp: 1 }),
       Supplier.findOne({ organizationId , _id:supplierId}, { _id: 1, supplierDisplayName: 1, taxType: 1 }),
       Prefix.findOne({ organizationId }),
       Settings.findOne({ organizationId }),
@@ -189,6 +190,8 @@ exports.addBills = async (req, res) => {
 
       //Prefix
       await billsPrefix(cleanedData, existingPrefix );
+
+      cleanedData.createdDateTime = moment.tz(cleanedData.billDate, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp).toISOString();           
   
       const savedBills = await createNewBills(cleanedData, organizationId, userId, userName );
   
@@ -830,7 +833,9 @@ function validateInputs( data, supplierExist, items, itemExists, organizationExi
   
   //Valid Req Fields
   function validateReqFields( data, supplierExist, defaultAccount, errors ) {
-  validateField( typeof data.supplierId === 'undefined', "Please select a Supplier", errors  );
+  validateField( typeof data.supplierId === 'undefined', "Please select a Supplier", errors );
+  validateField( typeof data.billDate === 'undefined', "Please select Bill date", errors );
+  
   validateField( supplierExist.taxType == 'GST' && typeof data.sourceOfSupply === 'undefined', "Source of supply required", errors  );
   validateField( supplierExist.taxType == 'GST' && typeof data.destinationOfSupply === 'undefined', "Destination of supply required", errors  );
   
@@ -1133,13 +1138,13 @@ function validateSourceOfSupply(sourceOfSupply, organization, errors) {
   
     for (const item of items) {
 
-      const itemIdAsObjectId = new ObjectId(item.itemId);
-
-      const matchingItem = itemTable.find((entry) => entry._id.equals(itemIdAsObjectId));
+      const matchingItem = itemTable.find((entry) => 
+        entry._id.toString() === item.itemId.toString() 
+      );
   
       if (!matchingItem) {
         console.error(`Item with ID ${item.itemId} not found in itemTable`);
-        continue; // Skip this entry if not found
+        continue; 
       }
     
   
@@ -1152,7 +1157,8 @@ function validateSourceOfSupply(sourceOfSupply, organization, errors) {
         itemId: matchingItem._id,
         sellingPrice: matchingItem.itemSellingPrice,
         costPrice: matchingItem.itemCostPrice || 0, 
-        debitQuantity: item.itemQuantity, 
+        debitQuantity: item.itemQuantity,
+        createdDateTime: savedBills.createdDateTime  
       });
   
       const savedItemTrack = await newItemTrack.save();
@@ -1291,6 +1297,7 @@ async function journal( savedBills, defAcc, supplierAccount ) {
     debitAmount: 0,
     creditAmount: savedBills.totalDiscount || 0,
     remark: savedBills.note,
+    createdDateTime:savedBills.createdDateTime
   };
   // const purchase = {
   //   organizationId: savedBills.organizationId,
@@ -1314,6 +1321,7 @@ async function journal( savedBills, defAcc, supplierAccount ) {
     debitAmount: savedBills.cgst || 0,
     creditAmount: 0,
     remark: savedBills.note,
+    createdDateTime:savedBills.createdDateTime
   };
   const sgst = {
     organizationId: savedBills.organizationId,
@@ -1325,6 +1333,7 @@ async function journal( savedBills, defAcc, supplierAccount ) {
     debitAmount: savedBills.sgst || 0,
     creditAmount: 0,
     remark: savedBills.note,
+    createdDateTime:savedBills.createdDateTime
   };
   const igst = {
     organizationId: savedBills.organizationId,
@@ -1336,6 +1345,7 @@ async function journal( savedBills, defAcc, supplierAccount ) {
     debitAmount: savedBills.igst || 0,
     creditAmount: 0,
     remark: savedBills.note,
+    createdDateTime:savedBills.createdDateTime
   };
   const vat = {
     organizationId: savedBills.organizationId,
@@ -1347,6 +1357,7 @@ async function journal( savedBills, defAcc, supplierAccount ) {
     debitAmount: savedBills.vat || 0,
     creditAmount: 0,
     remark: savedBills.note,
+    createdDateTime:savedBills.createdDateTime
   };
   const supplier = {
     organizationId: savedBills.organizationId,
@@ -1358,6 +1369,7 @@ async function journal( savedBills, defAcc, supplierAccount ) {
     debitAmount: 0,
     creditAmount: savedBills.grandTotal || 0,
     remark: savedBills.note,
+    createdDateTime:savedBills.createdDateTime
   };
   const supplierPaid = {
     organizationId: savedBills.organizationId,
@@ -1369,6 +1381,7 @@ async function journal( savedBills, defAcc, supplierAccount ) {
     debitAmount: savedBills.paidAmount || 0,
     creditAmount: 0,
     remark: savedBills.note,
+    createdDateTime:savedBills.createdDateTime
   };
   const paidAccount = {
     organizationId: savedBills.organizationId,
@@ -1380,6 +1393,7 @@ async function journal( savedBills, defAcc, supplierAccount ) {
     debitAmount: 0,
     creditAmount: savedBills.paidAmount || 0,
     remark: savedBills.note,
+    createdDateTime:savedBills.createdDateTime
   };
   const otherExpense = {
     organizationId: savedBills.organizationId,
@@ -1391,6 +1405,7 @@ async function journal( savedBills, defAcc, supplierAccount ) {
     debitAmount: savedBills.otherExpenseAmount || 0,
     creditAmount: 0,
     remark: savedBills.note,
+    createdDateTime:savedBills.createdDateTime
   };
   const freight = {
     organizationId: savedBills.organizationId,
@@ -1402,6 +1417,7 @@ async function journal( savedBills, defAcc, supplierAccount ) {
     debitAmount: savedBills.freightAmount || 0,
     creditAmount: 0,
     remark: savedBills.note,
+    createdDateTime:savedBills.createdDateTime
   };
   const roundOff = {
     organizationId: savedBills.organizationId,
@@ -1413,6 +1429,7 @@ async function journal( savedBills, defAcc, supplierAccount ) {
     debitAmount: 0,
     creditAmount: savedBills.roundOffAmount || 0,
     remark: savedBills.note,
+    createdDateTime:savedBills.createdDateTime
   };
 
   let purchaseTotalDebit = 0;
@@ -1500,6 +1517,7 @@ const creditAmount =
       debitAmount: entry.debitAmount || 0,
       creditAmount: 0,
       remark: savedBills.note,
+      createdDateTime:savedBills.createdDateTime
     };
     
     createTrialEntry( data )
@@ -1566,7 +1584,8 @@ async function createTrialEntry( data ) {
       action: data.action,
       debitAmount: data.debitAmount || 0,
       creditAmount: data.creditAmount || 0,
-      remark: data.remark
+      remark: data.remark,
+      createdDateTime:data.createdDateTime
 });
 
 await newTrialEntry.save();

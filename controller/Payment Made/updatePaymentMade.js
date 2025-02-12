@@ -6,6 +6,9 @@ const { dataExist, validation, calculation, accounts } = require("../Payment Mad
 const { cleanData } = require("../../services/cleanData");
 
 
+const moment = require("moment-timezone");
+
+
 
 // Update Payment Made
 exports.updatePaymentMade = async (req, res) => {
@@ -74,6 +77,8 @@ exports.updatePaymentMade = async (req, res) => {
 
       // Re-fetch the updated invoice to get the latest `amountDue` and `balanceAmount`
       await Bill.find({ _id: { $in: updatedData.unpaidBills.map(bill => bill.billId) } });
+
+      cleanedData.createdDateTime = moment.tz(cleanedData.paymentDate, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp).toISOString();           
 
       const mongooseDocument = PaymentMade.hydrate(existingPaymentMade);
       Object.assign(mongooseDocument, cleanedData);
@@ -560,22 +565,12 @@ function isAlphanumeric(value) {
 
 async function journal( savedPaymentMade, paidThroughAccount, supplierAccount ) { 
     
-    // Fetch existing TrialBalance's createdDateTime
-    const existingTrialBalance = await TrialBalance.findOne({
+
+    await TrialBalance.deleteMany({
         organizationId: savedPaymentMade.organizationId,
         operationId: savedPaymentMade._id,
-    });  
+    });
 
-    const createdDateTime = existingTrialBalance ? existingTrialBalance.createdDateTime : null;
-
-    // If there are existing entries, delete them
-    if (existingTrialBalance) {
-      await TrialBalance.deleteMany({
-        organizationId: savedPaymentMade.organizationId,
-        operationId: savedPaymentMade._id,
-      });
-      console.log(`Deleted existing TrialBalance entries for operationId: ${savedPaymentMade._id}`);
-    }
         
     const supplierReceived = {
       organizationId: savedPaymentMade.organizationId,
@@ -586,6 +581,7 @@ async function journal( savedPaymentMade, paidThroughAccount, supplierAccount ) 
       debitAmount: savedPaymentMade.amountPaid || 0,
       creditAmount: 0,
       remark: savedPaymentMade.note,
+      createdDateTime:savedPaymentMade.createdDateTime
     };
     const paidThroughAcc = {
       organizationId: savedPaymentMade.organizationId,
@@ -596,6 +592,7 @@ async function journal( savedPaymentMade, paidThroughAccount, supplierAccount ) 
       debitAmount: 0,
       creditAmount: savedPaymentMade.amountPaid || 0,
       remark: savedPaymentMade.note,
+      createdDateTime:savedPaymentMade.createdDateTime
     };
     
     console.log("supplierReceived", supplierReceived.debitAmount,  supplierReceived.creditAmount);
@@ -607,15 +604,15 @@ async function journal( savedPaymentMade, paidThroughAccount, supplierAccount ) 
     console.log("Total Debit Amount: ", debitAmount );
     console.log("Total Credit Amount: ", creditAmount );
     
-    createTrialEntry( supplierReceived, createdDateTime )
-    createTrialEntry( paidThroughAcc, createdDateTime )
+    createTrialEntry( supplierReceived )
+    createTrialEntry( paidThroughAcc )
 }
   
   
 
 
   
-async function createTrialEntry( data, createdDateTime ) {
+async function createTrialEntry( data ) {
     const newTrialEntry = new TrialBalance({
       organizationId:data.organizationId,
       operationId:data.operationId,
@@ -625,7 +622,7 @@ async function createTrialEntry( data, createdDateTime ) {
       debitAmount: data.debitAmount,
       creditAmount: data.creditAmount,
       remark: data.remark,
-      createdDateTime: createdDateTime
+      createdDateTime: data.createdDateTime
     });
     
     await newTrialEntry.save();

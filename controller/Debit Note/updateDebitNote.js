@@ -8,6 +8,7 @@ const { dataExist, validation, calculation, accounts } = require("../Debit Note/
 const { cleanData } = require("../../services/cleanData");
 
 const { ObjectId } = require('mongodb');
+const moment = require("moment-timezone");
 
 // Update Debit Note 
 exports.updateDebitNote = async (req, res) => {
@@ -76,7 +77,9 @@ exports.updateDebitNote = async (req, res) => {
       if (!calculation.calculateDebitNote(cleanedData, res)) return;
 
       //Purchase Journal      
-      if (!accounts.purchaseJournal( cleanedData, res )) return; 
+      if (!accounts.purchaseJournal( cleanedData, res )) return;
+      
+      cleanedData.createdDateTime = moment.tz(cleanedData.supplierDebitDate, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp).toISOString();           
 
       const mongooseDocument = DebitNote.hydrate(existingDebitNote);
       Object.assign(mongooseDocument, cleanedData);
@@ -620,18 +623,15 @@ function capitalize(word) {
   // Item Track Function
   async function itemTrack( savedDebitNote, itemTable, organizationId, debitId ) {
 
-    // Fetch existing itemTrack entries
-    const existingItemTracks = await ItemTrack.find({ organizationId, operationId: debitId });
-    
-    const createdDateTime = existingItemTracks[0] ? existingItemTracks[0].createdDateTime : null; 
+    await ItemTrack.deleteMany({ organizationId, operationId: debitId });
 
     const { items } = savedDebitNote;
 
     for (const item of items) {
 
-      const itemIdAsObjectId = new ObjectId(item.itemId);
-
-      const matchingItem = itemTable.find((entry) => entry._id.equals(itemIdAsObjectId));
+      const matchingItem = itemTable.find((entry) => 
+        entry._id.toString() === item.itemId.toString() 
+      );
   
         if (!matchingItem) {
             console.error(`Item with ID ${item.itemId} not found in itemTable`);
@@ -650,17 +650,11 @@ function capitalize(word) {
         sellingPrice: matchingItem.itemSellingPrice || 0,
         costPrice: matchingItem.itemCostPrice || 0, 
         creditQuantity: item.itemQuantity, 
-        createdDateTime: createdDateTime 
+        createdDateTime: savedDebitNote.createdDateTime 
       });  
 
       await newTrialEntry.save();
 
-      // Delete existing itemTrack entries for the operation
-      if (existingItemTracks.length > 0) {
-        await ItemTrack.deleteMany({ organizationId, operationId: debitId });
-        console.log(`Deleted existing itemTrack entries for operationId: ${debitId}`);
-      }
-  
     }
   }
 
@@ -676,99 +670,95 @@ function capitalize(word) {
 
   async function journal( savedDebitNote, defAcc, supplierAccount, depositAccount ) {  
 
-    // Fetch existing TrialBalance's createdDateTime
-    const existingTrialBalance = await TrialBalance.findOne({
-      organizationId: savedDebitNote.organizationId,
-      operationId: savedDebitNote._id,
-    });  
 
-    const createdDateTime = existingTrialBalance ? existingTrialBalance.createdDateTime : null;
-
-    // If there are existing entries, delete them
-    if (existingTrialBalance) {
-      await TrialBalance.deleteMany({
+    await TrialBalance.deleteMany({
         organizationId: savedDebitNote.organizationId,
         operationId: savedDebitNote._id,
-      });
-      console.log(`Deleted existing TrialBalance entries for operationId: ${savedDebitNote._id}`);
-    }
+    });
 
     const cgst = {
         organizationId: savedDebitNote.organizationId,
         operationId: savedDebitNote._id,
-        transactionId: savedDebitNote.billNumber,
+        transactionId: savedDebitNote.debitNote,
         date: savedDebitNote.createdDate,
         accountId: defAcc.inputCgst || undefined,
         action: "Purchase Return",
         debitAmount:  0,
         creditAmount: savedDebitNote.cgst || 0,
         remark: savedDebitNote.note,
+        createdDateTime:savedDebitNote.createdDateTime
       };
       const sgst = {
         organizationId: savedDebitNote.organizationId,
         operationId: savedDebitNote._id,
-        transactionId: savedDebitNote.billNumber,
+        transactionId: savedDebitNote.debitNote,
         date: savedDebitNote.createdDate,
         accountId: defAcc.inputSgst || undefined,
         action: "Purchase Return",
         debitAmount: 0,
         creditAmount: savedDebitNote.sgst || 0,
         remark: savedDebitNote.note,
+        createdDateTime:savedDebitNote.createdDateTime
       };
       const igst = {
         organizationId: savedDebitNote.organizationId,
         operationId: savedDebitNote._id,
-        transactionId: savedDebitNote.billNumber,
+        transactionId: savedDebitNote.debitNote,
         date: savedDebitNote.createdDate,
         accountId: defAcc.inputIgst || undefined,
         action: "Purchase Return",
         debitAmount: 0,
         creditAmount: savedDebitNote.igst || 0,
         remark: savedDebitNote.note,
+        createdDateTime:savedDebitNote.createdDateTime
       };
       const vat = {
         organizationId: savedDebitNote.organizationId,
         operationId: savedDebitNote._id,
-        transactionId: savedDebitNote.billNumber,
+        transactionId: savedDebitNote.debitNote,
         date: savedDebitNote.createdDate,
         accountId: defAcc.inputVat || undefined,
         action: "Purchase Return",
         debitAmount: 0,
         creditAmount: savedDebitNote.vat || 0,
         remark: savedDebitNote.note,
+        createdDateTime:savedDebitNote.createdDateTime
       };
       const supplierCredit = {
         organizationId: savedDebitNote.organizationId,
         operationId: savedDebitNote._id,
-        transactionId: savedDebitNote.billNumber,
+        transactionId: savedDebitNote.debitNote,
         date: savedDebitNote.createdDate,
         accountId: supplierAccount._id || undefined,
         action: "Purchase Return",
         debitAmount: savedDebitNote.grandTotal || 0,
         creditAmount:  0,
         remark: savedDebitNote.note,
+        createdDateTime:savedDebitNote.createdDateTime
       };
       const supplierReceived = {
         organizationId: savedDebitNote.organizationId,
         operationId: savedDebitNote._id,
-        transactionId: savedDebitNote.billNumber,
+        transactionId: savedDebitNote.debitNote,
         date: savedDebitNote.createdDate,
         accountId: supplierAccount._id || undefined,
         action: "Debit Note",
         debitAmount: 0,
         creditAmount: savedDebitNote.grandTotal || 0,
         remark: savedDebitNote.note,
+        createdDateTime:savedDebitNote.createdDateTime
       };
       const depositAccounts = {
         organizationId: savedDebitNote.organizationId,
         operationId: savedDebitNote._id,
-        transactionId: savedDebitNote.billNumber,
+        transactionId: savedDebitNote.debitNote,
         date: savedDebitNote.createdDate,
         accountId: depositAccount._id || undefined,
         action: "Debit Note",
         debitAmount: savedDebitNote.grandTotal || 0,
         creditAmount: 0,
         remark: savedDebitNote.note,
+        createdDateTime:savedDebitNote.createdDateTime
       };
   
       let purchaseTotalDebit = 0;
@@ -836,16 +826,17 @@ function capitalize(word) {
         const data = {
             organizationId: savedDebitNote.organizationId,
             operationId: savedDebitNote._id,
-            transactionId: savedDebitNote.billNumber,
+            transactionId: savedDebitNote.debitNote,
             date: savedDebitNote.createdDate,
             accountId: entry.accountId || undefined,
             action: "Purchase Return",
             debitAmount: entry.debitAmount || 0,
             creditAmount: 0,
             remark: savedDebitNote.note,
+            createdDateTime:savedDebitNote.createdDateTime
         };
         
-        createTrialEntry( data, createdDateTime )
+        createTrialEntry( data )
   
       });
   
@@ -856,29 +847,29 @@ function capitalize(word) {
   
     //Tax
     if(savedDebitNote.cgst){
-      createTrialEntry( cgst, createdDateTime )
+      createTrialEntry( cgst )
     }
     if(savedDebitNote.sgst){
-      createTrialEntry( sgst, createdDateTime )
+      createTrialEntry( sgst )
     }
     if(savedDebitNote.igst){
-      createTrialEntry( igst, createdDateTime )
+      createTrialEntry( igst )
     }
     if(savedDebitNote.vat){
-      createTrialEntry( vat, createdDateTime )
+      createTrialEntry( vat )
     }
 
     //Credit
-    createTrialEntry( supplierCredit, createdDateTime)
+    createTrialEntry( supplierCredit)
   
     //Paid
     if(savedDebitNote.grandTotal){
-      createTrialEntry( supplierReceived, createdDateTime )
-      createTrialEntry( depositAccounts, createdDateTime )
+      createTrialEntry( supplierReceived )
+      createTrialEntry( depositAccounts )
     }
 }
   
-  async function createTrialEntry( data, createdDateTime ) {
+  async function createTrialEntry( data ) {
     const newTrialEntry = new TrialBalance({
         organizationId:data.organizationId,
         operationId:data.operationId,
@@ -889,7 +880,7 @@ function capitalize(word) {
         debitAmount: data.debitAmount,
         creditAmount: data.creditAmount,
         remark: data.remark,
-        createdDateTime: createdDateTime
+        createdDateTime: data.createdDateTime
   });
   await newTrialEntry.save();
   }
