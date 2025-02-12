@@ -5,7 +5,7 @@ const staffController = require("../controller/staffController")
 
 
 //Register
-router.post('/add-staff',staffController.addStaff)
+// router.post('/add-staff',staffController.addStaff)
 
 
 module.exports = router
