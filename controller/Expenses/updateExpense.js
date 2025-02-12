@@ -16,10 +16,16 @@ const { dataExist, validation, calculation, accounts } = require("../Expenses/ex
 // Update Expense 
 exports.updateExpense = async (req, res) => {
     console.log("Update expense:", req.body);
+    console.log("Update expense request params:", req.params);
   
     try {
       const { organizationId } = req.user;
       const { expenseId } = req.params;  
+
+      // Validate expenseId
+      if (!expenseId || !mongoose.Types.ObjectId.isValid(expenseId)) {
+        return res.status(400).json({ message: "Invalid or missing expense ID" });
+      }
 
       // Fetch existing expense
       const existingExpense = await Expense.findOne({ _id: expenseId, organizationId });
@@ -61,11 +67,16 @@ exports.updateExpense = async (req, res) => {
       const accountIds = accountExist.map(account => account._id.toString());
       
       // Check if each expense's expenseAccountId exists in allAccounts
-      if(!accountIds.includes(cleanedData))
+      // if(!accountIds.includes(cleanedData))
+      // for (let expenseItem of cleanedData.expense) {
+      //     if (!accountIds.includes(expenseItem.expenseAccountId)) {
+      //         return res.status(404).json({ message: `Account with ID ${expenseItem.expenseAccountId} not found` });
+      //     }
+      // }
       for (let expenseItem of cleanedData.expense) {
-          if (!accountIds.includes(expenseItem.expenseAccountId)) {
-              return res.status(404).json({ message: `Account with ID ${expenseItem.expenseAccountId} not found` });
-          }
+        if (!accountIds.includes(expenseItem.expenseAccountId)) {
+            return res.status(404).json({ message: `Account with ID ${expenseItem.expenseAccountId} not found` });
+        }
       }
   
       //Data Exist Validation
