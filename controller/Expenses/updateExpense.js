@@ -164,7 +164,7 @@ exports.updateExpense = async (req, res) => {
 
   function validateIds({ supplierId, paidThroughAccountId, expenseIds, cleanedData }) {
       // Validate Supplier ID
-      if (!mongoose.Types.ObjectId.isValid(supplierId) || supplierId.length !== 24) {
+      if (supplierId && (!mongoose.Types.ObjectId.isValid(supplierId) || supplierId.length !== 24)) {
         return res.status(400).json({ message: `Invalid supplier ID: ${supplierId}` });
       }
     
