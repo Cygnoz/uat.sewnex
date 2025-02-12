@@ -6,7 +6,10 @@ const TrialBalance = require("../../database/model/trialBalance");
 const Supplier = require('../../database/model/supplier');
 const Tax = require('../../database/model/tax');  
 const mongoose = require('mongoose');
+
 // const { ObjectId } = require('mongodb');
+const moment = require("moment-timezone");
+
 const { cleanData } = require("../../services/cleanData");
 const { dataExist, validation, calculation, accounts } = require("../Expenses/expenseController");
 
@@ -61,7 +64,7 @@ exports.updateExpense = async (req, res) => {
       // Fetch related data
       const { organizationExists, accountExist, supplierExist, existingPrefix, defaultAccount } = await dataExist.dataExist( organizationId, supplierId );  
       
-      const { paidThroughAcc } = await dataExist.accDataExists( organizationId, cleanedData.paidThroughAccountId );
+      const { paidThroughAcc } = await dataExist.accDataExists( organizationId, null, cleanedData.paidThroughAccountId );
       
       // Extract all account IDs from accountExist
       const accountIds = accountExist.map(account => account._id.toString());
@@ -92,6 +95,8 @@ exports.updateExpense = async (req, res) => {
 
       // Calculate Expense 
       if (!calculation.calculateExpense( cleanedData, res )) return;
+
+      cleanedData.createdDateTime = moment.tz(cleanedData.expenseDate, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp).toISOString();           
 
       const mongooseDocument = Expense.hydrate(existingExpense);
       Object.assign(mongooseDocument, cleanedData);
@@ -204,23 +209,12 @@ exports.updateExpense = async (req, res) => {
 
 
     async function journal( savedExpense, defAcc, paidThroughAcc ) { 
-
-      // Fetch existing TrialBalance's createdDateTime
-      const existingTrialBalance = await TrialBalance.findOne({
-        organizationId: savedExpense.organizationId,
-        operationId: savedExpense._id,
-      });  
-
-      const createdDateTime = existingTrialBalance ? existingTrialBalance.createdDateTime : null;
-
-      // If there are existing entries, delete them
-      if (existingTrialBalance) {
-        await TrialBalance.deleteMany({
+      
+      await TrialBalance.deleteMany({
           organizationId: savedExpense.organizationId,
           operationId: savedExpense._id,
         });
-        console.log(`Deleted existing TrialBalance entries for operationId: ${savedExpense._id}`);
-      }
+      
 
       const cgst = {
         organizationId: savedExpense.organizationId,
@@ -232,6 +226,7 @@ exports.updateExpense = async (req, res) => {
         debitAmount: savedExpense.cgst || 0,
         creditAmount: 0,
         remark: savedExpense.expense.note,
+        createdDateTime:savedExpense.createdDateTime
       };
       const sgst = {
         organizationId: savedExpense.organizationId,
@@ -243,6 +238,7 @@ exports.updateExpense = async (req, res) => {
         debitAmount: savedExpense.sgst || 0,
         creditAmount: 0,
         remark: savedExpense.expense.note,
+        createdDateTime:savedExpense.createdDateTime
       };
       const igst = {
         organizationId: savedExpense.organizationId,
@@ -254,6 +250,7 @@ exports.updateExpense = async (req, res) => {
         debitAmount: savedExpense.igst || 0,
         creditAmount: 0,
         remark: savedExpense.expense.note,
+        createdDateTime:savedExpense.createdDateTime
       };
       const vat = {
         organizationId: savedExpense.organizationId,
@@ -265,7 +262,10 @@ exports.updateExpense = async (req, res) => {
         debitAmount: savedExpense.vat || 0,
         creditAmount: 0,
         remark: savedExpense.expense.note,
+        createdDateTime:savedExpense.createdDateTime
       };
+      console.log("122232323...............",paidThroughAcc);
+      
       const paidThroughAccount = {
         organizationId: savedExpense.organizationId,
         operationId: savedExpense._id,
@@ -275,6 +275,7 @@ exports.updateExpense = async (req, res) => {
         debitAmount: 0,
         creditAmount: savedExpense.grandTotal || 0,
         remark: savedExpense.expense.note,
+        createdDateTime:savedExpense.createdDateTime
       };
     
       
@@ -319,32 +320,33 @@ exports.updateExpense = async (req, res) => {
           debitAmount: entry.amount || 0,
           creditAmount: 0,
           remark: entry.note,
+          createdDateTime:savedExpense.createdDateTime
         };
-        createTrialEntry( data, createdDateTime )
+        createTrialEntry( data )
       });
     
     
     
       //Tax
       if(savedExpense.cgst){
-        createTrialEntry( cgst, createdDateTime )
+        createTrialEntry( cgst )
       }
       if(savedExpense.sgst){
-        createTrialEntry( sgst, createdDateTime )
+        createTrialEntry( sgst )
       }
       if(savedExpense.igst){
-        createTrialEntry( igst, createdDateTime )
+        createTrialEntry( igst )
       }
       if(savedExpense.vat){
-        createTrialEntry( vat, createdDateTime )
+        createTrialEntry( vat )
       }
       if(savedExpense.paidThroughAccountId){
-        createTrialEntry( paidThroughAccount, createdDateTime )
+        createTrialEntry( paidThroughAccount )
       }
     
     
     
-      async function createTrialEntry( data, createdDateTime ) {
+      async function createTrialEntry( data ) {
         const newTrialEntry = new TrialBalance({
             organizationId:data.organizationId,
             operationId:data.operationId,
@@ -355,7 +357,7 @@ exports.updateExpense = async (req, res) => {
             debitAmount: data.debitAmount || 0,
             creditAmount: data.creditAmount || 0,
             remark: data.remark,
-            createdDateTime: createdDateTime
+            createdDateTime: data.createdDateTime
       });
       await newTrialEntry.save();
       console.log("newTrialEntry:",newTrialEntry);

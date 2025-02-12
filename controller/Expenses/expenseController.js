@@ -7,9 +7,10 @@ const Supplier = require('../../database/model/supplier');
 const Tax = require('../../database/model/tax');  
 const Prefix = require("../../database/model/prefix");
 const DefAcc  = require("../../database/model/defaultAccount");
-const moment = require("moment-timezone");
 const mongoose = require('mongoose');
 // const { ObjectId } = require('mongodb');
+
+const moment = require("moment-timezone");
 
 const { cleanData } = require("../../services/cleanData");
 const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
@@ -18,7 +19,7 @@ const { singleCustomDateTime, multiCustomDateTime } = require("../../services/ti
 
 const dataExist = async (organizationId, supplierId) => {
     const [organizationExists, categoryExists, accountExist, supplierExist, existingPrefix, defaultAccount] = await Promise.all([
-      Organization.findOne({ organizationId },{ organizationId: 1, organizationCountry: 1, state: 1 }),
+      Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1, timeZoneExp: 1 }),
       Category.find({ organizationId }),
       Account.find({ organizationId }),
       Supplier.findOne({ organizationId , _id:supplierId}, { _id: 1, supplierDisplayName: 1, taxType: 1, sourceOfSupply: 1, gstin_uin: 1, gstTreatment: 1 }),
@@ -72,77 +73,83 @@ exports.addExpense = async (req, res) => {
   try {
     const { organizationId, id: userId, userName } = req.user;
 
-      //Clean Data
-      const cleanedData = cleanData(req.body);
+    //Clean Data
+    const cleanedData = cleanData(req.body);
 
-      const { supplierId, paidThroughAccountId, expense } = cleanedData;
-      const expenseIds = expense.map(e => e.expenseAccountId);
+    cleanedData.expense = cleanedData.expense
+    ?.map(data => cleanData(data))
+    .filter(info => info.expenseAccountId !== undefined && info.expenseAccountId !== '') || []; 
 
-      //Validate Supplier
-      if (supplierId && (!mongoose.Types.ObjectId.isValid(supplierId) || supplierId.length !== 24)) {
-        return res.status(400).json({ message: `Invalid supplier ID: ${supplierId}` });
-      }
+    const { supplierId, paidThroughAccountId, expense } = cleanedData;
+    const expenseIds = expense.map(e => e.expenseAccountId);
 
-      if ((!mongoose.Types.ObjectId.isValid(paidThroughAccountId) || paidThroughAccountId.length !== 24) && cleanedData.paidThroughAccountId !== undefined ) {
-        return res.status(400).json({ message: `Select paid through account` });
-      }
+    //Validate Supplier
+    if (supplierId && (!mongoose.Types.ObjectId.isValid(supplierId) || supplierId.length !== 24)) {
+      return res.status(400).json({ message: `Invalid supplier ID: ${supplierId}` });
+    }
 
-      // Validate expenseIds
-      const invalidExpenseIds = expenseIds.filter(expenseAccountId => !mongoose.Types.ObjectId.isValid(expenseAccountId) || expenseAccountId.length !== 24);
-      if (invalidExpenseIds.length > 0) {
-        return res.status(400).json({ message: `Invalid expense IDs: ${invalidExpenseIds.join(', ')}` });
-      } 
+    if ((!mongoose.Types.ObjectId.isValid(paidThroughAccountId) || paidThroughAccountId.length !== 24) && cleanedData.paidThroughAccountId !== undefined ) {
+      return res.status(400).json({ message: `Select paid through account` });
+    }
 
-      // Check for duplicate expenseIds
-      const uniqueExpenseIds = new Set(expenseIds);
-      if (uniqueExpenseIds.size !== expenseIds.length) {
-        return res.status(400).json({ message: "Duplicate Expense found" });
-      }
+    // Validate expenseIds
+    const invalidExpenseIds = expenseIds.filter(expenseAccountId => !mongoose.Types.ObjectId.isValid(expenseAccountId) || expenseAccountId.length !== 24);
+    if (invalidExpenseIds.length > 0) {
+      return res.status(400).json({ message: `Invalid expense IDs: ${invalidExpenseIds.join(', ')}` });
+    } 
 
-      // Validate organizationId
-      const { organizationExists, accountExist, supplierExist, existingPrefix, defaultAccount } = await dataExist(organizationId, supplierId);
+    // Check for duplicate expenseIds
+    const uniqueExpenseIds = new Set(expenseIds);
+    if (uniqueExpenseIds.size !== expenseIds.length) {
+      return res.status(400).json({ message: "Duplicate Expense found" });
+    }
 
-      const { paidThroughAcc } = await accDataExists( organizationId, cleanedData.paidThroughAccountId );
+    // Validate organizationId
+    const { organizationExists, accountExist, supplierExist, existingPrefix, defaultAccount } = await dataExist(organizationId, supplierId);
 
-      // Extract all account IDs from accountExist
-      const accountIds = accountExist.map(account => account._id.toString());
+    const { paidThroughAcc } = await accDataExists( organizationId, null, cleanedData.paidThroughAccountId );
+
+    // Extract all account IDs from accountExist
+    const accountIds = accountExist.map(account => account._id.toString());
       
       // Check if each expense's expenseAccountId exists in allAccounts
-      if(!accountIds.includes(cleanedData))
+    if(!accountIds.includes(cleanedData))
       for (let expenseItem of cleanedData.expense) {
-          if (!accountIds.includes(expenseItem.expenseAccountId)) {
-              return res.status(404).json({ message: `Account with ID ${expenseItem.expenseAccountId} not found` });
-          }
+        if (!accountIds.includes(expenseItem.expenseAccountId)) {
+          return res.status(404).json({ message: `Account with ID ${expenseItem.expenseAccountId} not found` });
+        }
       }
+    
+    //Data Exist Validation
+    if (!validateOrganizationSupplierAccount( organizationExists, accountExist, supplierExist, supplierId, existingPrefix, defaultAccount, res )) return;
+    
+    if (!validateInputs(cleanedData, organizationExists, defaultAccount, paidThroughAcc, res)) return;
+    
+    //Tax Mode
+    taxMode(cleanedData);
+    
+    //Default Account
+    const { defAcc, error } = await defaultAccounting( cleanedData, defaultAccount, organizationExists );
+    if (error) { 
+      res.status(400).json({ message: error }); 
+      return false; 
+    }
+    
+    // Calculate Expense 
+    if (!calculateExpense( cleanedData, res )) return;
+    
+    //Prefix
+    await expensePrefix(cleanedData, existingPrefix );
 
-      //Data Exist Validation
-      if (!validateOrganizationSupplierAccount( organizationExists, accountExist, supplierExist, supplierId, existingPrefix, defaultAccount, res )) return;
+    cleanedData.createdDateTime = moment.tz(cleanedData.expenseDate, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp).toISOString();           
 
-      if (!validateInputs(cleanedData, organizationExists, defaultAccount, paidThroughAcc, res)) return;
-
-      //Tax Mode
-      taxMode(cleanedData);
-
-      //Default Account
-      const { defAcc, error } = await defaultAccounting( cleanedData, defaultAccount, organizationExists );
-      if (error) { 
-        res.status(400).json({ message: error }); 
-        return false; 
-      }
-
-      // Calculate Expense 
-      if (!calculateExpense( cleanedData, res )) return;
-
-      //Prefix
-      await expensePrefix(cleanedData, existingPrefix );
-
-      // Create a new expense
-      const savedExpense = await createNewExpense(cleanedData, organizationId, userId, userName);
+    // Create a new expense
+    const savedExpense = await createNewExpense(cleanedData, organizationId, userId, userName);
       
-      //Journal
-      await journal(savedExpense, defAcc, paidThroughAcc);
+    //Journal
+    await journal(savedExpense, defAcc, paidThroughAcc);
 
-      res.status(201).json({ message: "Expense created successfully." });
+    res.status(201).json({ message: "Expense created successfully." });
   } catch (error) {
       console.error("Error adding expense:", error);
       res.status(400).json({ error: error.message });
@@ -165,7 +172,6 @@ exports.getAllExpense = async (req, res) => {
       }
       
       const transformedExpense = allExpense.map(data => {
-        console.log("...........",data);
         
         return {
           ...data,
@@ -179,8 +185,6 @@ exports.getAllExpense = async (req, res) => {
             expenseAccountName: exp.expenseAccountId.accountName,
           }))
         };});
-
-        console.log("transformedExpense",transformedExpense);
         
         
       const formattedObjects = multiCustomDateTime(transformedExpense, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
@@ -516,9 +520,7 @@ function expensePrefix( cleanData, existingPrefix ) {
 
   activeSeries.expenseNum += 1;
 
-  existingPrefix.save()
-
-  return 
+  existingPrefix.save() 
 }
 
 
@@ -568,7 +570,6 @@ function expensePrefix( cleanData, existingPrefix ) {
     } else {
       cleanedData.taxMode = 'Inter';
     }
-    return;
   }
 
 
@@ -650,43 +651,43 @@ function expensePrefix( cleanData, existingPrefix ) {
 
       subTotal += amount;
 
-      const gstTreatment = cleanedData.gstTreatment !== "Registered Business - Composition" || cleanedData.gstTreatment !== "Unregistered Business" || cleanedData.gstTreatment !== "Overseas" || cleanedData.gstTreatment !== "Consumer";
+      const gstTreatment = (cleanedData.gstTreatment !== "Registered Business - Composition") || (cleanedData.gstTreatment !== "Unregistered Business") || (cleanedData.gstTreatment !== "Overseas") || (cleanedData.gstTreatment !== "Consumer");
       const taxGroup = data.taxGroup !== "Non-Taxable";
-      const isnotMileage = (cleanedData.distance > 0 || cleanedData.distance === "undefined") && (cleanedData.ratePerKm > 0 || cleanedData.ratePerKm === "undefined");
+      const isNotMileage = ((cleanedData.distance > 0) || (cleanedData.distance === "undefined")) && ((cleanedData.ratePerKm > 0) || (cleanedData.ratePerKm === "undefined"));
 
       // Handle tax calculation only for taxable expense
-      if (gstTreatment && taxGroup && !isnotMileage) {
+      if (gstTreatment && taxGroup && !isNotMileage) {
         if (taxMode === 'Intra') {
           calculatedCgstAmount = roundToTwoDecimals((data.cgst / 100) * amount);
           calculatedSgstAmount = roundToTwoDecimals((data.sgst / 100) * amount);
-       } else if (taxMode === 'Inter') {
+        } else if (taxMode === 'Inter') {
           calculatedIgstAmount = roundToTwoDecimals((data.igst / 100) * amount);
-       } else {
+        } else {
           calculatedVatAmount = roundToTwoDecimals((data.vat / 100) * amount);
-       }
+        }
 
-       console.log(`Row ${index + 1}:`);
-       console.log("calculatedCgstAmount",calculatedCgstAmount);
-       console.log("calculatedSgstAmount",calculatedSgstAmount);
-       console.log("calculatedIgstAmount",calculatedIgstAmount);
-       console.log("calculatedVatAmount",calculatedVatAmount);
+        console.log(`Row ${index + 1}:`);
+        console.log("calculatedCgstAmount",calculatedCgstAmount);
+        console.log("calculatedSgstAmount",calculatedSgstAmount);
+        console.log("calculatedIgstAmount",calculatedIgstAmount);
+        console.log("calculatedVatAmount",calculatedVatAmount);
 
-       checkAmount(calculatedCgstAmount, data.cgstAmount, data.expenseAccountId, 'CGST',errors);
-       checkAmount(calculatedSgstAmount, data.sgstAmount, data.expenseAccountId, 'SGST',errors);
-       checkAmount(calculatedIgstAmount, data.igstAmount, data.expenseAccountId, 'IGST',errors);
-       checkAmount(calculatedVatAmount, data.vatAmount, data.expenseAccountId, 'VAT',errors);
-     
-       cgst += calculatedCgstAmount;
-       sgst += calculatedSgstAmount;
-       igst += calculatedIgstAmount;
-       vat += calculatedVatAmount;
+        checkAmount(calculatedCgstAmount, data.cgstAmount, 'CGST',errors);
+        checkAmount(calculatedSgstAmount, data.sgstAmount, 'SGST',errors);
+        checkAmount(calculatedIgstAmount, data.igstAmount, 'IGST',errors);
+        checkAmount(calculatedVatAmount, data.vatAmount, 'VAT',errors);
+        
+        cgst += calculatedCgstAmount;
+        sgst += calculatedSgstAmount;
+        igst += calculatedIgstAmount;
+        vat += calculatedVatAmount;
 
-       console.log("cgst",cgst);
-       console.log("sgst",sgst);
-       console.log("igst",igst);
-       console.log("vat",vat);
+        console.log("cgst",cgst);
+        console.log("sgst",sgst);
+        console.log("igst",igst);
+        console.log("vat",vat);
 
-      } else {
+        } else {
         console.log('Skipping Tax for Non-Taxable expense');
 
         if (distance && ratePerKm) {
@@ -805,16 +806,23 @@ function expensePrefix( cleanData, existingPrefix ) {
 
   //Valid Req Fields
   function validateReqFields( data, errors ) {
+
+    validateField( data.amountIs === 'Tax Inclusive', "Expense Error", errors  );
+
     validateField( typeof data.expenseDate === 'undefined', "Please select Date", errors  );
     validateField( typeof data.paidThroughAccountId === 'undefined', "Please select paid through account", errors  );
-    validateField( data.expenseAccountId === 'undefined', "Please select expense account", errors  );
+    validateField( typeof data.expense === 'undefined', "Please select expense account", errors  );
 
+    validateField( typeof data.sourceOfSupply === 'undefined', "Please select source of supply", errors  );
+    
+    
     // Determine if it is Expense Mileage or Record Expense
-    const isnotMileage = data.distance !== "undefined" && data.ratePerKm !== "undefined";
-
-    if (isnotMileage) {
-      validateField( data.gstTreatment === "undefined", "Please select an gst treatment", errors);
-      validateField( data.amount === "undefined", "Please enter the amount", errors);  
+    const isNotMileage = ( typeof data.distance === "undefined") && ( typeof data.ratePerKm === "undefined");    
+    
+    if (isNotMileage) {
+      validateField( typeof data.destinationOfSupply === 'undefined', "Please select destination of supply", errors  );
+      validateField( typeof data.gstTreatment === "undefined", "Please select an gst treatment", errors);
+      validateField( typeof data.grandTotal === "undefined", "Please enter the amount", errors);  
     } else {
       validateField( typeof data.distance === "undefined", "Please enter distance", errors);
       validateField( typeof data.ratePerKm === "undefined", "Please enter rate per kilometer", errors);
@@ -1052,6 +1060,7 @@ async function journal( savedExpense, defAcc, paidThroughAcc ) {
     debitAmount: savedExpense.cgst || 0,
     creditAmount: 0,
     remark: savedExpense.expense.note,
+    createdDateTime:savedExpense.createdDateTime
   };
   const sgst = {
     organizationId: savedExpense.organizationId,
@@ -1063,6 +1072,7 @@ async function journal( savedExpense, defAcc, paidThroughAcc ) {
     debitAmount: savedExpense.sgst || 0,
     creditAmount: 0,
     remark: savedExpense.expense.note,
+    createdDateTime:savedExpense.createdDateTime
   };
   const igst = {
     organizationId: savedExpense.organizationId,
@@ -1074,6 +1084,7 @@ async function journal( savedExpense, defAcc, paidThroughAcc ) {
     debitAmount: savedExpense.igst || 0,
     creditAmount: 0,
     remark: savedExpense.expense.note,
+    createdDateTime:savedExpense.createdDateTime
   };
   const vat = {
     organizationId: savedExpense.organizationId,
@@ -1085,6 +1096,7 @@ async function journal( savedExpense, defAcc, paidThroughAcc ) {
     debitAmount: savedExpense.vat || 0,
     creditAmount: 0,
     remark: savedExpense.expense.note,
+    createdDateTime:savedExpense.createdDateTime
   };
   const paidThroughAccount = {
     organizationId: savedExpense.organizationId,
@@ -1095,6 +1107,7 @@ async function journal( savedExpense, defAcc, paidThroughAcc ) {
     debitAmount: 0,
     creditAmount: savedExpense.grandTotal || 0,
     remark: savedExpense.expense.note,
+    createdDateTime:savedExpense.createdDateTime
   };
 
   
@@ -1139,7 +1152,10 @@ async function journal( savedExpense, defAcc, paidThroughAcc ) {
       debitAmount: entry.amount || 0,
       creditAmount: 0,
       remark: entry.note,
+      createdDateTime:savedExpense.createdDateTime
     };
+    console.log("Data",data);
+    
     createTrialEntry( data )
   });
 
@@ -1174,7 +1190,8 @@ async function journal( savedExpense, defAcc, paidThroughAcc ) {
         action: data.action,
         debitAmount: data.debitAmount || 0,
         creditAmount: data.creditAmount || 0,
-        remark: data.remark
+        remark: data.remark,
+        createdDateTime:data.createdDateTime
   });
   
   await newTrialEntry.save();

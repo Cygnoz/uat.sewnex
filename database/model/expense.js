@@ -47,6 +47,7 @@ const expenseSchema = new Schema({
 
     supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier' },
     // supplierDisplayName: {type:String},
+    
     gstTreatment: {type:String},
     gstin: {type:String},
     sourceOfSupply: {type:String},
