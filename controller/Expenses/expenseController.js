@@ -208,8 +208,8 @@ exports.getOneExpense = async (req, res) => {
       
       const transformedExpense = {
         ...expense,
-        supplierId: data.supplierId ? data.supplierId._id : undefined,  
-        supplierDisplayName: data.supplierId ? data.supplierId.supplierDisplayName : undefined,
+        supplierId: expense.supplierId ? expense.supplierId._id : undefined,  
+        supplierDisplayName: expense.supplierId ? expense.supplierId.supplierDisplayName : undefined,
         paidThroughAccountId: expense.paidThroughAccountId._id,
         paidThroughAccountName: expense.paidThroughAccountId.accountName,
         expense: expense.expense.map(exp => ({
