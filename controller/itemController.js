@@ -276,7 +276,7 @@ exports.addItem = async (req, res) => {
       const bmcr = { brandExist, manufacturerExist, categoriesExist, rackExist };
       
 
-      if (!validateOrganizationTaxCurrency(organizationExists, taxExists, settingsExist, null, res)) return;     
+      if (!validateOrganizationTaxCurrency(organizationExists, taxExists, settingsExist, res)) return;     
 
 
       // Check for duplicate item name
@@ -446,7 +446,7 @@ exports.updateItem = async (req, res) => {
     const bmcr = { brandExist, manufacturerExist, categoriesExist, rackExist };
     const { itemTrackAll  } = await itemDataExist( organizationId, itemId );
     
-    if (!validateOrganizationTaxCurrency(organizationExists, taxExists, settingsExist, itemId, res)) return;     
+    if (!validateOrganizationTaxCurrency(organizationExists, taxExists, settingsExist, res)) return;     
     
     // Check for duplicate item name
     if (!settingsExist.itemDuplicateName && await isDuplicateItemNameExist( itemName, organizationId, itemId, res )) return;
@@ -662,17 +662,13 @@ const isDuplicateSKUExist = async (sku, organizationId, itemId, res) => {
 
 
 // Validate Organization Tax Currency
-function validateOrganizationTaxCurrency(organizationExists, taxExists, settingsExist, itemId, res) {
+function validateOrganizationTaxCurrency(organizationExists, taxExists, settingsExist, res) {
   if (!organizationExists) {
     res.status(404).json({ message: "Organization not found" });
     return false;
   }
   if (!taxExists) {
     res.status(404).json({ message: "Tax not found" });
-    return false;
-  }
-  if (!itemId) {
-    res.status(404).json({ message: "Item not found" });
     return false;
   }
   if (!settingsExist) {
