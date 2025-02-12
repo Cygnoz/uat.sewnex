@@ -1216,7 +1216,7 @@ async function journal( savedCreditNote, defAcc, customerAccount, paidThroughAcc
     operationId: savedCreditNote._id,
     transactionId: savedCreditNote.creditNote,
     date: savedCreditNote.createdDate,
-    accountId: paidThroughAccount.paidAccount._id || undefined,
+    accountId: paidThroughAccount.paidAccount?._id || undefined,
     action: "Credit Note",
     debitAmount: 0,
     creditAmount: savedCreditNote.totalAmount || 0,

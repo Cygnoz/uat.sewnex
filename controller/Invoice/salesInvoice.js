@@ -23,7 +23,7 @@ const { ObjectId } = require('mongodb');
 // Fetch existing data
 const dataExist = async ( organizationId, customerId ) => {
     const [organizationExists, customerExist , settings, existingPrefix, defaultAccount, customerAccount ] = await Promise.all([
-      Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
+      Organization.findOne({ organizationId }),
       Customer.findOne({ organizationId , _id:customerId }, { _id: 1, customerDisplayName: 1, taxType: 1 }),
       Settings.findOne({ organizationId },{ stockBelowZero:1, salesOrderAddress: 1, salesOrderCustomerNote: 1, salesOrderTermsCondition: 1, salesOrderClose: 1, restrictSalesOrderClose: 1, termCondition: 1 ,customerNote: 1 }),
       Prefix.findOne({ organizationId }),
@@ -99,7 +99,8 @@ const salesDataExist = async ( organizationId, invoiceId ) => {
     .populate('customerId', 'customerDisplayName')    
     .lean(),
     Invoice.findOne({ organizationId , _id: invoiceId })
-    .populate('items.itemId', 'itemName')    
+    .populate('items.itemId', 'itemName')
+    .populate('items.itemId', 'itemImage')
     .populate('customerId', 'customerDisplayName')    
     .lean(),
     TrialBalance.find({ organizationId: organizationId, operationId : invoiceId })
@@ -190,6 +191,8 @@ exports.addInvoice = async (req, res) => {
       if(cleanedData._id){
         cleanedData._id = undefined;
       }
+
+      cleanedData.createdDateTime = moment.tz(cleanedData.salesInvoiceDate, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp).toISOString();     
       
       const savedInvoice = await createNewInvoice(cleanedData, organizationId, userId, userName );      
       
@@ -363,6 +366,7 @@ try {
           ...item,
           itemId: item.itemId._id,
           itemName: item.itemId.itemName,
+          itemImage: item.itemId.itemImage,
         })),  
     };
   
@@ -663,6 +667,8 @@ function validateReqFields( data, customerExist, defaultAccount, errors ) {
 
 validateField( typeof data.customerId === 'undefined', "Please select a Customer", errors  );
 validateField( typeof data.placeOfSupply === 'undefined', "Place of supply required", errors  );
+validateField( typeof data.salesInvoiceDate === 'undefined', "Invoice Date required", errors  );
+
 
 validateField( typeof data.items === 'undefined', "Select an item", errors  );
 validateField( Array.isArray(data.items) && data.items.length === 0, "Select an item", errors );
@@ -673,9 +679,6 @@ validateField( typeof data.otherExpenseAmount !== 'undefined' && typeof data.oth
 validateField( typeof data.freightAmount !== 'undefined' && typeof data.freightAccountId === 'undefined', "Please select freight account", errors  );
 
 validateField( typeof data.roundOffAmount !== 'undefined' && !(data.roundOffAmount >= 0 && data.roundOffAmount <= 1), "Round Off Amount must be between 0 and 1", errors );
-
-console.log("paidAmount",data.paidAmount);
-console.log("totalAmount",data.totalAmount);
 
 validateField( typeof data.paidAmount !== 'undefined' && !(data.paidAmount <= data.totalAmount), "Excess payment amount", errors );
 validateField( typeof data.paidAmount !== 'undefined' && !(data.paidAmount >= 0 ), "Negative payment amount", errors );
