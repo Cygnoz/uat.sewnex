@@ -184,8 +184,11 @@ exports.getTrialBalance = async (req, res) => {
             summary: {
                 totalDebit,
                 totalCredit,
-                ...(totalCredit > totalDebit ? { "finalCredit": parseFloat((totalCredit - totalDebit).toFixed(2)) } : {}),
-                ...(totalDebit > totalCredit ? { "finalDebit": parseFloat((totalDebit - totalCredit).toFixed(2)) } : {}),
+                ...(totalCredit > totalDebit ? { final: `${(totalCredit - totalDebit).toFixed(2)}(Cr)` } : {}),
+                ...(totalDebit > totalCredit ? { final: `${(totalDebit - totalCredit).toFixed(2)}(Dr)` } : {}),
+
+                ...(totalCredit > totalDebit ? { finalCredit: `${(totalCredit - totalDebit).toFixed(2)}` } : {}),
+                ...(totalDebit > totalCredit ? { finalDebit: `${(totalDebit - totalCredit).toFixed(2)}` } : {})
 
             },
             debug: {

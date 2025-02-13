@@ -28,7 +28,7 @@ server.use(reportRouter)
 const PORT = 5006;
 
 server.get('/',(req,res)=>{
-    res.status(200).json("Dev Bill BIZZ server started - Report ")
+    res.status(200).json("Dev Bill BIZZ server started - Report v1.6")
 })
 
 server.listen(PORT,()=>{
