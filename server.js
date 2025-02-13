@@ -29,7 +29,7 @@ server.use(salesRouter);
 const PORT = 5007
 
 server.get('/',(req,res)=>{
-    res.status(200).json("Dev Bill BIZZ server started - Sales ")
+    res.status(200).json("Dev Bill BIZZ server started - Sales v1.6")
 })
 
 server.listen(PORT,()=>{

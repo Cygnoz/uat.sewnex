@@ -6,6 +6,7 @@ const ItemTrack = require("../../database/model/itemTrack");
 const { dataExist, validation, calculation, accounts } = require("../Credit Note/creditNoteController");
 const { cleanData } = require("../../services/cleanData");
 
+const moment = require("moment-timezone");
 
 
 
@@ -74,7 +75,9 @@ exports.updateCreditNote = async (req, res) => {
       if (!calculation.calculateCreditNote(cleanedData, res)) return;
 
       //Sales Journal      
-      if (!accounts.salesJournal( cleanedData, res )) return; 
+      if (!accounts.salesJournal( cleanedData, res )) return;
+      
+      cleanedData.createdDateTime = moment.tz(cleanedData.customerCreditDate, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp).toISOString();           
 
       const mongooseDocument = CreditNote.hydrate(existingCreditNote);
       Object.assign(mongooseDocument, cleanedData);
@@ -93,7 +96,7 @@ exports.updateCreditNote = async (req, res) => {
       await updateSalesInvoiceWithCreditNote(invoiceId, items, organizationId, customerId, creditId);
   
       res.status(200).json({ message: "Credit note updated successfully", savedCreditNote });
-      // console.log("Credit Note updated successfully:", savedCreditNote);  
+      console.log("Credit Note updated successfully:", savedCreditNote);  
     } catch (error) {
       console.error("Error updating credit note:", error);
       res.status(500).json({ message: "Internal server error" });
@@ -442,7 +445,6 @@ function validateItemTable(items, itemTable, existingCreditNoteItems, errors) {
     // Validate tax preference
     validateField( item.taxPreference !== fetchedItem.taxPreference, `Tax Preference mismatch for ${item.itemName}: ${item.taxPreference}`, errors );
   
-    // console.log("existingCreditNoteItems",existingCreditNoteItems);
 
     // Validate stock
     if ( existingCreditNoteItems.length > 0 ) {
@@ -609,10 +611,7 @@ function capitalize(word) {
   // Item Track Function
   async function itemTrack( savedCreditNote, itemTable, organizationId, creditId ) {
 
-    // Fetch existing itemTrack entries
-    const existingItemTracks = await ItemTrack.find({ organizationId, operationId: creditId });
-    
-    const createdDateTime = existingItemTracks[0] ? existingItemTracks[0].createdDateTime : null; 
+    await ItemTrack.deleteMany({ organizationId, operationId: creditId });
 
     const { items } = savedCreditNote;
   
@@ -624,11 +623,7 @@ function capitalize(word) {
       if (!matchingItem) {
         console.error(`Item with ID ${item.itemId} not found in itemTable`);
         continue; 
-      }
-  
-      // Calculate the new stock level after the purchase
-      // const newStock = matchingItem.currentStock + item.quantity;
-  
+      }  
   
       // Create a new entry for item tracking
       const newTrialEntry = new ItemTrack({
@@ -640,16 +635,12 @@ function capitalize(word) {
         sellingPrice: matchingItem.sellingPrice || 0,
         costPrice: matchingItem.costPrice || 0, 
         debitQuantity: item.quantity, 
-        createdDateTime: createdDateTime // Preserve the original createdDateTime
+        createdDateTime: savedCreditNote.createdDateTime 
       });  
 
       await newTrialEntry.save();
 
-      // Delete existing itemTrack entries for the operation
-      if (existingItemTracks.length > 0) {
-        await ItemTrack.deleteMany({ organizationId, operationId: creditId });
-        console.log(`Deleted existing itemTrack entries for operationId: ${creditId}`);
-      }
+      
   
     }
   }
@@ -666,22 +657,12 @@ function capitalize(word) {
 
   async function journal( savedCreditNote, defAcc, customerAccount, paidThroughAccount ) {  
 
-    // Fetch existing TrialBalance's createdDateTime
-    const existingTrialBalance = await TrialBalance.findOne({
-      organizationId: savedCreditNote.organizationId,
-      operationId: savedCreditNote._id,
-    });  
 
-    const createdDateTime = existingTrialBalance ? existingTrialBalance.createdDateTime : null;
-
-    // If there are existing entries, delete them
-    if (existingTrialBalance) {
-      await TrialBalance.deleteMany({
+    await TrialBalance.deleteMany({
         organizationId: savedCreditNote.organizationId,
         operationId: savedCreditNote._id,
-      });
-      console.log(`Deleted existing TrialBalance entries for operationId: ${savedCreditNote._id}`);
-    }
+    });
+
 
     const cgst = {
       organizationId: savedCreditNote.organizationId,
@@ -693,6 +674,7 @@ function capitalize(word) {
       debitAmount: savedCreditNote.cgst || 0,
       creditAmount:  0,
       remark: savedCreditNote.note,
+      createdDateTime:savedCreditNote.createdDateTime
     };
     const sgst = {
       organizationId: savedCreditNote.organizationId,
@@ -704,6 +686,7 @@ function capitalize(word) {
       debitAmount: savedCreditNote.sgst || 0,
       creditAmount: 0,
       remark: savedCreditNote.note,
+      createdDateTime:savedCreditNote.createdDateTime
     };
     const igst = {
       organizationId: savedCreditNote.organizationId,
@@ -715,6 +698,7 @@ function capitalize(word) {
       debitAmount: savedCreditNote.igst || 0,
       creditAmount: 0,
       remark: savedCreditNote.note,
+      createdDateTime:savedCreditNote.createdDateTime
     };
     const vat = {
       organizationId: savedCreditNote.organizationId,
@@ -726,6 +710,7 @@ function capitalize(word) {
       debitAmount: savedCreditNote.vat || 0,
       creditAmount: 0,
       remark: savedCreditNote.note,
+      createdDateTime:savedCreditNote.createdDateTime
     };
     const customerCredit = {
       organizationId: savedCreditNote.organizationId,
@@ -737,6 +722,7 @@ function capitalize(word) {
       debitAmount: 0,
       creditAmount: savedCreditNote.totalAmount || 0,
       remark: savedCreditNote.note,
+      createdDateTime:savedCreditNote.createdDateTime
     };
     
     const customerReceived = {
@@ -749,6 +735,7 @@ function capitalize(word) {
       debitAmount: savedCreditNote.totalAmount || 0,
       creditAmount: 0,
       remark: savedCreditNote.note,
+      createdDateTime:savedCreditNote.createdDateTime
     };
     const paidThroughAccounts = {
       organizationId: savedCreditNote.organizationId,
@@ -760,6 +747,7 @@ function capitalize(word) {
       debitAmount: 0,
       creditAmount: savedCreditNote.totalAmount || 0,
       remark: savedCreditNote.note,
+      createdDateTime:savedCreditNote.createdDateTime
     };
   
     let salesTotalDebit = 0;
@@ -799,7 +787,6 @@ function capitalize(word) {
     console.log("Total Debit Amount: ", debitAmount );
     console.log("Total Credit Amount: ", creditAmount );
   
-    // console.log( cgst, sgst, igst, vat, customerCredit, customerReceived, paidThroughAccount );
   
   
     //Sales
@@ -815,9 +802,10 @@ function capitalize(word) {
           debitAmount: entry.debitAmount || 0,
           creditAmount: entry.creditAmount || 0,
           remark: savedCreditNote.note,
+          createdDateTime:savedCreditNote.createdDateTime
         };
         
-        createTrialEntry( data, createdDateTime )
+        createTrialEntry( data )
   
       });
   
@@ -828,32 +816,32 @@ function capitalize(word) {
   
     //Tax
     if(savedCreditNote.cgst){
-      createTrialEntry( cgst, createdDateTime )
+      createTrialEntry( cgst )
     }
     if(savedCreditNote.sgst){
-      createTrialEntry( sgst, createdDateTime )
+      createTrialEntry( sgst )
     }
     if(savedCreditNote.igst){
-      createTrialEntry( igst, createdDateTime )
+      createTrialEntry( igst )
     }
     if(savedCreditNote.vat){
-      createTrialEntry( vat, createdDateTime )
+      createTrialEntry( vat )
     }
     
      //Credit
-    createTrialEntry( customerCredit, createdDateTime )   
+    createTrialEntry( customerCredit )   
    
     
     //Paid
     if(savedCreditNote.paymentMode === 'Cash'){
-      createTrialEntry( customerReceived, createdDateTime )
-      createTrialEntry( paidThroughAccounts, createdDateTime )
+      createTrialEntry( customerReceived )
+      createTrialEntry( paidThroughAccounts )
     }
   }
   
   
   
-  async function createTrialEntry( data, createdDateTime ) {
+  async function createTrialEntry( data ) {
     const newTrialEntry = new TrialBalance({
         organizationId:data.organizationId,
         operationId:data.operationId,
@@ -864,7 +852,7 @@ function capitalize(word) {
         debitAmount: data.debitAmount,
         creditAmount: data.creditAmount,
         remark: data.remark,
-        createdDateTime: createdDateTime
+        createdDateTime: data.createdDateTime
   });
   await newTrialEntry.save();
   }

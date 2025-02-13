@@ -7,7 +7,7 @@ const SalesReceipt = require('../../database/model/salesReceipt');
 const Account = require("../../database/model/account");
 const TrialBalance = require("../../database/model/trialBalance");
 
-
+const moment = require("moment-timezone");
 
 const { cleanData } = require("../../services/cleanData");
 const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
@@ -17,7 +17,7 @@ const { singleCustomDateTime, multiCustomDateTime } = require("../../services/ti
 const dataExist = async (organizationId, invoice ,customerId) => {
     const invoiceIds = invoice.map(invoices => invoices.invoiceId);    
     const [organizationExists, customerExists , paymentTable , existingPrefix ] = await Promise.all([
-      Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1 }),
+      Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1, timeZoneExp: 1 }),
       Customer.findOne({ organizationId, _id: customerId  }, { _id: 1, customerDisplayName: 1 }),
       Invoice.find({ organizationId , _id : { $in: invoiceIds}},{ _id: 1, salesInvoice: 1 , salesInvoiceDate: 1 , dueDate:1 , totalAmount: 1 , balanceAmount : 1}),
       Prefix.findOne({ organizationId })  
@@ -76,7 +76,7 @@ exports.addReceipt = async (req, res) => {
     
     console.log("cleanedData",cleanedData);
     
-    const { invoice, amountReceived, customerId, customerDisplayName } = cleanedData;
+    const { invoice, amountReceived, customerId } = cleanedData;
     const invoiceIds = invoice.map(invoices => invoices.invoiceId);
 
     // Check for duplicate billIds
@@ -121,6 +121,8 @@ exports.addReceipt = async (req, res) => {
 
   // Re-fetch the updated invoice to get the latest `amountDue` and `balanceAmount`
   await SalesReceipt.find({ _id: { $in: updatedData.invoice.map(receipt => receipt.invoiceId) } });
+
+  cleanedData.createdDateTime = moment.tz(cleanedData.paymentDate, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp).toISOString();           
     
   const savedReceipt = await createNewReceipt( updatedData, organizationId, userId, userName );  
      
@@ -363,11 +365,9 @@ function validateReqFields( data, depositAcc, customerAccount, errors ) {
   validateField( typeof data.depositAccountId === 'undefined' , "Select deposit account", errors  );
   validateField( typeof data.paymentMode === 'undefined' , "Select payment mode", errors  );
   validateField( typeof data.paymentDate === 'undefined' , "Select payment date", errors  );
-
+  
   validateField( !depositAcc && typeof data.amountReceived !== 'undefined' , "Deposit Account not found", errors  );
   validateField( !customerAccount && typeof data.amountReceived !== 'undefined' , "Customer Account not found", errors  );
-
-
 }
 
 
@@ -567,6 +567,7 @@ async function journal( savedReceipt, depositAcc, customerAccount ) {
     debitAmount: 0,
     creditAmount: savedReceipt.amountReceived || 0,
     remark: savedReceipt.note,
+    createdDateTime:savedReceipt.createdDateTime
   };
   const depositAccount = {
     organizationId: savedReceipt.organizationId,
@@ -577,6 +578,7 @@ async function journal( savedReceipt, depositAcc, customerAccount ) {
     debitAmount: savedReceipt.amountReceived || 0,
     creditAmount: 0,
     remark: savedReceipt.note,
+    createdDateTime:savedReceipt.createdDateTime
   };
   
 
@@ -607,7 +609,8 @@ async function createTrialEntry( data ) {
       action: data.action,
       debitAmount: data.debitAmount,
       creditAmount: data.creditAmount,
-      remark: data.remark
+      remark: data.remark,
+      createdDateTime:data.createdDateTime
 });
 
 await newTrialEntry.save();

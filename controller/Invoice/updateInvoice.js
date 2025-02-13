@@ -1,11 +1,18 @@
+//v1.0
 
 const mongoose = require('mongoose');
 const SalesInvoice = require('../../database/model/salesInvoice');
 const SalesReceipt = require('../../database/model/salesReceipt');
 const TrialBalance = require("../../database/model/trialBalance");
 const ItemTrack = require("../../database/model/itemTrack");
+
+const moment = require("moment-timezone");
+
 const { dataExist, validation, calculation, accounts } = require("../Invoice/salesInvoice");
+
 const { cleanData } = require("../../services/cleanData");
+
+
 
 
 
@@ -102,7 +109,9 @@ exports.updateInvoice = async (req, res) => {
       if (!calculation.calculateSalesOrder(cleanedData, res)) return;
 
       //Sales Journal      
-      if (!accounts.salesJournal( cleanedData, res )) return; 
+      if (!accounts.salesJournal( cleanedData, res )) return;
+      
+      cleanedData.createdDateTime = moment.tz(cleanedData.salesInvoiceDate, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp).toISOString();           
 
       const mongooseDocument = SalesInvoice.hydrate(existingSalesInvoice);
       Object.assign(mongooseDocument, cleanedData);
@@ -257,30 +266,20 @@ exports.updateInvoice = async (req, res) => {
   // Item Track Function
   async function itemTrack(savedInvoice, itemTable, organizationId, invoiceId) {
 
-    // Fetch existing itemTrack entries
-    const existingItemTracks = await ItemTrack.find({ organizationId, operationId: invoiceId });
-    
-    const createdDateTime = existingItemTracks[0] ? existingItemTracks[0].createdDateTime : null; 
+      await ItemTrack.deleteMany({ organizationId, operationId: invoiceId });
 
       const { items } = savedInvoice;
 
       for (const item of items) {
 
-        const itemIdAsObjectId = new mongoose.Types.ObjectId(item.itemId);
-
-        // Find the matching item
-        const matchingItem = itemTable.find((entry) => entry._id.equals(itemIdAsObjectId));
+        const matchingItem = itemTable.find((entry) => 
+          entry._id.toString() === item.itemId.toString() 
+        );
 
         if (!matchingItem) {
           console.error(`Item with ID ${item.itemId} not found in itemTable`);
           continue; 
         }
-
-        // const newStock = matchingItem.currentStock - item.quantity;
-        // if (newStock < 0) {
-        //   console.error(`Insufficient stock for item ${item.itemName}`);
-        //   continue; 
-        // }
 
         const newItemTrack = new ItemTrack({
           organizationId: savedInvoice.organizationId,
@@ -291,16 +290,12 @@ exports.updateInvoice = async (req, res) => {
           sellingPrice: matchingItem.sellingPrice || 0,
           costPrice: matchingItem.costPrice || 0, 
           creditQuantity: item.quantity, 
-          createdDateTime: createdDateTime // Preserve the original createdDateTime
+          createdDateTime: savedInvoice.createdDateTime 
         });
 
         await newItemTrack.save();
 
-        // Delete existing itemTrack entries for the operation
-      if (existingItemTracks.length > 0) {
-        await ItemTrack.deleteMany({ organizationId, operationId: invoiceId });
-        console.log(`Deleted existing itemTrack entries for operationId: ${invoiceId}`);
-      }
+        
     }
   }
 
@@ -313,24 +308,11 @@ exports.updateInvoice = async (req, res) => {
 
 
   async function journal( savedInvoice, defAcc, customerAccount ) { 
-    
-    // Fetch existing TrialBalance's createdDateTime
-    const existingTrialBalance = await TrialBalance.findOne({
-      organizationId: savedInvoice.organizationId,
-      operationId: savedInvoice._id,
-    });  
-
-    const createdDateTime = existingTrialBalance ? existingTrialBalance.createdDateTime : null;
-
-    // If there are existing entries, delete them
-    if (existingTrialBalance) {
-      await TrialBalance.deleteMany({
+    await TrialBalance.deleteMany({
         organizationId: savedInvoice.organizationId,
         operationId: savedInvoice._id,
-        // createdDateTime: createdDateTime,  // Delete only entries with the same createdDateTime
-      });
-      console.log(`Deleted existing TrialBalance entries for operationId: ${savedInvoice._id}`);
-    }
+    });
+
     
     const discount = {
       organizationId: savedInvoice.organizationId,
@@ -342,6 +324,7 @@ exports.updateInvoice = async (req, res) => {
       debitAmount: savedInvoice.totalDiscount || 0,
       creditAmount: 0,
       remark: savedInvoice.note,
+      createdDateTime:savedInvoice.createdDateTime
     };
     // const sale = {
     //   organizationId: savedInvoice.organizationId,
@@ -364,6 +347,7 @@ exports.updateInvoice = async (req, res) => {
       debitAmount: 0,
       creditAmount: savedInvoice.cgst || 0,
       remark: savedInvoice.note,
+      createdDateTime:savedInvoice.createdDateTime
     };
     const sgst = {
       organizationId: savedInvoice.organizationId,
@@ -375,6 +359,7 @@ exports.updateInvoice = async (req, res) => {
       debitAmount: 0,
       creditAmount: savedInvoice.sgst || 0,
       remark: savedInvoice.note,
+      createdDateTime:savedInvoice.createdDateTime
     };
     const igst = {
       organizationId: savedInvoice.organizationId,
@@ -386,6 +371,7 @@ exports.updateInvoice = async (req, res) => {
       debitAmount: 0,
       creditAmount: savedInvoice.igst || 0,
       remark: savedInvoice.note,
+      createdDateTime:savedInvoice.createdDateTime
     };
     const vat = {
       organizationId: savedInvoice.organizationId,
@@ -397,6 +383,7 @@ exports.updateInvoice = async (req, res) => {
       debitAmount: 0,
       creditAmount: savedInvoice.vat || 0,
       remark: savedInvoice.note,
+      createdDateTime:savedInvoice.createdDateTime
     };
     const customer = {
       organizationId: savedInvoice.organizationId,
@@ -408,6 +395,7 @@ exports.updateInvoice = async (req, res) => {
       debitAmount: savedInvoice.totalAmount || 0,
       creditAmount: 0,
       remark: savedInvoice.note,
+      createdDateTime:savedInvoice.createdDateTime
     };
     const customerPaid = {
       organizationId: savedInvoice.organizationId,
@@ -419,6 +407,7 @@ exports.updateInvoice = async (req, res) => {
       debitAmount: 0,
       creditAmount: savedInvoice.paidAmount || 0,
       remark: savedInvoice.note,
+      createdDateTime:savedInvoice.createdDateTime
     };
     const depositAccount = {
       organizationId: savedInvoice.organizationId,
@@ -430,6 +419,7 @@ exports.updateInvoice = async (req, res) => {
       debitAmount: savedInvoice.paidAmount || 0,
       creditAmount: 0,
       remark: savedInvoice.note,
+      createdDateTime:savedInvoice.createdDateTime
     };
     const otherExpense = {
       organizationId: savedInvoice.organizationId,
@@ -441,6 +431,7 @@ exports.updateInvoice = async (req, res) => {
       debitAmount: 0,
       creditAmount: savedInvoice.otherExpenseAmount || 0,
       remark: savedInvoice.note,
+      createdDateTime:savedInvoice.createdDateTime
     };
     const freight = {
       organizationId: savedInvoice.organizationId,
@@ -452,6 +443,7 @@ exports.updateInvoice = async (req, res) => {
       debitAmount: 0,
       creditAmount: savedInvoice.freightAmount || 0,
       remark: savedInvoice.note,
+      createdDateTime:savedInvoice.createdDateTime
     };
     const roundOff = {
       organizationId: savedInvoice.organizationId,
@@ -463,6 +455,7 @@ exports.updateInvoice = async (req, res) => {
       debitAmount: savedInvoice.roundOffAmount || 0,
       creditAmount: 0,
       remark: savedInvoice.note,
+      createdDateTime:savedInvoice.createdDateTime
     };
 
     let salesTotalDebit = 0;
@@ -524,9 +517,9 @@ exports.updateInvoice = async (req, res) => {
           debitAmount: 0,
           creditAmount: entry.creditAmount || 0,
           remark: savedInvoice.note,
+          createdDateTime:savedInvoice.createdDateTime
         };
-        // console.log("data", data, entry.accountId);
-        createTrialEntry( data, createdDateTime )
+        createTrialEntry( data )
 
       });
 
@@ -537,45 +530,45 @@ exports.updateInvoice = async (req, res) => {
 
     //Tax
     if(savedInvoice.cgst){
-      createTrialEntry( cgst, createdDateTime )
+      createTrialEntry( cgst )
     }
     if(savedInvoice.sgst){
-      createTrialEntry( sgst, createdDateTime )
+      createTrialEntry( sgst )
     }
     if(savedInvoice.igst){
-      createTrialEntry( igst, createdDateTime )
+      createTrialEntry( igst )
     }
     if(savedInvoice.vat){
-      createTrialEntry( vat, createdDateTime )
+      createTrialEntry( vat )
     }
 
     //Discount  
     if(savedInvoice.totalDiscount){
-      createTrialEntry( discount, createdDateTime )
+      createTrialEntry( discount )
     }
 
     //Other Expense
     if(savedInvoice.otherExpenseAmount){
-      createTrialEntry( otherExpense, createdDateTime )
+      createTrialEntry( otherExpense )
     }
 
     //Freight
     if(savedInvoice.freightAmount){
-      createTrialEntry( freight, createdDateTime )
+      createTrialEntry( freight )
     }
     
     //Round Off
     if(savedInvoice.roundOffAmount){
-      createTrialEntry( roundOff, createdDateTime )
+      createTrialEntry( roundOff )
     }
   
     //Customer
-    createTrialEntry( customer, createdDateTime )
+    createTrialEntry( customer )
     
     //Paid
     if(savedInvoice.paidAmount){
-      createTrialEntry( customerPaid, createdDateTime )
-      createTrialEntry( depositAccount, createdDateTime )
+      createTrialEntry( customerPaid )
+      createTrialEntry( depositAccount )
     }
   }
 
@@ -583,7 +576,7 @@ exports.updateInvoice = async (req, res) => {
 
 
 
-  async function createTrialEntry( data, createdDateTime ) {
+  async function createTrialEntry( data ) {
     const newTrialEntry = new TrialBalance({
         organizationId:data.organizationId,
         operationId:data.operationId,
@@ -594,8 +587,8 @@ exports.updateInvoice = async (req, res) => {
         debitAmount: data.debitAmount,
         creditAmount: data.creditAmount,
         remark: data.remark,
-        createdDateTime: createdDateTime
-    });
+        createdDateTime:data.createdDateTime
+      });
     
     await newTrialEntry.save();
   }
