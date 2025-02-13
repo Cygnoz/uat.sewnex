@@ -640,8 +640,9 @@ function expensePrefix( cleanData, existingPrefix ) {
     // Utility function to round values to two decimal places
     const roundToTwoDecimals = (value) => Number(value.toFixed(2));
 
-    cleanedData.expense.forEach((data, index) => {      
+    cleanedData.expense.forEach((data, index) => {    
 
+      let total = parseFloat(data.total) || 0;
       let calculatedCgstAmount = 0;
       let calculatedSgstAmount = 0;
       let calculatedIgstAmount = 0;
@@ -649,7 +650,8 @@ function expensePrefix( cleanData, existingPrefix ) {
       let amount = parseFloat(data.amount) || 0;
       let taxMode = cleanedData.taxMode;
 
-      subTotal += amount;
+      subTotal += total;
+      // console.log("..............123",subTotal);
 
       const gstTreatment = (cleanedData.gstTreatment !== "Registered Business - Composition") || (cleanedData.gstTreatment !== "Unregistered Business") || (cleanedData.gstTreatment !== "Overseas") || (cleanedData.gstTreatment !== "Consumer");
       const taxGroup = data.taxGroup !== "Non-Taxable";
@@ -657,36 +659,81 @@ function expensePrefix( cleanData, existingPrefix ) {
 
       // Handle tax calculation only for taxable expense
       if (gstTreatment && taxGroup && !isNotMileage) {
-        if (taxMode === 'Intra') {
-          calculatedCgstAmount = roundToTwoDecimals((data.cgst / 100) * amount);
-          calculatedSgstAmount = roundToTwoDecimals((data.sgst / 100) * amount);
-        } else if (taxMode === 'Inter') {
-          calculatedIgstAmount = roundToTwoDecimals((data.igst / 100) * amount);
+        if (cleanedData.amountIs === "Tax Exclusive") {
+
+          if (taxMode === 'Intra') {
+            calculatedCgstAmount = roundToTwoDecimals((data.cgst / 100) * amount);
+            calculatedSgstAmount = roundToTwoDecimals((data.sgst / 100) * amount);
+          } else if (taxMode === 'Inter') {
+            calculatedIgstAmount = roundToTwoDecimals((data.igst / 100) * amount);
+          } else {
+            calculatedVatAmount = roundToTwoDecimals((data.vat / 100) * amount);
+          }
+  
+          console.log(`Row..................... ${index + 1}:`);
+          console.log("calculatedTotal",total);
+          console.log("calculatedCgstAmount",calculatedCgstAmount);
+          console.log("calculatedSgstAmount",calculatedSgstAmount);
+          console.log("calculatedIgstAmount",calculatedIgstAmount);
+          console.log("calculatedVatAmount",calculatedVatAmount);
+  
+          checkAmount(total, data.total, 'Total',errors);
+          checkAmount(calculatedCgstAmount, data.cgstAmount, 'CGST',errors);
+          checkAmount(calculatedSgstAmount, data.sgstAmount, 'SGST',errors);
+          checkAmount(calculatedIgstAmount, data.igstAmount, 'IGST',errors);
+          checkAmount(calculatedVatAmount, data.vatAmount, 'VAT',errors);
+          
+          cgst += calculatedCgstAmount;
+          sgst += calculatedSgstAmount;
+          igst += calculatedIgstAmount;
+          vat += calculatedVatAmount;
+  
+          console.log("cgst",cgst);
+          console.log("sgst",sgst);
+          console.log("igst",igst);
+          console.log("vat",vat);
+
+          grandTotal = (subTotal + cgst + sgst + igst + vat);
+
         } else {
-          calculatedVatAmount = roundToTwoDecimals((data.vat / 100) * amount);
+
+          if (taxMode === 'Intra') {
+            total = roundToTwoDecimals((amount / (100 + data.igst)) * 100);
+            calculatedCgstAmount = roundToTwoDecimals((data.cgst / 100) * total);
+            calculatedSgstAmount = roundToTwoDecimals((data.sgst / 100) * total);
+          } else if (taxMode === 'Inter') {
+            total = roundToTwoDecimals((amount / 100 + data.igst) * 100);
+            calculatedIgstAmount = roundToTwoDecimals((data.igst / 100) * total);
+          } else {
+            total = roundToTwoDecimals((amount / 100 + data.vat) * 100);
+            calculatedVatAmount = roundToTwoDecimals((data.vat / 100) * total);
+          }
+
+          console.log(`Row..................... ${index + 1}:`);
+          console.log("calculatedTotal",total);
+          console.log("calculatedCgstAmount",calculatedCgstAmount);
+          console.log("calculatedSgstAmount",calculatedSgstAmount);
+          console.log("calculatedIgstAmount",calculatedIgstAmount);
+          console.log("calculatedVatAmount",calculatedVatAmount);
+  
+          checkAmount(total, data.total, 'Total',errors);
+          checkAmount(calculatedCgstAmount, data.cgstAmount, 'CGST',errors);
+          checkAmount(calculatedSgstAmount, data.sgstAmount, 'SGST',errors);
+          checkAmount(calculatedIgstAmount, data.igstAmount, 'IGST',errors);
+          checkAmount(calculatedVatAmount, data.vatAmount, 'VAT',errors);
+          
+          cgst += calculatedCgstAmount;
+          sgst += calculatedSgstAmount;
+          igst += calculatedIgstAmount;
+          vat += calculatedVatAmount;
+  
+          console.log("cgst",cgst);
+          console.log("sgst",sgst);
+          console.log("igst",igst);
+          console.log("vat",vat);
+
+          grandTotal = (subTotal + cgst + sgst + igst + vat);
         }
-
-        console.log(`Row ${index + 1}:`);
-        console.log("calculatedCgstAmount",calculatedCgstAmount);
-        console.log("calculatedSgstAmount",calculatedSgstAmount);
-        console.log("calculatedIgstAmount",calculatedIgstAmount);
-        console.log("calculatedVatAmount",calculatedVatAmount);
-
-        checkAmount(calculatedCgstAmount, data.cgstAmount, 'CGST',errors);
-        checkAmount(calculatedSgstAmount, data.sgstAmount, 'SGST',errors);
-        checkAmount(calculatedIgstAmount, data.igstAmount, 'IGST',errors);
-        checkAmount(calculatedVatAmount, data.vatAmount, 'VAT',errors);
-        
-        cgst += calculatedCgstAmount;
-        sgst += calculatedSgstAmount;
-        igst += calculatedIgstAmount;
-        vat += calculatedVatAmount;
-
-        console.log("cgst",cgst);
-        console.log("sgst",sgst);
-        console.log("igst",igst);
-        console.log("vat",vat);
-
         } else {
         console.log('Skipping Tax for Non-Taxable expense');
 
@@ -695,21 +742,31 @@ function expensePrefix( cleanData, existingPrefix ) {
           checkAmount(distance, cleanedData.distance, 'Distance',errors);
           checkAmount(ratePerKm, cleanedData.ratePerKm, 'Rate Per Km',errors);
           checkAmount(amount, data.amount, 'Amount',errors);
+          checkAmount(total, data.total, 'Total',errors);
 
+          console.log("calculatedTotal",total);
           console.log("distance",distance);
           console.log("ratePerKm",ratePerKm);
           console.log("amount",amount);
-        } else {
-          amount = subTotal;
-        }
+
+          grandTotal = subTotal;
+        } 
+        // else {
+        //   amount = subTotal;
+        // }
       }
     });
 
-    if (cleanedData.amountIs === "Tax Exclusive") {
-      grandTotal = (subTotal + cgst + sgst + igst + vat);
-    } else {
-      grandTotal = subTotal;
-    }
+    // if (cleanedData.amountIs === "Tax Exclusive") {
+    //   grandTotal = (subTotal + cgst + sgst + igst + vat);
+    // } else {
+    //   grandTotal = subTotal;
+    // }
+
+    checkAmount(cgst, cleanedData.cgst, 'Final CGST',errors);
+    checkAmount(sgst, cleanedData.sgst, 'Final SGST',errors);
+    checkAmount(igst, cleanedData.igst, 'Final IGST',errors);
+    checkAmount(vat, cleanedData.vat, 'Final VAT',errors);
 
     console.log(`subTotal: ${subTotal} , Provided ${cleanedData.subTotal}`);
     console.log(`Grand Total: ${grandTotal} , Provided ${cleanedData.grandTotal}`);
@@ -807,20 +864,20 @@ function expensePrefix( cleanData, existingPrefix ) {
   //Valid Req Fields
   function validateReqFields( data, errors ) {
 
-    validateField( data.amountIs === 'Tax Inclusive', "Expense Error", errors  );
+    // validateField( data.amountIs === 'Tax Inclusive', "Expense Error", errors  );
 
     validateField( typeof data.expenseDate === 'undefined', "Please select Date", errors  );
     validateField( typeof data.paidThroughAccountId === 'undefined', "Please select paid through account", errors  );
     validateField( typeof data.expense === 'undefined', "Please select expense account", errors  );
 
-    validateField( typeof data.sourceOfSupply === 'undefined', "Please select source of supply", errors  );
+    validateField( data.sourceOfSupply === 'undefined', "Please select source of supply", errors  );
     
     
     // Determine if it is Expense Mileage or Record Expense
     const isNotMileage = ( typeof data.distance === "undefined") && ( typeof data.ratePerKm === "undefined");    
     
     if (isNotMileage) {
-      validateField( typeof data.destinationOfSupply === 'undefined', "Please select destination of supply", errors  );
+      validateField( data.destinationOfSupply === 'undefined', "Please select destination of supply", errors  );
       validateField( typeof data.gstTreatment === "undefined", "Please select an gst treatment", errors);
       validateField( typeof data.grandTotal === "undefined", "Please enter the amount", errors);  
     } else {
@@ -1050,6 +1107,7 @@ const validGSTTreatments = [
 
 
 async function journal( savedExpense, defAcc, paidThroughAcc ) { 
+  console.log("savedExpense",savedExpense);
   const cgst = {
     organizationId: savedExpense.organizationId,
     operationId: savedExpense._id,
@@ -1116,8 +1174,8 @@ async function journal( savedExpense, defAcc, paidThroughAcc ) {
 
   if (Array.isArray(savedExpense.expense)) {
     savedExpense.expense.forEach((entry) => {
-      console.log( "Account Log", entry.expenseAccountId, entry.amount );      
-      expenseTotalDebit += entry.amount || 0;
+      console.log( "Account Log", entry.expenseAccountId, entry.total );      
+      expenseTotalDebit += entry.total || 0;
     });
     console.log("Total Debit Amount from expense:", expenseTotalDebit);
   } else {
@@ -1149,7 +1207,7 @@ async function journal( savedExpense, defAcc, paidThroughAcc ) {
       date: savedExpense.createdDateTime,
       accountId: entry.expenseAccountId || undefined,
       action: "Expense",
-      debitAmount: entry.amount || 0,
+      debitAmount: entry.total || 0,
       creditAmount: 0,
       remark: entry.note,
       createdDateTime:savedExpense.createdDateTime

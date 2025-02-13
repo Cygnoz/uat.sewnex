@@ -21,7 +21,9 @@ const expenseTableSchema = new Schema({
     igstAmount: { type: Number },
     vatAmount: { type: Number },
 
-    amount: { type: Number } // without tax amount
+    amount: { type: Number }, // without tax amount
+    
+    total: {type:Number}    // This variable handle only if amountIs === "Tax Inclusive"
 }, { _id: false });
 
 
