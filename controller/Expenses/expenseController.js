@@ -649,6 +649,7 @@ function expensePrefix( cleanData, existingPrefix ) {
       let calculatedVatAmount = 0;
       let amount = parseFloat(data.amount) || 0;
       let taxMode = cleanedData.taxMode;
+      console.log("...taxMode...",taxMode);
 
       subTotal += total;
       // console.log("..............123",subTotal);
@@ -702,10 +703,10 @@ function expensePrefix( cleanData, existingPrefix ) {
             calculatedCgstAmount = roundToTwoDecimals((data.cgst / 100) * total);
             calculatedSgstAmount = roundToTwoDecimals((data.sgst / 100) * total);
           } else if (taxMode === 'Inter') {
-            total = roundToTwoDecimals((amount / 100 + data.igst) * 100);
+            total = roundToTwoDecimals((amount / (100 + data.igst)) * 100);
             calculatedIgstAmount = roundToTwoDecimals((data.igst / 100) * total);
           } else {
-            total = roundToTwoDecimals((amount / 100 + data.vat) * 100);
+            total = roundToTwoDecimals((amount / (100 + data.vat)) * 100);
             calculatedVatAmount = roundToTwoDecimals((data.vat / 100) * total);
           }
 
