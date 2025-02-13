@@ -28,7 +28,7 @@ server.use(accountRouter);
 const PORT = 5001;
 
 server.get('/',(req,res)=>{
-    res.status(200).json("Dev Bill BIZZ server started - Accounts v1.0")
+    res.status(200).json("Dev Bill BIZZ server started - Accounts v1.6")
 })
 
 server.listen(PORT,()=>{
