@@ -879,7 +879,7 @@ function expensePrefix( cleanData, existingPrefix ) {
     
     if (isNotMileage) {
       validateField( data.destinationOfSupply === 'undefined', "Please select destination of supply", errors  );
-      validateField( typeof data.gstTreatment === "undefined", "Please select an gst treatment", errors);
+      validateField( data.gstTreatment === "undefined", "Please select an gst treatment", errors);
       validateField( typeof data.grandTotal === "undefined", "Please enter the amount", errors);  
     } else {
       validateField( typeof data.distance === "undefined", "Please enter distance", errors);
