@@ -30,7 +30,7 @@ server.use(purchaseRouter);
 const PORT = 5005;
 
 server.get('/',(req,res)=>{
-    res.status(200).json("Dev Bill BIZZ server started - Purchase(v 0.2)")
+    res.status(200).json("Dev Bill BIZZ server started - Purchase v1.6")
 })
 
 server.listen(PORT,()=>{
