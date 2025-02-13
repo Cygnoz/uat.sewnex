@@ -33,7 +33,7 @@ server.use(organizationRouter);
 const PORT = process.env.PORT || 5004;
 
 server.get('/', (req, res) => {
-    res.status(200).json("Dev Bill BIZZ server started - Organization(v.1.1)");
+    res.status(200).json("Dev Bill BIZZ server started - Organization v1.6");
 });
 
 server.listen(PORT, () => {
