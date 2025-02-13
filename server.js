@@ -32,7 +32,7 @@ server.use(staffRouter,expenseRouter);
 const PORT = 5008;
 
 server.get('/',(req,res)=>{
-    res.status(200).json("Dev Bill BIZZ server started - Staff(v1)")
+    res.status(200).json("Dev Bill BIZZ server started - Staff v1.6")
 })
 
 server.listen(PORT,()=>{
