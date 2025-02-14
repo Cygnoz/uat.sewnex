@@ -24,6 +24,7 @@ const itemSchema = new Schema({
     //** */
     internalManufacturingItem: { type: Boolean },
     chooseService: { type: String },
+    type: { type: String },
     //** */
 
     returnableItem: { type: Boolean },
