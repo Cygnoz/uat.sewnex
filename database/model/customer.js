@@ -28,15 +28,16 @@ const customerSchema = new Schema({
     workPhone: {type:String},
     mobile: {type:String},
     
-
-    dob : {type:String},
+    dob: {type:String},
     cardNumber: {type:String},
+
+    membershipCardNumber: {type:String},  // *Sewnex variable
+    referenceCustomer: {type: mongoose.Schema.Types.ObjectId, ref: 'Customer'},    // *Sewnex variable
 
     //Opening Balance
     debitOpeningBalance: {type:Number},
     creditOpeningBalance: {type:Number},
 
-    
     //Other Details
     pan: {type:String},
     currency: {type:String},
@@ -50,6 +51,13 @@ const customerSchema = new Schema({
     designation: {type:String},
     websiteURL: {type:String},
 
+    anniversary: {type:String},  // *Sewnex variable
+    profession: {type:String},  // *Sewnex variable
+    
+    twitter: {type:String},  // *Sewnex variable
+    instagram: {type:String},  // *Sewnex variable
+    snapchat: {type:String},  // *Sewnex variable
+    facebook: {type:String},  // *Sewnex variable
 
     //Taxes
     taxPreference: {type:String},
