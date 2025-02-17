@@ -9,7 +9,7 @@ const Item = require("../database/model/item");
 exports.addBmcr = async (req, res) => {
     console.log("Add BMCR:", req.body);
     const organizationId = req.user.organizationId;
-    const { type, name, description } = req.body;
+    const { type, name, description, uploadImage } = req.body;
 
     if (!['brand', 'manufacturer', 'category', 'rack'].includes(type)) {
         return res.status(400).json({ message: "Invalid type provided." });
@@ -37,15 +37,15 @@ exports.addBmcr = async (req, res) => {
         switch (type) {
             case 'brand':
                 existingEntity = await BMCR.findOne({ organizationId, brandName: name });
-                addFields = { brandName: name, description };
+                addFields = { brandName: name, description, uploadImage };
                 break;
             case 'manufacturer':
                 existingEntity = await BMCR.findOne({ organizationId, manufacturerName: name });
-                addFields = { manufacturerName: name, description };
+                addFields = { manufacturerName: name, description, uploadImage };
                 break;
             case 'category':
                 existingEntity = await BMCR.findOne({ organizationId, categoriesName: name });
-                addFields = { categoriesName: name, description };
+                addFields = { categoriesName: name, description, uploadImage };
                 break;
             case 'rack':
                 existingEntity = await BMCR.findOne({ organizationId, rackName: name });
@@ -110,11 +110,11 @@ exports.getAllBmcr = async (req, res) => {
         let response = bmcrData.map((item) => {
             switch (type) {
                 case 'brand':
-                    return { brandName: item.brandName, description: item.description, id: item._id };
+                    return { brandName: item.brandName, description: item.description, uploadImage: item.uploadImage, id: item._id };
                 case 'manufacturer':
-                    return { manufacturerName: item.manufacturerName, description: item.description, id: item._id };
+                    return { manufacturerName: item.manufacturerName, description: item.description, uploadImage: item.uploadImage, id: item._id };
                 case 'category':
-                    return { categoriesName: item.categoriesName, description: item.description, id: item._id };
+                    return { categoriesName: item.categoriesName, description: item.description, uploadImage: item.uploadImage, id: item._id };
                 case 'rack':
                     return { rackName: item.rackName, description: item.description, id: item._id };
                 default:
@@ -383,7 +383,7 @@ exports.getABmcr = async (req, res) => {
 exports.updateBmcr = async (req, res) => {
     console.log("Update BMCR:", req.body);
     const organizationId = req.user.organizationId;
-    const { _id, type, name, description } = req.body;
+    const { _id, type, name, description, uploadImage } = req.body;
 
     try {
         const validTypes = {
@@ -418,7 +418,7 @@ exports.updateBmcr = async (req, res) => {
 
         const updatedBmcr = await BMCR.findOneAndUpdate(
             { _id, organizationId },
-            { $set: { [fieldKey]: name, description } },
+            { $set: { [fieldKey]: name, description, uploadImage } },
             { new: true, runValidators: true }
         );
 
