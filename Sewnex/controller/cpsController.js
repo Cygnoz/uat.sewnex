@@ -263,7 +263,7 @@ exports.deleteCPS = async (req, res) => {
       // Delete the CPS entry
       await CPS.findByIdAndDelete(cpsId);
 
-      res.status(200).json({ message: `${type.charAt(0).toUpperCase() + type.slice(1)} deleted successfully.`, savedCPS });
+      res.status(200).json({ message: `${type.charAt(0).toUpperCase() + type.slice(1)} deleted successfully.`, type, cpsId });
       // console.log(`${type} deleted successfully.`);
   } catch (error) {
       console.error(`Error deleting ${req.params.type}:`, error);
