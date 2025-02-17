@@ -9,9 +9,11 @@ const bmcrSchema = new mongoose.Schema({
     manufacturerName: { type: String },
     categoriesName: { type: String },
     rackName: { type: String },
-    description: { type: String }
+    description: { type: String },
+
+    // sewnex variable
+    uploadImage: { type: String }
 });
 
 const BMCR = mongoose.model('BMCR', bmcrSchema);
-
 module.exports = BMCR;
