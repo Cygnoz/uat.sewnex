@@ -172,7 +172,7 @@ exports.getAllExpense = async (req, res) => {
       }
       
       const transformedExpense = allExpense.map(data => {
-        
+         
         return {
           ...data,
           supplierId: data.supplierId ? data.supplierId._id : undefined,  
@@ -624,6 +624,7 @@ function expensePrefix( cleanData, existingPrefix ) {
 
 
 
+
   
   function calculateExpense(cleanedData, res) {
     const errors = [];
@@ -652,14 +653,13 @@ function expensePrefix( cleanData, existingPrefix ) {
       console.log("...taxMode...",taxMode);
 
       subTotal += total;
-      // console.log("..............123",subTotal);
 
       const gstTreatment = (cleanedData.gstTreatment !== "Registered Business - Composition") || (cleanedData.gstTreatment !== "Unregistered Business") || (cleanedData.gstTreatment !== "Overseas") || (cleanedData.gstTreatment !== "Consumer");
       const taxGroup = data.taxGroup !== "Non-Taxable";
-      const isNotMileage = ((cleanedData.distance > 0) || (cleanedData.distance === "undefined")) && ((cleanedData.ratePerKm > 0) || (cleanedData.ratePerKm === "undefined"));
+      const isMileage = ((distance > 0) || (distance === "undefined")) && ((ratePerKm > 0) || (ratePerKm === "undefined"));
 
       // Handle tax calculation only for taxable expense
-      if (gstTreatment && taxGroup && !isNotMileage) {
+      if (gstTreatment && taxGroup && !isMileage) {
         if (cleanedData.amountIs === "Tax Exclusive") {
 
           if (taxMode === 'Intra') {
@@ -670,58 +670,70 @@ function expensePrefix( cleanData, existingPrefix ) {
           } else {
             calculatedVatAmount = roundToTwoDecimals((data.vat / 100) * amount);
           }
-  
-          console.log(`Row..................... ${index + 1}:`);
-          console.log("calculatedTotal",total);
-          console.log("calculatedCgstAmount",calculatedCgstAmount);
-          console.log("calculatedSgstAmount",calculatedSgstAmount);
-          console.log("calculatedIgstAmount",calculatedIgstAmount);
-          console.log("calculatedVatAmount",calculatedVatAmount);
-  
-          checkAmount(total, data.total, 'Total',errors);
-          checkAmount(calculatedCgstAmount, data.cgstAmount, 'CGST',errors);
-          checkAmount(calculatedSgstAmount, data.sgstAmount, 'SGST',errors);
-          checkAmount(calculatedIgstAmount, data.igstAmount, 'IGST',errors);
-          checkAmount(calculatedVatAmount, data.vatAmount, 'VAT',errors);
-          
-          cgst += calculatedCgstAmount;
-          sgst += calculatedSgstAmount;
-          igst += calculatedIgstAmount;
-          vat += calculatedVatAmount;
-  
-          console.log("cgst",cgst);
-          console.log("sgst",sgst);
-          console.log("igst",igst);
-          console.log("vat",vat);
 
-          grandTotal = (subTotal + cgst + sgst + igst + vat);
-
-        } else {
+        } else if (cleanedData.amountIs === "Tax Inclusive") {
 
           if (taxMode === 'Intra') {
-            total = roundToTwoDecimals((amount / (100 + data.igst)) * 100);
-            calculatedCgstAmount = roundToTwoDecimals((data.cgst / 100) * total);
-            calculatedSgstAmount = roundToTwoDecimals((data.sgst / 100) * total);
+            const tt = roundToTwoDecimals((amount / (100 + data.igst)) * 100);
+            calculatedCgstAmount = roundToTwoDecimals((data.cgst / 100) * tt);
+            calculatedSgstAmount = roundToTwoDecimals((data.sgst / 100) * tt);
+
+            const amt = roundToTwoDecimals(tt + calculatedCgstAmount + calculatedSgstAmount);
+            if ( amt < amount ) {
+              const difference = amount - amt;
+              total = difference + tt;
+            } else if ( amt > amount ) {
+              const difference = amt - amount;
+              total = tt - difference;
+            } else {
+              total = tt;
+            }
+
           } else if (taxMode === 'Inter') {
-            total = roundToTwoDecimals((amount / (100 + data.igst)) * 100);
-            calculatedIgstAmount = roundToTwoDecimals((data.igst / 100) * total);
+            const tt = roundToTwoDecimals((amount / (100 + data.igst)) * 100);
+            calculatedIgstAmount = roundToTwoDecimals((data.igst / 100) * tt);
+
+            const amt = tt + calculatedCgstAmount + calculatedSgstAmount;
+            if ( amt > amount ) {
+              const difference = amount - amt;
+              total = difference + amt;
+            } else if ( amount < amt ) {
+              const difference = amt - amount;
+              total = amt - difference;
+            } else {
+              total = tt;
+            }
+
           } else {
-            total = roundToTwoDecimals((amount / (100 + data.vat)) * 100);
-            calculatedVatAmount = roundToTwoDecimals((data.vat / 100) * total);
+            const tt = roundToTwoDecimals((amount / (100 + data.vat)) * 100);
+            calculatedVatAmount = roundToTwoDecimals((data.vat / 100) * tt);
+
+            const amt = tt + calculatedCgstAmount + calculatedSgstAmount;
+            if ( amt > amount ) {
+              const difference = amount - amt;
+              total = difference + amt;
+            } else if ( amount < amt ) {
+              const difference = amt - amount;
+              total = amt - difference;
+            } else {
+              total = tt;
+            }
           }
 
-          console.log(`Row..................... ${index + 1}:`);
+        }
+
+        console.log(`Row..................... ${index + 1}:`);
           console.log("calculatedTotal",total);
           console.log("calculatedCgstAmount",calculatedCgstAmount);
           console.log("calculatedSgstAmount",calculatedSgstAmount);
           console.log("calculatedIgstAmount",calculatedIgstAmount);
           console.log("calculatedVatAmount",calculatedVatAmount);
   
-          checkAmount(total, data.total, 'Total',errors);
-          checkAmount(calculatedCgstAmount, data.cgstAmount, 'CGST',errors);
-          checkAmount(calculatedSgstAmount, data.sgstAmount, 'SGST',errors);
-          checkAmount(calculatedIgstAmount, data.igstAmount, 'IGST',errors);
-          checkAmount(calculatedVatAmount, data.vatAmount, 'VAT',errors);
+          checkAmount(total, data.total, 'Total', errors);
+          checkAmount(calculatedCgstAmount, data.cgstAmount, 'CGST', errors);
+          checkAmount(calculatedSgstAmount, data.sgstAmount, 'SGST', errors);
+          checkAmount(calculatedIgstAmount, data.igstAmount, 'IGST', errors);
+          checkAmount(calculatedVatAmount, data.vatAmount, 'VAT', errors);
           
           cgst += calculatedCgstAmount;
           sgst += calculatedSgstAmount;
@@ -734,11 +746,11 @@ function expensePrefix( cleanData, existingPrefix ) {
           console.log("vat",vat);
 
           grandTotal = (subTotal + cgst + sgst + igst + vat);
-        }
+
         } else {
         console.log('Skipping Tax for Non-Taxable expense');
 
-        if (distance && ratePerKm) {
+        if (isMileage) {
           amount = roundToTwoDecimals(distance * ratePerKm);
           checkAmount(distance, cleanedData.distance, 'Distance',errors);
           checkAmount(ratePerKm, cleanedData.ratePerKm, 'Rate Per Km',errors);
@@ -756,12 +768,6 @@ function expensePrefix( cleanData, existingPrefix ) {
         }
       }
     });
-
-    // if (cleanedData.amountIs === "Tax Exclusive") {
-    //   grandTotal = (subTotal + cgst + sgst + igst + vat);
-    // } else {
-    //   grandTotal = subTotal;
-    // }
 
     checkAmount(cgst, cleanedData.cgst, 'Final CGST',errors);
     checkAmount(sgst, cleanedData.sgst, 'Final SGST',errors);
@@ -792,13 +798,17 @@ function expensePrefix( cleanData, existingPrefix ) {
 
 
 
+
+
+
+
   //Mismatch Check
   function checkAmount(calculatedAmount, providedAmount, taxMode, errors) {
     const roundToTwoDecimals = (value) => Number(value.toFixed(2)); // Round to two decimal places
     const roundedAmount = roundToTwoDecimals(calculatedAmount);
     console.log(`Calculated ${taxMode}: ${roundedAmount}, Provided data: ${providedAmount}`);
   
-    if (Math.abs(roundedAmount - providedAmount) > 0.01) {
+    if (Math.abs(roundedAmount - providedAmount) > 0) {
       const errorMessage = `Mismatch in ${taxMode}: Calculated ${calculatedAmount}, Provided ${providedAmount}`;
       errors.push(errorMessage);
       console.log(errorMessage);
@@ -928,14 +938,14 @@ function validateGSTorVAT(data, errors) {
     }
 
     // Extract the first three letters
-    const prefix = taxGroup.substring(0, 3);
+    const TaxGroup = taxGroup.substring(0, 3);
 
-    if (prefix === "GST") {
-      validateGSTDetails(data, errors);
-    } else if (prefix === "VAT") {
-      validateVATDetails(data, errors);
-    } else if (taxGroup === "Non-Taxable") {
-      clearTaxFields(data);
+    if (TaxGroup === "GST") {
+      validateGSTDetails(expenseItem, errors);
+    } else if (TaxGroup === "VAT") {
+      validateVATDetails(expenseItem, errors);
+    } else if (taxGroup === "Non-Taxable" || taxGroup === "GST0") {
+      clearTaxFields(expenseItem);
     } else {
       // Handle unexpected taxGroup values
       errors.push(`Invalid taxGroup: ${taxGroup}`);
@@ -973,7 +983,7 @@ function validateVATDetails(data, errors) {
 
 // Clear tax fields when no tax is applied
 function clearTaxFields(data) {
-  ['gstTreatment', 'gstin_uin', 'amountIs'].forEach(field => {
+  ['gstTreatment', 'gstin', 'amountIs'].forEach(field => {
     data[field] = undefined;
   });
 }
@@ -1108,7 +1118,7 @@ const validGSTTreatments = [
 
 
 async function journal( savedExpense, defAcc, paidThroughAcc ) { 
-  console.log("savedExpense",savedExpense);
+  // console.log("savedExpense",savedExpense);
   const cgst = {
     organizationId: savedExpense.organizationId,
     operationId: savedExpense._id,
