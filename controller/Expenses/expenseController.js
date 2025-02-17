@@ -24,7 +24,7 @@ const dataExist = async (organizationId, supplierId) => {
       Account.find({ organizationId }),
       Supplier.findOne({ organizationId , _id:supplierId}, { _id: 1, supplierDisplayName: 1, taxType: 1, sourceOfSupply: 1, gstin_uin: 1, gstTreatment: 1 }),
       Prefix.findOne({ organizationId }),
-      DefAcc.findOne({ organizationId },{ outputCgst: 1, outputSgst: 1, outputIgst: 1 ,outputVat: 1 }),
+      DefAcc.findOne({ organizationId },{ inputCgst: 1, inputSgst: 1, inputIgst: 1 , inputVat: 1 }),
     ]);
     
     return { organizationExists, categoryExists, accountExist, supplierExist, existingPrefix, defaultAccount };
@@ -600,10 +600,10 @@ function expensePrefix( cleanData, existingPrefix ) {
   function getMissingAccountsError(data, defaultAccount, accounts) {
     const accountChecks = [
       // Tax account checks
-      { condition: data.cgst, account: defaultAccount.outputCgst, message: "CGST Account" },
-      { condition: data.sgst, account: defaultAccount.outputSgst, message: "SGST Account" },
-      { condition: data.igst, account: defaultAccount.outputIgst, message: "IGST Account" },
-      { condition: data.vat, account: defaultAccount.outputVat, message: "VAT Account" },
+      { condition: data.cgst, account: defaultAccount.inputCgst, message: "CGST Account" },
+      { condition: data.sgst, account: defaultAccount.inputSgst, message: "SGST Account" },
+      { condition: data.igst, account: defaultAccount.inputIgst, message: "IGST Account" },
+      { condition: data.vat, account: defaultAccount.inputVat, message: "VAT Account" },
     ];
   
     const missingAccounts = accountChecks
@@ -1091,6 +1091,7 @@ const validCountries = {
   ],
 };
 const validGSTTreatments = [
+  "Out Of Scope",
   "Registered Business - Regular",
   "Registered Business - Composition",
   "Unregistered Business",
@@ -1113,7 +1114,7 @@ async function journal( savedExpense, defAcc, paidThroughAcc ) {
     operationId: savedExpense._id,
     transactionId: savedExpense.expenseNumber,
     date: savedExpense.createdDate,
-    accountId: defAcc.outputCgst || undefined,
+    accountId: defAcc.inputCgst || undefined,
     action: "Expense",
     debitAmount: savedExpense.cgst || 0,
     creditAmount: 0,
@@ -1125,7 +1126,7 @@ async function journal( savedExpense, defAcc, paidThroughAcc ) {
     operationId: savedExpense._id,
     transactionId: savedExpense.expenseNumber,
     date: savedExpense.createdDate,
-    accountId: defAcc.outputSgst || undefined,
+    accountId: defAcc.inputSgst || undefined,
     action: "Expense",
     debitAmount: savedExpense.sgst || 0,
     creditAmount: 0,
@@ -1137,7 +1138,7 @@ async function journal( savedExpense, defAcc, paidThroughAcc ) {
     operationId: savedExpense._id,
     transactionId: savedExpense.expenseNumber,
     date: savedExpense.createdDate,
-    accountId: defAcc.outputIgst || undefined,
+    accountId: defAcc.inputIgst || undefined,
     action: "Expense",
     debitAmount: savedExpense.igst || 0,
     creditAmount: 0,
@@ -1149,7 +1150,7 @@ async function journal( savedExpense, defAcc, paidThroughAcc ) {
     operationId: savedExpense._id,
     transactionId: savedExpense.expenseNumber,
     date: savedExpense.createdDate,
-    accountId: defAcc.outputVat || undefined,
+    accountId: defAcc.inputVat || undefined,
     action: "Expense",
     debitAmount: savedExpense.vat || 0,
     creditAmount: 0,
