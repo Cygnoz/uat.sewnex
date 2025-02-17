@@ -101,7 +101,7 @@ exports.getAllCPS = async (req, res) => {
           
         const formattedObjects = multiCustomDateTime(transformedData, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
     
-        res.status(200).json({ message: `${type.charAt(0).toUpperCase() + type.slice(1)} retrieved successfully.`, data: formattedObjects });
+        res.status(200).json({ message: `${type.charAt(0).toUpperCase() + type.slice(1)} retrieved successfully.`, formattedObjects });
         // console.log(`${type} retrieved successfully.`, formattedObjects);
     } catch (error) {
         console.error(`Error fetching ${req.params.type}:`, error);
@@ -142,7 +142,7 @@ exports.getOneCPS = async (req, res) => {
 
       const formattedObjects = singleCustomDateTime(transformedData, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
 
-      res.status(200).json({ message: `${type.charAt(0).toUpperCase() + type.slice(1)} retrieved successfully.`, data: formattedObjects });
+      res.status(200).json({ message: `${type.charAt(0).toUpperCase() + type.slice(1)} retrieved successfully.`, formattedObjects });
       // console.log(`${type} retrieved successfully.`, formattedObjects);
   } catch (error) {
       console.error(`Error fetching ${req.params.type}:`, error);
