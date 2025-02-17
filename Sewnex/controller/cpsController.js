@@ -54,7 +54,7 @@ exports.addCPS = async (req, res) => {
       const savedCPS = await createNewCps(cleanedData, organizationId, type, userId, userName );
 
       res.status(201).json({
-        message: `${type.charAt(0).toUpperCase() + type.slice(1)} deleted successfully.`,
+        message: `${type.charAt(0).toUpperCase() + type.slice(1)} added successfully.`,
         data: savedCPS
       });
       // console.log(`${type} added successfully.`, savedCPS);
