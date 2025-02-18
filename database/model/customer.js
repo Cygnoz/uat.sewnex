@@ -24,17 +24,12 @@ const customerSchema = new Schema({
     companyName: {type:String},
     customerDisplayName: {type:String},
 
-    companyAddress: {type:String},  // *Sewnex variable
-
     customerEmail: {type:String},
     workPhone: {type:String},
     mobile: {type:String},
     
     dob: {type:String},
     cardNumber: {type:String},
-
-    membershipCardNumber: {type:String},  // *Sewnex variable
-    referenceCustomerId: {type: mongoose.Schema.Types.ObjectId, ref: 'Customer'},    // *Sewnex variable
 
     //Opening Balance
     debitOpeningBalance: {type:Number},
@@ -52,14 +47,6 @@ const customerSchema = new Schema({
     department: {type:String},
     designation: {type:String},
     websiteURL: {type:String},
-
-    anniversary: {type:String},  // *Sewnex variable
-    profession: {type:String},  // *Sewnex variable
-    
-    twitter: {type:String},  // *Sewnex variable
-    instagram: {type:String},  // *Sewnex variable
-    snapchat: {type:String},  // *Sewnex variable
-    facebook: {type:String},  // *Sewnex variable
 
     //Taxes
     taxPreference: {type:String},
@@ -108,6 +95,20 @@ const customerSchema = new Schema({
 
     //lastModifiedDate
     lastModifiedDate:{type:String},
+
+    // *Sewnex variables
+    companyAddress: {type:String},  
+
+    membershipCardNumber: {type:String}, 
+    referenceCustomerId: {type: mongoose.Schema.Types.ObjectId, ref: 'Customer'},    
+
+    anniversary: {type:String},  
+    profession: {type:String},  
+    
+    twitter: {type:String}, 
+    instagram: {type:String},  
+    snapchat: {type:String}, 
+    facebook: {type:String},  
 
 });
 
