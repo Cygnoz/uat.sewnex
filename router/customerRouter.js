@@ -41,7 +41,7 @@ router.get('/get-customer-transaction/:customerId',verifyToken,checkPermission('
 
 router.get('/get-customer-dashboard/:date',verifyToken,checkPermission('Viewed Customer details'),dashboardController.getCustomerStats);
 
-router.put('/update-customer-settings',verifyToken,checkPermission('Created a New Supplier'),customerSettings.updateCustomerSettings)
+router.put('/update-customer-settings',verifyToken,checkPermission('Added a new Setting'),customerSettings.updateCustomerSettings)
 
 
 //Import
