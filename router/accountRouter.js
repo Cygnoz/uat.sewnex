@@ -18,9 +18,6 @@ router.put('/get-bank-account-number/:accountId',verifyToken,checkPermission('Vi
 
 
 //Accounts
-
-// router.post('/add-account',accountController.addAccount)
-
 router.post('/add-account',verifyToken,checkPermission('Created a New Account'),accountController.addAccount)
 
 router.get('/get-all-account',verifyToken,checkPermission('Viewed Account Information'),accountController.getAllAccount)
@@ -34,8 +31,9 @@ router.delete('/delete-account/:accountId',verifyToken,checkPermission('Deleted 
 
 
 
-//Journal
 
+
+//Journal
 router.post('/add-journal-entry',verifyToken,checkPermission('Added a Journal Entry'),journalController.addJournalEntry)
 
 router.get('/get-all-journal',verifyToken,checkPermission('Viewed Journal Entry'),journalController.getAllJournal)
@@ -44,11 +42,9 @@ router.get('/get-one-journal/:id',verifyToken,checkPermission('Viewed Journal En
 
 router.get('/get-last-journal-prefix',verifyToken,checkPermission('Added a Journal Entry'),journalController.getLastJournalPrefix)
 
-// router.put('/update-journal/:id',verifyToken,checkPermission('Edited Journal Entry'),journalController.updateJournalEntry)
-router.put('/update-journal/:id',verifyToken,journalController.updateJournalEntry)
+router.put('/update-journal/:id',verifyToken,checkPermission('Edited Journal Entry'),journalController.updateJournalEntry)
 
-// router.delete('/delete-journal/:id',verifyToken,checkPermission('Deleted Journal Entry'),journalController.deleteJournalEntry)
-router.delete('/delete-journal/:id',verifyToken,journalController.deleteJournalEntry)
+router.delete('/delete-journal/:id',verifyToken,checkPermission('Deleted Journal Entry'),journalController.deleteJournalEntry)
 
 
 
