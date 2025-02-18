@@ -239,9 +239,10 @@ exports.addBills = async (req, res) => {
             items: data.items.map(item => ({
               ...item,
               itemId: item.itemId._id,
-              itemName: item.itemId.itemName,
+              itemName: item.itemId.itemName
             })),  
-        };});
+        };
+      });
   
 
         // Get current date for comparison
@@ -300,7 +301,7 @@ exports.addBills = async (req, res) => {
         ...item,
         itemId: item.itemId._id,
         itemName: item.itemId.itemName,
-        itemImage: item.itemId.itemImage,
+        itemImage: item.itemId.itemImage
       })),  
   };
 
