@@ -97,6 +97,8 @@ const customerSchema = new Schema({
     lastModifiedDate:{type:String},
 
     // *Sewnex variables
+    customerAddress: {type:String},  
+
     companyAddress: {type:String},  
 
     membershipCardNumber: {type:String}, 
