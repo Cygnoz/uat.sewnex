@@ -122,6 +122,44 @@ const createRolesForOrganization = async (organizationId) => {
           { action: "SupplierStatus", note: "Modified Supplier Status" },
           { action: "SupplierImport", note: "Import New Suppliers" },
           { action: "SupplierDelete", note: "Deleted Supplier Information" },
+          { action: "SupplierCustomerSetting", note: "Edited Setting details" },
+          
+          //Report Module
+          { action: "ReportView", note: "Viewed Day Book" },
+          { action: "ReportView", note: "Viewed Trail Balance" },
+          { action: "ReportView", note: "Viewed Trail Account" },
+          { action: "ReportView", note: "Viewed Profit and Loss" },
+          { action: "ReportView", note: "Viewed Balance Sheet" },
+          
+          // Sales Module - Sales(Settings)          
+          { action: "SalesSetting", note: "Setup/Modified Sales Setting" },
+
+          // Sales Module - Credit Note(Settings)          
+          { action: "CreditNoteSetting", note: "Setup/Modified Credit Note Setting" },
+
+          // Sales Module - Delivery Chellans(Settings)          
+          { action: "DeliveryChellansSetting", note: "Setup/Modified Delivery Chellans Setting" },
+
+          // Sales Module - Shipment(Settings)          
+          { action: "ShipmentAddressSetting", note: "Setup/Modified Shipment Address Setting" },
+
+          //Sales Module - Quote
+          { action: "QuoteCreate", note: "Created a New Quote" },
+          { action: "QuoteView", note: "Viewed Quote Details" },
+          { action: "QuoteEdit", note: "Edited Quote Information" },
+          { action: "QuoteDelete", note: "Deleted Quote Information" },
+
+          //Sales Module - Order
+          { action: "OrderCreate", note: "Created a New Order" },
+          { action: "OrderView", note: "Viewed Order Details" },
+          { action: "OrderEdit", note: "Edited Order Information" },
+          { action: "OrderDelete", note: "Deleted Order Information" },
+
+          //Sales Module - Invoice
+          { action: "InvoiceCreate", note: "Created a New Invoice" },
+          { action: "InvoiceView", note: "Viewed Invoice Details" },
+          { action: "InvoiceEdit", note: "Edited Invoice Information" },
+          { action: "InvoiceDelete", note: "Deleted Invoice Information" },
           
         ],
       },
