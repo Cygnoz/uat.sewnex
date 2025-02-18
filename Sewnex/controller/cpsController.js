@@ -53,11 +53,14 @@ exports.addCPS = async (req, res) => {
       // Create a new document with the appropriate fields
       const savedCPS = await createNewCps(cleanedData, organizationId, type, userId, userName );
 
-      res.status(201).json(`${type.charAt(0).toUpperCase() + type.slice(1)} added successfully.`,savedCPS);
+      res.status(201).json({
+        message: `${type.charAt(0).toUpperCase() + type.slice(1)} added successfully.`,
+        data: savedCPS
+      });
       // console.log(`${type} added successfully.`, savedCPS);
     } catch (error) {
         console.error(`Error adding ${req.params.type}:`, error);
-        res.status(400).json({ error: error.message });
+        res.status(400).json({ message: "Server error", error: error.message });
     }
 };
 
@@ -102,7 +105,7 @@ exports.getAllCPS = async (req, res) => {
         // console.log(`${type} retrieved successfully.`, formattedObjects);
     } catch (error) {
         console.error(`Error fetching ${req.params.type}:`, error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ message: "Server error", error: error.message });
     }
 };
 
@@ -143,7 +146,7 @@ exports.getOneCPS = async (req, res) => {
       // console.log(`${type} retrieved successfully.`, formattedObjects);
   } catch (error) {
       console.error(`Error fetching ${req.params.type}:`, error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ message: "Server error", error: error.message });
   }
 };
 
@@ -198,11 +201,14 @@ exports.editCPS = async (req, res) => {
 
     const updatedCPS = await CPS.findByIdAndUpdate(cpsId, cleanedData, { new: true });
 
-    res.status(200).json({ message: `${type.charAt(0).toUpperCase() + type.slice(1)} updated successfully.`, updatedCPS });
+    res.status(200).json({ 
+        message: `${type.charAt(0).toUpperCase() + type.slice(1)} updated successfully.`, 
+        data: updatedCPS 
+    });
     // console.log(`${type} updated successfully.`, updatedCPS);
   } catch (error) {
     console.error(`Error editing ${req.params.type}:`, error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ message: "Server error", error: error.message });
   }
 };
 
@@ -257,11 +263,11 @@ exports.deleteCPS = async (req, res) => {
       // Delete the CPS entry
       await CPS.findByIdAndDelete(cpsId);
 
-      res.status(200).json({ message: `${type.charAt(0).toUpperCase() + type.slice(1)} deleted successfully.` });
+      res.status(200).json({ message: `${type.charAt(0).toUpperCase() + type.slice(1)} deleted successfully.`, type, cpsId });
       // console.log(`${type} deleted successfully.`);
   } catch (error) {
       console.error(`Error deleting ${req.params.type}:`, error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ message: "Server error", error: error.message });
   }
 };
 
@@ -342,3 +348,7 @@ function validateFloatFields(fields, data, errors) {
         "Invalid " + balance.replace(/([A-Z])/g, " $1") + ": " + data[balance], errors);
     });
 }
+
+function isFloat(value) {
+    return /^-?\d+(\.\d+)?$/.test(value);
+  }

@@ -22,8 +22,10 @@ const itemSchema = new Schema({
 
     // Sewnex additional variable
     //** */
+    barCode: { type: String },
     internalManufacturingItem: { type: Boolean },
     chooseService: { type: String },
+    type: { type: String },
     //** */
 
     returnableItem: { type: Boolean },

@@ -721,8 +721,7 @@ function taxType( cleanedData, taxExists, taxRate ) {
 
 
 
-const validItemTypes = [ "goods", "service" ];
-const validTaxPreference = [ "Non-taxable", "Taxable" ]; 
+
 
 //Validate inputs
 function validateInputs(data, taxExists, organizationId, bmcr,  salesAccount, purchaseAccount, res) {
@@ -749,6 +748,7 @@ function validateItemData( data, taxExists, organizationId, bmcr,  salesAccount,
   validateAccountStructure( data, salesAccount, purchaseAccount, errors);
   validateItemType(data.itemType, errors);
   validateTaxPreference(data.taxPreference, errors);
+  validateType(data.type, errors);    //sewnex variable
   validateBMCRFields( data.brand, data.manufacturer, data.categories, data.rack, bmcr, errors);
 
 
@@ -784,6 +784,13 @@ function validateTaxPreference(taxPreference, errors) {
   validateField(taxPreference && !validTaxPreference.includes(taxPreference),
     "Invalid Tax Preference: " + taxPreference, errors);
 }
+
+// Validate Type (sewnex variable)
+function validateType(type, errors) {
+  validateField(
+    type && !validType.includes(type),
+    "Invalid Expense Type: " + type, errors );
+} 
 
 //Valid Req Fields
 function validateReqFields( data, errors ) {
@@ -922,3 +929,10 @@ function isInteger(value) {
 function isAlphanumeric(value) {
   return /^[A-Za-z0-9]+$/.test(value);
 }
+
+
+
+
+const validItemTypes = [ "goods", "service" ];
+const validTaxPreference = [ "Non-taxable", "Taxable" ]; 
+const validType = [ "Fabric", "Raw Material", "Ready Made" ];   //sewnex variable
