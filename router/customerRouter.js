@@ -13,25 +13,16 @@ const checkPermission = require('../controller/permission');
 const { verifyToken } = require('../controller/middleware');
 
 
+
+
 //Basic
-
-
-
-router.get('/get-Customer-Trandactions/:customerId',verifyToken,customerController.getCustomerTransactions);
-
-
-router.get('/get-Customer-Dashboard/:date',verifyToken,dashboardController.getCustomerStats);
-
-
 router.get('/customer-additional-data', verifyToken,customerController.getCustomerAdditionalData);
 
 
 
+
 //Customer
-
-// router.post('/add-customer',customerController.addCustomer)
-
-router.post('/add-customer',verifyToken,checkPermission('Created a New Customer'),customerController.addCustomer)
+router.post('/add-customer',verifyToken,checkPermission('Created New Customer'),customerController.addCustomer)
 
 router.get('/get-all-customer',verifyToken,checkPermission('Viewed Customer details'),customerController.getAllCustomer)
 
@@ -39,14 +30,18 @@ router.get('/get-one-customer/:customerId',verifyToken,checkPermission('Viewed C
 
 router.put('/edit-customer/:customerId', verifyToken,checkPermission('Edited Customer information'),customerController.editCustomer);
 
-router.put('/update-customer-status/:customerId', verifyToken,checkPermission('Modified Customer Status'),customerController.updateCustomerStatus);
+router.put('/update-customer-status/:customerId', verifyToken,checkPermission('Edited Customer information'),customerController.updateCustomerStatus);
+
+router.delete('/delete-customer/:customerId',verifyToken,checkPermission('Deleted Customer'),customerController.deleteCustomer);
+
+
+
+
+router.get('/get-customer-transaction/:customerId',verifyToken,checkPermission('Viewed Customer details'),customerController.getCustomerTransactions);
+
+router.get('/get-customer-dashboard/:date',verifyToken,checkPermission('Viewed Customer details'),dashboardController.getCustomerStats);
 
 router.put('/update-customer-settings',verifyToken,checkPermission('Created a New Supplier'),customerSettings.updateCustomerSettings)
-
-router.delete('/delete-customer/:customerId', verifyToken,customerController.deleteCustomer);
-
-
-
 
 
 //Import
