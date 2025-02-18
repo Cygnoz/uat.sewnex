@@ -32,11 +32,11 @@ router.delete('/delete-item/:itemId',verifyToken,checkPermission('Deleted an Ite
 
 
 // Unit
-router.post('/add-unit',verifyToken,checkPermission('Created a New Unit'), unitController.addUnit);
-router.get('/get-all-unit',verifyToken,checkPermission('Viewed Unit Information'), unitController.getAllUnit);
-router.get('/get-one-unit/:_id',verifyToken,checkPermission('Viewed Unit Information'), unitController.getOneUnit);
-router.put('/edit-unit/:_id',verifyToken,checkPermission('Edited Unit Information'), unitController.updateUnit);
-router.delete('/delete-unit/:id',verifyToken,checkPermission('Deleted a Unit'), unitController.deleteUnit);
+router.post('/add-unit',verifyToken,checkPermission('Created a New Item'), unitController.addUnit);
+router.get('/get-all-unit',verifyToken,checkPermission('Created a New Item'), unitController.getAllUnit);
+router.get('/get-one-unit/:_id',verifyToken,checkPermission('Created a New Item'), unitController.getOneUnit);
+router.put('/edit-unit/:_id',verifyToken,checkPermission('Created a New Item'), unitController.updateUnit);
+router.delete('/delete-unit/:id',verifyToken,checkPermission('Created a New Item'), unitController.deleteUnit);
 
 // Unit Conversion
 // router.post('/add-unitConversion', unitController.addUnitConversion);
@@ -48,11 +48,11 @@ router.delete('/delete-unit/:id',verifyToken,checkPermission('Deleted a Unit'), 
 
 
 //BMCR - Brand Manufacturer Category Rack
-router.post('/add-bmcr',verifyToken,checkPermission('Created a New BMCR'), bmcrController.addBmcr);
-router.put('/get-all-bmcr',verifyToken,checkPermission('Viewed BMCR Information'), bmcrController.getAllBmcr);
-router.get('/get-a-bmcr/:id',verifyToken,checkPermission('Viewed BMCR Information'), bmcrController.getABmcr);
-router.put('/update-bmcr',verifyToken,checkPermission('Edited BMCR Information'), bmcrController.updateBmcr);
-router.delete('/delete-bmcr/:id',verifyToken,checkPermission('Deleted a BMCR'), bmcrController.deleteBmcr)
+router.post('/add-bmcr',verifyToken,checkPermission('Created a New Item'), bmcrController.addBmcr);
+router.put('/get-all-bmcr',verifyToken,checkPermission('Created a New Item'), bmcrController.getAllBmcr);
+router.get('/get-a-bmcr/:id',verifyToken,checkPermission('Created a New Item'), bmcrController.getABmcr);
+router.put('/update-bmcr',verifyToken,checkPermission('Created a New Item'), bmcrController.updateBmcr);
+router.delete('/delete-bmcr/:id',verifyToken,checkPermission('Created a New Item'), bmcrController.deleteBmcr)
 
 
 
@@ -66,53 +66,9 @@ router.put('/add-item-settings',verifyToken,checkPermission('Setup/Modified Item
 
 //Item Track
 router.get('/get-all-item-track',verifyToken,checkPermission('Viewed Item Information'), itemSettingsController.getAllItemTrack);
-router.get('/get-item-transaction/:id',verifyToken, itemSettingsController.itemTransaction);
+router.get('/get-item-transaction/:id',verifyToken,checkPermission('Viewed Item Information'), itemSettingsController.itemTransaction);
 
 
-
-
-
-
-
-
-
-
-// // Item
-// router.post('/add-item', itemController.addItem);
-// router.put('/get-all-item', itemController.getAllItem);
-// router.get('/get-one-item/:id', itemController.getAItem)
-// router.put('/edit-item',itemController.updateItem)
-// router.delete('/delete-item/:id',itemController.deleteItem)
-
-
-// // Unit
-// router.post('/add-unit', unitController.addUnit);
-// router.put('/get-all-unit', unitController.getAllUnit);
-// router.get('/get-one-unit/:_id', unitController.getOneUnit);
-// router.put('/edit-unit', unitController.updateUnit);
-// router.delete('/delete-unit/:id', unitController.deleteUnit);
-
-// // Unit Conversion
-// // router.post('/add-unitConversion', unitController.addUnitConversion);
-// // router.put('/get-all-unitConversion', unitController.getAllUnitConversion);
-// // router.get('/get-one-unitConversion/:_id', unitController.getOneUnitConversion);
-// // router.put('/edit-unitConversion', unitController.updateUnitConversion);
-// // router.delete('/delete-unitConversion/:id', unitController.deleteUnitConversion);
-
-
-
-// //BMCR - Brand Manufacturer Category Rack
-// router.post('/add-bmcr', bmcrController.addBmcr);
-// router.put('/get-all-bmcr', bmcrController.getAllBmcr);
-// router.put('/get-a-bmcr/:id', bmcrController.getABmcr);
-// router.put('/update-bmcr', bmcrController.updateBmcr);
-// router.delete('/delete-bmcr/:id',bmcrController.deleteBmcr)
-
-
- 
-// //items settings
-// router.put('/add-item-settings',itemSettingsController.addItemSettings);
-// // router.post('/get-item-settings',itemSettings.getItemSettings);
 
 
 module.exports = router

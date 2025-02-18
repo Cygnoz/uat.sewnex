@@ -102,7 +102,7 @@ const xsItemDataExists = async (organizationId) => {
 //M Item Exist
 const mItemDataExists = async (organizationId) => {
   const [newItems] = await Promise.all([
-      Item.find({ organizationId }, { organizationId: 0, itemImage: 0 })
+      Item.find({ organizationId }, { organizationId: 0 })
           .populate('salesAccountId', 'accountName')
           .populate('purchaseAccountId', 'accountName')
           .populate('preferredVendorId', 'supplierDisplayName')
