@@ -22,7 +22,9 @@ const dataExist = async ( organizationId, customerId) => {
       Tax.findOne({ organizationId },{ taxType: 1 }).lean(),
       Currency.find({ organizationId },{ currencyCode: 1, _id: 1 }).lean(),
       Settings.find({ organizationId },{ duplicateCustomerDisplayName: 1, duplicateCustomerEmail: 1, duplicateCustomerMobile: 1 }).lean(),
-      Customer.find({ organizationId },{organizationId:0}).populate('customerId', 'customerDisplayName').lean(),
+      Customer.find({ organizationId },{organizationId:0})
+      .populate('referenceCustomerId', 'customerDisplayName')
+      .lean(),
       Customer.findOne({ _id:customerId, organizationId},{organizationId:0}).lean(),
       Account.findOne({ accountId: customerId, organizationId },{organizationId:0}).lean(),
       TrialBalance.findOne({ organizationId, operationId: customerId},{organizationId:0}).lean(),
@@ -95,7 +97,11 @@ exports.editCustomer = async (req, res) => {
       cleanedData.contactPerson = cleanedData.contactPerson?.map(person => cleanData(person)) || [];
 
       const { customerId } = req.params;
-  
+
+      if (!customerId || customerId === "undefined") {  
+        return res.status(404).json({ message: "Customer not found" });
+      }
+
       const { customerDisplayName ,customerEmail ,mobile} = cleanedData;
   
       const { organizationExists, taxExists, currencyExists, existingCustomer, settings, accountExist, trialBalance} = await dataExist( organizationId, customerId );
@@ -128,6 +134,8 @@ exports.editCustomer = async (req, res) => {
       if(oldCustomerDisplayName !== customerDisplayName){
       await updateAccount(cleanedData,accountExist);
       }
+
+      
 
       cleanedData.lastModifiedDate = new Date();
 
@@ -211,11 +219,8 @@ exports.getOneCustomer = async (req, res) => {
 
     const transformedExpense = {
       ...existingCustomer,
-      customerId: existingCustomer.customerId ? existingCustomer.customerId._id : undefined,  
-      customerDisplayName: existingCustomer.customerId ? existingCustomer.customerId.customerDisplayName : undefined,
-      contactPerson: existingCustomer.contactPerson.map(data => ({
-        ...data
-      }))
+      referenceCustomerId: existingCustomer.referenceCustomerId ? existingCustomer.referenceCustomerId._id : undefined,  
+      referenceCustomerDisplayName: existingCustomer.referenceCustomerId ? existingCustomer.referenceCustomerId.customerDisplayName : undefined,
     };
 
     const formattedObjects = singleCustomDateTime(transformedExpense, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    

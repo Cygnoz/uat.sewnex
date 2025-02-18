@@ -34,7 +34,7 @@ const customerSchema = new Schema({
     cardNumber: {type:String},
 
     membershipCardNumber: {type:String},  // *Sewnex variable
-    referenceCustomer: {type: mongoose.Schema.Types.ObjectId, ref: 'Customer'},    // *Sewnex variable
+    referenceCustomerId: {type: mongoose.Schema.Types.ObjectId, ref: 'Customer'},    // *Sewnex variable
 
     //Opening Balance
     debitOpeningBalance: {type:Number},
