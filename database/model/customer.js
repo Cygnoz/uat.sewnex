@@ -24,6 +24,8 @@ const customerSchema = new Schema({
     companyName: {type:String},
     customerDisplayName: {type:String},
 
+    companyAddress: {type:String},  // *Sewnex variable
+
     customerEmail: {type:String},
     workPhone: {type:String},
     mobile: {type:String},
