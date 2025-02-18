@@ -348,3 +348,7 @@ function validateFloatFields(fields, data, errors) {
         "Invalid " + balance.replace(/([A-Z])/g, " $1") + ": " + data[balance], errors);
     });
 }
+
+function isFloat(value) {
+    return /^-?\d+(\.\d+)?$/.test(value);
+  }
