@@ -58,7 +58,7 @@ router.delete('/delete-bmcr/:id',verifyToken,checkPermission('Created a New Item
 
  
 //items settings
-router.put('/add-item-settings',verifyToken,checkPermission('Setup/Modified Item Setting'), itemSettingsController.addItemSettings);
+router.put('/add-item-settings',verifyToken,checkPermission('Added a new Setting'), itemSettingsController.addItemSettings);
 
 
 
