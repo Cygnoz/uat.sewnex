@@ -70,7 +70,6 @@ const newDataExists = async (organizationId,items) => {
 
 
 const salesDataExist = async ( organizationId, orderId ) => {    
-    
   const [organizationExists, allOrder, order ] = await Promise.all([
     Organization.findOne({ organizationId }, { organizationId: 1,timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1}),
     Order.find({ organizationId })
