@@ -164,15 +164,55 @@ const createRolesForOrganization = async (organizationId) => {
           { action: "SupplierCreate", note: "Created a New Supplier" },
           { action: "SupplierView", note: "Viewed Supplier Details" },
           { action: "SupplierEdit", note: "Edited Supplier Information" },
-          { action: "SupplierStatus", note: "Modified Supplier Status" },
-          { action: "SupplierImport", note: "Import New Suppliers" },
-    
+          { action: "SupplierDelete", note: "Deleted Supplier Information" },
           
+          { action: "SupplierImport", note: "Import New Suppliers" },
+          
+          //Report Module
+          { action: "ReportView", note: "Viewed Reports" },
+
+          //Sales Module - Quote
+          { action: "QuoteCreate", note: "Created a New Quote" },
+          { action: "QuoteView", note: "Viewed Quote Details" },
+          { action: "QuoteEdit", note: "Edited Quote Information" },
+          { action: "QuoteDelete", note: "Deleted Quote Information" },
+
+          //Sales Module - Order
+          { action: "OrderCreate", note: "Created a New Order" },
+          { action: "OrderView", note: "Viewed Order Details" },
+          { action: "OrderEdit", note: "Edited Order Information" },
+          { action: "OrderDelete", note: "Deleted Order Information" },
+
+          //Sales Module - Invoice
+          { action: "InvoiceCreate", note: "Created a New Invoice" },
+          { action: "InvoiceView", note: "Viewed Invoice Details" },
+          { action: "InvoiceEdit", note: "Edited Invoice Information" },
+          { action: "InvoiceDelete", note: "Deleted Invoice Information" },
+
+
+          //Sales Module - Receipt
+          { action: "ReceiptCreate", note: "Created a New Receipt" },
+          { action: "ReceiptView", note: "Viewed Receipt Details" },
+          { action: "ReceiptEdit", note: "Edited Receipt Information" },
+          { action: "ReceiptDelete", note: "Deleted Receipt Information" },
+
+          //Sales Module - Credit Note
+          { action: "CreditNoteCreate", note: "Created a New Credit Note" },
+          { action: "CreditNoteView", note: "Viewed Credit Note Details" },
+          { action: "CreditNoteEdit", note: "Edited Credit Note Information" },
+          { action: "CreditNoteDelete", note: "Deleted Credit Note Information" },
+          
+          //Staff Module - Expense
+          { action: "ExpenseCreate", note: "Created a New Expense" },
+          { action: "ExpenseView", note: "Viewed Expense Details" },
+          { action: "ExpenseEdit", note: "Edited Expense Information" },
+          { action: "ExpenseDelete", note: "Deleted Expense Information" },
+
+
         ],
       },
     ];
     
-
     await Role.insertMany(roles);
     console.log("Roles created successfully for organization:", organizationId);
     return { success: true, message: "Roles created successfully." };
