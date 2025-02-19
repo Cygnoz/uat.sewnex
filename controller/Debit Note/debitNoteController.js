@@ -1187,7 +1187,7 @@ async function journal( savedDebitNote, defAcc, supplierAccount, depositAccount 
     transactionId: savedDebitNote.debitNote,
     date: savedDebitNote.createdDate,
     accountId: defAcc.inputCgst || undefined,
-    action: "Purchase Return cgst",
+    action: "Purchase Return",
     debitAmount:  0,
     creditAmount: savedDebitNote.cgst || 0,
     remark: savedDebitNote.note,
@@ -1199,7 +1199,7 @@ async function journal( savedDebitNote, defAcc, supplierAccount, depositAccount 
     transactionId: savedDebitNote.debitNote,
     date: savedDebitNote.createdDate,
     accountId: defAcc.inputSgst || undefined,
-    action: "Purchase Return sgst",
+    action: "Purchase Return",
     debitAmount: 0,
     creditAmount: savedDebitNote.sgst || 0,
     remark: savedDebitNote.note,
@@ -1211,7 +1211,7 @@ async function journal( savedDebitNote, defAcc, supplierAccount, depositAccount 
     transactionId: savedDebitNote.debitNote,
     date: savedDebitNote.createdDate,
     accountId: defAcc.inputIgst || undefined,
-    action: "Purchase Return igst",
+    action: "Purchase Return",
     debitAmount: 0,
     creditAmount: savedDebitNote.igst || 0,
     remark: savedDebitNote.note,
@@ -1223,7 +1223,7 @@ async function journal( savedDebitNote, defAcc, supplierAccount, depositAccount 
     transactionId: savedDebitNote.debitNote,
     date: savedDebitNote.createdDate,
     accountId: defAcc.inputVat || undefined,
-    action: "Purchase Return vat",
+    action: "Purchase Return",
     debitAmount: 0,
     creditAmount: savedDebitNote.vat || 0,
     remark: savedDebitNote.note,
@@ -1235,7 +1235,7 @@ async function journal( savedDebitNote, defAcc, supplierAccount, depositAccount 
     transactionId: savedDebitNote.debitNote,
     date: savedDebitNote.createdDate,
     accountId: supplierAccount._id || undefined,
-    action: "Purchase Return said",
+    action: "Purchase Return",
     debitAmount: savedDebitNote.grandTotal || 0,
     creditAmount:  0,
     remark: savedDebitNote.note,
@@ -1247,7 +1247,7 @@ async function journal( savedDebitNote, defAcc, supplierAccount, depositAccount 
     transactionId: savedDebitNote.debitNote,
     date: savedDebitNote.createdDate,
     accountId: supplierAccount._id || undefined,
-    action: "Debit Note said",
+    action: "Debit Note",
     debitAmount: 0,
     creditAmount: savedDebitNote.grandTotal || 0,
     remark: savedDebitNote.note,
@@ -1259,7 +1259,7 @@ async function journal( savedDebitNote, defAcc, supplierAccount, depositAccount 
     transactionId: savedDebitNote.debitNote,
     date: savedDebitNote.createdDate,
     accountId: depositAccount?._id || undefined,
-    action: "Debit Note daid",
+    action: "Debit Note",
     debitAmount: savedDebitNote.grandTotal || 0,
     creditAmount: 0,
     remark: savedDebitNote.note,
@@ -1270,7 +1270,6 @@ async function journal( savedDebitNote, defAcc, supplierAccount, depositAccount 
   let purchaseTotalCredit = 0;
 
   if (Array.isArray(savedDebitNote.purchaseJournal)) {
-    console.log("savedDebitNote.purchaseJournal",savedDebitNote.purchaseJournal);
     savedDebitNote.purchaseJournal.forEach((entry) => {
 
       console.log( "Account Log",entry.accountId, entry.debitAmount, entry.creditAmount );      
@@ -1334,7 +1333,7 @@ const creditAmount =
       transactionId: savedDebitNote.debitNote,
       date: savedDebitNote.createdDate,
       accountId: entry.accountId || undefined,
-      action: "Purchase Return aid",
+      action: "Purchase Return",
       debitAmount: 0,
       creditAmount: entry.creditAmount || 0,
       remark: savedDebitNote.note,
