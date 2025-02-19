@@ -20,14 +20,6 @@ const itemSchema = new Schema({
         }
     ], 
 
-    // Sewnex additional variable
-    //** */
-    barCode: { type: String },
-    internalManufacturingItem: { type: Boolean },
-    chooseService: { type: String },
-    type: { type: String },
-    //** */
-
     returnableItem: { type: Boolean },
     hsnCode: { type: String },
     sac:{type:String},
@@ -71,13 +63,19 @@ const itemSchema = new Schema({
     igst:{type:Number},
     vat:{type:Number},
 
-
     openingStock:{type:Number},
     openingStockRatePerUnit:{type:Number},
     reorderPoint: { type: Number },
     
     createdDateTime: { type: Date, default: () => new Date() },
     lastModifiedDateTime: { type: Date, default: () => new Date() },
+
+    
+    // Sewnex additional variables
+    barCode: { type: String },
+    internalManufacturingItem: { type: Boolean },
+    chooseService: { type: String },
+    type: { type: String },
   
 });
 

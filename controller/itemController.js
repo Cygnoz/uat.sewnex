@@ -275,9 +275,7 @@ exports.addItem = async (req, res) => {
       const { brandExist, manufacturerExist, categoriesExist, rackExist } = await bmcrDataExist(organizationId);
       const bmcr = { brandExist, manufacturerExist, categoriesExist, rackExist };
       
-
       if (!validateOrganizationTaxCurrency(organizationExists, taxExists, settingsExist, res)) return;     
-
 
       // Check for duplicate item name
       if (!settingsExist.itemDuplicateName && await isDuplicateItemName(itemName, organizationId, res)) return;
@@ -287,7 +285,7 @@ exports.addItem = async (req, res) => {
 
 
       //Validate Inputs  
-      if (!validateInputs(cleanedData, taxExists, organizationId, bmcr, salesAccount, purchaseAccount, res)) return;
+      if (!validateInputs(cleanedData, settingsExist, taxExists, organizationId, bmcr, salesAccount, purchaseAccount, res)) return;
 
       //Tax Type
       taxType( cleanedData, taxExists, taxRate );      
@@ -455,7 +453,7 @@ exports.updateItem = async (req, res) => {
     if (cleanedData.sku !== undefined && await isDuplicateSKUExist( sku, organizationId, itemId, res )) return;
 
     //Validate Inputs  
-    if (!validateInputs(cleanedData, taxExists, organizationId, bmcr,  salesAccount, purchaseAccount, res)) return;
+    if (!validateInputs(cleanedData, settingsExist, taxExists, organizationId, bmcr,  salesAccount, purchaseAccount, res)) return;
    
      //Tax Type
     taxType( cleanedData, taxExists, taxRate );      
@@ -724,8 +722,8 @@ function taxType( cleanedData, taxExists, taxRate ) {
 
 
 //Validate inputs
-function validateInputs(data, taxExists, organizationId, bmcr,  salesAccount, purchaseAccount, res) {
-   const validationErrors = validateItemData( data, taxExists, organizationId, bmcr,  salesAccount, purchaseAccount );
+function validateInputs(data, settingsExist, taxExists, organizationId, bmcr,  salesAccount, purchaseAccount, res) {
+   const validationErrors = validateItemData( data, settingsExist, taxExists, organizationId, bmcr,  salesAccount, purchaseAccount );
 
   if (validationErrors.length > 0) {
     res.status(400).json({ message: validationErrors.join(", ") });
@@ -737,7 +735,7 @@ function validateInputs(data, taxExists, organizationId, bmcr,  salesAccount, pu
 
 
 //Validate Data
-function validateItemData( data, taxExists, organizationId, bmcr,  salesAccount, purchaseAccount ) {  
+function validateItemData( data, settingsExist, taxExists, organizationId, bmcr,  salesAccount, purchaseAccount ) {  
   
   const errors = [];
 
@@ -748,6 +746,7 @@ function validateItemData( data, taxExists, organizationId, bmcr,  salesAccount,
   validateAccountStructure( data, salesAccount, purchaseAccount, errors);
   validateItemType(data.itemType, errors);
   validateTaxPreference(data.taxPreference, errors);
+  validateHsnSac(data.hsnCode, data.sac, settingsExist, errors);
   validateType(data.type, errors);    //sewnex variable
   validateBMCRFields( data.brand, data.manufacturer, data.categories, data.rack, bmcr, errors);
 
@@ -761,6 +760,29 @@ function validateItemData( data, taxExists, organizationId, bmcr,  salesAccount,
   validateTaxType(data.taxRate, data.taxPreference, taxExists, errors);
 
   return errors;
+}
+
+
+function validateHsnSac(hsnCode, sac, settingsExist, errors) {
+  if (settingsExist.hsnSac === true) {
+    const hsnDigits = settingsExist.hsnDigits;
+
+    if (hsnDigits === "4") {
+      if (hsnCode && hsnCode.length > 4) {
+        errors.push("HSN Code must not exceed 4 digits.");
+      }
+      if (sac && sac.length > 4) {
+        errors.push("SAC Code must not exceed 4 digits.");
+      }
+    } else if (hsnDigits === "6") {
+      if (hsnCode && hsnCode.length > 6) {
+        errors.push("HSN Code must not exceed 6 digits.");
+      }
+      if (sac && sac.length > 6) {
+        errors.push("SAC Code must not exceed 6 digits.");
+      }
+    }
+  }
 }
 
 

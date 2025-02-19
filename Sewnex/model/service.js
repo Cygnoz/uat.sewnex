@@ -48,6 +48,9 @@ const serviceSchema = new mongoose.Schema({
     style: [styleSchema],
 
     //styleTotal:{type:Number},
+    //amountIs:{type:String},   // Inclusive, Exclusive
+    //serviceCharge:{type:Number},
+    //styleAmount:{type:Number},
     //serviceAmount:{type:Number},
     //grandTotal:{type:Number},
 });
