@@ -526,27 +526,17 @@ function validateField(condition, errorMsg, errors) {
 }
 //Valid Req Fields
 function validateReqFields( data, errors ) {
-  if (typeof data.organizationCountry === 'undefined' ) {
-    errors.push("Please select a Country");
-  }
-  if (typeof data.state === 'undefined' ) {
-  errors.push("Please select a State");
-  }
-  if (typeof data.organizationPhNum === 'undefined' ) {
-    errors.push("Please enter Phone Number");
-  }
-  if (typeof data.baseCurrency === 'undefined' ) {
-  errors.push("Please select a Currency");
-  }
-  if (typeof data.timeZone === 'undefined' ) {
-  errors.push("Please select a Time Zone");
-  }
-  if (typeof data.dateFormat === 'undefined' ) {
-  errors.push("Please select a Date Format");
-  }
-  if (typeof data.dateSplit === 'undefined' ) {
-  errors.push("Please select a Date Split");
-  }  
+
+  validateField( typeof data.organizationCountry === 'undefined', `Please select a Country`, errors );  
+  validateField( typeof data.state === 'undefined', `Please select a State`, errors );  
+
+  validateField( typeof data.organizationPhNum === 'undefined', `Please enter Phone Number`, errors );  
+  validateField( typeof data.baseCurrency === 'undefined', `Please select a Currency`, errors );  
+
+  validateField( typeof data.timeZone === 'undefined' || typeof data.timeZoneExp === 'undefined', `Please select a Time Zone`, errors );  
+  validateField( typeof data.dateFormat === 'undefined' || typeof data.dateFormatExp === 'undefined', `Please select a Date Format`, errors );  
+  validateField( typeof data.dateSplit === 'undefined', `Please select a Date Split`, errors );  
+
 }
 // Validate address
 function validateAddress(data, errors) {
