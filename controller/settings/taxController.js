@@ -8,20 +8,21 @@ const DefAcc = require("../../database/model/defaultAccount");
 const moment = require("moment-timezone");
 
 
+const { cleanData } = require("../../services/cleanData");
 
 
 
 // Add Tax
 exports.addTax = async (req, res) => {
+  console.log("Add Tax :",req.body);
   try {
-    console.log("Add Tax :",req.body);
     const organizationId = req.user.organizationId;
     const gst = req.body.gstTaxRate
     const vat = req.body.vatTaxRate   
 
-    const cleanedData = cleanCustomerData(req.body);
-    cleanedData.gstTaxRate = gst ? cleanCustomerData(gst) : undefined;
-    cleanedData.vatTaxRate = vat ? cleanCustomerData(vat) : undefined; 
+    const cleanedData = cleanData(req.body);
+    cleanedData.gstTaxRate = gst ? cleanData(gst) : undefined;
+    cleanedData.vatTaxRate = vat ? cleanData(vat) : undefined; 
 
     const { taxType } = cleanedData;  
         
@@ -38,11 +39,11 @@ exports.addTax = async (req, res) => {
     
     // Validate GST tax rate for duplicates
     if (cleanedData.gstTaxRate && await isDuplicateGSTTaxName(organizationId, cleanedData.gstTaxRate)) {
-      return res.status(400).json({ message: `GST Tax record with tax name ${gstTaxRate.taxName} already exists.` });
+      return res.status(400).json({ message: `GST Tax record with tax name ${cleanedData.gstTaxRate.taxName} already exists.` });
     }
 
     if (cleanedData.vatTaxRate && await isDuplicateVATTaxName(organizationId, cleanedData.vatTaxRate)) {
-      return res.status(400).json({ message: `VAT Tax record with tax name ${vatTaxRate.taxName} already exists.` });
+      return res.status(400).json({ message: `VAT Tax record with tax name ${cleanedData.vatTaxRate.taxName} already exists.` });
     }
 
     const gstValidation = validateGstTaxRates(cleanedData.gstTaxRate);
@@ -95,9 +96,12 @@ exports.addTax = async (req, res) => {
 
 //Edit Tax
 exports.editTaxRate = async (req, res) => {
+  console.log("Edit Tax :",req.body);
   try {
     const organizationId = req.user.organizationId;
     const { taxType, taxRateId, updatedRate } = req.body;
+    console.log('taxRateId:',taxRateId);
+
     
 
     // Validate the taxType
@@ -113,11 +117,11 @@ exports.editTaxRate = async (req, res) => {
     }
 
     // Validate GST tax rate for duplicates
-    if (taxType == 'GST' &&  await isDuplicateGSTTaxName(organizationId, updatedRate)) {
+    if (taxType == 'GST' &&  await isDuplicateGSTTaxNameExcludingCurrent(organizationId, updatedRate,taxRateId)) {
       return res.status(400).json({ message: `GST Tax record with tax name already exists.` });
     }
 
-    if (taxType == 'VAT' &&  await isDuplicateVATTaxName(organizationId, updatedRate)) {
+    if (taxType == 'VAT' &&  await isDuplicateVATTaxNameExcludingCurrent(organizationId, updatedRate,taxRateId)) {
       return res.status(400).json({ message: `VAT Tax record with tax name already exists.` });
     }
 
@@ -225,25 +229,53 @@ exports.getTax = async (req, res) => {
 
 
 
-//Duplicate Check
+//Duplicate Check ADD
 const isDuplicateGSTTaxName = async (organizationId, gstTaxRate ) => {
   const taxName = gstTaxRate.taxName ;
-
-  // Check for GST tax name duplicate
   const gstTaxRecord = await Tax.findOne({ organizationId, 'gstTaxRate.taxName': taxName });
-
-  // Return true if duplicate exists in either GST or VAT rates
   return !!gstTaxRecord ;
 };
 const isDuplicateVATTaxName = async (organizationId, vatTaxRate) => {
   const taxName = vatTaxRate.taxName;
-
-  // Check for VAT tax name duplicate
   const vatTaxRecord = await Tax.findOne({ organizationId, 'vatTaxRate.taxName': taxName });
-
-  // Return true if duplicate exists in either GST or VAT rates
   return !!vatTaxRecord;
 };
+
+
+
+
+
+
+// Duplicate Check Edit
+// Duplicate Check Excluding Current Record
+const isDuplicateGSTTaxNameExcludingCurrent = async (organizationId, gstTaxRate, taxRateId) => {
+  const taxName = gstTaxRate.taxName;
+
+  // Check for GST tax name duplicate excluding the current record
+  const gstTaxRecord = await Tax.findOne({ 
+    organizationId, 
+    'gstTaxRate.taxName': taxName,
+    _id: { $ne: taxRateId }  // Exclude current tax record
+  });
+
+  return !!gstTaxRecord;
+};
+
+const isDuplicateVATTaxNameExcludingCurrent = async (organizationId, vatTaxRate, taxRateId) => {
+  const taxName = vatTaxRate.taxName;
+
+  // Check for VAT tax name duplicate excluding the current record
+  const vatTaxRecord = await Tax.findOne({ 
+    organizationId, 
+    'vatTaxRate.taxName': taxName,
+    _id: { $ne: taxRateId }  // Exclude current tax record
+  });
+
+  return !!vatTaxRecord;
+};
+
+
+
 
 
 
@@ -612,11 +644,3 @@ function generateTimeAndDateForDB(
 
 
 
-//Clean Data 
-function cleanCustomerData(data) {
-    const cleanData = (value) => (value === null || value === undefined || value === "" || value === 0 ? undefined : value);
-    return Object.keys(data).reduce((acc, key) => {
-      acc[key] = cleanData(data[key]);
-      return acc;
-    }, {});
-}

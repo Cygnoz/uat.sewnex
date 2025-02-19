@@ -165,7 +165,6 @@ const createRolesForOrganization = async (organizationId) => {
           { action: "SupplierView", note: "Viewed Supplier Details" },
           { action: "SupplierEdit", note: "Edited Supplier Information" },
           { action: "SupplierDelete", note: "Deleted Supplier Information" },
-          
           { action: "SupplierImport", note: "Import New Suppliers" },
           
           //Report Module
@@ -189,7 +188,6 @@ const createRolesForOrganization = async (organizationId) => {
           { action: "InvoiceEdit", note: "Edited Invoice Information" },
           { action: "InvoiceDelete", note: "Deleted Invoice Information" },
 
-
           //Sales Module - Receipt
           { action: "ReceiptCreate", note: "Created a New Receipt" },
           { action: "ReceiptView", note: "Viewed Receipt Details" },
@@ -207,7 +205,6 @@ const createRolesForOrganization = async (organizationId) => {
           { action: "ExpenseView", note: "Viewed Expense Details" },
           { action: "ExpenseEdit", note: "Edited Expense Information" },
           { action: "ExpenseDelete", note: "Deleted Expense Information" },
-
 
         ],
       },
