@@ -22,7 +22,7 @@ router.get('/customer-additional-data', verifyToken,customerController.getCustom
 
 
 //Customer
-router.post('/add-customer',verifyToken,checkPermission('Created New Customer'),customerController.addCustomer)
+router.post('/add-customer',verifyToken,checkPermission('Created a New Customer'),customerController.addCustomer)
 
 router.get('/get-all-customer',verifyToken,checkPermission('Viewed Customer details'),customerController.getAllCustomer)
 
