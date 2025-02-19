@@ -92,7 +92,7 @@ router.delete('/delete-sales-invoice/:invoiceId',verifyToken,checkPermission("De
 
 
 // customer sales History
-router.get('/get-customer-sales-history/:id',verifyToken,checkPermission("Viewed Customer Sale History"),customerController.customerSaleHistory)
+router.get('/get-customer-sales-history/:id',verifyToken,checkPermission("Viewed Customer details"),customerController.customerSaleHistory)
 
 
 
