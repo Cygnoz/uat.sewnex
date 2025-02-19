@@ -221,8 +221,8 @@ exports.getAllDebitNote = async (req, res) => {
     const transformedData = allDebitNote.map(data => {
       return {
           ...data,
-          supplierId: data.supplierId._id,  
-          supplierDisplayName: data.supplierId.supplierDisplayName,  
+          supplierId: data.supplierId?._id,  
+          supplierDisplayName: data.supplierId?.supplierDisplayName,  
       };});
 
     const formattedObjects = multiCustomDateTime(transformedData, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
@@ -249,12 +249,12 @@ try {
 
   const transformedData = {
     ...debitNote,
-    supplierId: debitNote.supplierId._id,  
-    supplierDisplayName: debitNote.supplierId.supplierDisplayName,
+    supplierId: debitNote.supplierId?._id,  
+    supplierDisplayName: debitNote.supplierId?.supplierDisplayName,
     items: debitNote.items.map(item => ({
       ...item,
-      itemId: item.itemId._id,
-      itemName: item.itemId.itemName,
+      itemId: item.itemId?._id,
+      itemName: item.itemId?.itemName,
     })),  
 };
 
@@ -286,8 +286,8 @@ exports.debitNoteJournal = async (req, res) => {
       const transformedJournal = debitJournal.map(item => {
         return {
             ...item,
-            accountId: item.accountId._id,  
-            accountName: item.accountId.accountName,  
+            accountId: item.accountId?._id,  
+            accountName: item.accountId?.accountName,  
         };
     });    
       

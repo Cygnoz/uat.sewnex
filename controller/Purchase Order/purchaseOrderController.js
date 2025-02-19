@@ -126,8 +126,8 @@ exports.getAllPurchaseOrder = async (req, res) => {
     const transformedInvoice = allPurchaseOrder.map(data => {
       return {
           ...data,
-          supplierId: data.supplierId._id,  
-          supplierDisplayName: data.supplierId.supplierDisplayName,  
+          supplierId: data.supplierId?._id,  
+          supplierDisplayName: data.supplierId?.supplierDisplayName,  
       };});     
     
       const formattedObjects = multiCustomDateTime(transformedInvoice, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
@@ -140,8 +140,8 @@ exports.getAllPurchaseOrder = async (req, res) => {
 };
   
   
- // Get One Purchase Order
- exports.getOnePurchaseOrder = async (req, res) => {
+// Get One Purchase Order
+exports.getOnePurchaseOrder = async (req, res) => {
   
     try {
       const organizationId = req.user.organizationId;
@@ -158,17 +158,17 @@ exports.getAllPurchaseOrder = async (req, res) => {
 
       const transformedInvoice = {
         ...purchaseOrder,
-        supplierId: purchaseOrder.supplierId._id,  
-        supplierDisplayName: purchaseOrder.supplierId.supplierDisplayName,
+        supplierId: purchaseOrder.supplierId?._id,  
+        supplierDisplayName: purchaseOrder.supplierId?.supplierDisplayName,
         items: purchaseOrder.items.map(item => ({
           ...item,
-          itemId: item.itemId._id,
-          itemName: item.itemId.itemName,
-          cgst: item.itemId.cgst,
-          sgst: item.itemId.sgst,
-          igst: item.itemId.igst,
-          vat: item.itemId.vat,      
-          purchaseAccountId: item.itemId.purchaseAccountId,
+          itemId: item.itemId?._id,
+          itemName: item.itemId?.itemName,
+          cgst: item.itemId?.cgst,
+          sgst: item.itemId?.sgst,
+          igst: item.itemId?.igst,
+          vat: item.itemId?.vat,      
+          purchaseAccountId: item.itemId?.purchaseAccountId,
         })),  
     };
 

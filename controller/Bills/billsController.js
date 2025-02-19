@@ -234,12 +234,12 @@ exports.addBills = async (req, res) => {
       const transformedBill = allBills.map(data => {
         return {
             ...data,
-            supplierId: data.supplierId._id,  
-            supplierDisplayName: data.supplierId.supplierDisplayName,
+            supplierId: data.supplierId?._id,  
+            supplierDisplayName: data.supplierId?.supplierDisplayName,
             items: data.items.map(item => ({
               ...item,
-              itemId: item.itemId._id,
-              itemName: item.itemId.itemName,
+              itemId: item.itemId?._id,
+              itemName: item.itemId?.itemName,
             })),  
         };});
   
@@ -294,13 +294,13 @@ exports.addBills = async (req, res) => {
 
     const transformedBill = {
       ...bill,
-      supplierId: bill.supplierId._id,  
-      supplierDisplayName: bill.supplierId.supplierDisplayName,
+      supplierId: bill.supplierId?._id,  
+      supplierDisplayName: bill.supplierId?.supplierDisplayName,
       items: bill.items.map(item => ({
         ...item,
-        itemId: item.itemId._id,
-        itemName: item.itemId.itemName,
-        itemImage: item.itemId.itemImage,
+        itemId: item.itemId?._id,
+        itemName: item.itemId?.itemName,
+        itemImage: item.itemId?.itemImage,
       })),  
   };
 

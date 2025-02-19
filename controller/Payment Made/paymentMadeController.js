@@ -162,8 +162,8 @@ exports.getAllPayment = async (req, res) => {
     const transformedData = allPayments.map(data => {
       return {
         ...data,
-        supplierId: data.supplierId._id,  
-        supplierDisplayName: data.supplierId.supplierDisplayName,  
+        supplierId: data.supplierId?._id,  
+        supplierDisplayName: data.supplierId?.supplierDisplayName,  
       };}); 
 
       const formattedObjects = multiCustomDateTime(transformedData, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
@@ -192,8 +192,8 @@ exports.getPurchasePayment = async (req, res) => {
 
     const transformedData = {
       ...payments,
-      supplierId: payments.supplierId._id,  
-      supplierDisplayName: payments.supplierId.supplierDisplayName,
+      supplierId: payments.supplierId?._id,  
+      supplierDisplayName: payments.supplierId?.supplierDisplayName,
       };
       
     const formattedObjects = singleCustomDateTime(transformedData, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );        
@@ -226,8 +226,8 @@ exports.paymentJournal = async (req, res) => {
       const transformedJournal = paymentJournal.map(item => {
         return {
             ...item,
-            accountId: item.accountId._id,  
-            accountName: item.accountId.accountName,  
+            accountId: item.accountId?._id,  
+            accountName: item.accountId?.accountName,  
         };
     });    
       
