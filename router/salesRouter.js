@@ -82,7 +82,7 @@ router.get('/invoice-journal/:invoiceId',verifyToken,checkPermission("Viewed Inv
 
 router.get('/sales-invoice',verifyToken,checkPermission("Viewed Invoice Details"),salesInvoice.getAllSalesInvoice)
 
-router.get('/sales-order/:invoiceId',verifyToken,checkPermission("Viewed Invoice Details"),salesInvoice.getOneSalesInvoice)
+router.get('/sales-invoice/:invoiceId',verifyToken,checkPermission("Viewed Invoice Details"),salesInvoice.getOneSalesInvoice)
 
 router.put('/update-sales-invoice/:invoiceId',verifyToken,checkPermission("Edited Invoice Information"),updateSalesInvoice.updateInvoice)
 

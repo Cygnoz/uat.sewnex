@@ -149,8 +149,8 @@ exports.getAllSalesQuote = async (req, res) => {
       const transformedInvoice = allQuotes.map(data => {
         return {
             ...data,
-            customerId: data.customerId._id,  
-            customerDisplayName: data.customerId.customerDisplayName,  
+            customerId: data.customerId?._id,  
+            customerDisplayName: data.customerId?.customerDisplayName,  
       };});
 
 
@@ -185,12 +185,12 @@ exports.getOneSalesQuote = async (req, res) => {
 
     const transformedInvoice = {
       ...quotes,
-      customerId: quotes.customerId._id,  
-      customerDisplayName: quotes.customerId.customerDisplayName,
+      customerId: quotes.customerId?._id,  
+      customerDisplayName: quotes.customerId?.customerDisplayName,
       items: quotes.items.map(item => ({
         ...item,
-        itemId: item.itemId._id,
-        itemName: item.itemId.itemName,
+        itemId: item.itemId?._id,
+        itemName: item.itemId?.itemName,
       })),  
   };
   

@@ -191,8 +191,8 @@ exports.getAllSalesOrder = async (req, res) => {
     const transformedInvoice = allOrder.map(data => {
       return {
           ...data,
-          customerId: data.customerId._id,  
-          customerDisplayName: data.customerId.customerDisplayName,  
+          customerId: data.customerId?._id,  
+          customerDisplayName: data.customerId?.customerDisplayName,  
       };});
       
     const formattedObjects = multiCustomDateTime(transformedInvoice, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
@@ -223,17 +223,17 @@ try {
   
   const transformedInvoice = {
     ...order,
-    customerId: order.customerId._id,  
-    customerDisplayName: order.customerId.customerDisplayName,
+    customerId: order.customerId?._id,  
+    customerDisplayName: order.customerId?.customerDisplayName,
     items: order.items.map(item => ({
       ...item,
-      itemId: item.itemId._id,
-      itemName: item.itemId.itemName,
-      cgst: item.itemId.cgst,
-      sgst: item.itemId.sgst,
-      igst: item.itemId.igst,
-      vat: item.itemId.vat,      
-      salesAccountId: item.itemId.salesAccountId,
+      itemId: item.itemId?._id,
+      itemName: item.itemId?.itemName,
+      cgst: item.itemId?.cgst,
+      sgst: item.itemId?.sgst,
+      igst: item.itemId?.igst,
+      vat: item.itemId?.vat,      
+      salesAccountId: item.itemId?.salesAccountId,
     })),  
 };
 

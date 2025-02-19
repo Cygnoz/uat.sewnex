@@ -11,19 +11,71 @@ const SewnexOrderServiceSchema = new Schema ({
     serviceId: { type: mongoose.Schema.Types.ObjectId, ref: 'service' },
     //serviceName
 
-    fabric: [fabricSchema],  
+    fabric: [
 
-    measurement: [measurementSchema],
+      {
+        itemId: {type: mongoose.Schema.Types.ObjectId, ref: 'Item'},
+        //itemName
 
-    style: [styleSchema],
+        quantity: {type:Number},
+        returnQuantity: { type: Number, default: 0 }, 
+        sellingPrice: {type:Number},
+
+        taxPreference: {type:String},
+        taxGroup: {type:String},
+        cgst: { type: Number },
+        sgst: { type: Number },
+        igst: { type: Number },
+        vat: { type: Number },
+
+        cgstAmount: { type: Number },
+        sgstAmount: { type: Number },
+        igstAmount: { type: Number },
+        vatAmount: { type: Number },
+
+        itemTotalTax: {type:Number},
+
+        itemAmount: {type:Number},
+        salesAccountId: {type:String}
+
+      }
+    ],  
+
+    measurement: [
+     { 
+      parameterId: {type: mongoose.Schema.Types.ObjectId, ref: 'CPS'},
+      //parameterName  
+      value: {type:Number}
+     }
+    ],
+
+    style: [
+      {
+        styleId: {type: mongoose.Schema.Types.ObjectId, ref: 'CPS'},
+        //styleName
+        styleRate: { type: Number },
+      }
+    ],
   
-    referenceImage: [referenceImageSchema],
+    referenceImage: [
+      {
+        imageUrl: {type:String}
+      }
+    ],
     
     
     trialDate: { type: String },
+
     deliveryDate: { type: String }, 
     requiredWorkingDay: { type: Number }, 
-  
+
+    serviceRate: { type: Number },
+    fabricRate: { type: Number },
+    styleRate: { type: Number },
+
+    status: { type: String, default: 'Pending' },
+    createDateTime: { type: Date, default: Date.now },
+    
   })
   
   
