@@ -119,17 +119,12 @@ const createRolesForOrganization = async (organizationId) => {
           { action: "SupplierCreate", note: "Created a New Supplier" },
           { action: "SupplierView", note: "Viewed Supplier Details" },
           { action: "SupplierEdit", note: "Edited Supplier Information" },
-          { action: "SupplierStatus", note: "Modified Supplier Status" },
           { action: "SupplierImport", note: "Import New Suppliers" },
           { action: "SupplierDelete", note: "Deleted Supplier Information" },
           { action: "SettingEdit", note: "Edited Setting details" },
           
           //Report Module
-          { action: "ReportView", note: "Viewed Day Book" },
-          { action: "ReportView", note: "Viewed Trail Balance" },
-          { action: "ReportView", note: "Viewed Trail Account" },
-          { action: "ReportView", note: "Viewed Profit and Loss" },
-          { action: "ReportView", note: "Viewed Balance Sheet" },
+          { action: "ReportView", note: "Viewed Reports" },
 
           //Sales Module - Quote
           { action: "QuoteCreate", note: "Created a New Quote" },
@@ -169,12 +164,6 @@ const createRolesForOrganization = async (organizationId) => {
           { action: "ExpenseView", note: "Viewed Expense Details" },
           { action: "ExpenseEdit", note: "Edited Expense Information" },
           { action: "ExpenseDelete", note: "Deleted Expense Information" },
-
-          //Staff Module - Expense Category
-          { action: "ExpenseCategoryCreate", note: "Created a New Expense Category" },
-          { action: "ExpenseCategoryView", note: "Viewed Expense Category Details" },
-          { action: "ExpenseCategoryEdit", note: "Edited Expense Category Information" },
-          { action: "ExpenseCategoryDelete", note: "Deleted Expense Category Information" },
 
         ],
       },
