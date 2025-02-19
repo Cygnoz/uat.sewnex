@@ -217,8 +217,8 @@ exports.getAllCreditNote = async (req, res) => {
     const transformedInvoice = allCreditNote.map(data => {
       return {
           ...data,
-          customerId: data.customerId._id,  
-          customerDisplayName: data.customerId.customerDisplayName,  
+          customerId: data.customerId?._id,  
+          customerDisplayName: data.customerId?.customerDisplayName,  
       };});
 
 
@@ -252,12 +252,12 @@ try {
 
   const transformedData = {
     ...creditNote,
-    customerId: creditNote.customerId._id,  
-    customerDisplayName: creditNote.customerId.customerDisplayName,
+    customerId: creditNote.customerId?._id,  
+    customerDisplayName: creditNote.customerId?.customerDisplayName,
     items: creditNote.items.map(item => ({
       ...item,
-      itemId: item.itemId._id,
-      itemName: item.itemId.itemName,
+      itemId: item.itemId?._id,
+      itemName: item.itemId?.itemName,
     })),  
 };
 
@@ -291,8 +291,8 @@ exports.creditNoteJournal = async (req, res) => {
       const transformedJournal = creditJournal.map(item => {
         return {
             ...item,
-            accountId: item.accountId._id,  
-            accountName: item.accountId.accountName,  
+            accountId: item.accountId?._id,  
+            accountName: item.accountId?.accountName,  
         };
     });    
       

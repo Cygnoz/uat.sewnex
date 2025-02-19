@@ -156,8 +156,8 @@ exports.receiptJournal = async (req, res) => {
       const transformedJournal = receiptJournal.map(item => {
         return {
             ...item,
-            accountId: item.accountId._id,  
-            accountName: item.accountId.accountName,  
+            accountId: item.accountId?._id,  
+            accountName: item.accountId?.accountName,  
         };
     });    
       
@@ -188,8 +188,8 @@ exports.getAllSalesReceipt = async (req, res) => {
     const transformedInvoice = allReceipt.map(data => {
       return {
         ...data,
-        customerId: data.customerId._id,  
-        customerDisplayName: data.customerId.customerDisplayName,  
+        customerId: data.customerId?._id,  
+        customerDisplayName: data.customerId?.customerDisplayName,  
       };}); 
       
     const formattedObjects = multiCustomDateTime(transformedInvoice, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
@@ -222,8 +222,8 @@ exports.getSalesReceipt = async (req, res) => {
 
     const transformedData = {
       ...receipt,
-      customerId: receipt.customerId._id,  
-      customerDisplayName: receipt.customerId.customerDisplayName,
+      customerId: receipt.customerId?._id,  
+      customerDisplayName: receipt.customerId?.customerDisplayName,
       };  
 
     const formattedObjects = singleCustomDateTime(transformedData, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );        

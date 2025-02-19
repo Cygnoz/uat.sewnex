@@ -101,7 +101,7 @@ const salesDataExist = async ( organizationId, invoiceId ) => {
     .populate('customerId', 'customerDisplayName')    
     .lean(),
     Invoice.findOne({ organizationId , _id: invoiceId })
-    .populate('items.itemId', 'itemName')
+    .populate('items.itemId', 'itemName itemImage')
     .populate('customerId', 'customerDisplayName')    
     .lean(),
     TrialBalance.find({ organizationId: organizationId, operationId : invoiceId })
@@ -293,12 +293,12 @@ exports.getAllSalesInvoice = async (req, res) => {
     const transformedInvoice = allInvoice.map(data => {
       return {
           ...data,
-          customerId: data.customerId._id,  
-          customerDisplayName: data.customerId.customerDisplayName,
+          customerId: data.customerId?._id,  
+          customerDisplayName: data.customerId?.customerDisplayName,
           items: data.items.map(item => ({
             ...item,
-            itemId: item.itemId._id,
-            itemName: item.itemId.itemName,
+            itemId: item.itemId?._id,
+            itemName: item.itemId?.itemName,
           })),  
       };});
 
@@ -358,12 +358,13 @@ try {
   }
   const transformedInvoice = {
         ...invoice,
-        customerId: invoice.customerId._id,  
-        customerDisplayName: invoice.customerId.customerDisplayName,
+        customerId: invoice.customerId?._id,  
+        customerDisplayName: invoice.customerId?.customerDisplayName,
         items: invoice.items.map(item => ({
           ...item,
-          itemId: item.itemId._id,
-          itemName: item.itemId.itemName,
+          itemId: item.itemId?._id,
+          itemName: item.itemId?.itemName,
+          itemImage: item.itemId?.itemImage,
         })),  
     };
   
