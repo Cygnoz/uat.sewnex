@@ -1334,8 +1334,8 @@ const creditAmount =
       date: savedDebitNote.createdDate,
       accountId: entry.accountId || undefined,
       action: "Purchase Return",
-      debitAmount: entry.debitAmount || 0,
-      creditAmount: 0,
+      debitAmount: 0,
+      creditAmount: entry.creditAmount || 0,
       remark: savedDebitNote.note,
       createdDateTime:savedDebitNote.createdDateTime
     };
@@ -1388,7 +1388,8 @@ async function createTrialEntry( data ) {
       createdDateTime:data.createdDateTime
 });
 
-await newTrialEntry.save();
+const aa = await newTrialEntry.save();
+console.log("newTrialEntry",aa);
 
 }
 

@@ -241,7 +241,8 @@ exports.addBills = async (req, res) => {
               itemId: item.itemId?._id,
               itemName: item.itemId?.itemName,
             })),  
-        };});
+        };
+      });
   
 
         // Get current date for comparison
