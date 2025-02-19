@@ -189,8 +189,6 @@ const createRolesForOrganization = async (organizationId) => {
           { action: "InvoiceEdit", note: "Edited Invoice Information" },
           { action: "InvoiceDelete", note: "Deleted Invoice Information" },
 
-          //Sales Module - Customer Sale History
-          { action: "CustomerSaleHistoryView", note: "Viewed Customer Sale History" },
 
           //Sales Module - Receipt
           { action: "ReceiptCreate", note: "Created a New Receipt" },
