@@ -122,7 +122,7 @@ const createRolesForOrganization = async (organizationId) => {
           { action: "SupplierStatus", note: "Modified Supplier Status" },
           { action: "SupplierImport", note: "Import New Suppliers" },
           { action: "SupplierDelete", note: "Deleted Supplier Information" },
-          { action: "SupplierCustomerSetting", note: "Edited Setting details" },
+          { action: "SettingEdit", note: "Edited Setting details" },
           
           //Report Module
           { action: "ReportView", note: "Viewed Day Book" },
@@ -130,18 +130,6 @@ const createRolesForOrganization = async (organizationId) => {
           { action: "ReportView", note: "Viewed Trail Account" },
           { action: "ReportView", note: "Viewed Profit and Loss" },
           { action: "ReportView", note: "Viewed Balance Sheet" },
-          
-          // Sales Module - Sales(Settings)          
-          { action: "SalesSetting", note: "Setup/Modified Sales Setting" },
-
-          // Sales Module - Credit Note(Settings)          
-          { action: "CreditNoteSetting", note: "Setup/Modified Credit Note Setting" },
-
-          // Sales Module - Delivery Chellans(Settings)          
-          { action: "DeliveryChellansSetting", note: "Setup/Modified Delivery Chellans Setting" },
-
-          // Sales Module - Shipment(Settings)          
-          { action: "ShipmentAddressSetting", note: "Setup/Modified Shipment Address Setting" },
 
           //Sales Module - Quote
           { action: "QuoteCreate", note: "Created a New Quote" },
@@ -160,7 +148,34 @@ const createRolesForOrganization = async (organizationId) => {
           { action: "InvoiceView", note: "Viewed Invoice Details" },
           { action: "InvoiceEdit", note: "Edited Invoice Information" },
           { action: "InvoiceDelete", note: "Deleted Invoice Information" },
+
+          //Sales Module - Customer Sale History
+          { action: "CustomerSaleHistoryView", note: "Viewed Customer Sale History" },
+
+          //Sales Module - Receipt
+          { action: "ReceiptCreate", note: "Created a New Receipt" },
+          { action: "ReceiptView", note: "Viewed Receipt Details" },
+          { action: "ReceiptEdit", note: "Edited Receipt Information" },
+          { action: "ReceiptDelete", note: "Deleted Receipt Information" },
+
+          //Sales Module - Credit Note
+          { action: "CreditNoteCreate", note: "Created a New Credit Note" },
+          { action: "CreditNoteView", note: "Viewed Credit Note Details" },
+          { action: "CreditNoteEdit", note: "Edited Credit Note Information" },
+          { action: "CreditNoteDelete", note: "Deleted Credit Note Information" },
           
+          //Staff Module - Expense
+          { action: "ExpenseCreate", note: "Created a New Expense" },
+          { action: "ExpenseView", note: "Viewed Expense Details" },
+          { action: "ExpenseEdit", note: "Edited Expense Information" },
+          { action: "ExpenseDelete", note: "Deleted Expense Information" },
+
+          //Staff Module - Expense Category
+          { action: "ExpenseCategoryCreate", note: "Created a New Expense Category" },
+          { action: "ExpenseCategoryView", note: "Viewed Expense Category Details" },
+          { action: "ExpenseCategoryEdit", note: "Edited Expense Category Information" },
+          { action: "ExpenseCategoryDelete", note: "Deleted Expense Category Information" },
+
         ],
       },
     ];
