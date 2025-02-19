@@ -25,109 +25,109 @@ const { verifyToken } = require('../controller/middleware');
 
 
 //Sales settings
-router.put('/add-sales-settings',verifyToken,salesSettings.addSalesOrderSettings)
+router.put('/add-sales-settings',verifyToken,checkPermission("Added a new Setting"),salesSettings.addSalesOrderSettings)
 
-router.put('/add-creditNote-settings',verifyToken,salesSettings.updateCreditNoteSettings)
+router.put('/add-creditNote-settings',verifyToken,checkPermission("Added a new Setting"),salesSettings.updateCreditNoteSettings)
 
 
 
 //Sales Quotes
-router.post('/add-sales-quotes',verifyToken,salesQuotes.addQuotes)
+router.post('/add-sales-quotes',verifyToken,checkPermission("Created a New Quote"),salesQuotes.addQuotes)
 
-router.get('/get-last-sales-quotes-prefix',verifyToken,salesQuotes.getLastQuotesPrefix)
+router.get('/get-last-sales-quotes-prefix',verifyToken,checkPermission("Created a New Quote"),salesQuotes.getLastQuotesPrefix)
 
-router.get('/get-all-sales-quotes',verifyToken,salesQuotes.getAllSalesQuote)
+router.get('/get-all-sales-quotes',verifyToken,checkPermission("Viewed Quote Details"),salesQuotes.getAllSalesQuote)
 
-router.get('/get-one-sales-quotes/:quoteId',verifyToken,salesQuotes.getOneSalesQuote)
+router.get('/get-one-sales-quotes/:quoteId',verifyToken,checkPermission("Viewed Quote Details"),salesQuotes.getOneSalesQuote)
 
-router.put('/update-sales-quotes/:quoteId',verifyToken,updateSalesQuotes.updateSalesQuote)
+router.put('/update-sales-quotes/:quoteId',verifyToken,checkPermission("Edited Quote Information"),updateSalesQuotes.updateSalesQuote)
 
-router.delete('/delete-sales-quotes/:quoteId',verifyToken,updateSalesQuotes.deleteSalesQuote)
+router.delete('/delete-sales-quotes/:quoteId',verifyToken, checkPermission("Deleted Quote Information"),updateSalesQuotes.deleteSalesQuote)
 
 
 
 //Sales Order
-router.post('/add-sales-order',verifyToken,salesOrder.addOrder)
+router.post('/add-sales-order',verifyToken,checkPermission("Created a New Order"),salesOrder.addOrder)
 
-router.get('/get-last-sales-order-prefix',verifyToken,salesOrder.getLastOrderPrefix)
+router.get('/get-last-sales-order-prefix',verifyToken,checkPermission("Created a New Order"),salesOrder.getLastOrderPrefix)
 
-router.get('/get-all-sales-order',verifyToken,salesOrder.getAllSalesOrder)
+router.get('/get-all-sales-order',verifyToken,checkPermission("Viewed Order Details"),salesOrder.getAllSalesOrder)
 
-router.get('/get-one-sales-order/:orderId',verifyToken,salesOrder.getOneSalesOrder)
+router.get('/get-one-sales-order/:orderId',verifyToken,checkPermission("Viewed Order Details"),salesOrder.getOneSalesOrder)
 
-router.put('/update-sales-order/:orderId',verifyToken,updateSalesOrder.updateSalesOrder) 
+router.put('/update-sales-order/:orderId',verifyToken,checkPermission("Edited Order Information"),updateSalesOrder.updateSalesOrder) 
 
-router.delete('/delete-sales-order/:orderId',verifyToken,updateSalesOrder.deleteSalesOrder) 
+router.delete('/delete-sales-order/:orderId',verifyToken,checkPermission("Deleted Order Information"),updateSalesOrder.deleteSalesOrder) 
 
 
 
 // Delivery Chellans
-router.put('/add-deliveryChellans',verifyToken, salesSettings.addDeliveryChellans);
+router.put('/add-deliveryChellans',verifyToken,checkPermission("Added a new Setting"),salesSettings.addDeliveryChellans);
 
 
 
 //Shipment
-router.put('/add-shipment-address-settings',verifyToken,salesSettings.addShipmentAddressSettings)
+router.put('/add-shipment-address-settings',verifyToken,checkPermission("Added a new Setting"),salesSettings.addShipmentAddressSettings)
 
 
 
 //Sales Invoice
-router.post('/sales-invoice',verifyToken,salesInvoice.addInvoice)
+router.post('/sales-invoice',verifyToken,checkPermission("Created a New Invoice"),salesInvoice.addInvoice)
 
-router.put('/sales-invoice-settings',verifyToken,salesSettings.addInvoiceSettings)
+router.put('/sales-invoice-settings',verifyToken,checkPermission("Added a new Setting"),salesSettings.addInvoiceSettings)
 
-router.get('/sales-invoice-prefix',verifyToken,salesInvoice.getLastInvoicePrefix)
+router.get('/sales-invoice-prefix',verifyToken,checkPermission("Created a New Invoice"),salesInvoice.getLastInvoicePrefix)
 
-router.get('/invoice-journal/:invoiceId',verifyToken,salesInvoice.invoiceJournal)
+router.get('/invoice-journal/:invoiceId',verifyToken,checkPermission("Viewed Invoice Details"),salesInvoice.invoiceJournal)
 
-router.get('/sales-invoice',verifyToken,salesInvoice.getAllSalesInvoice)
+router.get('/sales-invoice',verifyToken,checkPermission("Viewed Invoice Details"),salesInvoice.getAllSalesInvoice)
 
-router.get('/sales-order/:invoiceId',verifyToken,salesInvoice.getOneSalesInvoice)
+router.get('/sales-order/:invoiceId',verifyToken,checkPermission("Viewed Invoice Details"),salesInvoice.getOneSalesInvoice)
 
-router.put('/update-sales-invoice/:invoiceId',verifyToken,updateSalesInvoice.updateInvoice)
+router.put('/update-sales-invoice/:invoiceId',verifyToken,checkPermission("Edited Invoice Information"),updateSalesInvoice.updateInvoice)
 
-router.delete('/delete-sales-invoice/:invoiceId',verifyToken,updateSalesInvoice.deleteSalesInvoice)
+router.delete('/delete-sales-invoice/:invoiceId',verifyToken,checkPermission("Deleted Invoice Information"),updateSalesInvoice.deleteSalesInvoice)
 
 
 
 
 // customer sales History
-router.get('/get-customer-sales-history/:id',verifyToken,customerController.customerSaleHistory)
+router.get('/get-customer-sales-history/:id',verifyToken,checkPermission("Viewed Customer Sale History"),customerController.customerSaleHistory)
 
 
 
 //Sales receipt
-router.post('/sales-receipt',verifyToken,salesReceipt.addReceipt)
+router.post('/sales-receipt',verifyToken,checkPermission("Created a New Receipt"),salesReceipt.addReceipt)
 
-router.get('/get-all-receipt',verifyToken,salesReceipt.getAllSalesReceipt)
+router.get('/get-all-receipt',verifyToken,checkPermission("Viewed Receipt Details"),salesReceipt.getAllSalesReceipt)
 
-router.get('/get-receipt/:receiptId',verifyToken,salesReceipt.getSalesReceipt)
+router.get('/get-receipt/:receiptId',verifyToken,checkPermission("Viewed Receipt Details"),salesReceipt.getSalesReceipt)
 
-router.get('/get-last-salesReceipt-prefix', verifyToken, salesReceipt.getLastSalesReceiptPrefix);
+router.get('/get-last-salesReceipt-prefix', verifyToken,checkPermission("Created a New Receipt"),salesReceipt.getLastSalesReceiptPrefix);
 
-router.get('/receipt-journal/:receiptId',verifyToken,salesReceipt.receiptJournal)
+router.get('/receipt-journal/:receiptId',verifyToken,checkPermission("Viewed Receipt Details"),salesReceipt.receiptJournal)
 
-router.put('/update-sales-receipt/:receiptId',verifyToken,updateSalesReceipt.updateReceipt)
+router.put('/update-sales-receipt/:receiptId',verifyToken,checkPermission("Edited Receipt Information"),updateSalesReceipt.updateReceipt)
 
-router.delete('/delete-sales-receipt/:receiptId',verifyToken,updateSalesReceipt.deleteSalesReceipt)
+router.delete('/delete-sales-receipt/:receiptId',verifyToken,checkPermission("Deleted Receipt Information"),updateSalesReceipt.deleteSalesReceipt)
 
 
 
 
 //Credit Note
-router.post('/add-creditNote', verifyToken, creditNote.addCreditNote);
+router.post('/add-creditNote',verifyToken,checkPermission("Created a New Credit Note"),creditNote.addCreditNote);
 
-router.get('/get-all-creditNote', verifyToken, creditNote.getAllCreditNote);
+router.get('/get-all-creditNote',verifyToken,checkPermission("Viewed Credit Note Details"),creditNote.getAllCreditNote);
 
-router.get('/get-one-creditNote/:creditId', verifyToken, creditNote.getOneCreditNote);
+router.get('/get-one-creditNote/:creditId',verifyToken,checkPermission("Viewed Credit Note Details"),creditNote.getOneCreditNote);
 
-router.get('/get-last-creditNote-prefix', verifyToken, creditNote.getLastCreditNotePrefix);
+router.get('/get-last-creditNote-prefix',verifyToken,checkPermission("Created a New Credit Note"),creditNote.getLastCreditNotePrefix);
 
-router.put('/update-creditNote/:creditId', verifyToken, updateCreditNote.updateCreditNote);
+router.put('/update-creditNote/:creditId',verifyToken,checkPermission("Edited Credit Note Information"),updateCreditNote.updateCreditNote);
 
-router.get('/creditNote-journal/:creditId',verifyToken,creditNote.creditNoteJournal);
+router.get('/creditNote-journal/:creditId',verifyToken,checkPermission("Viewed Credit Note Details"),creditNote.creditNoteJournal);
 
-router.delete('/delete-creditNote/:creditId', verifyToken, updateCreditNote.deleteCreditNote);
+router.delete('/delete-creditNote/:creditId',verifyToken,checkPermission("Deleted Credit Note Information"),updateCreditNote.deleteCreditNote);
 
 
 
