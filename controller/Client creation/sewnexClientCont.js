@@ -1,22 +1,22 @@
 // v1.1
 
-const Organization = require("../database/model/organization");
-const Client = require("../database/model/client");
-const User = require("../database/model/user");
-const Prefix = require("../database/model/prefix");
-const Account = require("../database/model/account")
-const Currency = require("../database/model/currency")
-const Journal = require("../database/model/journal");
-const TrialBalance = require("../database/model/trialBalance");
-const Setting = require("../database/model/settings");
-const PaymentTerms = require("../database/model/paymentTerm");
-const Role = require('../database/model/role');
-const Tax = require('../database/model/tax');
-const DefAcc = require("../database/model/defaultAccount")
+const Organization = require("../../database/model/organization");
+const Client = require("../../database/model/client");
+const User = require("../../database/model/user");
+const Prefix = require("../../database/model/prefix");
+const Account = require("../../database/model/account")
+const Currency = require("../../database/model/currency")
+const Journal = require("../../database/model/journal");
+const TrialBalance = require("../../database/model/trialBalance");
+const Setting = require("../../database/model/settings");
+const PaymentTerms = require("../../database/model/paymentTerm");
+const Role = require('../../database/model/role');
+const Tax = require('../../database/model/tax');
+const DefAcc = require("../../database/model/defaultAccount")
 const bcrypt = require('bcrypt');
 
 
-const { cleanData } = require("../services/cleanData");
+const { cleanData } = require("../../services/cleanData");
 
 
 
@@ -39,48 +39,7 @@ const createRolesForOrganization = async (organizationId) => {
         description: 'Admin',
         roleName: 'Admin',
         permissions: [
-                  
-          // Organization Module
-          { action: "OrganizationView", note: "Viewed Organization Details" },
-          { action: "OrganizationSetup", note: "Setup/Modified Organization Details" },
-
-          // Organization Module - Setting
-          { action: "SettingView", note: "Viewed Setting details" },
-          
-          // Organization Module - Currency
-          { action: "CurrencyView", note: "Viewed Currency Details" },
-          { action: "CurrencyAdd", note: "Added a new Currency" },
-          { action: "CurrencyEdit", note: "Edited Currency Information" },
-          { action: "CurrencyDelete", note: "Deleted a Currency" },
-
-          // Organization Module - Invoice(Settings)          
-          { action: "InvoiceAdd", note: "Setup/Modified Invoice Setting" },
-
-          // Organization Module - Payment Terms        
-          { action: "PaymentTermAdd", note: "Added Payment Term" },
-          { action: "PaymentTermEdit", note: "Edited Payment Term" },
-          { action: "PaymentTermDelete", note: "Deleted Payment Term" },
-          { action: "PaymentTermView", note: "Viewed Payment Term" },
-
-          // Organization Module - Tax 
-          { action: "TaxAdd", note: "Added Tax Information" },
-          { action: "TaxEdit", note: "Edited Tax Information" },
-          { action: "TaxView", note: "Viewed Tax Information" },
-
-          // Organization Module - Prefix 
-          { action: "PrefixAdd", note: "Added Prefix" },
-          { action: "PrefixView", note: "Viewed Prefix" },
-          { action: "PrefixEdit", note: "Edited Prefix" },
-          { action: "PrefixDelete", note: "Deleted Prefix" },
-          { action: "PrefixStatus", note: "Modified Prefix Status" },
-
-          // Customers Module
-          { action: "CustomersCreate", note: "Created a New Customer" },
-          { action: "CustomersView", note: "Viewed Customer details" },          
-          { action: "CustomersEdit", note: "Edited Customer information" },
-          { action: "CustomersStatus", note: "Modified Customer Status" },
-          { action: "CustomerImport", note: "Imported New Customers" },
-          { action: "CustomerDelete", note: "Deleted Customer information" },
+  
 
           // Accounts Module
           { action: "AccountNumber", note: "Viewed Account Number" },
@@ -94,81 +53,126 @@ const createRolesForOrganization = async (organizationId) => {
           { action: "JournalEdit", note: "Edited Journal Entry" },
           { action: "JournalDelete", note: "Deleted Journal Entry" },
 
+
+
+
+
+
+
+
+          // Customers Module
+          { action: "CustomersCreate", note: "Created a New Customer" },
+          { action: "CustomersView", note: "Viewed Customer details" },          
+          { action: "CustomersEdit", note: "Edited Customer information" },
+          { action: "CustomerDelete", note: "Deleted Customer" },
+          
+          { action: "CustomerImport", note: "Imported New Customers" },
+
+
+
+
+
+
           // Inventory Module
           { action: "ItemAdd", note: "Created a New Item" },
           { action: "ItemView", note: "Viewed Item Information" },          
           { action: "ItemEdit", note: "Edited Item Information" },
           { action: "ItemDelete", note: "Deleted an Item" },
 
-          // Inventory Module - Unit
-          { action: "UnitAdd", note: "Created a New Unit" },
-          { action: "UnitView", note: "Viewed Unit Information" },          
-          { action: "UnitEdit", note: "Edited Unit Information" },
-          { action: "UnitDelete", note: "Deleted a Unit" },
+          
 
-          // Inventory Module - BMCR
-          { action: "BMCRAdd", note: "Created a New BMCR" },
-          { action: "BMCRView", note: "Viewed BMCR Information" },          
-          { action: "BMCREdit", note: "Edited BMCR Information" },
-          { action: "BMCRDelete", note: "Deleted a BMCR" },
 
-           // Inventory Module - Item(Settings)          
-           { action: "ItemSetting", note: "Setup/Modified Item Setting" },
 
+
+
+
+
+          
+          
+          // Organization Module
+          { action: "OrganizationSetup", note: "Setup/Modified Organization Details" },
+
+          // Organization Module - Setting
+          { action: "SettingView", note: "Viewed Setting details" },
+          { action: "SettingAdd", note: "Added a new Setting" },
+          { action: "SettingEdit", note: "Edited Setting details" },
+          { action: "SettingDelete", note: "Deleted a Setting" },
+          
+          // // Organization Module - Currency
+          // { action: "CurrencyView", note: "Viewed Currency Details" },
+          // { action: "CurrencyAdd", note: "Added a new Currency" },
+          // { action: "CurrencyEdit", note: "Edited Currency Information" },
+          // { action: "CurrencyDelete", note: "Deleted a Currency" },
+
+          // // Organization Module - Invoice(Settings)          
+          // { action: "InvoiceAdd", note: "Setup/Modified Invoice Setting" },
+
+          // // Organization Module - Payment Terms        
+          // { action: "PaymentTermAdd", note: "Added Payment Term" },
+          // { action: "PaymentTermEdit", note: "Edited Payment Term" },
+          // { action: "PaymentTermDelete", note: "Deleted Payment Term" },
+          // { action: "PaymentTermView", note: "Viewed Payment Term" },
+
+          // // Organization Module - Tax 
+          // { action: "TaxAdd", note: "Added Tax Information" },
+          // { action: "TaxEdit", note: "Edited Tax Information" },
+          // { action: "TaxView", note: "Viewed Tax Information" },
+
+          // // Organization Module - Prefix 
+          // { action: "PrefixAdd", note: "Added Prefix" },
+          // { action: "PrefixView", note: "Viewed Prefix" },
+          // { action: "PrefixEdit", note: "Edited Prefix" },
+          // { action: "PrefixDelete", note: "Deleted Prefix" },
+          // { action: "PrefixStatus", note: "Modified Prefix Status" },
+
+
+          //Purchase
+          { action: "PurchaseOrderAdd", note: "Created a New Purchase Order" },
+          { action: "PurchaseOrderView", note: "Viewed Purchase Order" },
+          { action: "PurchaseOrderEdit", note: "Edited Purchase Order" },
+          { action: "PurchaseOrderDelete", note: "Deleted Purchase Order" },
+
+          { action: "PurchaseBillAdd", note: "Created a New Purchase Bill" },
+          { action: "PurchaseBillView", note: "Viewed Purchase Bill" },
+          { action: "PurchaseBillEdit", note: "Edited Purchase Bill" },
+          { action: "PurchaseBillDelete", note: "Deleted Purchase Bill" },
+
+          { action: "PurchasePaymentAdd", note: "Created a New Purchase Payment" },
+          { action: "PurchasePaymentView", note: "Viewed Purchase Payment" },
+          { action: "PurchasePaymentEdit", note: "Edited Purchase Payment" },
+          { action: "PurchasePaymentDelete", note: "Deleted Purchase Payment" },
+
+          { action: "PurchaseDebitNoteAdd", note: "Created a New Purchase Debit Note" },
+          { action: "PurchaseDebitNoteView", note: "Viewed Purchase Debit Note" },
+          { action: "PurchaseDebitNoteEdit", note: "Edited Purchase Debit Note" },
+          { action: "PurchaseDebitNoteDelete", note: "Deleted Purchase Debit Note" },
+
+          
+
+
+
+
+
+          
+
+
+
+
+
+          
            //Supplier Module
           { action: "SupplierCreate", note: "Created a New Supplier" },
           { action: "SupplierView", note: "Viewed Supplier Details" },
           { action: "SupplierEdit", note: "Edited Supplier Information" },
+          { action: "SupplierStatus", note: "Modified Supplier Status" },
           { action: "SupplierImport", note: "Import New Suppliers" },
-          { action: "SupplierDelete", note: "Deleted Supplier Information" },
-          { action: "SettingEdit", note: "Edited Setting details" },
+    
           
-          //Report Module
-          { action: "ReportView", note: "Viewed Reports" },
-
-          //Sales Module - Quote
-          { action: "QuoteCreate", note: "Created a New Quote" },
-          { action: "QuoteView", note: "Viewed Quote Details" },
-          { action: "QuoteEdit", note: "Edited Quote Information" },
-          { action: "QuoteDelete", note: "Deleted Quote Information" },
-
-          //Sales Module - Order
-          { action: "OrderCreate", note: "Created a New Order" },
-          { action: "OrderView", note: "Viewed Order Details" },
-          { action: "OrderEdit", note: "Edited Order Information" },
-          { action: "OrderDelete", note: "Deleted Order Information" },
-
-          //Sales Module - Invoice
-          { action: "InvoiceCreate", note: "Created a New Invoice" },
-          { action: "InvoiceView", note: "Viewed Invoice Details" },
-          { action: "InvoiceEdit", note: "Edited Invoice Information" },
-          { action: "InvoiceDelete", note: "Deleted Invoice Information" },
-
-          //Sales Module - Customer Sale History
-          { action: "CustomerSaleHistoryView", note: "Viewed Customer Sale History" },
-
-          //Sales Module - Receipt
-          { action: "ReceiptCreate", note: "Created a New Receipt" },
-          { action: "ReceiptView", note: "Viewed Receipt Details" },
-          { action: "ReceiptEdit", note: "Edited Receipt Information" },
-          { action: "ReceiptDelete", note: "Deleted Receipt Information" },
-
-          //Sales Module - Credit Note
-          { action: "CreditNoteCreate", note: "Created a New Credit Note" },
-          { action: "CreditNoteView", note: "Viewed Credit Note Details" },
-          { action: "CreditNoteEdit", note: "Edited Credit Note Information" },
-          { action: "CreditNoteDelete", note: "Deleted Credit Note Information" },
-          
-          //Staff Module - Expense
-          { action: "ExpenseCreate", note: "Created a New Expense" },
-          { action: "ExpenseView", note: "Viewed Expense Details" },
-          { action: "ExpenseEdit", note: "Edited Expense Information" },
-          { action: "ExpenseDelete", note: "Deleted Expense Information" },
-
         ],
       },
     ];
     
+
     await Role.insertMany(roles);
     console.log("Roles created successfully for organization:", organizationId);
     return { success: true, message: "Roles created successfully." };
@@ -484,7 +488,7 @@ exports.createOrganizationAndClient = async (req, res) => {
       const lastId = parseInt(lastOrganizationId.organizationId.slice(6)); // Extract the numeric part from the customerID
       nextId = lastId + 1; // Increment the last numeric part
     }    
-    const organizationId = `INDORG${nextId.toString().padStart(4, '0')}`;
+    const organizationId = `SX-ORG${nextId.toString().padStart(4, '0')}`;
 
     // Create a new organization
     const newOrganization = new Organization({
