@@ -38,8 +38,7 @@ const createRolesForOrganization = async (organizationId) => {
         organizationId,
         description: 'Admin',
         roleName: 'Admin',
-        permissions: [
-  
+        permissions: [  
 
           // Accounts Module
           { action: "AccountNumber", note: "Viewed Account Number" },
@@ -57,9 +56,6 @@ const createRolesForOrganization = async (organizationId) => {
 
 
 
-
-
-
           // Customers Module
           { action: "CustomersCreate", note: "Created a New Customer" },
           { action: "CustomersView", note: "Viewed Customer details" },          
@@ -71,24 +67,16 @@ const createRolesForOrganization = async (organizationId) => {
 
 
 
-
-
           // Inventory Module
           { action: "ItemAdd", note: "Created a New Item" },
           { action: "ItemView", note: "Viewed Item Information" },          
           { action: "ItemEdit", note: "Edited Item Information" },
           { action: "ItemDelete", note: "Deleted an Item" },
 
-          
+              
 
 
 
-
-
-
-
-          
-          
           // Organization Module
           { action: "OrganizationSetup", note: "Setup/Modified Organization Details" },
 
@@ -96,34 +84,10 @@ const createRolesForOrganization = async (organizationId) => {
           { action: "SettingView", note: "Viewed Setting details" },
           { action: "SettingAdd", note: "Added a new Setting" },
           { action: "SettingEdit", note: "Edited Setting details" },
-          { action: "SettingDelete", note: "Deleted a Setting" },
+          { action: "SettingDelete", note: "Deleted a Setting" },          
           
-          // // Organization Module - Currency
-          // { action: "CurrencyView", note: "Viewed Currency Details" },
-          // { action: "CurrencyAdd", note: "Added a new Currency" },
-          // { action: "CurrencyEdit", note: "Edited Currency Information" },
-          // { action: "CurrencyDelete", note: "Deleted a Currency" },
 
-          // // Organization Module - Invoice(Settings)          
-          // { action: "InvoiceAdd", note: "Setup/Modified Invoice Setting" },
 
-          // // Organization Module - Payment Terms        
-          // { action: "PaymentTermAdd", note: "Added Payment Term" },
-          // { action: "PaymentTermEdit", note: "Edited Payment Term" },
-          // { action: "PaymentTermDelete", note: "Deleted Payment Term" },
-          // { action: "PaymentTermView", note: "Viewed Payment Term" },
-
-          // // Organization Module - Tax 
-          // { action: "TaxAdd", note: "Added Tax Information" },
-          // { action: "TaxEdit", note: "Edited Tax Information" },
-          // { action: "TaxView", note: "Viewed Tax Information" },
-
-          // // Organization Module - Prefix 
-          // { action: "PrefixAdd", note: "Added Prefix" },
-          // { action: "PrefixView", note: "Viewed Prefix" },
-          // { action: "PrefixEdit", note: "Edited Prefix" },
-          // { action: "PrefixDelete", note: "Deleted Prefix" },
-          // { action: "PrefixStatus", note: "Modified Prefix Status" },
 
 
           //Purchase
@@ -147,15 +111,6 @@ const createRolesForOrganization = async (organizationId) => {
           { action: "PurchaseDebitNoteEdit", note: "Edited Purchase Debit Note" },
           { action: "PurchaseDebitNoteDelete", note: "Deleted Purchase Debit Note" },
 
-          
-
-
-
-
-
-          
-
-
 
 
 
@@ -168,8 +123,17 @@ const createRolesForOrganization = async (organizationId) => {
           
           { action: "SupplierImport", note: "Import New Suppliers" },
           
+
+
+
+
+
           //Report Module
           { action: "ReportView", note: "Viewed Reports" },
+
+
+
+
 
           //Sales Module - Quote
           { action: "QuoteCreate", note: "Created a New Quote" },
@@ -188,7 +152,6 @@ const createRolesForOrganization = async (organizationId) => {
           { action: "InvoiceView", note: "Viewed Invoice Details" },
           { action: "InvoiceEdit", note: "Edited Invoice Information" },
           { action: "InvoiceDelete", note: "Deleted Invoice Information" },
-
 
           //Sales Module - Receipt
           { action: "ReceiptCreate", note: "Created a New Receipt" },
@@ -210,7 +173,18 @@ const createRolesForOrganization = async (organizationId) => {
 
 
         ],
-      },
+      },{
+        organizationId,
+        description: 'Manufacture',
+        roleName: 'Manufacture',
+        permissions: []
+      },{
+        organizationId,
+        description: 'Designer',
+        roleName: 'Designer',
+        permissions: []
+      }
+      
     ];
     
     await Role.insertMany(roles);
