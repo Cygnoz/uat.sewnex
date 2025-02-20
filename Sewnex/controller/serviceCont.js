@@ -2,32 +2,35 @@ const Organization = require("../../database/model/organization");
 const Settings = require("../../database/model/settings");
 const Tax = require("../../database/model/tax");
 const Account = require("../../database/model/account")
-
+const CPS = require("../model/cps")
 const Service = require('../model/service');
 
 const { cleanData } = require("../../services/cleanData");
+const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
+
 const mongoose = require('mongoose');
 
 
 
 const dataExist = async ( organizationId, salesAccountId = null, serviceId ) => {  
-    const [ organizationExists, taxExists, settingsExist, salesAccount, allService, service ] = await Promise.all([
+    const [ organizationExists, taxExists, settingsExist, salesAccount, cpsExist, allService, service ] = await Promise.all([
       Organization.findOne({ organizationId }),
       Tax.findOne({ organizationId }),
       Settings.findOne({ organizationId }),
       Account.findOne({ organizationId , _id : salesAccountId}),
+      CPS.find({ organizationId }),
       Service.find({organizationId})
-      .populate('categoryId', 'categoryName')
-      .populate('parameter.parameterId', 'parameterName')    
-      .populate('style.styleId', 'styleName')    
+      .populate('categoryId', 'name')
+      .populate('parameter.parameterId', 'name')    
+      .populate('style.styleId', 'name')    
       .lean(),
       Service.findOne({ organizationId, _id: serviceId })
-      .populate('categoryId', 'categoryName')
-      .populate('parameter.parameterId', 'parameterName')    
-      .populate('style.styleId', 'styleName')    
+      .populate('categoryId', 'name')
+      .populate('parameter.parameterId', 'name')    
+      .populate('style.styleId', 'name')    
       .lean(),
     ]);
-    return { organizationExists, taxExists, settingsExist,  salesAccount, allService, service };
+    return { organizationExists, taxExists, settingsExist, salesAccount, cpsExist, allService, service };
   };
 
 
@@ -35,21 +38,30 @@ const dataExist = async ( organizationId, salesAccountId = null, serviceId ) => 
 // Add Service
 exports.addService = async (req, res) => {
     console.log("Add Service:", req.body);
+    
     try {
+        const { organizationId, id: userId } = req.user;
+
         const cleanedData = cleanData(req.body);
 
-        const organizationId = req.user.organizationId;
+        // const organizationId = req.user.organizationId;
 
-        const { salesAccountId, taxRate } = cleanedData;
+        const { serviceName, categoryId, parameter, style, salesAccountId, taxRate } = cleanedData;
+        const parameterIds = parameter.map(p => p.parameterId);
+        const styleIds = style.map(s => s.styleId);
 
-        const { organizationExists, taxExists, salesAccount } = await dataExist( organizationId, salesAccountId );
+        if (await isDuplicateName(serviceName, organizationId, res)) return;
+      
+        const { organizationExists, taxExists, salesAccount, cpsExist } = await dataExist( organizationId, salesAccountId );
 
-        if (!validateOrganizationTaxCurrency(organizationExists, taxExists, null, res)) return;     
+        // Call the validation function
+        const validationError = validateIds(categoryId, salesAccountId, parameterIds, styleIds, cleanedData, cpsExist, res);
+        if (validationError) return;
+
+        if (!validateOrganizationTaxCPS(organizationExists, taxExists, cpsExist, res)) return;     
 
         // Validate inputs
         if (!validateServiceData(cleanedData, salesAccount, res)) return;
-
-        if (await isDuplicateName(cleanData.serviceName, organizationId, res)) return;
 
          //Tax Type
         taxType( cleanedData, taxExists, taxRate );    
@@ -57,7 +69,7 @@ exports.addService = async (req, res) => {
         // Calculate Service
         if (!calculateService( cleanedData, taxExists, res )) return;
 
-        const newService = new Service({ ...cleanedData });
+        const newService = new Service({ ...cleanedData, organizationId, userId });
         const savedService = await newService.save();
 
         res.status(201).json({ message: "Service created successfully.", service: savedService });
@@ -67,42 +79,61 @@ exports.addService = async (req, res) => {
     }
 };
 
+
 // Edit Service
 exports.editService = async (req, res) => {
-    console.log("Edit Service:", req.body);
-    try {
-        const { serviceId } = req.params;
+  console.log("Edit Service:", req.body);
+  try {
+      const { organizationId } = req.user;
+      const { serviceId } = req.params;
 
-        const cleanedData = cleanData(req.body);
+      // Validate Service ID format
+      if (!mongoose.Types.ObjectId.isValid(serviceId)) {
+          return res.status(400).json({ message: "Invalid Service ID." });
+      }
 
-        const organizationId = req.user.organizationId;
+      // Check if Service exists
+      const existingService = await Service.findOne({ _id: serviceId, organizationId });
+      if (!existingService) {
+          return res.status(404).json({ message: "Service not found." });
+      }
 
-        const { salesAccountId, taxRate } = cleanedData;
+      const cleanedData = cleanData(req.body);
+      const { serviceName, categoryId, parameter, style, salesAccountId, taxRate } = cleanedData;
+      const parameterIds = parameter.map(p => p.parameterId);
+      const styleIds = style.map(s => s.styleId);
 
-        const { organizationExists, taxExists, salesAccount } = await dataExist( organizationId, salesAccountId );
+      // Check for duplicate service name (excluding the current service)
+      if (await isDuplicateNameExist(serviceName, organizationId, serviceId, res)) return;
 
-        if (!validateOrganizationTaxCurrency(organizationExists, taxExists, null, res)) return;
+      const { organizationExists, taxExists, salesAccount, cpsExist } = await dataExist(organizationId, salesAccountId);
 
-        // Validate inputs
-        if (!validateServiceData(cleanedData, salesAccount, res)) return;
+      // Validate IDs
+      const validationError = validateIds(categoryId, salesAccountId, parameterIds, styleIds, cleanedData, cpsExist, res);
+      if (validationError) return;
 
-        if (!await isDuplicateNameExist(cleanData.serviceName, organizationId, res)) return;
+      // Validate Organization, Tax, CPS
+      if (!validateOrganizationTaxCPS(organizationExists, taxExists, cpsExist, res)) return;
 
-         //Tax Type
-        taxType( cleanedData, taxExists, taxRate );   
-        
-        // Calculate Service
-        if (!calculateService( cleanedData, taxExists, res )) return;
+      // Validate Service Data
+      if (!validateServiceData(cleanedData, salesAccount, res)) return;
 
-        const updatedService = await Service.findByIdAndUpdate(serviceId, cleanedData, { new: true });
-        if (!updatedService) return res.status(404).json({ message: "Service not found." });
+      // Apply Tax Type
+      taxType(cleanedData, taxExists, taxRate);
 
-        res.status(200).json({ message: "Service updated successfully.", service: updatedService });
-    } catch (error) {
-        console.error("Error updating service:", error);
-        res.status(500).json({ message: "Internal server error." });
-    }
+      // Calculate Service
+      if (!calculateService(cleanedData, taxExists, res)) return;
+
+      // Update Service
+      const updatedService = await Service.findByIdAndUpdate(serviceId, cleanedData, { new: true });
+      res.status(200).json({ message: "Service updated successfully.", service: updatedService });
+
+  } catch (error) {
+      console.error("Error updating service:", error);
+      res.status(500).json({ message: "Internal server error." });
+  }
 };
+
 
 // Get All Services
 exports.getAllServices = async (req, res) => {
@@ -115,7 +146,27 @@ exports.getAllServices = async (req, res) => {
 
         if (!allService) return res.status(404).json({ message: "No Service Found." });
 
-        res.status(200).json(allService);
+        const transformedData = allService.map(data => {
+         
+        return {
+          ...data,
+          categoryId: data.categoryId ? data.categoryId._id : undefined,  
+          categoryName: data.categoryId ? data.categoryId.name : undefined, 
+          parameter: data.parameter.map(p => ({
+            parameterId: p.parameterId ? p.parameterId._id : undefined,
+            parameterName: p.parameterId ? p.parameterId.name : undefined,
+          })),
+          style: data.style.map(s => ({
+            ...s,
+            styleId: s.styleId ? s.styleId._id : undefined,
+            styleName: s.styleId ? s.styleId.name : undefined,
+          }))
+        };});
+          
+          
+        const formattedObjects = multiCustomDateTime(transformedData, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
+
+        res.status(200).json(formattedObjects);
     } catch (error) {
         console.error("Error fetching services:", error);
         res.status(500).json({ message: "Internal server error." });
@@ -135,7 +186,24 @@ exports.getService = async (req, res) => {
                 
         if (!service) return res.status(404).json({ message: "Service not found." });
 
-        res.status(200).json(service);
+        const transformedExpense = {
+          ...service,
+          categoryId: service.categoryId ? service.categoryId._id : undefined,  
+          categoryName: service.categoryId ? service.categoryId.name : undefined, 
+          parameter: service.parameter.map(p => ({
+            parameterId: p.parameterId ? p.parameterId._id : undefined,
+            parameterName: p.parameterId ? p.parameterId.name : undefined,
+          })),
+          style: service.style.map(s => ({
+            ...s,
+            styleId: s.styleId ? s.styleId._id : undefined,
+            styleName: s.styleId ? s.styleId.name : undefined,
+          }))
+        };
+        
+        const formattedObjects = singleCustomDateTime(transformedExpense, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
+  
+        res.status(200).json(formattedObjects);
     } catch (error) {
         console.error("Error fetching service:", error);
         res.status(500).json({ message: "Internal server error." });
@@ -147,8 +215,15 @@ exports.getService = async (req, res) => {
 exports.deleteService = async (req, res) => {
     try {
         const { serviceId } = req.params;
+
+        // Validate Service ID format
+        if (!mongoose.Types.ObjectId.isValid(serviceId)) {
+          return res.status(400).json({ message: "Invalid Service ID." });
+        }
+
         const deletedService = await Service.findByIdAndDelete(serviceId);
         if (!deletedService) return res.status(404).json({ message: "Service not found." });
+        
         res.status(200).json({ message: "Service deleted successfully." });
     } catch (error) {
         console.error("Error deleting service:", error);
@@ -160,6 +235,63 @@ exports.deleteService = async (req, res) => {
 
 
 
+
+
+
+
+
+
+
+
+// Helper function for validation
+const validateIds = (categoryId, salesAccountId, parameterIds, styleIds, cleanedData, cpsExist, res) => {
+  // Validate Category
+  if (categoryId && (!mongoose.Types.ObjectId.isValid(categoryId) || categoryId.length !== 24)) {
+    return res.status(400).json({ message: `Invalid category ID: ${categoryId}` });
+  }
+  const validCategory = cpsExist.find(cps => cps._id.toString() === categoryId && cps.type === 'category');
+  if (!validCategory) {
+    return res.status(400).json({ message: `Category ID does not exist in CPS: ${categoryId}` });
+  }
+
+
+  // Validate Sales Account ID
+  if ((!mongoose.Types.ObjectId.isValid(salesAccountId) || salesAccountId.length !== 24) && cleanedData.salesAccountId !== undefined) {
+    return res.status(400).json({ message: `Select sales account id` });
+  }
+
+  // Validate Parameter IDs
+  const invalidParameterIds = parameterIds.filter(parameterId => !mongoose.Types.ObjectId.isValid(parameterId) || parameterId.length !== 24);
+  if (invalidParameterIds.length > 0) {
+    return res.status(400).json({ message: `Invalid Parameter IDs: ${invalidParameterIds.join(', ')}` });
+  }
+  const invalidParams = parameterIds.filter(parameterId => !cpsExist.find(cps => cps._id.toString() === parameterId && cps.type === 'parameter'));
+  if (invalidParams.length > 0) {
+    return res.status(400).json({ message: `Parameter IDs do not exist in CPS: ${invalidParams.join(', ')}` });
+  }
+  // Check for duplicate Parameter IDs
+  const uniqueParameterIds = new Set(parameterIds);
+  if (uniqueParameterIds.size !== parameterIds.length) {
+    return res.status(400).json({ message: "Duplicate parameter found" });
+  }
+
+  // Validate Style IDs
+  const invalidStyleIds = styleIds.filter(styleId => !mongoose.Types.ObjectId.isValid(styleId) || styleId.length !== 24);
+  if (invalidStyleIds.length > 0) {
+    return res.status(400).json({ message: `Invalid Style IDs: ${invalidStyleIds.join(', ')}` });
+  }
+  const invalidStyles = styleIds.filter(styleId => !cpsExist.find(cps => cps._id.toString() === styleId && cps.type === 'style'));
+  if (invalidStyles.length > 0) {
+    return res.status(400).json({ message: `Style IDs do not exist in CPS: ${invalidStyles.join(', ')}` });
+  }
+  // Check for duplicate Style IDs
+  const uniqueStyleIds = new Set(styleIds);
+  if (uniqueStyleIds.size !== styleIds.length) {
+    return res.status(400).json({ message: "Duplicate style found" });
+  }
+
+  return null; // No validation errors
+};
 
 
 // Check for duplicate item name - ADD
@@ -174,11 +306,11 @@ const isDuplicateName = async (serviceName, organizationId, res) => {
   };
 
 // Check for duplicate item name - EDIT
-const isDuplicateNameExist = async (serviceName, organizationId, itemId, res) => { 
+const isDuplicateNameExist = async (serviceName, organizationId, serviceId, res) => { 
     const existingServiceName = await Service.findOne({
         serviceName,
         organizationId,
-        _id: { $ne: itemId }
+        _id: { $ne: serviceId }
     });
     
     if (existingServiceName) {
@@ -191,8 +323,8 @@ const isDuplicateNameExist = async (serviceName, organizationId, itemId, res) =>
   };
 
 
-// Validate Organization Tax Currency
-function validateOrganizationTaxCurrency(organizationExists, taxExists, itemId, res) {
+// Validate Organization Tax CPS
+function validateOrganizationTaxCPS(organizationExists, taxExists, cpsExist, res) {
     if (!organizationExists) {
       res.status(404).json({ message: "Organization not found" });
       return false;
@@ -201,14 +333,10 @@ function validateOrganizationTaxCurrency(organizationExists, taxExists, itemId, 
       res.status(404).json({ message: "Tax not found" });
       return false;
     }
-    // if (!itemId) {
-    //   res.status(404).json({ message: "Currency not found" });
-    //   return false;
-    // }
-    // if (!settingsExist) {
-    //   res.status(404).json({ message: "Settings not found" });
-    //   return false;
-    // }
+    if (!cpsExist) {
+      res.status(404).json({ message: "CPS not found" });
+      return false;
+    }
     return true;
   }
 

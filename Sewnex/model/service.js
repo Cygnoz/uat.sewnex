@@ -22,7 +22,7 @@ const styleSchema = new Schema({
 
 
 const serviceSchema = new mongoose.Schema({
-    organizationId: { type: String},
+    organizationId: { type: String, index: true},
 
     serviceName: { type: String},
     serviceImage: { type: String},
@@ -51,6 +51,14 @@ const serviceSchema = new mongoose.Schema({
     parameter: [parameterSchema],
 
     style: [styleSchema],
+
+    //Create info
+    createdDateTime: { type: Date, default: () => new Date() },
+
+    //lastModifiedDate
+    lastModifiedDate:{type:String},
+
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 
 });
 
