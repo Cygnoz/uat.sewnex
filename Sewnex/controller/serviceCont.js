@@ -10,7 +10,7 @@ const mongoose = require('mongoose');
 
 
 
-const dataExist = async ( organizationId, salesAccountId = null, serviceId = null ) => {  
+const dataExist = async ( organizationId, salesAccountId = null, serviceId ) => {  
     const [ organizationExists, taxExists, settingsExist, salesAccount, allService, service ] = await Promise.all([
       Organization.findOne({ organizationId }),
       Tax.findOne({ organizationId }),
@@ -49,10 +49,13 @@ exports.addService = async (req, res) => {
         // Validate inputs
         if (!validateServiceData(cleanedData, salesAccount, res)) return;
 
-        if (!await isDuplicateName(cleanData.serviceName, organizationId, res)) return;
+        if (await isDuplicateName(cleanData.serviceName, organizationId, res)) return;
 
          //Tax Type
-        taxType( cleanedData, taxExists, taxRate );      
+        taxType( cleanedData, taxExists, taxRate );    
+        
+        // Calculate Service
+        if (!calculateService( cleanedData, taxExists, res )) return;
 
         const newService = new Service({ ...cleanedData });
         const savedService = await newService.save();
@@ -86,7 +89,10 @@ exports.editService = async (req, res) => {
         if (!await isDuplicateNameExist(cleanData.serviceName, organizationId, res)) return;
 
          //Tax Type
-        taxType( cleanedData, taxExists, taxRate );      
+        taxType( cleanedData, taxExists, taxRate );   
+        
+        // Calculate Service
+        if (!calculateService( cleanedData, taxExists, res )) return;
 
         const updatedService = await Service.findByIdAndUpdate(serviceId, cleanedData, { new: true });
         if (!updatedService) return res.status(404).json({ message: "Service not found." });
@@ -195,14 +201,14 @@ function validateOrganizationTaxCurrency(organizationExists, taxExists, itemId, 
       res.status(404).json({ message: "Tax not found" });
       return false;
     }
-    if (!itemId) {
-      res.status(404).json({ message: "Currency not found" });
-      return false;
-    }
-    if (!settingsExist) {
-      res.status(404).json({ message: "Settings not found" });
-      return false;
-    }
+    // if (!itemId) {
+    //   res.status(404).json({ message: "Currency not found" });
+    //   return false;
+    // }
+    // if (!settingsExist) {
+    //   res.status(404).json({ message: "Settings not found" });
+    //   return false;
+    // }
     return true;
   }
 
@@ -229,6 +235,113 @@ function taxType( cleanedData, taxExists, taxRate ) {
     }
     
   }
+
+
+
+
+
+
+  
+
+
+  function calculateService(cleanedData, taxExists, res) {
+    const errors = [];
+
+    let styleTotal = 0;
+    let serviceCharge = (cleanedData.serviceCharge || 0);
+    let sellingPrice = 0;
+    let grandTotal = 0;
+
+    let calculatedIgstAmount = 0;
+    let calculatedVatAmount = 0;
+
+    // Utility function to round values to two decimal places
+    const roundToTwoDecimals = (value) => Number(value.toFixed(2));
+
+    cleanedData.style.forEach((data, index) => {    
+      let styleRate = parseFloat(data.styleRate) || 0;
+      styleTotal += styleRate;  
+
+      console.log(`Row..................... ${index + 1}:`);
+      console.log("calculatedStyleTotal:",styleTotal);
+    });
+
+    sellingPrice = styleTotal + serviceCharge;
+
+    // Handle tax calculation
+    if (cleanedData.taxType === "Inclusive") {
+      if (taxExists.taxType === 'GST') {
+        calculatedIgstAmount = roundToTwoDecimals((cleanedData.igst / 100) * sellingPrice);
+      } else {
+        calculatedVatAmount = roundToTwoDecimals((cleanedData.vat / 100) * sellingPrice);
+      }
+      grandTotal = (sellingPrice + calculatedIgstAmount + calculatedVatAmount);
+    } else {
+      console.log('Skipping Tax');
+      grandTotal = sellingPrice;
+    }
+
+    console.log("calculatedServiceCharge:",serviceCharge);
+    console.log("calculatedSellingPrice:",sellingPrice);
+    console.log("calculatedIgstAmount:",calculatedIgstAmount);
+    console.log("calculatedVatAmount:",calculatedVatAmount);
+    console.log("calculatedGrandTotal:",grandTotal);
+
+    checkAmount(styleTotal, cleanedData.styleTotal, 'Style Total',errors);
+    checkAmount(serviceCharge, cleanedData.serviceCharge, 'Service Charge',errors);
+    checkAmount(sellingPrice, cleanedData.sellingPrice, 'Selling Price',errors);
+    checkAmount(grandTotal, cleanedData.grandTotal, 'Grand Total',errors);
+
+    // Round the totals for comparison
+    const roundedStyleTotal = roundToTwoDecimals(styleTotal); 
+    const roundedSellingPrice = roundToTwoDecimals(sellingPrice);
+    const roundedGrandTotal = roundToTwoDecimals(grandTotal);
+  
+    console.log(`Final Style Total: ${roundedStyleTotal} , Provided ${cleanedData.styleTotal}` );
+    console.log(`Final Selling Price: ${roundedSellingPrice} , Provided ${cleanedData.sellingPrice}` );
+    console.log(`Final Grand Total: ${roundedGrandTotal} , Provided ${cleanedData.grandTotal}` );
+  
+    validateAmount(roundedStyleTotal, cleanedData.styleTotal, 'Style Total', errors);
+    validateAmount(roundedSellingPrice, cleanedData.sellingPrice, 'Selling Price', errors);
+    validateAmount(roundedGrandTotal, cleanedData.grandTotal, 'Grand Total', errors);
+  
+    if (errors.length > 0) {
+      res.status(400).json({ message: errors.join(", ") });
+      return false;
+    }
+  
+    return true;
+
+  }
+
+
+
+
+
+
+  //Mismatch Check
+  function checkAmount(calculatedAmount, providedAmount, itemName, errors) {
+    const roundToTwoDecimals = (value) => Number(value.toFixed(2)); // Round to two decimal places
+    const roundedAmount = roundToTwoDecimals(calculatedAmount);
+    console.log(`${itemName}, Calculated: ${roundedAmount}, Provided data: ${providedAmount}`);
+  
+    if (Math.abs(roundedAmount - providedAmount) > 0.01) {
+      const errorMessage = `Mismatch for item ${itemName}: Calculated ${calculatedAmount}, Provided ${providedAmount}`;
+      errors.push(errorMessage);
+      console.log(errorMessage);
+    }
+  }
+  
+  
+  //Final Item Amount check
+  const validateAmount = ( calculatedValue, cleanedValue, label, errors ) => {
+    const isCorrect = calculatedValue === parseFloat(cleanedValue);
+    if (!isCorrect) {
+      const errorMessage = `${label} is incorrect: ${cleanedValue}`;
+      errors.push(errorMessage);
+      console.log(errorMessage);
+    }
+  };
 
 
 
@@ -262,7 +375,8 @@ function validateServiceData(data, salesAccount, res) {
     const errors = [];
 
     validateReqFields( data, errors );
-    validateAccountStructure( data, salesAccount, errors);
+    // validateAccountStructure( data, salesAccount, errors);
+    validateTaxType(data.taxType, errors)
 
     // validateAlphanumericFields([''], data, errors);
     // validateIntegerFields([''], data, errors);
@@ -290,6 +404,14 @@ function validateAccountStructure( data, salesAccount, errors ) {
     if(data.salesAccountId) {
       validateField( salesAccount.accountGroup !== "Asset" || salesAccount.accountHead !== "Income" || salesAccount.accountSubhead !== "Sales" , "Invalid Sales Account.", errors);
     }
+}
+
+
+// Validate Tax Type
+function validateTaxType(taxType, errors) {
+  validateField(
+    taxType && !validTaxType.includes(taxType),
+    "Invalid Tax Type: " + taxType, errors );
 }
   
 
@@ -325,3 +447,36 @@ function validateAlphanumericFields(fields, data, errors) {
       }
     });
   }
+
+  // Helper functions to handle formatting
+  function capitalize(word) {
+    return word.charAt(0).toUpperCase() + word.slice(1);
+    }
+    
+    function formatCamelCase(word) {
+    return word.replace(/([A-Z])/g, " $1");
+    }
+    
+    // Validation helpers
+    function isAlphabets(value) {
+    return /^[A-Za-z\s]+$/.test(value);
+    }
+    
+    function isFloat(value) {
+    return /^-?\d+(\.\d+)?$/.test(value);
+    }
+    
+    function isInteger(value) {
+    return /^\d+$/.test(value);
+    }
+    
+    function isAlphanumeric(value) {
+    return /^[A-Za-z0-9]+$/.test(value);
+    }
+    
+  
+
+
+
+  // Utility Functions
+  const validTaxType = ["Inclusive", "Exclusive"];    
