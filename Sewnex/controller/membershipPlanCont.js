@@ -315,8 +315,7 @@ function validateOrganizationService( organizationExists, serviceExist, res ) {
 function calculateMembershipPlan(cleanedData, res) {
   const errors = [];
   let actualRate = 0;
-  let sellingRate = 0;
-//   let calculatedDiscountAmount = 0;
+  let sellingPrice = 0;
 
   // Utility function to round values to two decimal places
   const roundToTwoDecimals = (value) => Number(value.toFixed(2));
@@ -325,40 +324,40 @@ function calculateMembershipPlan(cleanedData, res) {
 
     let calculatedTotal = 0;
 
-    calculatedTotal = service.price * service.count;
+    const discountAmount = calculateDiscount(cleanedData, service.price);
 
-    // Update total values
-    actualRate += parseFloat(calculatedTotal);
+    if (cleanedData.planType === "Percentage") {
+      calculatedTotal += service.price - roundToTwoDecimals(discountAmount);
+      actualRate += service.price;
+      sellingPrice = calculatedTotal || 0;
+    } else {
+      calculatedTotal += service.price * service.count;
+      actualRate = calculatedTotal || 0;
+      sellingPrice = (actualRate - roundToTwoDecimals(discountAmount)) || 0;
+    }
 
-    checkAmount(calculatedTotal, service.total, service.serviceId, 'Service Total',errors);
+    console.log(`Service price: ${service.price}, count: ${service.count}`);
+    console.log(`Plan Type: ${cleanedData.planType}`);
+    console.log(`Discount: ${cleanedData.discount}`);
+    console.log(`Discount Amount, Calculated: ${discountAmount}, Provided ${cleanedData.discountAmount}`);
+    console.log(`Calculated Total: ${calculatedTotal}`);
+    console.log(`Actual Rate, Calculated: ${actualRate} , Provided ${cleanedData.actualRate}`);
+    console.log(`Actual Rate, Calculated: ${sellingPrice} , Provided ${cleanedData.sellingPrice}`);
 
-    console.log(`${service.serviceId} Service Total: ${calculatedTotal} , Provided ${service.total}`);
   });
 
-  console.log(`Actual Rate, Calculated: ${actualRate} , Provided ${cleanedData.actualRate}`);
-  console.log("Discount:",cleanedData.discount);
+  checkAmount(discountAmount, cleanedData.discountAmount, 'Discount Amount', errors);
+  checkAmount(actualRate, cleanedData.actualRate, 'Actual Rate', errors);
+  checkAmount(sellingPrice, cleanedData.sellingPrice, 'Selling Price', errors);
 
-  // Calculate discount 
-  const discountAmount = calculateDiscount(cleanedData, actualRate);
-  console.log(`Discount Amount, Calculated: ${discountAmount} , Provided ${cleanedData.discountAmount}`);
-
-  // Round the totals for comparison
   const roundedActualRate = roundToTwoDecimals(actualRate);
-  const roundedDiscountAmount = roundToTwoDecimals(discountAmount);
+  const roundedSellingPrice = roundToTwoDecimals(sellingPrice);
 
-  // Selling rate calculation
-  sellingRate = (actualRate - discountAmount) || 0;
-
-  // Round the totals for comparison
-  const roundedSellingRate = roundToTwoDecimals(sellingRate);
-
-  console.log(`Final Actual Rate: ${roundedActualRate} , Provided ${cleanedData.actualRate}` );
-  console.log(`Final Discount Amount: ${roundedDiscountAmount} , Provided ${cleanedData.discountAmount}` );
-  console.log(`Final Selling Rate: ${roundedSellingRate} , Provided ${cleanedData.sellingRate}` );
+  console.log(`Rounded Actual Rate: ${roundedActualRate} , Provided ${cleanedData.actualRate}` );
+  console.log(`Rounded Selling Price: ${roundedSellingPrice} , Provided ${cleanedData.sellingPrice}` );
 
   validateAmount(roundedActualRate, cleanedData.actualRate, 'Actual Rate',errors);
-  validateAmount(roundedDiscountAmount, cleanedData.discountAmount, 'Discount Amount',errors);
-  validateAmount(roundedSellingRate, cleanedData.sellingRate, 'Selling Rate',errors);
+  validateAmount(roundedSellingPrice, cleanedData.sellingPrice, 'Selling Price',errors);
 
   if (errors.length > 0) {
     res.status(400).json({ message: errors.join(", ") });
@@ -370,22 +369,22 @@ function calculateMembershipPlan(cleanedData, res) {
 
 
 // Calculate discount
-function calculateDiscount( cleanedData, actualRate ) {
+function calculateDiscount( cleanedData, price ) {
     return cleanedData.planType === 'Currency'
       ? cleanedData.discount || 0
-      : (actualRate * (cleanedData.discount || 0)) / 100;
+      : (price * (cleanedData.discount || 0)) / 100;
   }
 
 
   //Mismatch Check
-function checkAmount(calculatedTotal, providedAmount, serviceId, errors) {
+function checkAmount(calculatedTotal, providedAmount, serviceName, errors) {
     const roundToTwoDecimals = (value) => Number(value.toFixed(2)); // Round to two decimal places
     const roundedAmount = roundToTwoDecimals(calculatedTotal);
-    console.log(`Service ID: ${serviceId}, Calculated ${calculatedTotal}: ${roundedAmount}, Provided data: ${providedAmount}`);
+    console.log(`${serviceName}, Calculated ${calculatedTotal}: ${roundedAmount}, Provided data: ${providedAmount}`);
   
     
     if (Math.abs(roundedAmount - providedAmount) > 0.01) {
-      const errorMessage = `Mismatch in total for service id ${serviceId}: Calculated ${calculatedTotal}, Provided ${providedAmount}`;
+      const errorMessage = `Mismatch for ${serviceName}: Calculated ${calculatedTotal}, Provided ${providedAmount}`;
       errors.push(errorMessage);
       console.log(errorMessage);
     }
@@ -431,7 +430,7 @@ function validateMembershipData( data, serviceExist, services ) {
     validateService(serviceExist, services, errors);
     validatePlanType(data.planType, errors);
     //OtherDetails
-    validateFloatFields(['discount', 'actualRate', 'sellingRate'], data, errors);
+    validateFloatFields(['discount', 'actualRate', 'sellingPrice'], data, errors);
     return errors;
 }
 
@@ -466,7 +465,7 @@ function validateService(serviceExist, services, errors) {
       validateIntegerFields(['count'], service, errors);
 
       // Validate float fields
-      validateFloatFields(['discount', 'actualRate', 'sellingRate'], service, errors);
+      validateFloatFields(['discount', 'actualRate', 'sellingPrice'], service, errors);
     });
 }
 

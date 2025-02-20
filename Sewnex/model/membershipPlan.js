@@ -7,7 +7,6 @@ const serviceSchema = new Schema({
     //serviceName
     price: { type : Number },
     count: { type : Number },
-    total: { type : Number }
 }, { _id: false });
 
 
@@ -24,7 +23,7 @@ const membershipPlanSchema = new Schema({
     services: [serviceSchema],
 
     actualRate: { type : Number },
-    sellingRate: { type : Number },
+    sellingPrice: { type : Number },
 
     createdDateTime: { type: Date, default: () => new Date() },
     
