@@ -41,7 +41,14 @@ router.get('/get-customer-transaction/:customerId',verifyToken,checkPermission('
 
 router.get('/get-customer-dashboard/:date',verifyToken,checkPermission('Viewed Customer details'),dashboardController.getCustomerStats);
 
+router.get('/get-one-customer-dashboard/:customerId',verifyToken,checkPermission('Viewed Customer details'),dashboardController.getOneCustomerStats);
+
+router.get('/get-customer-sales-history/:customerId',verifyToken,checkPermission("Viewed Customer details"),dashboardController.customerSaleHistory);
+
+router.get('/get-customer-sales-receipt/:customerId',verifyToken,checkPermission("Viewed Customer details"),dashboardController.customerSalesReceipt);    
+
 router.put('/update-customer-settings',verifyToken,checkPermission('Added a new Setting'),customerSettings.updateCustomerSettings)
+
 
 
 //Import
