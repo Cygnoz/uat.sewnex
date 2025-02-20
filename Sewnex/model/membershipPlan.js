@@ -17,7 +17,6 @@ const membershipPlanSchema = new Schema({
 
     planType: { type : String },    //Currency / Percentage
     discount: { type : Number },    //amount / percentage rate
-    // discountAmount: { type : Number },
     duration: { type : String },    // 2 years
 
     services: [serviceSchema],

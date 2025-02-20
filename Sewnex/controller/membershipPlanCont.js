@@ -224,7 +224,7 @@ exports.editMembershipPlan = async (req, res) => {
           return res.status(409).json({ message: `Membership with this name already exists.` });
       }
   
-      // Update CPS entry with new data
+      // Update entry with new data
       cleanedData.lastModifiedDate = new Date();
   
       const updatedMembershipPlan = await MembershipPlan.findByIdAndUpdate(membershipId, cleanedData, { new: true });

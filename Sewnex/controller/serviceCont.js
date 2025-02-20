@@ -124,6 +124,9 @@ exports.editService = async (req, res) => {
       // Calculate Service
       if (!calculateService(cleanedData, taxExists, res)) return;
 
+      // Update entry with new data
+      cleanedData.lastModifiedDate = new Date();
+
       // Update Service
       const updatedService = await Service.findByIdAndUpdate(serviceId, cleanedData, { new: true });
       res.status(200).json({ message: "Service updated successfully.", service: updatedService });
