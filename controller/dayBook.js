@@ -8,8 +8,8 @@ exports.getDayBook = async (req, res) => {
         const { startDate, endDate } = req.params; 
         const { organizationId } = req.user;
 
-        console.log('Day Book Start Date:', startDate);
-        console.log('Day Book End Date:', endDate);
+        // console.log('Day Book Start Date:', startDate);
+        // console.log('Day Book End Date:', endDate);
 
         // Validate date format (DD-MM-YYYY) for both dates
         if (!startDate || !endDate || 
@@ -94,6 +94,11 @@ exports.getDayBook = async (req, res) => {
                     firstCreatedDateTime: { $first: "$createdDateTime" },
                     totalDebit: { $sum: "$debitAmount" },
                     totalCredit: { $sum: "$creditAmount" }
+                }
+            },
+            {
+                $match: {
+                    _id: { $ne: "OB" }  // Remove entries where transactionId is "OB"
                 }
             },
             {

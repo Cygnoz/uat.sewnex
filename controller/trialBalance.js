@@ -43,6 +43,7 @@ exports.getTrialBalance = async (req, res) => {
         const transactions = await TrialBalances.find({
             organizationId,
             createdDateTime: { $gte: start, $lte: end },
+            transactionId: { $ne: "OB" }, // Exclude entries where transactionId is "OB"
             $or: [
                 { debitAmount: { $gt: 0 } },
                 { creditAmount: { $gt: 0 } }
