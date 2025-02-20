@@ -10,12 +10,12 @@ const dataExist = async ( organizationId, membershipId ) => {
   const [organizationExists, allMembershipPlan, membershipPlan, serviceExist ] = await Promise.all([
     Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1, timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1}).lean(),
     MembershipPlan.find({ organizationId })
-    .populate('serviceId', 'serviceName')
+    .populate('services.serviceId', 'serviceName')
     .lean(),
     MembershipPlan.findOne({ organizationId , _id: membershipId })
-    .populate('serviceId', 'serviceName')
+    .populate('services.serviceId', 'serviceName')
     .lean(),
-    Service.findOne({ organizationId }, { organizationId: 1, serviceImage: 1, serviceName: 1, grandTotal: 1}).lean(),
+    Service.find({ organizationId }, { organizationId: 1, serviceImage: 1, serviceName: 1, grandTotal: 1}).lean(),
   ]);
   return { organizationExists, allMembershipPlan, membershipPlan, serviceExist };
 };
@@ -36,7 +36,9 @@ exports.addMembershipPlan = async (req, res) => {
       ?.map(data => cleanData(data))
       .filter(service => service.serviceId !== undefined && service.serviceId !== '') || []; 
 
-      const { services } = cleanedData; 
+      const { planName, services } = cleanedData; 
+
+      if (await isDuplicateName(planName, organizationId, res)) return;
 
       const serviceIds = services.map(service => service.serviceId); 
 
@@ -71,7 +73,7 @@ exports.addMembershipPlan = async (req, res) => {
 
       res.status(201).json({ message: "Membership plan created successfully", data: savedMembershipPlan });
       console.log( "Membership plan created successfully:", savedMembershipPlan );
-  } catch (errorMessage) {
+  } catch (error) {
     console.error("Error Creating Membership Plan:", error);
     res.status(500).json({ message: "Internal server error." });
   }
@@ -100,10 +102,11 @@ exports.getAllMembershipPlan = async (req, res) => {
             ...data,
             services: data.services.map(service => ({
               ...service,
-              serviceId: service.serviceId._id,  
-              serviceName: service.serviceId.serviceName,
+              serviceId: service.serviceId ? service.serviceId._id : undefined,  
+              serviceName: service.serviceId ? service.serviceId.serviceName : undefined,
             })),  
-        };}); 
+        };
+      }); 
     
      const formattedObjects = multiCustomDateTime(transformedMembership, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
   
@@ -131,20 +134,19 @@ exports.getOneMembershipPlan = async (req, res) => {
     
       if (!membershipPlan) {
         return res.status(404).json({
-          message: "No Membership found",
+          message: "No Membership Plan found",
         });
       }
       const transformedMembership = {
             ...membershipPlan,
             services: membershipPlan.services.map(service => ({
                 ...service,
-                serviceId: service.serviceId._id,  
-                serviceName: service.serviceId.serviceName,
+                serviceId: service.serviceId ? service.serviceId._id : undefined,  
+                serviceName: service.serviceId ? service.serviceId.serviceName : undefined,
             })),  
         };
       
       const formattedObjects = singleCustomDateTime(transformedMembership, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
-    
     
       res.status(200).json(formattedObjects);
     } catch (error) {
@@ -183,7 +185,9 @@ exports.editMembershipPlan = async (req, res) => {
       ?.map(data => cleanData(data))
       .filter(service => service.serviceId !== undefined && service.serviceId !== '') || []; 
 
-      const { services } = cleanedData; 
+      const { planName, services } = cleanedData; 
+
+      if (await isDuplicateNameExist(planName, organizationId, membershipId, res)) return;
 
       const serviceIds = services.map(service => service.serviceId); 
 
@@ -282,7 +286,34 @@ exports.deleteMembershipPlan = async (req, res) => {
 
 
 
+// Check for duplicate item name - ADD
+const isDuplicateName = async (planName, organizationId, res) => {
+  const existingPlanName = await MembershipPlan.findOne({ planName, organizationId });
+  if (existingPlanName) {
+      console.error("Membership Plan with this name already exists.");
+      res.status(400).json({ message: "Membership Plan with this name already exists" });
+      return true;
+  }
+  return false;
+};
 
+
+// Check for duplicate item name - EDIT
+const isDuplicateNameExist = async (planName, organizationId, membershipId, res) => { 
+  const existingPlanName = await MembershipPlan.findOne({
+      planName,
+      organizationId,
+      _id: { $ne: membershipId }
+  });
+  
+  if (existingPlanName) {
+      console.error("Membership Plan with this name already exists.");
+      res.status(400).json({ message: "Membership Plan with this name already exists" });
+      return true;
+  }
+  
+  return false;
+};
 
 
 
@@ -320,33 +351,36 @@ function calculateMembershipPlan(cleanedData, res) {
   // Utility function to round values to two decimal places
   const roundToTwoDecimals = (value) => Number(value.toFixed(2));
 
-  cleanedData.services.forEach(service => {
+  cleanedData.services.forEach((service, index) => {
 
     let calculatedTotal = 0;
+    let totalDiscountAmount = 0;
 
     const discountAmount = calculateDiscount(cleanedData, service.price);
+    totalDiscountAmount += discountAmount;
 
     if (cleanedData.planType === "Percentage") {
       calculatedTotal += service.price - roundToTwoDecimals(discountAmount);
       actualRate += service.price;
-      sellingPrice = calculatedTotal || 0;
+      sellingPrice += calculatedTotal || 0;
     } else {
-      calculatedTotal += service.price * service.count;
-      actualRate = calculatedTotal || 0;
+      calculatedTotal += (service.price * parseFloat(service.count));
+      actualRate += calculatedTotal || 0;
       sellingPrice = (actualRate - roundToTwoDecimals(discountAmount)) || 0;
     }
 
+    console.log(`Row..................... ${index + 1}:`);
     console.log(`Service price: ${service.price}, count: ${service.count}`);
     console.log(`Plan Type: ${cleanedData.planType}`);
     console.log(`Discount: ${cleanedData.discount}`);
-    console.log(`Discount Amount, Calculated: ${discountAmount}, Provided ${cleanedData.discountAmount}`);
+    console.log(`Discount Amount: ${discountAmount}`);
+    console.log(`Total Discount Amount: ${totalDiscountAmount}`);
     console.log(`Calculated Total: ${calculatedTotal}`);
     console.log(`Actual Rate, Calculated: ${actualRate} , Provided ${cleanedData.actualRate}`);
     console.log(`Actual Rate, Calculated: ${sellingPrice} , Provided ${cleanedData.sellingPrice}`);
-
+    
   });
 
-  checkAmount(discountAmount, cleanedData.discountAmount, 'Discount Amount', errors);
   checkAmount(actualRate, cleanedData.actualRate, 'Actual Rate', errors);
   checkAmount(sellingPrice, cleanedData.sellingPrice, 'Selling Price', errors);
 
@@ -380,7 +414,7 @@ function calculateDiscount( cleanedData, price ) {
 function checkAmount(calculatedTotal, providedAmount, serviceName, errors) {
     const roundToTwoDecimals = (value) => Number(value.toFixed(2)); // Round to two decimal places
     const roundedAmount = roundToTwoDecimals(calculatedTotal);
-    console.log(`${serviceName}, Calculated ${calculatedTotal}: ${roundedAmount}, Provided data: ${providedAmount}`);
+    console.log(`${serviceName}, Calculated: ${roundedAmount}, Provided data: ${providedAmount}`);
   
     
     if (Math.abs(roundedAmount - providedAmount) > 0.01) {
@@ -428,7 +462,7 @@ function validateMembershipData( data, serviceExist, services ) {
     //Basic Info
     validateReqFields( data, errors );
     validateService(serviceExist, services, errors);
-    validatePlanType(data.planType, errors);
+    // validatePlanType(data.planType, errors);
     //OtherDetails
     validateFloatFields(['discount', 'actualRate', 'sellingPrice'], data, errors);
     return errors;
@@ -449,14 +483,14 @@ function validateService(serviceExist, services, errors) {
     
     // Iterate through each service to validate individual fields 
     services.forEach((service) => {
-      const fetchedService = serviceExist.find(i => i._id.toString() === service.serviceId.toString());  
+      const fetchedService = serviceExist.find(i => i._id.toString() === service.serviceId);  
     
       // Check if service exists in the serviceExist
       validateField( !fetchedService, `Service with ID ${service.serviceId} was not found.`, errors );
       if (!fetchedService) return; 
     
       // Validate service price
-      validateField( service.price !== fetchedService.grandTotal, `Service price Mismatch for ${service.serviceId}:  ${service.price}`, errors );
+      // validateField( service.price !== fetchedService.grandTotal, `Service price Mismatch for ${service.serviceId}:  ${service.price}`, errors );
     
       // Validate plan type
       validatePlanType(service.planType, errors);
@@ -488,6 +522,36 @@ function validateFloatFields(fields, data, errors) {
         "Invalid " + balance.replace(/([A-Z])/g, " $1") + ": " + data[balance], errors);
     });
 }
+
+  // Helper functions to handle formatting
+  function capitalize(word) {
+    return word.charAt(0).toUpperCase() + word.slice(1);
+    }
+    
+    function formatCamelCase(word) {
+    return word.replace(/([A-Z])/g, " $1");
+    }
+    
+    // Validation helpers
+    function isAlphabets(value) {
+    return /^[A-Za-z\s]+$/.test(value);
+    }
+    
+    function isFloat(value) {
+    return /^-?\d+(\.\d+)?$/.test(value);
+    }
+    
+    function isInteger(value) {
+    return /^\d+$/.test(value);
+    }
+    
+    function isAlphanumeric(value) {
+    return /^[A-Za-z0-9]+$/.test(value);
+    }
+    
+    function isValidEmail(value) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+    }
 
 
 
