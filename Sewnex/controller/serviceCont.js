@@ -390,30 +390,30 @@ function taxType( cleanedData, taxExists, taxRate ) {
       let styleRate = parseFloat(data.styleRate) || 0;
       styleTotal += styleRate;  
 
-      console.log(`Row..................... ${index + 1}:`);
-      console.log("calculatedStyleTotal:",styleTotal);
-    });
+      sellingPrice = styleTotal + serviceCharge;
 
-    sellingPrice = styleTotal + serviceCharge;
-
-    // Handle tax calculation
-    if (cleanedData.taxType === "Inclusive") {
-      if (taxExists.taxType === 'GST') {
-        calculatedIgstAmount = roundToTwoDecimals((cleanedData.igst / 100) * sellingPrice);
+      // Handle tax calculation
+      if (cleanedData.taxType === "Inclusive") {
+        if (taxExists.taxType === 'GST') {
+          calculatedIgstAmount = roundToTwoDecimals((cleanedData.igst / 100) * sellingPrice);
+        } else {
+          calculatedVatAmount = roundToTwoDecimals((cleanedData.vat / 100) * sellingPrice);
+        }
+        grandTotal = (sellingPrice + calculatedIgstAmount + calculatedVatAmount);
       } else {
-        calculatedVatAmount = roundToTwoDecimals((cleanedData.vat / 100) * sellingPrice);
+        console.log('Skipping Tax');
+        grandTotal = sellingPrice;
       }
-      grandTotal = (sellingPrice + calculatedIgstAmount + calculatedVatAmount);
-    } else {
-      console.log('Skipping Tax');
-      grandTotal = sellingPrice;
-    }
 
-    console.log("calculatedServiceCharge:",serviceCharge);
-    console.log("calculatedSellingPrice:",sellingPrice);
-    console.log("calculatedIgstAmount:",calculatedIgstAmount);
-    console.log("calculatedVatAmount:",calculatedVatAmount);
-    console.log("calculatedGrandTotal:",grandTotal);
+        console.log(`Row..................... ${index + 1}:`);
+        console.log("calculatedStyleTotal:",styleTotal);
+        console.log("calculatedServiceCharge:",serviceCharge);
+        console.log("calculatedSellingPrice:",sellingPrice);
+        console.log("calculatedIgstAmount:",calculatedIgstAmount);
+        console.log("calculatedVatAmount:",calculatedVatAmount);
+        console.log("calculatedGrandTotal:",grandTotal);
+      });
+
 
     checkAmount(styleTotal, cleanedData.styleTotal, 'Style Total',errors);
     checkAmount(serviceCharge, cleanedData.serviceCharge, 'Service Charge',errors);
