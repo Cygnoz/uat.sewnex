@@ -376,7 +376,7 @@ function taxType( cleanedData, taxExists, taxRate ) {
     const errors = [];
 
     let styleTotal = 0;
-    let serviceCharge = (cleanedData.serviceCharge || 0);
+    let serviceCharge = parseFloat(cleanedData.serviceCharge || 0);
     let sellingPrice = 0;
     let grandTotal = 0;
 
@@ -389,6 +389,10 @@ function taxType( cleanedData, taxExists, taxRate ) {
     cleanedData.style.forEach((data, index) => {    
       let styleRate = parseFloat(data.styleRate) || 0;
       styleTotal += styleRate;  
+
+      console.log(`Row..................... ${index + 1}:`);
+      console.log("calculatedStyleTotal:",styleTotal);
+    });
 
       sellingPrice = styleTotal + serviceCharge;
 
@@ -405,15 +409,11 @@ function taxType( cleanedData, taxExists, taxRate ) {
         grandTotal = sellingPrice;
       }
 
-        console.log(`Row..................... ${index + 1}:`);
-        console.log("calculatedStyleTotal:",styleTotal);
-        console.log("calculatedServiceCharge:",serviceCharge);
-        console.log("calculatedSellingPrice:",sellingPrice);
-        console.log("calculatedIgstAmount:",calculatedIgstAmount);
-        console.log("calculatedVatAmount:",calculatedVatAmount);
-        console.log("calculatedGrandTotal:",grandTotal);
-      });
-
+      console.log("calculatedServiceCharge:",serviceCharge);
+      console.log("calculatedSellingPrice:",sellingPrice);
+      console.log("calculatedIgstAmount:",calculatedIgstAmount);
+      console.log("calculatedVatAmount:",calculatedVatAmount);
+      console.log("calculatedGrandTotal:",grandTotal);
 
     checkAmount(styleTotal, cleanedData.styleTotal, 'Style Total',errors);
     checkAmount(serviceCharge, cleanedData.serviceCharge, 'Service Charge',errors);
@@ -508,7 +508,7 @@ function validateServiceData(data, salesAccount, res) {
 
     // validateAlphanumericFields([''], data, errors);
     // validateIntegerFields([''], data, errors);
-    validateFloatFields(['sellingPrice'], data, errors);
+    validateFloatFields(['sellingPrice', 'serviceCharge', 'style.styleRate'], data, errors);
     //validateAlphabetsFields([''], data, errors);
 
 
