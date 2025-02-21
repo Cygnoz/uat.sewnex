@@ -4,37 +4,39 @@ const Users = require('../database/model/user');
 const Organization = require('../database/model/organization');
 const { cleanData } = require('../services/cleanData');
 
-// Common function to fetch data
-const fetchData = async (model, query) => {
-    return new Promise(async (resolve, reject) => {
-        try {
-            const data = await model.findOne(query);
-            resolve(data);
-        } catch (error) {
-            reject(error);
-        }
-    });
+
+const dataExist = async ( organizationId, email, staffId ) => {
+    const [organizationExists, existingUser  ] = await Promise.all([
+      Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1, timeZoneExp: 1 }),
+      Users.findOne({ organizationId, email }), 
+    ]);
+    return { organizationExists, existingUser };
 };
 
-// Check if organization exists
-const checkOrganization = async (organizationId) => {
-    const organization = await fetchData(Organization, { _id: organizationId });
-    if (!organization) throw new Error('Organization not found');
-    return organization;
-};
+
+
 
 // Add Staff
 exports.addStaff = async (req, res) => {
+    console.log("Add Staff :", req.body);
     try {
-        const { email, password, organizationId, ...staffData } = cleanData(req.body);
-        if (!email || !password) return res.status(400).json({ message: 'Email and Password are required' });
+        const cleanedData = cleanData(req.body);
+
+        const { organizationId, id: userId, userName } = req.user;
+
+        const {  email } = cleanedData;
+
+        const { organizationExists, existingUser } = await dataExist( organizationId, email, null );   
         
-        await checkOrganization(organizationId);
+        if (!validateDataExist( organizationExists, res )) return;
         
-        const existingUser = await fetchData(Users, { email });
         if (existingUser) return res.status(409).json({ message: 'User already exists' });
         
+        if (!validateInputs( cleanedData, organizationExists,res)) return;
+        
+        
         const hashedPassword = await bcrypt.hash(password, 10);
+        
         const user = await Users.create({ email, password: hashedPassword });
         const staff = await Staff.create({ ...staffData, email, password: hashedPassword, organizationId });
         
@@ -124,3 +126,111 @@ exports.deleteStaff = async (req, res) => {
         res.status(500).json({ message: 'Server Error', error: error.message });
     }
 };
+
+
+
+
+
+
+
+
+
+
+// Validate Organization Tax Currency
+function validateDataExist( organizationExists, res ) {
+    if (!organizationExists) {
+      res.status(404).json({ message: "Organization not found" });
+      return false;
+    }
+    return true;
+  }
+
+
+
+
+
+//Validate inputs
+function validateInputs( data, organizationExists, res) {
+    const validationErrors = validateData(data, organizationExists );
+  
+    if (validationErrors.length > 0) {
+      res.status(400).json({ message: validationErrors.join(", ") });
+      return false;
+    }
+    return true;
+}
+
+
+function validateData( data, organizationExists ) {
+    const errors = [];
+
+  
+    //Basic Info
+    validateReqFields( data );
+
+    
+    //OtherDetails
+    //validateAlphanumericFields([''], data, errors);
+    validateIntegerFields([''], data, errors);
+    validateFloatFields([''], data, errors);
+    //validateAlphabetsFields([''], data, errors);
+  
+    return errors;
+  }
+  
+
+
+
+
+// Field validation utility
+function validateField(condition, errorMsg, errors) {
+    if (condition) errors.push(errorMsg);
+  }
+
+
+
+function validateReqFields( data, errors ) {
+  validateField( typeof data.customerId === 'undefined', "Please select a Customer", errors  );
+  validateField( typeof data.placeOfSupply === 'undefined', "Place of supply required", errors  );
+  validateField( typeof data.salesInvoiceDate === 'undefined', "Invoice Date required", errors  );
+  
+  
+
+}
+    
+
+
+
+
+
+
+
+
+  //Valid Alphanumeric Fields
+function validateAlphanumericFields(fields, data, errors) {
+    fields.forEach((field) => {
+      validateField(data[field] && !isAlphanumeric(data[field]), "Invalid " + field + ": " + data[field], errors);
+    });
+  }
+  // Validate Integer Fields
+  function validateIntegerFields(fields, data, errors) {
+  fields.forEach(field => {
+    validateField(data[field] && !isInteger(data[field]), `Invalid ${field}: ${data[field]}`, errors);
+  });
+  }
+  //Valid Float Fields  
+  function validateFloatFields(fields, data, errors) {
+    fields.forEach((balance) => {
+      validateField(data[balance] && !isFloat(data[balance]),
+        "Invalid " + balance.replace(/([A-Z])/g, " $1") + ": " + data[balance], errors);
+    });
+  }
+  //Valid Alphabets Fields 
+  function validateAlphabetsFields(fields, data, errors) {
+    fields.forEach((field) => {
+      if (data[field] !== undefined) {
+        validateField(!isAlphabets(data[field]),
+          field.charAt(0).toUpperCase() + field.slice(1) + " should contain only alphabets.", errors);
+      }
+    });
+  }
