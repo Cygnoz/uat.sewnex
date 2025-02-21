@@ -674,7 +674,7 @@ function expensePrefix( cleanData, existingPrefix ) {
         } else if (cleanedData.amountIs === "Tax Inclusive") {
 
           if (taxMode === 'Intra') {
-            const tt = roundToTwoDecimals((amount / (100 + data.igst)) * 100);
+            const tt = roundToTwoDecimals((amount / (100 + data.igst)) * 100); 
             calculatedCgstAmount = roundToTwoDecimals((data.cgst / 100) * tt);
             calculatedSgstAmount = roundToTwoDecimals((data.sgst / 100) * tt);
 
@@ -683,10 +683,10 @@ function expensePrefix( cleanData, existingPrefix ) {
             const amt = roundToTwoDecimals(tt + calculatedCgstAmount + calculatedSgstAmount);
             if ( amt < amount ) {
               difference = roundToTwoDecimals(amount - amt);
-              total = difference + tt;
+              total = roundToTwoDecimals(difference + tt);
             } else if ( amt > amount ) {
               difference = roundToTwoDecimals(amt - amount);
-              total = tt - difference;
+              total = roundToTwoDecimals(tt - difference);
             } else {
               total = tt;
             }
