@@ -2,10 +2,23 @@ const TrialBalances = require('../database/model/trialBalance');
 const Organization = require('../database/model/organization');
 const moment = require('moment');
 
+// const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
+
+
+//Get one and All
+const dataExist = async ( organizationId, invoiceId ) => {    
+    const [organizationExists ] = await Promise.all([
+      Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }).lean(),
+    ]);
+    return { organizationExists };
+  };
+  
 exports.getTrialBalance = async (req, res) => {
     try {
         const { startDate, endDate } = req.params;
         const { organizationId } = req.user;
+
+        const { organizationExists } = await dataExist( organizationId );
 
         if (!startDate || !endDate || 
             !/^\d{2}-\d{2}-\d{4}$/.test(startDate) || 
@@ -43,7 +56,7 @@ exports.getTrialBalance = async (req, res) => {
         const transactions = await TrialBalances.find({
             organizationId,
             createdDateTime: { $gte: start, $lte: end },
-            transactionId: { $ne: "OB" }, // Exclude entries where transactionId is "OB"
+            // transactionId: { $ne: "OB" }, // Exclude entries where transactionId is "OB"
             $or: [
                 { debitAmount: { $gt: 0 } },
                 { creditAmount: { $gt: 0 } }

@@ -787,12 +787,12 @@ exports.calculateTradingAccount = async (req, res) => {
                 { openingStock },
                 { purchases },
                 { directExpenses },
-                ...(carryForwardType === "debit" ? [{ grossProfit: carryForward }] : [])
+                ...(carryForwardType === "debit" ? [{ grossProfit: carryForward }] : [{ grossProfit: 0 }])
             ],
             credit: [
                 { sales },
                 { closingStock },
-                ...(carryForwardType === "credit" ? [{ grossLoss: carryForward }] : [])
+                ...(carryForwardType === "credit" ? [{ grossLoss: carryForward }] : [{ grossLoss: 0 }])
             ],
             finalDebit,
             finalCredit,
@@ -883,14 +883,14 @@ exports.calculateProfitAndLoss = async (req, res) => {
             // },
             // profitAndLossAccount: {
                 debit: [
-                    ...(grossLoss > 0 ? [{ "grossLossCd": grossLoss }] : []),
+                    ...(grossLoss > 0 ? [{ "grossLossCd": grossLoss }] : [{ "grossLossCd" : 0 }]),
                     { indirectExpenses },
-                    ...(netProfit > 0 ? [{ netProfit: netProfit }] : [])
+                    ...(netProfit > 0 ? [{ netProfit: netProfit }] : [{ netProfit: 0 }])
                 ],
                 credit: [
-                    ...(grossProfit > 0 ? [{ "grossProfitCd": grossProfit }] : []),
+                    ...(grossProfit > 0 ? [{ "grossProfitCd": grossProfit }] : [{ "grossProfitCd": 0 }]),
                     { indirectIncome },
-                    ...(netLoss > 0 ? [{ netLoss: netLoss }] : [])
+                    ...(netLoss > 0 ? [{ netLoss: netLoss }] : [{ netLoss: 0 }])
                 ],
             // },
             summary: {
@@ -905,6 +905,7 @@ exports.calculateProfitAndLoss = async (req, res) => {
 
         res.status(200).json({ success: true, data: result });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -1012,7 +1013,7 @@ exports.calculateBalanceSheet = async (req, res) => {
             debit: [
                 { currentAssets },
                 { nonCurrentAssets },
-                ...(netLoss > 0 ? [{ "netLossCd": netLoss }] : [])
+                ...(netLoss > 0 ? [{ "netLossCd": netLoss }] : [{ "netLossCd": 0 }])
 
                 
             ],
@@ -1020,7 +1021,7 @@ exports.calculateBalanceSheet = async (req, res) => {
                 { equity },
                 { currentLiabilities },
                 { nonCurrentLiabilities },
-                ...(netProfit > 0 ? [{ "netProfitCd": netProfit }] : [])
+                ...(netProfit > 0 ? [{ "netProfitCd": netProfit }] : [{ "netProfitCd": 0 }])
             ],
             summary: {
                 grossProfit,
