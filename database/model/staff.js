@@ -18,6 +18,8 @@ const staffSchema = new Schema({
   address: { type: String },
   dob: { type: String },
   doj: { type: String },
+  
+  role: { type: String },
 
   proofImage: { type: String },
 
