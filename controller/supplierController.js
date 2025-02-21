@@ -820,14 +820,12 @@ function editOpeningBalance(existingSupplier, cleanedData) {
   } else if (existingSupplier.creditOpeningBalance && cleanedData.debitOpeningBalance) {
     cleanedData.creditOpeningBalance = undefined;
   }
-  return
 }
 
 
 // Update Opening Balance
 async function updateOpeningBalance(existingTrialBalance, cleanData) {
   try {
-    const { debitOpeningBalance, creditOpeningBalance } = existingTrialBalance;
     let trialEntry;
 
     if (cleanData.debitOpeningBalance) {

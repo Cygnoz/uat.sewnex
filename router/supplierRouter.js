@@ -1,8 +1,8 @@
 const express = require("express")
 const router = new express.Router()
 
-const supplierCont = require('../controller/suppliercont');
-const supplierSettings = require('../controller/suplierSettings')
+const supplierCont = require('../controller/supplierController');
+const supplierSettings = require('../controller/supplierSettings')
 const importController = require('../controller/importSupplier')
 const dashboardController = require("../controller/dashboardController")
 
@@ -25,7 +25,7 @@ router.put('/update-supplier/:supplierId',verifyToken,checkPermission('Edited Su
 router.delete('/delete-supplier/:supplierId',verifyToken, checkPermission('Deleted Supplier Information'), supplierCont.deleteSupplier);
 
 
-router.put('/update-supplier-status/:supplierId' ,verifyToken,checkPermission('Modified Supplier Status'),supplierCont.updateSupplierStatus)
+router.put('/update-supplier-status/:supplierId' ,verifyToken,checkPermission('Viewed Supplier Details'),supplierCont.updateSupplierStatus)
 
 router.get('/supplier-additional-data',verifyToken,checkPermission('Viewed Supplier Details'), supplierCont.getSupplierAdditionalData);
 
