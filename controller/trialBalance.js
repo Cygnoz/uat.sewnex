@@ -2,11 +2,11 @@ const TrialBalances = require('../database/model/trialBalance');
 const Organization = require('../database/model/organization');
 const moment = require('moment');
 
-// const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
+const { singleCustomDateTime, multiCustomDateTime } = require("../services/timeConverter");
 
 
 //Get one and All
-const dataExist = async ( organizationId, invoiceId ) => {    
+const dataExist = async ( organizationId ) => {    
     const [organizationExists ] = await Promise.all([
       Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }).lean(),
     ]);
@@ -61,7 +61,7 @@ exports.getTrialBalance = async (req, res) => {
                 { debitAmount: { $gt: 0 } },
                 { creditAmount: { $gt: 0 } }
             ]
-        }).populate('accountId', 'accountName accountSubhead accountHead accountGroup');
+        }).populate('accountId', 'accountName accountSubhead accountHead accountGroup').lean();
 
         const accountMap = {};
         let totalDebit = 0;
@@ -88,6 +88,7 @@ exports.getTrialBalance = async (req, res) => {
             const accountSubHead = transaction.accountId?.accountSubhead || 'Uncategorized';
             const accountName = transaction.accountId?.accountName || 'Unknown Account';
             const transactionDate = moment(transaction.createdDateTime).format('MMMM YYYY');
+            const formattedObjects = singleCustomDateTime(transaction, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );
 
             if (!accountMap[accountSubHead]) {
                 accountMap[accountSubHead] = {
@@ -139,8 +140,8 @@ exports.getTrialBalance = async (req, res) => {
                 debitAmount: debit,
                 creditAmount: credit,
                 createdDateTime: transaction.createdDateTime,
-                createdDate: moment(transaction.createdDateTime).format('DD/MMM/YYYY'),
-                createdTime: moment(transaction.createdDateTime).format('hh:mm:ss A'),
+                createdDate: formattedObjects.createdDate,
+                createdTime: formattedObjects.createdTime,
             });
         });
 

@@ -3,13 +3,21 @@ const Accounts = require('../database/model/account');
 const Organization = require('../database/model/organization');
 const moment = require('moment');
 
+const { singleCustomDateTime, multiCustomDateTime } = require("../services/timeConverter");
+
+const dataExist = async ( organizationId ) => {    
+    const [organizationExists ] = await Promise.all([
+      Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }).lean(),
+    ]);
+    return { organizationExists };
+  };
+
 exports.getDayBook = async (req, res) => {
     try {
         const { startDate, endDate } = req.params; 
         const { organizationId } = req.user;
 
-        // console.log('Day Book Start Date:', startDate);
-        // console.log('Day Book End Date:', endDate);
+        // const { organizationExists } = await dataExist( organizationId );
 
         // Validate date format (DD-MM-YYYY) for both dates
         if (!startDate || !endDate || 

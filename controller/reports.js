@@ -5,11 +5,14 @@ const ItemTrack = require('../database/model/itemTrack');
 const Organization = require("../database/model/organization");
 const moment = require('moment-timezone');
 
+const { singleCustomDateTime, multiCustomDateTime } = require("../services/timeConverter");
+
+
 
 // Fetch existing data
 const dataExist = async ( organizationId ) => {
     const [organizationExists ] = await Promise.all([
-      Organization.findOne({ organizationId }, { organizationId: 1, timeZoneExp: 1 }),
+        Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }).lean(),
     ]);
     return { organizationExists };
 };
@@ -54,7 +57,7 @@ async function getClosingBalance(organizationId, endDate) {
 
 
 // Report for single subhead
-async function getReportAccount(organizationId, startDate, endDate, accountSubHead) {
+async function getReportAccount(organizationExists,organizationId, startDate, endDate, accountSubHead) {
     try {
         const openingBalances = await TrialBalance.aggregate([
             {
@@ -152,7 +155,9 @@ async function getReportAccount(organizationId, startDate, endDate, accountSubHe
                         $push: {
                             transactionId: "$transactionId",
                             operationId: "$operationId",
-                            date: "$date",
+                            createdDateTime: "$date",
+                            createdDate: null,
+                            createdTime:null,
                             debitAmount: "$debitAmount",
                             creditAmount: "$creditAmount"
                         }
@@ -214,13 +219,42 @@ async function getReportAccount(organizationId, startDate, endDate, accountSubHe
                 }
             }
         ]);
+
+        // Apply formatting after aggregation
+        const formattedTransactions = transactions.map(account => {
+            
+            // Ensure entries exist
+            if (!Array.isArray(account.entries)) {
+                account.entries = [];
+            }
+            
+            // Loop through each entry and format its transactions
+            account.entries.forEach(entry => {
+                if (!Array.isArray(entry.transactions)) {
+                    entry.transactions = []; // Ensure transactions is an array
+                }
+                
+                entry.transactions = entry.transactions.map(transaction => {
+                    const { dateFormatExp, timeZoneExp, dateSplit } = organizationExists;
+                    
+                    const formattedData = singleCustomDateTime( transaction.createdDateTime, dateFormatExp, timeZoneExp, dateSplit );
         
+                    return {
+                        ...transaction,
+                        createdDate: formattedData.createdDate,
+                        createdTime: formattedData.createdTime,
+                    };
+                });
+            });
         
+            return account;
+        });
+                
 
         let overallNetDebit = 0;
         let overallNetCredit = 0;
 
-        const finalResult = transactions.map((account) => {
+        const finalResult = formattedTransactions.map((account) => {
             const openingBalance = openingBalances.find(ob => ob._id.equals(account._id)) || { totalDebit: 0, totalCredit: 0 };
 
             const openingEntry = {
@@ -270,7 +304,7 @@ async function getReportAccount(organizationId, startDate, endDate, accountSubHe
 
 
 //Report for Current Asset
-async function getReportAccountForAssets(organizationId, startDate, endDate) {
+async function getReportAccountForAssets( organizationExists, organizationId, startDate, endDate) {
     try {
         const accountSubHeadFilter = { $in: ['Current Asset', 'Cash', 'Bank','Sundry Debtors'] };
 
@@ -369,7 +403,9 @@ async function getReportAccountForAssets(organizationId, startDate, endDate) {
                         $push: {
                             transactionId: "$transactionId",
                             operationId: "$operationId",
-                            date: "$date",
+                            createdDateTime: "$date",
+                            createdDate: null,
+                            createdTime:null,
                             debitAmount: "$debitAmount",
                             creditAmount: "$creditAmount"
                         }
@@ -432,10 +468,40 @@ async function getReportAccountForAssets(organizationId, startDate, endDate) {
             }
         ]);
 
+        // Apply formatting after aggregation
+        const formattedTransactions = transactions.map(account => {
+            
+            // Ensure entries exist
+            if (!Array.isArray(account.entries)) {
+                account.entries = [];
+            }
+            
+            // Loop through each entry and format its transactions
+            account.entries.forEach(entry => {
+                if (!Array.isArray(entry.transactions)) {
+                    entry.transactions = []; // Ensure transactions is an array
+                }
+                
+                entry.transactions = entry.transactions.map(transaction => {
+                    const { dateFormatExp, timeZoneExp, dateSplit } = organizationExists;
+                    
+                    const formattedData = singleCustomDateTime( transaction.createdDateTime, dateFormatExp, timeZoneExp, dateSplit );
+        
+                    return {
+                        ...transaction,
+                        createdDate: formattedData.createdDate,
+                        createdTime: formattedData.createdTime,
+                    };
+                });
+            });
+        
+            return account;
+        });
+
         let overallNetDebit = 0;
         let overallNetCredit = 0;
 
-        const finalResult = transactions.map((account) => {
+        const finalResult = formattedTransactions.map((account) => {
             const openingBalance = openingBalances.find(ob => ob._id.equals(account._id)) || { totalDebit: 0, totalCredit: 0 };
             const openingEntry = {
                 date: "Opening Balance",
@@ -483,7 +549,7 @@ async function getReportAccountForAssets(organizationId, startDate, endDate) {
 
 
 //Report for Current Liability
-async function getReportAccountForLiability(organizationId, startDate, endDate) {
+async function getReportAccountForLiability( organizationExists, organizationId, startDate, endDate) {
     try {
         const accountSubHeadFilter = { $in: ['Current Liability', 'Sundry Creditors'] };
 
@@ -582,7 +648,9 @@ async function getReportAccountForLiability(organizationId, startDate, endDate) 
                         $push: {
                             transactionId: "$transactionId",
                             operationId: "$operationId",
-                            date: "$date",
+                            createdDateTime: "$date",
+                            createdDate: null,
+                            createdTime:null,
                             debitAmount: "$debitAmount",
                             creditAmount: "$creditAmount"
                         }
@@ -645,10 +713,40 @@ async function getReportAccountForLiability(organizationId, startDate, endDate) 
             }
         ]);
 
+        // Apply formatting after aggregation
+        const formattedTransactions = transactions.map(account => {
+            
+            // Ensure entries exist
+            if (!Array.isArray(account.entries)) {
+                account.entries = [];
+            }
+            
+            // Loop through each entry and format its transactions
+            account.entries.forEach(entry => {
+                if (!Array.isArray(entry.transactions)) {
+                    entry.transactions = []; // Ensure transactions is an array
+                }
+                
+                entry.transactions = entry.transactions.map(transaction => {
+                    const { dateFormatExp, timeZoneExp, dateSplit } = organizationExists;
+                    
+                    const formattedData = singleCustomDateTime( transaction.createdDateTime, dateFormatExp, timeZoneExp, dateSplit );
+        
+                    return {
+                        ...transaction,
+                        createdDate: formattedData.createdDate,
+                        createdTime: formattedData.createdTime,
+                    };
+                });
+            });
+        
+            return account;
+        });
+
         let overallNetDebit = 0;
         let overallNetCredit = 0;
 
-        const finalResult = transactions.map((account) => {
+        const finalResult = formattedTransactions.map((account) => {
             const openingBalance = openingBalances.find(ob => ob._id.equals(account._id)) || { totalDebit: 0, totalCredit: 0 };
             const openingEntry = {
                 date: "Opening Balance",
@@ -760,9 +858,9 @@ exports.calculateTradingAccount = async (req, res) => {
         const openingStock = await getOpeningBalance(organizationId, start);
         const closingStock = await getClosingBalance(organizationId, end);
 
-        const purchases = await getReportAccount(organizationId, start, end,'Cost of Goods Sold');
-        const sales = await getReportAccount(organizationId, start, end,'Sales');
-        const directExpenses = await getReportAccount(organizationId, start, end,'Direct Expense');        
+        const purchases = await getReportAccount( organizationExists, organizationId, start, end,'Cost of Goods Sold');
+        const sales = await getReportAccount( organizationExists, organizationId, start, end,'Sales');
+        const directExpenses = await getReportAccount( organizationExists, organizationId, start, end,'Direct Expense');        
                 
         const totalDebit = openingStock.total + purchases.overallNetDebit + directExpenses.overallNetDebit - purchases.overallNetCredit - directExpenses.overallNetCredit;
         const totalCredit = sales.overallNetCredit + closingStock.total - sales.overallNetDebit;
@@ -828,13 +926,13 @@ exports.calculateProfitAndLoss = async (req, res) => {
         const openingStock = await getOpeningBalance(organizationId, start);
         const closingStock = await getClosingBalance(organizationId, end);
 
-        const purchases = await getReportAccount(organizationId, start, end,'Cost of Goods Sold');
-        const sales = await getReportAccount(organizationId, start, end,'Sales');
-        const directExpenses = await getReportAccount(organizationId, start, end,'Direct Expense'); 
+        const purchases = await getReportAccount( organizationExists, organizationId, start, end,'Cost of Goods Sold');
+        const sales = await getReportAccount( organizationExists, organizationId, start, end,'Sales');
+        const directExpenses = await getReportAccount( organizationExists, organizationId, start, end,'Direct Expense'); 
 
         // Profit and Loss Calculations
-        const indirectIncome = await getReportAccount(organizationId, start, end,'Indirect Income');
-        const indirectExpenses = await getReportAccount(organizationId, start, end,'Indirect Expense');
+        const indirectIncome = await getReportAccount( organizationExists, organizationId, start, end,'Indirect Income');
+        const indirectExpenses = await getReportAccount( organizationExists, organizationId, start, end,'Indirect Expense');
 
         // Gross Profit/Loss Calculation
         const totalDebitTradingAccount = openingStock.total + purchases.overallNetDebit + directExpenses.overallNetDebit - purchases.overallNetCredit - directExpenses.overallNetCredit;
@@ -943,20 +1041,20 @@ exports.calculateBalanceSheet = async (req, res) => {
         const openingStock = await getOpeningBalance(organizationId, start);
         const closingStock = await getClosingBalance(organizationId, end);
 
-        const purchases = await getReportAccount(organizationId, start, end,'Cost of Goods Sold');
-        const sales = await getReportAccount(organizationId, start, end,'Sales');
-        const directExpenses = await getReportAccount(organizationId, start, end,'Direct Expense'); 
+        const purchases = await getReportAccount( organizationExists, organizationId, start, end,'Cost of Goods Sold');
+        const sales = await getReportAccount( organizationExists, organizationId, start, end,'Sales');
+        const directExpenses = await getReportAccount( organizationExists, organizationId, start, end,'Direct Expense'); 
 
         // Profit and Loss Calculations
-        const indirectIncome = await getReportAccount(organizationId, start, end,'Indirect Income');
-        const indirectExpenses = await getReportAccount(organizationId, start, end,'Indirect Expense');
+        const indirectIncome = await getReportAccount( organizationExists, organizationId, start, end,'Indirect Income');
+        const indirectExpenses = await getReportAccount( organizationExists, organizationId, start, end,'Indirect Expense');
 
         //Balance Sheet Calculations
-        const currentAssets = await getReportAccountForAssets(organizationId, start, end);
-        const nonCurrentAssets = await getReportAccount(organizationId, start, end,'Non-Current Asset');
-        const nonCurrentLiabilities  = await getReportAccount(organizationId, start, end,'Non-Current Liability');
-        const currentLiabilities = await getReportAccountForLiability(organizationId, start, end);
-        const equity = await getReportAccount(organizationId, start, end,'Equity');
+        const currentAssets = await getReportAccountForAssets( organizationExists, organizationId, start, end);
+        const nonCurrentAssets = await getReportAccount( organizationExists, organizationId, start, end,'Non-Current Asset');
+        const nonCurrentLiabilities  = await getReportAccount(organizationExists, organizationId, start, end,'Non-Current Liability');
+        const currentLiabilities = await getReportAccountForLiability( organizationExists, organizationId, start, end);
+        const equity = await getReportAccount( organizationExists, organizationId, start, end,'Equity');
 
 
 
