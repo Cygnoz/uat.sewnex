@@ -73,10 +73,12 @@ exports.addCustomer = async (req, res) => {
       return res.status(409).json({ message: errors }); }
 
       const savedCustomer = await createNewCustomer(cleanedData, organizationId);
+
+      const firstDayOfMonth = moment().tz(organizationExists.timeZoneExp).startOf("month").toDate();
       
       const savedAccount = await createNewAccount(customerDisplayName, organizationId, allCustomer , savedCustomer );
   
-      await saveTrialBalanceAndHistory(savedCustomer, savedAccount, debitOpeningBalance, creditOpeningBalance, userId, userName);
+      await saveTrialBalanceAndHistory(savedCustomer, savedAccount, debitOpeningBalance, creditOpeningBalance, userId, userName,firstDayOfMonth);
   
       console.log("Customer & Account created successfully");
       res.status(201).json({ message: "Customer created successfully." });
@@ -731,13 +733,13 @@ async function checkDuplicateCustomerFieldsEdit(duplicateCheck,customerDisplayNa
       accountHead: "Asset",
       accountGroup: "Asset",
       description: "Customer",
-      delete: false,
+      systemAccounts: true,
     });
     return newAccount.save();
   }
   
 // TrialBalance And History
-async function saveTrialBalanceAndHistory(savedCustomer, savedAccount, debitOpeningBalance, creditOpeningBalance,userId, userName) {
+async function saveTrialBalanceAndHistory(savedCustomer, savedAccount, debitOpeningBalance, creditOpeningBalance,userId, userName, firstDayOfMonth) {
     const trialEntry = new TrialBalance({
       organizationId: savedCustomer.organizationId,
       operationId: savedCustomer._id,
@@ -749,6 +751,7 @@ async function saveTrialBalanceAndHistory(savedCustomer, savedAccount, debitOpen
       debitAmount: debitOpeningBalance,
       creditAmount: creditOpeningBalance,
       remark: savedCustomer.remark,
+      createdDateTime : firstDayOfMonth
     });
     await trialEntry.save();
   
