@@ -22,7 +22,7 @@ const styleSchema = new Schema({
 
 
 const serviceSchema = new mongoose.Schema({
-    organizationId: { type: String},
+    organizationId: { type: String, index: true},
 
     serviceName: { type: String},
     serviceImage: { type: String},
@@ -32,27 +32,34 @@ const serviceSchema = new mongoose.Schema({
     
     unit: { type: String },
     hsnSac: { type: String },
-    costPrice: { type: String },
+    // costPrice: { type: String },
 
-    sellingPrice: { type: Number }, //rate
+    taxType:{type:String},   // Inclusive, Exclusive
+    taxRate:{type:String},  //Gst5
+    cgst:{type:Number}, 
+    sgst:{type:Number}, 
+    igst:{type:Number}, 
+    vat:{type:Number},
+
+    styleTotal:{type:Number},
+    serviceCharge:{type:Number},
+    sellingPrice: { type: Number }, //final amount (without tax) 
     salesAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'Accounts' },
 
-    taxRate:{type:String},  //Gst5
-    cgst:{type:Number},
-    sgst:{type:Number},
-    igst:{type:Number},
-    vat:{type:Number},
+    grandTotal: { type: Number },
 
     parameter: [parameterSchema],
 
     style: [styleSchema],
 
-    //styleTotal:{type:Number},
-    //amountIs:{type:String},   // Inclusive, Exclusive
-    //serviceCharge:{type:Number},
-    //styleAmount:{type:Number},
-    //serviceAmount:{type:Number},
-    //grandTotal:{type:Number},
+    //Create info
+    createdDateTime: { type: Date, default: () => new Date() },
+
+    //lastModifiedDate
+    lastModifiedDate:{type:String},
+
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+
 });
 
 const Service = mongoose.model('Service', serviceSchema);
