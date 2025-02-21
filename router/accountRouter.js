@@ -11,11 +11,6 @@ const { nexVerifyToken } = require('../controller/nexMiddleware');
 
 
 
-//Sensitive
-
-router.put('/get-bank-account-number/:accountId',verifyToken,checkPermission('Viewed Account Number'),accountController.getBankAccNum)
-
-
 
 //Accounts
 router.post('/add-account',verifyToken,checkPermission('Created a New Account'),accountController.addAccount)

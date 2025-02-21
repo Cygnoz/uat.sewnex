@@ -13,15 +13,16 @@ const { cleanData } = require("../services/cleanData");
 const key = Buffer.from(process.env.ENCRYPTION_KEY, 'utf8'); 
 const iv = Buffer.from(process.env.ENCRYPTION_IV, 'utf8'); 
 
+const moment = require("moment-timezone");
 
 
 // Fetch existing data
 const dataExist = async ( organizationId, parentAccountId, accountId ) => {
-  const [ existingOrganization, currencyExists, parentAccountExist, accountExist, trialBalance, allAccount ] = await Promise.all([
+  const [ organizationExists, currencyExists, parentAccountExist, accountExist, trialBalance, allAccount ] = await Promise.all([
     Organization.findOne({ organizationId }).lean(),
     Currency.find({ organizationId }, { currencyCode: 1, _id: 0 }).lean(),
     Account.findOne({ organizationId , _id : parentAccountId}).lean(),
-    Account.findOne({ _id: accountId, organizationId: organizationId },{bankAccNum: 0})
+    Account.findOne({ _id: accountId, organizationId: organizationId },{organizationId: 0})
     .populate('parentAccountId', 'accountName')    
     .lean(),
     TrialBalance.find({ accountId: accountId, organizationId: organizationId })
@@ -32,7 +33,7 @@ const dataExist = async ( organizationId, parentAccountId, accountId ) => {
     .populate('parentAccountId', 'accountName')
     .lean(),
   ]);
-  return { existingOrganization, currencyExists, parentAccountExist, accountExist, trialBalance, allAccount };
+  return { organizationExists, currencyExists, parentAccountExist, accountExist, trialBalance, allAccount };
 };
 
 
@@ -49,10 +50,10 @@ exports.addAccount = async (req, res) => {
       
       const { parentAccountId } = cleanedData;
 
-      const { existingOrganization, currencyExists, parentAccountExist } = await dataExist(organizationId, parentAccountId, null);      
+      const { organizationExists, currencyExists, parentAccountExist } = await dataExist(organizationId, parentAccountId, null);      
 
       //Data Exist Validation
-      if (!validateDataExist( existingOrganization, currencyExists, parentAccountId, parentAccountExist, null, null, res )) return;     
+      if (!validateDataExist( organizationExists, currencyExists, parentAccountId, parentAccountExist, null, null, res )) return;     
   
       //Validate Inputs  
       if (!validateInputs( cleanedData, organizationId, currencyExists, parentAccountExist, null, null, res )) return; 
@@ -62,7 +63,10 @@ exports.addAccount = async (req, res) => {
       if (existingAccount) {
         console.log("Account with the provided Account Name already exists");
         return res.status(409).json({ message: "Account with the provided Account Name already exists."});        
-      }     
+      }
+      
+      const createdDateTime = moment.tz(cleanedData.createdDateTime, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp).toISOString();           
+      
 
       // Encrypt bankAccNum before storing it
       if(cleanedData.bankAccNum){ cleanedData.bankAccNum = encrypt(cleanedData.bankAccNum); }
@@ -79,6 +83,7 @@ exports.addAccount = async (req, res) => {
         debitAmount: cleanedData.debitOpeningBalance || 0,
         creditAmount: cleanedData.creditOpeningBalance || 0,
         remark: newAccount.remark,
+        createdDateTime: createdDateTime
       });
       await trialEntry.save();
   
@@ -122,10 +127,10 @@ exports.editAccount = async (req, res) => {
       return res.status(404).json({ message: "This account cannot be edited!" });
     }
 
-    const { existingOrganization, currencyExists, parentAccountExist } = await dataExist(organizationId, parentAccountId, null);      
+    const { organizationExists, currencyExists, parentAccountExist } = await dataExist(organizationId, parentAccountId, null);      
 
     //Data Exist Validation
-    if (!validateDataExist( existingOrganization, currencyExists, parentAccountId, parentAccountExist, null, null, res )) return;     
+    if (!validateDataExist( organizationExists, currencyExists, parentAccountId, parentAccountExist, null, null, res )) return;     
 
     //Validate Inputs  
     if (!validateInputs( cleanedData, organizationId, currencyExists, parentAccountExist, null, null, res )) return; 
@@ -152,9 +157,9 @@ exports.editAccount = async (req, res) => {
     const existingTrialBalance = await TrialBalance.findOne({
       organizationId: savedAccount.organizationId,
       operationId: savedAccount._id,
-    });  
-
-    const createdDateTime = existingTrialBalance ? existingTrialBalance.createdDateTime : null;
+    });
+    
+    const createdDateTime = moment.tz(cleanedData.createdDateTime, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp).toISOString();           
 
     // If there is only one TrialBalance entry, delete it
     if (existingTrialBalance) {
@@ -252,7 +257,7 @@ exports.getAllAccount = async (req, res) => {
     try {
       const organizationId = req.user.organizationId;
 
-      const { existingOrganization, allAccount } = await dataExist(organizationId, null, null);
+      const { organizationExists, allAccount } = await dataExist(organizationId, null, null);
 
       if (!allAccount.length) {
         return res.status(404).json({ message: "No accounts found for the provided organization ID." });
@@ -265,7 +270,7 @@ exports.getAllAccount = async (req, res) => {
       }));
        
 
-      const formattedObjects = multiCustomDateTime(transformedItems, existingOrganization.dateFormatExp, existingOrganization.timeZoneExp, existingOrganization.dateSplit );          
+      const formattedObjects = multiCustomDateTime(transformedItems, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );          
 
       
     res.status(200).json(formattedObjects);
@@ -293,19 +298,28 @@ exports.getOneAccount = async (req, res) => {
     }
 
     // Find the account by accountId 
-    const { existingOrganization, accountExist } = await dataExist(organizationId, null, accountId);
+    const { organizationExists, accountExist } = await dataExist(organizationId, null, accountId);
 
     if (!accountExist) {
       return res.status(404).json({ message: "Account not found for the provided Organization ID and Account ID." });
+    }
+
+    console.log("Account found:", accountExist);
+
+    let bankAccNum = null;
+
+    if(accountExist.bankAccNum){
+      bankAccNum = decrypt(accountExist.bankAccNum);
     }
 
     const data = {
       ...accountExist,
       parentAccountId: accountExist.parentAccountId?._id || undefined,
       parentAccountName: accountExist.parentAccountId?.accountName || undefined,
+      bankAccNum: bankAccNum,
     }
 
-    const formattedObjects = singleCustomDateTime(data, existingOrganization.dateFormatExp, existingOrganization.timeZoneExp, existingOrganization.dateSplit );    
+    const formattedObjects = singleCustomDateTime(data, 'YYYY/MM/DD', organizationExists.timeZoneExp, '-' );    
     
     res.status(200).json(formattedObjects);
   } catch (error) {
@@ -315,30 +329,6 @@ exports.getOneAccount = async (req, res) => {
 };
 
 
-// Get only bankAccNum for a given organizationId and accountId
-exports.getBankAccNum = async (req, res) => {
-  try {
-      const { accountId } = req.params;
-      const organizationId = req.user.organizationId;
-
-      const account = await Account.findOne({ _id: accountId, organizationId: organizationId }, 'bankAccNum'); 
-
-      if (!account) {
-          return res.status(404).json({ message: "Account not found" });
-      }
-
-      // Decrypt the bankAccNum
-      let decryptedBankAccNum = null;
-      if (account.bankAccNum) {
-          decryptedBankAccNum = decrypt(account.bankAccNum);
-      }
-
-      res.status(200).json({ bankAccNum: decryptedBankAccNum });
-  } catch (error) {
-      console.error("Error fetching bank account number:", error);
-      res.status(500).json({ message: "Internal server error." });
-  }
-};
 
 
 //Get all trial balance for a given account
@@ -347,7 +337,7 @@ exports.getOneTrailBalance = async (req, res) => {
       const { accountId } = req.params;
       const organizationId = req.user.organizationId;      
 
-      const { existingOrganization, accountExist, trialBalance } = await dataExist(organizationId, null, accountId);
+      const { organizationExists, accountExist, trialBalance } = await dataExist(organizationId, null, accountId);
 
       if (!accountExist) {
         return res.status(404).json({ message: "Account not found." });
@@ -365,7 +355,7 @@ exports.getOneTrailBalance = async (req, res) => {
       // Sort trialBalance by createdDateTime
       transformedItems.sort((a, b) => new Date(a.createdDateTime) - new Date(b.createdDateTime));
 
-      const formattedObjects = multiCustomDateTime(transformedItems, existingOrganization.dateFormatExp, existingOrganization.timeZoneExp, existingOrganization.dateSplit );    
+      const formattedObjects = multiCustomDateTime(transformedItems, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
       
       const trialBalanceWithCumulativeSum = calculateCumulativeSum(formattedObjects);      
 
@@ -530,8 +520,8 @@ function validateBankDetails(accountSubhead, bankDetails) {
 
 
   // Validate Organization Tax Currency
-  function validateDataExist( existingOrganization, currencyExists, parentAccountId, parentAccountExist, accountId, accountExist, res) {
-    if (!existingOrganization) {
+  function validateDataExist( organizationExists, currencyExists, parentAccountId, parentAccountExist, accountId, accountExist, res) {
+    if (!organizationExists) {
       res.status(404).json({ message: "Organization not found" });
       return false;
     }
@@ -653,6 +643,7 @@ function validateReqFields( data, errors ) {
   validateField(typeof data.accountSubhead === 'undefined', "Account Subhead required", errors);
   validateField(typeof data.accountHead === 'undefined', "Account Head required", errors);
   validateField(typeof data.accountGroup === 'undefined', "Account Group required", errors);
+  validateField(typeof data.createDateTime === 'undefined', "Opening Balance Date  required", errors);
   
   
   // validateField( typeof data.debitOpeningBalance === 'undefined' && typeof data.creditOpeningBalance === 'undefined', "Opening Balance required", errors );
