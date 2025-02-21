@@ -18,7 +18,6 @@ const creditNote = require('../controller/Credit Note/creditNoteController')
 const updateCreditNote = require('../controller/Credit Note/updateCreditNote')
 
 const salesSettings = require('../controller/salesSettings')
-const customerController = require('../controller/customerController')
 
 const checkPermission = require('../controller/permission');
 const { verifyToken } = require('../controller/middleware');
@@ -89,10 +88,6 @@ router.put('/update-sales-invoice/:invoiceId',verifyToken,checkPermission("Edite
 router.delete('/delete-sales-invoice/:invoiceId',verifyToken,checkPermission("Deleted Invoice Information"),updateSalesInvoice.deleteSalesInvoice)
 
 
-
-
-// customer sales History
-router.get('/get-customer-sales-history/:id',verifyToken,checkPermission("Viewed Customer Sale History"),customerController.customerSaleHistory)
 
 
 
