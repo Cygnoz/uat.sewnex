@@ -67,10 +67,12 @@ exports.addSupplier = async (req, res) => {
     return res.status(409).json({ message: errors }); }
     
     const savedSupplier = await createNewSupplier( cleanedData, organizationId );
+
+    const firstDayOfMonth = moment().tz(organizationExists.timeZoneExp).startOf("month").toDate();    
      
     const savedAccount = await createNewAccount( supplierDisplayName, organizationId, allSupplier , savedSupplier );
 
-    await saveTrialBalanceAndHistory(savedSupplier, savedAccount, debitOpeningBalance, creditOpeningBalance, userId, userName );
+    await saveTrialBalanceAndHistory(savedSupplier, savedAccount, debitOpeningBalance, creditOpeningBalance, userId, userName, firstDayOfMonth );
 
     console.log("Supplier & Account created successfully");
     res.status(201).json({ message: "Supplier created successfully." });
@@ -694,12 +696,13 @@ exports.deleteSupplier = async (req, res) => {
         accountHead: "Liabilities",
         accountGroup: "Liability",
         description: "Suppliers",
+        systemAccounts: true,
       });
       return newAccount.save();
     }
     
   // TrialBalance And History
-  async function saveTrialBalanceAndHistory(savedSupplier, savedAccount, debitOpeningBalance, creditOpeningBalance, userId, userName) {
+  async function saveTrialBalanceAndHistory(savedSupplier, savedAccount, debitOpeningBalance, creditOpeningBalance, userId, userName, firstDayOfMonth) {
       const trialEntry = new TrialBalance({
         organizationId: savedSupplier.organizationId,
         operationId: savedSupplier._id,
@@ -710,6 +713,7 @@ exports.deleteSupplier = async (req, res) => {
         debitAmount: debitOpeningBalance,
         creditAmount: creditOpeningBalance,
         remark: savedSupplier.remark,
+        createdDateTime : firstDayOfMonth
       });
       await trialEntry.save();
     
