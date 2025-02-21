@@ -652,7 +652,7 @@ function expensePrefix( cleanData, existingPrefix ) {
       let taxMode = cleanedData.taxMode;
       console.log("...taxMode...",taxMode);
 
-      subTotal += total;
+      // subTotal += total;
 
       const gstTreatment = (cleanedData.gstTreatment !== "Registered Business - Composition") || (cleanedData.gstTreatment !== "Unregistered Business") || (cleanedData.gstTreatment !== "Overseas") || (cleanedData.gstTreatment !== "Consumer");
       const taxGroup = data.taxGroup !== "Non-Taxable";
@@ -678,16 +678,25 @@ function expensePrefix( cleanData, existingPrefix ) {
             calculatedCgstAmount = roundToTwoDecimals((data.cgst / 100) * tt);
             calculatedSgstAmount = roundToTwoDecimals((data.sgst / 100) * tt);
 
+            let difference = 0;
+
             const amt = roundToTwoDecimals(tt + calculatedCgstAmount + calculatedSgstAmount);
             if ( amt < amount ) {
-              const difference = amount - amt;
+              difference = roundToTwoDecimals(amount - amt);
               total = difference + tt;
             } else if ( amt > amount ) {
-              const difference = amt - amount;
+              difference = roundToTwoDecimals(amt - amount);
               total = tt - difference;
             } else {
               total = tt;
             }
+
+            console.log(`Row 123..................... ${index + 1}:`);
+            console.log("tt",tt);
+            console.log("amount",amount);
+            console.log("amt",amt);
+            console.log("difference",difference);
+            console.log("total",total);
 
           } else if (taxMode === 'Inter') {
             const tt = roundToTwoDecimals((amount / (100 + data.igst)) * 100);
@@ -735,20 +744,24 @@ function expensePrefix( cleanData, existingPrefix ) {
           checkAmount(calculatedIgstAmount, data.igstAmount, 'IGST', errors);
           checkAmount(calculatedVatAmount, data.vatAmount, 'VAT', errors);
           
-          cgst += calculatedCgstAmount;
-          sgst += calculatedSgstAmount;
-          igst += calculatedIgstAmount;
-          vat += calculatedVatAmount;
+          cgst = roundToTwoDecimals(cgst + calculatedCgstAmount);
+          sgst = roundToTwoDecimals(sgst + calculatedSgstAmount);
+          igst = roundToTwoDecimals(igst + calculatedIgstAmount);
+          vat = roundToTwoDecimals(vat + calculatedVatAmount);
   
           console.log("cgst",cgst);
           console.log("sgst",sgst);
           console.log("igst",igst);
           console.log("vat",vat);
 
-          grandTotal = (subTotal + cgst + sgst + igst + vat);
+          subTotal += total;
+
+          grandTotal = subTotal + (cgst + sgst + igst + vat);
 
         } else {
         console.log('Skipping Tax for Non-Taxable expense');
+
+        subTotal += total;
 
         if (isMileage) {
           amount = roundToTwoDecimals(distance * ratePerKm);
