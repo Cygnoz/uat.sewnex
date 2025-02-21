@@ -41,7 +41,7 @@ const dataExist = async (organizationId, supplierId) => {
   };
 
 
-  const expenseDataExist = async ( organizationId, expenseId, expenseAccountId, paidThroughAccountId ) => {    
+  const expenseDataExist = async ( organizationId, expenseId ) => {    
     const [organizationExists, allExpense, expense, expenseJournal] = await Promise.all([
       Organization.findOne({ organizationId }, { organizationId: 1, timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1}).lean(),
       Expense.find({ organizationId })
