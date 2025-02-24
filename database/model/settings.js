@@ -1,3 +1,5 @@
+// v1.4
+
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
 
@@ -28,7 +30,7 @@ const settingSchema = new Schema({
   linkedinLink: { type: String },  displayLinkedinLink: { type: Boolean },
   facebookLink: { type: String },  displayFacebookLink: { type: Boolean },
   
-  //Bankfield
+  //Bank field
   accountHolderName: { type: String },  displayAccountHolderName: { type: Boolean },
   bankName: { type: String },  displayBankName: { type: Boolean },
   accNum: { type: String },  displayAccNum: { type: Boolean },
@@ -41,6 +43,7 @@ const settingSchema = new Schema({
   itemDimensions: { type: String },
   itemWeights: { type: String },
   barcodeScan: { type: String },
+  openingStockDate : { type: Date, default: () => new Date() },
 
   itemDuplicateName: { type: Boolean }, //default:false
   hsnSac: { type: Boolean }, //default:false
@@ -55,40 +58,40 @@ const settingSchema = new Schema({
   outOfStockBelowZero : { type: Boolean }, //default:false
   notifyReorderPoint: { type: Boolean }, //default:false
   trackCostOnItems: { type: Boolean }, //default:false
-
+ 
   // supplier
-  duplicateSupplierDisplayName: { type: Boolean },
-  duplicateSupplierEmail: { type: Boolean },
-  duplicateSupplierMobile: { type: Boolean },
+  duplicateSupplierDisplayName: { type: Boolean }, //default:false
+  duplicateSupplierEmail: { type: Boolean }, //default:false
+  duplicateSupplierMobile: { type: Boolean }, //default:false
 
   // customer
-  duplicateCustomerDisplayName: { type: Boolean },
-  duplicateCustomerEmail: { type: Boolean },
-  duplicateCustomerMobile: { type: Boolean },
+  duplicateCustomerDisplayName: { type: Boolean }, //default:false
+  duplicateCustomerEmail: { type: Boolean }, //default:false
+  duplicateCustomerMobile: { type: Boolean }, //default:false
 
 
   //Sales Order
-  salesOrderAddress: { type: Boolean },//deafult=false
-  salesOrderCustomerNote: { type: Boolean },//deafult=false
-  salesOrderTermsCondition: { type: Boolean },//deafult=false
+  salesOrderAddress: { type: Boolean },//default=false
+  salesOrderCustomerNote: { type: Boolean },//default=false
+  salesOrderTermsCondition: { type: Boolean },//default=false
   salesOrderClose: { type: String }, //default=invoice    (invoice, shipment, shipmentAndInvoice)
-  restrictSalesOrderClose: { type: Boolean }, //deafult=false
+  restrictSalesOrderClose: { type: Boolean }, //default=false
   termCondition: { type: String },
   customerNote: { type: String },
 
 
   //Shipment
-  carrierNotification: { type: Boolean }, //deafult=false
-  manualNotification: { type: Boolean }, //deafult=false
+  carrierNotification: { type: Boolean }, //default=false
+  manualNotification: { type: Boolean }, //default=false
   shippingAddress:[shipSchema],
 
 
   //Invoice
-  invoiceEdit: { type: String },
-  displayExpenseReceipt: { type: String },
-  salesOrserNumber: { type: Boolean }, //default=true  true=sales order number   false = Sales Order Reference Number
-  paymentReceipt: { type: Boolean },//default= false
-  invoiceQrCode: { type: Boolean },//default= false
+  invoiceEdit: { type: Boolean }, //default=false
+  displayExpenseReceipt: { type: Boolean }, //default=false
+  salesOrderNumber: { type: String }, // orderNum, refNum
+  paymentReceipt: { type: Boolean }, // default= false
+  invoiceQrCode: { type: Boolean }, // default= false
   invoiceQrType: { type: String },
   invoiceQrDescription: { type: String },
   zeroValue: { type: Boolean },
@@ -102,10 +105,10 @@ const settingSchema = new Schema({
 
 
   //Credit Note
-  overideCostPrice: { type: Boolean },//default=false
+  overRideCostPrice: { type: Boolean },//default=false
   creditNoteQr: { type: Boolean },//default=false
   creditNoteQrType: { type: String },
-  creditNoteQrDespriction: { type: String },
+  creditNoteQrDescription: { type: String },
   recordLocking: { type: Boolean },//default=false
   creditNoteTC: { type: String },
   creditNoteCN: { type: String },

@@ -2,42 +2,59 @@ const Organization = require("../database/model/organization");
 const Settings = require("../database/model/settings");
 const ItemTrack = require("../database/model/itemTrack");
 
+const { cleanData } = require("../services/cleanData");
+
+const moment = require("moment-timezone");
+
+
+
+// Fetch existing data
+const dataExist = async ( organizationId ) => {
+  const [organizationExists, existingSettings ,itemTrack ] = await Promise.all([
+    Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }),
+    Settings.findOne({ organizationId }),
+    ItemTrack.find({ organizationId , action: "Opening Stock"},{ organizationId: 0 }) 
+  ]);
+  return { organizationExists, existingSettings, itemTrack };
+};
+
+
+
 
 
 exports.addItemSettings = async (req, res) => {
+  console.log("Item setting:",req.body);
     try {
+
+      const cleanedData = cleanData(req.body);      
+
       const organizationId = req.user.organizationId;
-      console.log("Item setting:",req.body);
-  
-      const itemSettings = {
-        itemDecimal: req.body.itemDecimal,
-        itemDimensions: req.body.itemDimensions,
-        itemWeights: req.body.itemWeights,
-        barcodeScan: req.body.barcodeScan,
-        itemDuplicateName: req.body.itemDuplicateName,
-        hsnSac: req.body.hsnSac,
-        hsnDigits: req.body.hsnDigits,
-        priceList: req.body.priceList,
-        priceListAtLineLevel: req.body.priceListAtLineLevel,
-        compositeItem: req.body.compositeItem,
-        stockBelowZero: req.body.stockBelowZero,
-        outOfStockBelowZero: req.body.outOfStockBelowZero,
-        notifyReorderPoint: req.body.notifyReorderPoint,
-        trackCostOnItems: req.body.trackCostOnItems,
-      };
-  
-      // Find the document by organizationId
-      const existingSettings = await Settings.findOne({ organizationId });
-  
+
+      const { organizationExists, existingSettings, itemTrack } = await dataExist( organizationId );   
+      
+      if (!organizationExists) {
+        return res.status(404).json({ message: "Organization not found" });
+      }
+
       if (!existingSettings) {
         return res.status(404).json({ message: "Settings not found" });
       }
+      cleanedData.openingStockDate = moment.tz(cleanedData.openingStockDate, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp).toISOString();             
   
-      // Update the document with the new item settings
-      Object.assign(existingSettings, itemSettings);
+      
+      Object.assign(existingSettings, cleanedData);
   
-      // Save the updated document
       await existingSettings.save();
+
+      // Update createDate for all itemTrack entries
+      if (itemTrack.length > 0) {
+        await Promise.all(
+          itemTrack.map(async (item) => {
+            item.createdDateTime = cleanedData.openingStockDate;
+            await item.save();
+          })
+        );
+      }
   
       res.status(200).json("Item settings updated successfully");
     } catch (error) {
@@ -58,7 +75,6 @@ exports.getAllItemTrack = async (req, res) => {
     const organizationId = req.user.organizationId;
 
 
-    // Check if an Organization already exists
     const existingOrganization = await Organization.findOne({ organizationId });
     
     if (!existingOrganization) {
@@ -67,13 +83,9 @@ exports.getAllItemTrack = async (req, res) => {
       });
     }
 
-    const allItem = await ItemTrack.find({ organizationId });
+    const allItem = await ItemTrack.find({ organizationId },{ organizationId: 0 }); 
     if (allItem.length > 0) {
-      const AllItem = allItem.map((history) => {
-        const { organizationId, ...rest } = history.toObject(); // Convert to plain object and omit organizationId
-        return rest;
-      });
-      res.status(200).json(AllItem);
+      res.status(200).json(allItem);
     } else {
       return res.status(404).json("No Items Track found.");
     }
@@ -89,27 +101,13 @@ exports.getAllItemTrack = async (req, res) => {
 exports.itemTransaction = async (req, res) => {
   try {
     const { id } = req.params; 
-    // const { organizationId } = req.body; 
     const organizationId = req.user.organizationId;
 
-    // Find documents matching organizationId and itemId, sorted by creation date (oldest to newest)
-    const itemTransactions = await ItemTrack.find({
-      organizationId: organizationId,
-      itemId: id
-    }); // 1 for ascending order (oldest to newest)
-
-    // const itemTransactions = await ItemTrack.find({
-    //   organizationId: organizationId,
-    //   itemId: id
-    // }).sort({ createdAt: 1 }); // 1 for ascending order (oldest to newest)
+    const itemTransactions = await ItemTrack.find({ organizationId: organizationId, itemId: id }, { organizationId: 0 }); 
 
     
     if (itemTransactions.length > 0) {
-      const ItemTransactions = itemTransactions.map((history) => {
-        const { organizationId, ...rest } = history.toObject(); // Convert to plain object and omit organizationId
-        return rest;
-      });
-      res.status(200).json(ItemTransactions);
+      res.status(200).json(itemTransactions);
     } else {
       return res.status(404).json("No transactions found for the given item");
     }
