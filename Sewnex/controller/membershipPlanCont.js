@@ -366,7 +366,9 @@ function calculateMembershipPlan(cleanedData, res) {
     } else {
       calculatedTotal += (service.price * parseFloat(service.count));
       actualRate += calculatedTotal || 0;
-      sellingPrice = (actualRate - roundToTwoDecimals(discountAmount)) || 0;
+      // sellingPrice = (actualRate - roundToTwoDecimals(discountAmount)) || 0;
+      sellingPrice = (cleanedData.sellingPrice) || 0;
+
     }
 
     console.log(`Row..................... ${index + 1}:`);
@@ -404,9 +406,9 @@ function calculateMembershipPlan(cleanedData, res) {
 
 // Calculate discount
 function calculateDiscount( cleanedData, price ) {
-    return cleanedData.planType === 'Currency'
-      ? cleanedData.discount || 0
-      : (price * (cleanedData.discount || 0)) / 100;
+    return cleanedData.planType === 'Percentage'
+      ? (price * (cleanedData.discount || 0)) / 100
+      : cleanedData.discount || 0;    
   }
 
 
@@ -476,6 +478,7 @@ function validateField(condition, errorMsg, errors) {
 //Valid Req Fields
 function validateReqFields( data, errors ) {
     validateField( typeof data.planName === 'undefined', "Please enter the plan name", errors  );
+    validateField( data.actualRate < data.sellingPrice, "Selling price cannot be greater than the actual rate.", errors  );
 }
 
 // Function to Validate Services 
@@ -491,7 +494,7 @@ function validateService(serviceExist, services, errors) {
     
       // Validate service price
       // validateField( service.price !== fetchedService.grandTotal, `Service price Mismatch for ${service.serviceId}:  ${service.price}`, errors );
-    
+      
       // Validate plan type
       validatePlanType(service.planType, errors);
     
