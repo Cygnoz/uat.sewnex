@@ -17,7 +17,14 @@ exports.getDayBook = async (req, res) => {
         const { startDate, endDate } = req.params; 
         const { organizationId } = req.user;
 
-        // const { organizationExists } = await dataExist( organizationId );
+        const { organizationExists } = await dataExist( organizationId );
+
+        if (!organizationExists) {
+            return res.status(404).json({
+                success: false,
+                message: "Organization not found"
+            });
+        }
 
         // Validate date format (DD-MM-YYYY) for both dates
         if (!startDate || !endDate || 
@@ -32,10 +39,10 @@ exports.getDayBook = async (req, res) => {
         // Convert DD-MM-YYYY to YYYY-MM-DD for both dates
         const [startDay, startMonth, startYear] = startDate.split('-');
         const [endDay, endMonth, endYear] = endDate.split('-');
-        const formattedStartDate = `${startYear}-${startMonth}-${startDay}`;
-        const formattedEndDate = `${endYear}-${endMonth}-${endDay}`;
+        // const formattedStartDate = `${startYear}-${startMonth}-${startDay}`;
+        // const formattedEndDate = `${endYear}-${endMonth}-${endDay}`;
 
-        // Validate if both dates are valid
+        // Validate if both dates are valid  
         if (!isValidDate(startDay, startMonth, startYear) || 
             !isValidDate(endDay, endMonth, endYear)) {
             return res.status(400).json({
@@ -44,12 +51,20 @@ exports.getDayBook = async (req, res) => {
             });
         }
 
+        const orgTimezone = organizationExists.timeZoneExp || 'UTC';
+
+        // Convert DD-MM-YYYY to YYYY-MM-DD
+        const formattedStartDate = moment.tz(startDate, "DD-MM-YYYY", orgTimezone).startOf('day').utc().toISOString();
+        const formattedEndDate = moment.tz(endDate, "DD-MM-YYYY", orgTimezone).endOf('day').utc().toISOString();
+
+        console.log(`Converted Date Range: Start = ${formattedStartDate}, End = ${formattedEndDate}`);
+
         // Create start and end dates with time
-        const start = new Date(`${formattedStartDate}T00:00:00`);
-        const end = new Date(`${formattedEndDate}T23:59:59`);
+        // const start = new Date(`${formattedStartDate}T00:00:00`);
+        // const end = new Date(`${formattedEndDate}T23:59:59`);
 
         // Validate date range
-        if (start > end) {
+        if (formattedStartDate > formattedEndDate) {
             return res.status(400).json({
                 success: false,
                 message: "Start date cannot be after end date"
@@ -57,17 +72,9 @@ exports.getDayBook = async (req, res) => {
         }
 
         // Convert to UTC
-        const startUTC = start.toISOString();
-        const endUTC = end.toISOString();
-
-        // Get organization's timezone and date format
-        const organization = await Organization.findOne({ organizationId });
-        if (!organization) {
-            return res.status(404).json({
-                success: false,
-                message: "Organization not found"
-            });
-        }
+        // const startUTC = start.toISOString();
+        // const endUTC = end.toISOString();
+                    
 
         // Find all transactions for the given date range
         const transactions = await TrialBalances.aggregate([
@@ -75,8 +82,8 @@ exports.getDayBook = async (req, res) => {
                 $match: {
                     organizationId: organizationId,
                     createdDateTime: {
-                        $gte: new Date(startUTC),
-                        $lte: new Date(endUTC)
+                        $gte: new Date(formattedStartDate),
+                        $lte: new Date(formattedEndDate)
                     },
                     $or: [
                         { debitAmount: { $gt: 0 } },  
@@ -136,7 +143,7 @@ exports.getDayBook = async (req, res) => {
                     as: "accountDetails"
                 }
             }
-        ]);
+        ]);        
         
 
         // Format the response and calculate cumulative totals
@@ -153,7 +160,7 @@ exports.getDayBook = async (req, res) => {
 
             // Extract date from the first entry's createdDateTime and format it
             const date = transaction.entries.length > 0 && transaction.entries[0].createdDateTime 
-                ? moment(transaction.entries[0].createdDateTime).format(organization.dateFormatExp) 
+                ? moment(transaction.entries[0].createdDateTime).format(organizationExists.dateFormatExp) 
                 : null;
 
             // Safely find account details
@@ -192,10 +199,10 @@ exports.getDayBook = async (req, res) => {
             },
             debug: {
                 dateRange: {
-                    start: startUTC,
-                    end: endUTC
+                    start: formattedStartDate,
+                    end: formattedEndDate
                 },
-                timezone: organization.timeZone,
+                timezone: organizationExists.timeZone,
                 rawTransactionsCount: transactions.length
             }
         });
