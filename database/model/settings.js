@@ -1,4 +1,4 @@
-// v1.3
+// v1.4
 
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
@@ -43,6 +43,7 @@ const settingSchema = new Schema({
   itemDimensions: { type: String },
   itemWeights: { type: String },
   barcodeScan: { type: String },
+  openingStockDate : { type: Date, default: () => new Date() },
 
   itemDuplicateName: { type: Boolean }, //default:false
   hsnSac: { type: Boolean }, //default:false

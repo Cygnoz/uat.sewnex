@@ -1,19 +1,36 @@
 // v1.1
 
-const Organization = require("../../database/model/organization")
-const Settings = require('../../database/model/settings')
+const Organization = require("../../database/model/organization");
+const Settings = require('../../database/model/settings');
+
+const moment = require("moment-timezone");
+
 
 
 // Get settings
 exports.getSettings = async (req, res) => {
   try {
-    const organizationId = req.user.organizationId;    
+    const organizationId = req.user.organizationId;
+    
+    const  organizationExists =  Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 });
+
+    if (!organizationExists) {
+      return res.status(404).json({ message: "Organization not found" });
+    }
 
     const settings = await Settings.findOne({ organizationId },{organizationId:0});
 
     if (!settings) {
       return res.status(404).json({ message: "No settings found for this organization" });
     }
+
+    const dateTimeMoment = moment(settings.openingStockDate).tz(organizationExists.timeZoneExp);
+
+    let createdDate = dateTimeMoment.format(organizationExists.dateFormatExp);
+    if (organizationExists.dateSplit) {
+      createdDate = createdDate.replace(/\//g, organizationExists.dateSplit);
+    }
+
 
     // Organize the settings into categories
     const organizedSettings = {
@@ -57,7 +74,8 @@ exports.getSettings = async (req, res) => {
         stockBelowZero: settings.stockBelowZero,
         outOfStockBelowZero: settings.outOfStockBelowZero,
         notifyReorderPoint: settings.notifyReorderPoint,
-        trackCostOnItems: settings.trackCostOnItems
+        trackCostOnItems: settings.trackCostOnItems,
+        openingStockDate: createdDate,
       },
       salesOrderSettings: {
         salesOrderAddress: settings.salesOrderAddress,
