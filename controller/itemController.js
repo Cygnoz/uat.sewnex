@@ -142,7 +142,6 @@ const mItemDataExists = async (organizationId) => {
   
   
   const itemTrackMap = itemTracks.reduce((acc, itemTrack) => {
-    console.log( "1",itemTrack._id, itemTrack.totalDebit, itemTrack.totalCredit);
       const sortedEntries = itemTrack.data.sort((a, b) =>
           new Date(a.createdDateTime) - new Date(b.createdDateTime)
       );
@@ -173,52 +172,6 @@ const mItemDataExists = async (organizationId) => {
 };
 
 
-
-// const mItemDataExists = async (organizationId) => {
-//           const [newItems] = await Promise.all([
-//             Item.find( { organizationId },{ organizationId :0, itemImage: 0 } )
-//             .populate('salesAccountId', 'accountName') 
-//             .populate('purchaseAccountId', 'accountName')
-//             .populate('preferredVendorId', 'supplierDisplayName')  
-//             .lean(),
-
-//           ]);
-
-//           const transformedItems = newItems.map(item => ({
-//             ...item,
-//             salesAccountId: item.salesAccountId?._id || undefined,
-//             salesAccountName: item.salesAccountId?.accountName || undefined,
-
-//             purchaseAccountId: item.purchaseAccountId?._id || undefined,
-//             purchaseAccountName: item.purchaseAccountId?.accountName || undefined,
-
-//             preferredVendorId: item.preferredVendorId?._id || undefined,
-//             preferredVendorName: item.preferredVendorId?.supplierDisplayName || undefined,
-//           }));
-
-
-//           // Extract itemIds from newItems
-//           const itemIds = transformedItems.map(item => new mongoose.Types.ObjectId(item._id));
-
-//           const itemTracks = await ItemTrack.aggregate([
-//             { $match: { itemId: { $in: itemIds } } },
-//             { $sort: { _id: -1 } },
-//             { $group: { _id: "$itemId", lastEntry: { $first: "$$ROOT" } } },
-//           ]);
-
-//           const itemTrackMap = itemTracks.reduce((acc, itemTrack) => {
-//             acc[itemTrack._id.toString()] = itemTrack.lastEntry;
-//             return acc;
-//           }, {});
-          
-
-//         const enrichedItems = transformedItems.map(item => ({
-//           ...item,
-//           currentStock: itemTrackMap[item._id.toString()]?.currentStock || null,
-//         }));
-
-//         return { enrichedItems };
-// };
 
 
 
@@ -544,43 +497,9 @@ exports.deleteItem = async (req, res) => {
 
 // Function to update the opening balance in item tracking
 const updateOpeningBalanceInItemTrack = async ( itemTrackAll, cleanedData) => {
-  // Ensure openingStock, prevStock, and the difference are non-negative
-  // if (openingStock < 0 || prevStock < 0) {
-  //   console.error("Opening stock and previous stock must be non-negative");
-  //   return;
-  // }
-
-  // const diff = ( openingStock || 0) - ( prevStock || 0 );
-  // console.log( "Difference : ", diff );
-  
-
-  // If no change in stock, return without updating
-  // if (diff === 0) {
-  //   console.log("No change in opening stock, no update needed.");
-  //   return;
-  // }
-
-  // Iterate through each item track and update the current stock
-  // itemTrackAll.forEach(itemTrack => {
-  //   // Ensure CurrentStock is non-negative before updating
-  //   if (itemTrack.currentStock < 0) {
-  //     console.error("Current Stock must be non-negative");
-  //     return;
-  //   }
-
-  //   // Update current stock by adding or subtracting the difference
-  //   itemTrack.currentStock += diff;
-  // });
-
+ 
   itemTrackAll.forEach(itemTrack => {
     if (itemTrack.action === "Opening Stock") {
-      // const currentCreditQuantity = itemTrack.creditQuantity || 0;
-      // const newCreditQuantity = currentCreditQuantity + diff;
-
-      // if (isNaN(newCreditQuantity)) {
-      //   console.error("Invalid value for creditQuantity");
-      //   return;
-      // }
       itemTrack.sellingPrice = cleanedData.sellingPrice || 0 ;
       itemTrack.costPrice = cleanedData.costPrice || 0 ;
       itemTrack.debitQuantity = cleanedData.openingStock || 0 ;
