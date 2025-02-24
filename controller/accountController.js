@@ -643,7 +643,7 @@ function validateReqFields( data, errors ) {
   validateField(typeof data.accountSubhead === 'undefined', "Account Subhead required", errors);
   validateField(typeof data.accountHead === 'undefined', "Account Head required", errors);
   validateField(typeof data.accountGroup === 'undefined', "Account Group required", errors);
-  validateField(typeof data.createDateTime === 'undefined', "Opening Balance Date  required", errors);
+  validateField(typeof data.createdDateTime === 'undefined', "Opening Balance Date required", errors);
   
   
   // validateField( typeof data.debitOpeningBalance === 'undefined' && typeof data.creditOpeningBalance === 'undefined', "Opening Balance required", errors );
