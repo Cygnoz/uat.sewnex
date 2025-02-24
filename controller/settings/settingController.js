@@ -5,33 +5,36 @@ const Settings = require('../../database/model/settings');
 
 const moment = require("moment-timezone");
 
+//Get one and All
+const dataExist = async ( organizationId ) => {    
+  const [organizationExists, settings ] = await Promise.all([
+    Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }).lean(),
+    Settings.findOne({ organizationId },{organizationId:0})
+  ]);
+  return { organizationExists, settings };
+};
+
 
 
 // Get settings
 exports.getSettings = async (req, res) => {
   try {
     const organizationId = req.user.organizationId;
-    
-    const  organizationExists =  Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 });
 
+    const { organizationExists, settings } = await dataExist( organizationId );      
+    
     if (!organizationExists) {
       return res.status(404).json({ message: "Organization not found" });
     }
-
-    const settings = await Settings.findOne({ organizationId },{organizationId:0});
 
     if (!settings) {
       return res.status(404).json({ message: "No settings found for this organization" });
     }
 
     const dateTimeMoment = moment(settings.openingStockDate).tz(organizationExists.timeZoneExp);
-
-    let createdDate = dateTimeMoment.format(organizationExists.dateFormatExp);
-    if (organizationExists.dateSplit) {
-      createdDate = createdDate.replace(/\//g, organizationExists.dateSplit);
-    }
-
-
+    let createdDate = dateTimeMoment.format('YYYY/MM/DD');
+    createdDate = createdDate.replace(/\//g, '-');
+    
     // Organize the settings into categories
     const organizedSettings = {
       invoice: {
