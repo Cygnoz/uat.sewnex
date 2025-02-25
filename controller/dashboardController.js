@@ -98,6 +98,6 @@ exports.supplierBills = async (req, res) => {
     res.status(200).json( formattedObjects );    
   } catch (error) {
     console.log(error);    
-    return res.status(500).json({ message: "Error fetching sales history", error });
+    return res.status(500).json({ message: "Error fetching supplier bill history", error });
   }
 };
