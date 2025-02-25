@@ -5,6 +5,7 @@ const SalesInvoice = require('../../database/model/salesInvoice');
 const SalesReceipt = require('../../database/model/salesReceipt');
 const TrialBalance = require("../../database/model/trialBalance");
 const ItemTrack = require("../../database/model/itemTrack");
+const CustomerHistory = require("../../database/model/customerHistory");
 
 const moment = require("moment-timezone");
 
@@ -22,7 +23,7 @@ exports.updateInvoice = async (req, res) => {
     console.log("Update sales invoice:", req.body);
   
     try {
-      const { organizationId } = req.user;
+      const { organizationId, id: userId, userName } = req.user;
       const { invoiceId } = req.params;   
       
       // Check if the invoiceId exists in SalesReceipt schema
@@ -121,6 +122,19 @@ exports.updateInvoice = async (req, res) => {
         return res.status(500).json({ message: "Failed to update sales invoice" });
       }
 
+      // Add entry to Customer History
+      const customerHistoryEntry = new CustomerHistory({
+        organizationId,
+        operationId: savedSalesInvoice._id,
+        customerId,
+        title: "Invoice Updated",
+        description: `Invoice ${savedSalesInvoice.salesInvoice} updated by ${userName}`,
+        userId: userId,
+        userName: userName,
+      });
+  
+      await customerHistoryEntry.save();
+
       //Journal
       await journal( savedSalesInvoice, defAcc, customerAccount );
       
@@ -146,7 +160,7 @@ exports.updateInvoice = async (req, res) => {
     console.log("Delete sales invoice request received:", req.params);
 
     try {
-        const { organizationId } = req.user;
+        const { organizationId, id: userId, userName } = req.user;
         const { invoiceId } = req.params;
 
         // Validate invoiceId
@@ -195,12 +209,25 @@ exports.updateInvoice = async (req, res) => {
           console.log(`Deleted existing TrialBalance entries for operationId: ${existingSalesInvoice._id}`);
         }
 
+        // Add entry to Customer History
+        const customerHistoryEntry = new CustomerHistory({
+          organizationId,
+          operationId: existingSalesInvoice._id,
+          customerId: existingSalesInvoice.customerId,
+          title: "Invoice Deleted",
+          description: `Invoice ${existingSalesInvoice.salesInvoice} deleted by ${userName}`,
+          userId: userId,
+          userName: userName,
+        });
+
         // Delete the sales invoice
         const deletedSalesInvoice = await existingSalesInvoice.deleteOne();
         if (!deletedSalesInvoice) {
             console.error("Failed to delete sales invoice.");
             return res.status(500).json({ message: "Failed to delete sales invoice" });
         }
+    
+        await customerHistoryEntry.save();
 
         res.status(200).json({ message: "Sales invoice deleted successfully" });
         console.log("Sales invoice deleted successfully with ID:", invoiceId);

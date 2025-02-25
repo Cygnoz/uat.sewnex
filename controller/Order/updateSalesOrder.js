@@ -1,6 +1,7 @@
 
 const mongoose = require('mongoose');
 const SalesOrder = require('../../database/model/salesOrder');
+const CustomerHistory = require("../../database/model/customerHistory");
 const { dataExist, salesOrder, validation, calculation } = require("../Order/salesOrder");
 const { cleanData } = require("../../services/cleanData");
 
@@ -82,6 +83,19 @@ exports.updateSalesOrder = async (req, res) => {
           console.error("Failed to save updated sales order.");
           return res.status(500).json({ message: "Failed to update sales order" });
       }
+
+      // Add entry to Customer History
+      const customerHistoryEntry = new CustomerHistory({
+        organizationId,
+        operationId: savedSalesOrder._id,
+        customerId,
+        title: "Sales Order Updated",
+        description: `Sales order ${savedSalesOrder.salesOrder} updated by ${userName}`,
+        userId: userId,
+        userName: userName,
+      });
+  
+      await customerHistoryEntry.save();
   
       res.status(200).json({ message: "Sale order updated successfully", savedSalesOrder });
       console.log("Sale order updated successfully:", savedSalesOrder);
@@ -105,7 +119,7 @@ exports.deleteSalesOrder = async (req, res) => {
   console.log("Delete sales order request received:", req.params);
 
   try {
-      const { organizationId } = req.user;
+      const { organizationId, id: userId, userName } = req.user;
       const { orderId } = req.params;
 
       // Validate orderId
@@ -120,12 +134,25 @@ exports.deleteSalesOrder = async (req, res) => {
           return res.status(404).json({ message: "Sales order not found" });
       }
 
+      // Add entry to Customer History
+      const customerHistoryEntry = new CustomerHistory({
+        organizationId,
+        operationId: existingSalesOrder._id,
+        customerId: existingSalesOrder.customerId,
+        title: "Sales Order Deleted",
+        description: `Sales order ${existingSalesOrder.salesOrder} deleted by ${userName}`,
+        userId: userId,
+        userName: userName,
+      });
+
       // Delete the sales order
       const deletedSalesOrder = await existingSalesOrder.deleteOne();
       if (!deletedSalesOrder) {
           console.error("Failed to delete sales order.");
           return res.status(500).json({ message: "Failed to delete sales order" });
       }
+  
+      await customerHistoryEntry.save();
 
       res.status(200).json({ message: "Sales order deleted successfully" });
       console.log("Sales order deleted successfully with ID:", orderId);

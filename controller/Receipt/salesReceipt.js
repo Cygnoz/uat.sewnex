@@ -6,6 +6,7 @@ const mongoose = require('mongoose');
 const SalesReceipt = require('../../database/model/salesReceipt');
 const Account = require("../../database/model/account");
 const TrialBalance = require("../../database/model/trialBalance");
+const CustomerHistory = require("../../database/model/customerHistory");
 
 const moment = require("moment-timezone");
 
@@ -125,6 +126,19 @@ exports.addReceipt = async (req, res) => {
   cleanedData.createdDateTime = moment.tz(cleanedData.paymentDate, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp).toISOString();           
     
   const savedReceipt = await createNewReceipt( updatedData, organizationId, userId, userName );  
+
+  // Add entry to Customer History
+  const customerHistoryEntry = new CustomerHistory({
+    organizationId,
+    operationId: savedReceipt._id,
+    customerId,
+    title: "Payment Receipt Added",
+    description: `Payment Receipt ${savedReceipt.receipt} of amount ${savedReceipt.total} created by ${userName}`,
+    userId: userId,
+    userName: userName,
+  });
+
+  await customerHistoryEntry.save();
      
   //Journal
   await journal( savedReceipt, depositAcc, customerAccount );

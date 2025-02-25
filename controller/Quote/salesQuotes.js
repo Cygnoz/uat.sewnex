@@ -8,6 +8,7 @@ const Settings = require("../../database/model/settings")
 const Quotes = require("../../database/model/salesQuotes")
 const ItemTrack = require("../../database/model/itemTrack")
 const Prefix = require("../../database/model/prefix");
+const CustomerHistory = require("../../database/model/customerHistory");
 const mongoose = require('mongoose');
 
 const { cleanData } = require("../../services/cleanData");
@@ -97,6 +98,19 @@ exports.addQuotes = async (req, res) => {
       await salesPrefix(cleanedData, existingPrefix );
 
       const savedQuote = await createNewQuote(cleanedData, organizationId, userId, userName );
+
+      // Add entry to Customer History
+      const customerHistoryEntry = new CustomerHistory({
+        organizationId,
+        operationId: savedQuote._id,
+        customerId,
+        title: "Quote Added",
+        description: `Quote ${savedQuote.salesQuotes} of amount ${savedQuote.totalAmount} created by ${userName}`,
+        userId: userId,
+        userName: userName,
+      });
+  
+      await customerHistoryEntry.save();
         
       res.status(201).json({ message: "Sale Quote created successfully" });
       console.log( "Sale Quote created successfully:", savedQuote );

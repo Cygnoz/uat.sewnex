@@ -9,6 +9,7 @@ const Prefix = require("../../database/model/prefix");
 const DefAcc  = require("../../database/model/defaultAccount");
 const Account = require("../../database/model/account");
 const TrialBalance = require("../../database/model/trialBalance");
+const CustomerHistory = require("../../database/model/customerHistory");
 
 const moment = require("moment-timezone");
 
@@ -178,6 +179,19 @@ exports.addCreditNote = async (req, res) => {
     cleanedData.createdDateTime = moment.tz(cleanedData.customerCreditDate, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp).toISOString();           
 
     const savedCreditNote = await createNewCreditNote(cleanedData, organizationId, userId, userName );
+
+    // Add entry to Customer History
+    const customerHistoryEntry = new CustomerHistory({
+      organizationId,
+      operationId: savedCreditNote._id,
+      customerId,
+      title: "Credit Note Added",
+      description: `Credit Note ${savedCreditNote.creditNote} of amount ${savedCreditNote.totalAmount} created by ${userName}`,
+      userId: userId,
+      userName: userName,
+    });
+
+    await customerHistoryEntry.save();
 
     //Journal
     await journal( savedCreditNote, defAcc, customerAccount, paidThroughAccount );

@@ -3,6 +3,8 @@ const CreditNote = require('../../database/model/creditNote');
 const Invoice = require('../../database/model/salesInvoice');
 const TrialBalance = require("../../database/model/trialBalance");
 const ItemTrack = require("../../database/model/itemTrack");
+const CustomerHistory = require("../../database/model/customerHistory");
+
 const { dataExist, validation, calculation, accounts } = require("../Credit Note/creditNoteController");
 const { cleanData } = require("../../services/cleanData");
 
@@ -15,7 +17,7 @@ exports.updateCreditNote = async (req, res) => {
     console.log("Update credit note:", req.body);
   
     try {
-      const { organizationId } = req.user;
+      const { organizationId, id: userId, userName } = req.user;
       const { creditId } = req.params;   
       
       // Fetch existing credit note
@@ -86,6 +88,19 @@ exports.updateCreditNote = async (req, res) => {
         return res.status(500).json({ message: "Failed to update credit note" });
       }
 
+      // Add entry to Customer History
+      const customerHistoryEntry = new CustomerHistory({
+        organizationId,
+        operationId: savedCreditNote._id,
+        customerId,
+        title: "Credit Note Updated",
+        description: `Credit Note ${savedCreditNote.creditNote} updated by ${userName}`,
+        userId: userId,
+        userName: userName,
+      });
+
+      await customerHistoryEntry.save();
+
       //Journal
       await journal( savedCreditNote, defAcc, customerAccount, paidThroughAccount );
       
@@ -113,7 +128,7 @@ exports.updateCreditNote = async (req, res) => {
     console.log("Delete credit note request received:", req.params);
 
     try {
-        const { organizationId } = req.user;
+        const { organizationId, id: userId, userName } = req.user;
         const { creditId } = req.params;
 
         // Validate creditId
@@ -151,12 +166,25 @@ exports.updateCreditNote = async (req, res) => {
         // Extract credit note items
         const existingCreditNoteItems = existingCreditNote.items;
 
+        // Add entry to Customer History
+        const customerHistoryEntry = new CustomerHistory({
+          organizationId,
+          operationId: existingCreditNote._id,
+          customerId,
+          title: "Credit Note Deleted",
+          description: `Credit Note ${existingCreditNote.creditNote} deleted by ${userName}`,
+          userId: userId,
+          userName: userName,
+        });
+
         // Delete the credit note
         const deletedCreditNote = await existingCreditNote.deleteOne();
         if (!deletedCreditNote) {
             console.error("Failed to delete credit note.");
             return res.status(500).json({ message: "Failed to delete credit note" });
         }
+
+        await customerHistoryEntry.save();
 
         // Update returnQuantity after deletion
         await updateReturnQuantity( existingCreditNoteItems, invoiceId );

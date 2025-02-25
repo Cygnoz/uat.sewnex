@@ -12,6 +12,7 @@ const SalesOrder = require("../../database/model/salesOrder");
 const DefAcc  = require("../../database/model/defaultAccount");
 const TrialBalance = require("../../database/model/trialBalance");
 const Account = require("../../database/model/account");
+const CustomerHistory = require("../../database/model/customerHistory");
 
 const { cleanData } = require("../../services/cleanData");
 const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
@@ -195,7 +196,20 @@ exports.addInvoice = async (req, res) => {
 
       cleanedData.createdDateTime = moment.tz(cleanedData.salesInvoiceDate, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp).toISOString();           
       
-      const savedInvoice = await createNewInvoice(cleanedData, organizationId, userId, userName );      
+      const savedInvoice = await createNewInvoice(cleanedData, organizationId, userId, userName );    
+      
+      // Add entry to Customer History
+      const customerHistoryEntry = new CustomerHistory({
+        organizationId,
+        operationId: savedInvoice._id,
+        customerId,
+        title: "Invoice Added",
+        description: `Invoice ${savedInvoice.salesInvoice} of amount ${savedInvoice.totalAmount} created by ${userName}`,
+        userId: userId,
+        userName: userName,
+      });
+  
+      await customerHistoryEntry.save();
       
       //Journal
       await journal( savedInvoice, defAcc, customerAccount );

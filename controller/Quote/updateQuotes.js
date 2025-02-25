@@ -1,6 +1,7 @@
 
 const mongoose = require('mongoose');
 const SalesQuotes = require('../../database/model/salesQuotes');
+const CustomerHistory = require("../../database/model/customerHistory");
 const { dataExist, salesQuote, validation, calculations } = require("../Quote/salesQuotes");
 const { cleanData } = require("../../services/cleanData");
 
@@ -80,6 +81,19 @@ exports.updateSalesQuote = async (req, res) => {
           console.error("Failed to save updated sales quote.");
           return res.status(500).json({ message: "Failed to update sales quote" });
       }
+
+      // Add entry to Customer History
+      const customerHistoryEntry = new CustomerHistory({
+        organizationId,
+        operationId: savedSalesQuote._id,
+        customerId,
+        title: "Quote Updated",
+        description: `Quote ${savedSalesQuote.salesQuotes} updated by ${userName}`,
+        userId: userId,
+        userName: userName,
+      });
+  
+      await customerHistoryEntry.save();
   
       res.status(200).json({ message: "Sale quote updated successfully", savedSalesQuote });
       console.log("Sale quote updated successfully:", savedSalesQuote);
@@ -101,7 +115,7 @@ exports.deleteSalesQuote = async (req, res) => {
   console.log("Delete sales quote request received:", req.params);
 
   try {
-      const { organizationId } = req.user;
+      const { organizationId, id: userId, userName } = req.user;
       const { quoteId } = req.params;
 
       // Validate quoteId
@@ -116,12 +130,25 @@ exports.deleteSalesQuote = async (req, res) => {
           return res.status(404).json({ message: "Sales quote not found" });
       }
 
+      // Add entry to Customer History
+      const customerHistoryEntry = new CustomerHistory({
+        organizationId,
+        operationId: existingSalesQuote._id,
+        customerId: existingSalesQuote.customerId,
+        title: "Quote Deleted",
+        description: `Quote ${existingSalesQuote.salesQuotes} deleted by ${userName}`,
+        userId: userId,
+        userName: userName,
+      });
+
       // Delete the sales quote
       const deletedSalesQuote = await existingSalesQuote.deleteOne();
       if (!deletedSalesQuote) {
           console.error("Failed to delete sales quote.");
           return res.status(500).json({ message: "Failed to delete sales quote" });
       }
+
+      await customerHistoryEntry.save();
 
       res.status(200).json({ message: "Sales quote deleted successfully" });
       console.log("Sales quote deleted successfully with ID:", quoteId);

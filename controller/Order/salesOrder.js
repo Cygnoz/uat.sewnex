@@ -7,6 +7,7 @@ const Settings = require("../../database/model/settings")
 const Order = require("../../database/model/salesOrder")
 const ItemTrack = require("../../database/model/itemTrack")
 const Prefix = require("../../database/model/prefix");
+const CustomerHistory = require("../../database/model/customerHistory");
 const mongoose = require('mongoose');
 
 const { cleanData } = require("../../services/cleanData");
@@ -134,6 +135,19 @@ exports.addOrder = async (req, res) => {
       await salesPrefix(cleanedData, existingPrefix );
       
       const savedOrder = await createNewOrder(cleanedData, organizationId, userId, userName );
+
+      // Add entry to Customer History
+      const customerHistoryEntry = new CustomerHistory({
+        organizationId,
+        operationId: savedOrder._id,
+        customerId,
+        title: "Sales Order Added",
+        description: `Sales order ${savedOrder.salesOrder} of amount ${savedOrder.totalAmount} created by ${userName}`,
+        userId: userId,
+        userName: userName,
+      });
+  
+      await customerHistoryEntry.save();
         
       res.status(201).json({ message: "Sale Order created successfully" });
       console.log( "Sale Order created successfully:", savedOrder );

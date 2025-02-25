@@ -2,6 +2,8 @@ const mongoose = require('mongoose');
 const SalesReceipt = require('../../database/model/salesReceipt');
 const TrialBalance = require("../../database/model/trialBalance");
 const Invoice = require("../../database/model/salesInvoice");
+const CustomerHistory = require("../../database/model/customerHistory");
+
 const { dataExist, validation, calculation, accounts } = require("../Receipt/salesReceipt");
 const { cleanData } = require("../../services/cleanData");
 
@@ -12,7 +14,7 @@ exports.updateReceipt = async (req, res) => {
     console.log("Update sales invoice:", req.body);
   
     try {
-      const { organizationId } = req.user;
+      const { organizationId, id: userId, userName } = req.user;
       const { receiptId } = req.params;  
 
       // Fetch existing sales receipt
@@ -81,6 +83,19 @@ exports.updateReceipt = async (req, res) => {
         return res.status(500).json({ message: "Failed to update sales receipt" });
       }
 
+      // Add entry to Customer History
+      const customerHistoryEntry = new CustomerHistory({
+        organizationId,
+        operationId: savedSalesReceipt._id,
+        customerId,
+        title: "Payment Receipt Updated",
+        description: `Payment Receipt ${savedSalesReceipt.receipt} updated by ${userName}`,
+        userId: userId,
+        userName: userName,
+      });
+
+      await customerHistoryEntry.save();
+
       //Journal
       await journal( savedSalesReceipt, depositAcc, customerAccount );
       
@@ -101,7 +116,7 @@ exports.deleteSalesReceipt = async (req, res) => {
   console.log("Delete sales receipt request received:", req.params);
 
   try {
-      const { organizationId } = req.user;
+      const { organizationId, id: userId, userName } = req.user;
       const { receiptId } = req.params;
 
       // Validate receiptId
@@ -138,12 +153,25 @@ exports.deleteSalesReceipt = async (req, res) => {
       // Extract sales receipt invoices
       const existingSalesReceiptInvoice = existingSalesReceipt.invoice;
 
+      // Add entry to Customer History
+      const customerHistoryEntry = new CustomerHistory({
+        organizationId,
+        operationId: existingSalesReceipt._id,
+        customerId,
+        title: "Payment Receipt Deleted",
+        description: `Payment Receipt ${existingSalesReceipt.receipt} deleted by ${userName}`,
+        userId: userId,
+        userName: userName,
+      });
+
       // Delete the sales receipt
       const deletedSalesReceipt = await existingSalesReceipt.deleteOne();
       if (!deletedSalesReceipt) {
           console.error("Failed to delete sales receipt.");
           return res.status(500).json({ message: "Failed to delete sales receipt!" });
       }
+
+      await customerHistoryEntry.save();
 
       // Fetch existing TrialBalance's createdDateTime
       const existingTrialBalance = await TrialBalance.findOne({ 
