@@ -23,11 +23,6 @@ const { nexVerifyToken } = require('../controller/nexMiddleware');
 
 
 
-
-
-
-
-
 //Basic
 router.get('/get-countries-data',verifyToken,organizationController.getCountriesData)
 
