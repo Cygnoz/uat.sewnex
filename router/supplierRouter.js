@@ -12,8 +12,6 @@ const { verifyToken } = require('../controller/middleware');
 // supplier
 router.get('/get-Supplier-Trandactions/:supplierId', verifyToken, checkPermission('Viewed Supplier Details'), supplierCont.getSupplierTransactions);
 
-router.get('/get-Supplier-Dashboard/:date',verifyToken,checkPermission('Viewed Supplier Details'),dashboardController.getSupplierStats);
-
 router.post('/add-suppliers',verifyToken,checkPermission('Created a New Supplier'), supplierCont.addSupplier);
 
 router.get('/get-all-supplier',verifyToken,checkPermission('Viewed Supplier Details'), supplierCont.getAllSuppliers);
@@ -34,5 +32,13 @@ router.post('/import-supplier',verifyToken,checkPermission('Import New Suppliers
 router.get('/get-one-supplier-history/:supplierId',verifyToken,checkPermission('Viewed Supplier Details'),supplierCont.getOneSupplierHistory)
 
 router.put('/update-supplier-customer-settings',verifyToken,checkPermission('Edited Setting details'),supplierSettings.updateSupplierCustomerSettings)
+
+
+
+//stat
+
+router.get('/get-Supplier-Dashboard/:date',verifyToken,checkPermission('Viewed Supplier Details'),dashboardController.getSupplierStats);
+
+router.get('/get-supplier-bill/:supplierId',verifyToken,checkPermission('Viewed Supplier Details'),dashboardController.supplierBills);
 
 module.exports = router

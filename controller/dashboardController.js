@@ -1,6 +1,32 @@
 const Supplier = require("../database/model/supplier");
+const Organization = require("../database/model/organization");
+const PurchaseOrder = require('../database/model/purchaseOrder');
+const Bills = require('../database/model/bills');
+
 const moment = require("moment-timezone");
 
+const { singleCustomDateTime, multiCustomDateTime } = require("../services/timeConverter");
+const { cleanData } = require("../services/cleanData");
+
+const dataExist = async ( organizationId, supplierId ) => {    
+  const [organizationExists ,purchaseOrder, allBills ] = await Promise.all([
+    Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }).lean(),
+    PurchaseOrder.find({ organizationId , supplierId: supplierId })
+    .populate('items.itemId', 'itemName cgst sgst igst vat purchaseAccountId')    
+    .populate('supplierId', 'supplierDisplayName')    
+    .lean(),
+    Bills.find({ organizationId , supplierId: supplierId })
+    .populate('items.itemId', 'itemName itemImage') 
+    .populate('supplierId', 'supplierDisplayName')    
+    .lean(),  
+  ]);
+  return { organizationExists, purchaseOrder, allBills };
+};
+
+
+
+
+//Main stats
 exports.getSupplierStats = async (req, res) => {
   try {
     const organizationId = req.user.organizationId;
@@ -30,5 +56,48 @@ exports.getSupplierStats = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: "Error fetching Supplier stats", error });
+  }
+};
+
+
+
+
+//Purchase bill
+exports.supplierBills = async (req, res) => {
+  try {
+    const { supplierId } = req.params; 
+    const { organizationId } = req.user;
+
+
+    const { organizationExists, allBills } = await dataExist( organizationId, supplierId );
+
+
+    if (!organizationExists) {
+      return res.status(404).json({ message: "Organization not found" });
+    }
+
+    if (!allBills) {
+      return res.status(404).json({ message: "No Invoice found" });
+    }
+
+    const transformedBill = allBills.map(data => {
+      return {
+          ...data,
+          supplierId: data.supplierId?._id,  
+          supplierDisplayName: data.supplierId?.supplierDisplayName,
+          items: data.items.map(item => ({
+            ...item,
+            itemId: item.itemId?._id,
+            itemName: item.itemId?.itemName,
+          })),  
+      };
+    });
+
+    const formattedObjects = multiCustomDateTime(transformedBill, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );
+
+    res.status(200).json( formattedObjects );    
+  } catch (error) {
+    console.log(error);    
+    return res.status(500).json({ message: "Error fetching sales history", error });
   }
 };
