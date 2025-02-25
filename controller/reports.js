@@ -1094,7 +1094,7 @@ exports.calculateBalanceSheet = async (req, res) => {
             accountName: "Closing Stock",
             overallNetDebit: closingStock.total,
             overallNetCredit: 0,
-            items: closingStock.items
+            entries: closingStock.items
         });
 
         const result = {
