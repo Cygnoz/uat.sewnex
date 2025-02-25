@@ -207,6 +207,7 @@ exports.getTrialBalance = async (req, res) => {
             organizationId: organizationId,
             transactionId: item.itemName,
             itemQuantity: item.totalDebit,
+            lastCostPrice: item.lastCostPrice,
             debitAmount: (item.totalDebit * item.lastCostPrice).toFixed(2),
             creditAmount: item.totalCredit,
             createdDateTime: formattedStartDate,
@@ -217,7 +218,7 @@ exports.getTrialBalance = async (req, res) => {
         if (currentAssetIndex !== -1) {
             responseData[currentAssetIndex].totalDebit = (parseFloat(responseData[currentAssetIndex].totalDebit) + openingStock.total).toFixed(2);
             const currentAssetAccounts = responseData[currentAssetIndex].accounts;
-            const inventoryAssetIndex = currentAssetAccounts.findIndex(account => account.accountName === 'Inventory Asset');
+            const inventoryAssetIndex = currentAssetAccounts.findIndex(account => account.accountName === 'Opening Stock');
 
             if (inventoryAssetIndex !== -1) {
                 currentAssetAccounts[inventoryAssetIndex].totalDebit = (parseFloat(currentAssetAccounts[inventoryAssetIndex].totalDebit) + openingStock.total).toFixed(2);
@@ -235,7 +236,7 @@ exports.getTrialBalance = async (req, res) => {
                 monthData.data.push(...openingStockData);
             } else {
                 const newAccount = {
-                    accountName: 'Inventory Asset',
+                    accountName: 'Opening Stock',
                     totalDebit: openingStock.total.toFixed(2),
                     totalCredit: 0.00,
                     months: [{
@@ -253,7 +254,7 @@ exports.getTrialBalance = async (req, res) => {
                 totalDebit: openingStock.total.toFixed(2),
                 totalCredit: 0.00,
                 accounts: [{
-                    accountName: 'Inventory Asset',
+                    accountName: 'Opening Stock',
                     totalDebit: openingStock.total.toFixed(2),
                     totalCredit: 0.00,
                     months: [{
