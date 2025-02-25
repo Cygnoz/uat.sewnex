@@ -1041,34 +1041,32 @@ exports.calculateBalanceSheet = async (req, res) => {
         const openingStock = await getOpeningBalance(organizationId, start);
         const closingStock = await getClosingBalance(organizationId, end);
 
-        const purchases = await getReportAccount( organizationExists, organizationId, start, end,'Cost of Goods Sold');
-        const sales = await getReportAccount( organizationExists, organizationId, start, end,'Sales');
-        const directExpenses = await getReportAccount( organizationExists, organizationId, start, end,'Direct Expense'); 
+        const purchases = await getReportAccount(organizationExists, organizationId, start, end, 'Cost of Goods Sold');
+        const sales = await getReportAccount(organizationExists, organizationId, start, end, 'Sales');
+        const directExpenses = await getReportAccount(organizationExists, organizationId, start, end, 'Direct Expense');
 
         // Profit and Loss Calculations
-        const indirectIncome = await getReportAccount( organizationExists, organizationId, start, end,'Indirect Income');
-        const indirectExpenses = await getReportAccount( organizationExists, organizationId, start, end,'Indirect Expense');
+        const indirectIncome = await getReportAccount(organizationExists, organizationId, start, end, 'Indirect Income');
+        const indirectExpenses = await getReportAccount(organizationExists, organizationId, start, end, 'Indirect Expense');
 
-        //Balance Sheet Calculations
-        const currentAssets = await getReportAccountForAssets( organizationExists, organizationId, start, end);
-        const nonCurrentAssets = await getReportAccount( organizationExists, organizationId, start, end,'Non-Current Asset');
-        const nonCurrentLiabilities  = await getReportAccount(organizationExists, organizationId, start, end,'Non-Current Liability');
-        const currentLiabilities = await getReportAccountForLiability( organizationExists, organizationId, start, end);
-        const equity = await getReportAccount( organizationExists, organizationId, start, end,'Equity');
-
-
+        // Balance Sheet Calculations
+        const currentAssets = await getReportAccountForAssets(organizationExists, organizationId, start, end);
+        const nonCurrentAssets = await getReportAccount(organizationExists, organizationId, start, end, 'Non-Current Asset');
+        const nonCurrentLiabilities = await getReportAccount(organizationExists, organizationId, start, end, 'Non-Current Liability');
+        const currentLiabilities = await getReportAccountForLiability(organizationExists, organizationId, start, end);
+        const equity = await getReportAccount(organizationExists, organizationId, start, end, 'Equity');
 
         // Gross Profit/Loss Calculation
         const totalDebitTradingAccount = openingStock.total + purchases.overallNetDebit + directExpenses.overallNetDebit - purchases.overallNetCredit - directExpenses.overallNetCredit;
         const totalCreditTradingAccount = sales.overallNetCredit + closingStock.total - sales.overallNetDebit;
-        
+
         let grossProfit = 0, grossLoss = 0;
-        
+
         if (totalCreditTradingAccount > totalDebitTradingAccount) {
             grossProfit = totalCreditTradingAccount - totalDebitTradingAccount;
         } else if (totalDebitTradingAccount > totalCreditTradingAccount) {
             grossLoss = totalDebitTradingAccount - totalCreditTradingAccount;
-        }        
+        }
 
         // Net Profit/Loss Calculation
         const totalDebitPL = grossLoss + indirectExpenses.overallNetDebit - indirectExpenses.overallNetCredit;
@@ -1082,46 +1080,34 @@ exports.calculateBalanceSheet = async (req, res) => {
             netLoss = totalDebitPL - totalCreditPL;
         }
 
-
-        //Balance sheet calculation
-        const totalCreditBS  = netLoss +  equity.overallNetCredit +  currentLiabilities.overallNetCredit + nonCurrentLiabilities.overallNetCredit - equity.overallNetDebit - currentLiabilities.overallNetDebit - nonCurrentLiabilities.overallNetDebit ;
-        const totalDebitBS = netProfit + currentAssets.overallNetDebit +  nonCurrentAssets.overallNetDebit - currentAssets.overallNetCredit - nonCurrentAssets.overallNetCredit;
-
-        // let finalProfit = 0, finalLoss = 0;
-
-        // if (totalCreditBS > totalDebitBS) {
-        //     finalProfit = totalCreditBS - totalDebitBS;
-        // } else if (totalDebitBS > totalCreditBS) {
-        //     finalLoss = totalDebitBS - totalCreditBS;
-        // } 
-
+        // Balance sheet calculation
+        const totalCreditBS = netLoss + equity.overallNetCredit + currentLiabilities.overallNetCredit + nonCurrentLiabilities.overallNetCredit - equity.overallNetDebit - currentLiabilities.overallNetDebit - nonCurrentLiabilities.overallNetDebit;
+        const totalDebitBS = netProfit + currentAssets.overallNetDebit + nonCurrentAssets.overallNetDebit - currentAssets.overallNetCredit - nonCurrentAssets.overallNetCredit + closingStock.total;
 
         // Calculate final debit and credit totals
-        const finalDebit = totalDebitBS ;
-        const finalCredit = totalCreditBS ;
+        const finalDebit = totalDebitBS;
+        const finalCredit = totalCreditBS;
 
-
-
-
-        // const totalAssets = currentAssets.totalDebit + nonCurrentAssets.totalDebit;
-        // const totalLiabilities = currentLiabilities.totalCredit + nonCurrentLiabilities.totalCredit;
-        // const totalEquity = equity.totalCredit;
+        // Add closing stock to current assets
+        currentAssets.overallNetDebit += closingStock.total;
+        currentAssets.data.unshift({
+            accountName: "Closing Stock",
+            overallNetDebit: closingStock.total,
+            overallNetCredit: 0,
+            items: closingStock.items
+        });
 
         const result = {
             debit: [
                 { currentAssets },
                 { nonCurrentAssets },
                 ...(netProfit > 0 ? [{ "netProfitCd": netProfit }] : [{ "netProfitCd": 0 }])
-
-
-                
             ],
             credit: [
                 { equity },
                 { currentLiabilities },
                 { nonCurrentLiabilities },
                 ...(netLoss > 0 ? [{ "netLossCd": netLoss }] : [{ "netLossCd": 0 }])
-
             ],
             summary: {
                 grossProfit,
@@ -1139,7 +1125,6 @@ exports.calculateBalanceSheet = async (req, res) => {
         res.status(500).json({ success: false, message: error.message });
     }
 };
-
 
 
 
