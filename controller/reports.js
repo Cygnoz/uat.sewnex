@@ -954,9 +954,9 @@ exports.calculateProfitAndLoss = async (req, res) => {
         let netProfit = 0, netLoss = 0;
 
         if (totalCreditPL > totalDebitPL) {
-            netLoss = totalCreditPL - totalDebitPL;
+            netProfit = totalCreditPL - totalDebitPL;
         } else if (totalDebitPL > totalCreditPL) {
-            netProfit  = totalDebitPL - totalCreditPL;
+            netLoss = totalDebitPL - totalCreditPL;
         }
 
          
@@ -1075,9 +1075,9 @@ exports.calculateBalanceSheet = async (req, res) => {
         let netProfit = 0, netLoss = 0;
 
         if (totalCreditPL > totalDebitPL) {
-            netLoss = totalCreditPL - totalDebitPL;
+            netProfit = totalCreditPL - totalDebitPL;
         } else if (totalDebitPL > totalCreditPL) {
-            netProfit  = totalDebitPL - totalCreditPL;
+            netLoss = totalDebitPL - totalCreditPL;
         }
 
         // Balance sheet calculation
