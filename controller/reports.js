@@ -1075,18 +1075,18 @@ exports.calculateBalanceSheet = async (req, res) => {
         let netProfit = 0, netLoss = 0;
 
         if (totalCreditPL > totalDebitPL) {
-            netProfit = totalCreditPL - totalDebitPL;
+            netLoss = totalCreditPL - totalDebitPL;
         } else if (totalDebitPL > totalCreditPL) {
-            netLoss = totalDebitPL - totalCreditPL;
+            netProfit  = totalDebitPL - totalCreditPL;
         }
 
         // Balance sheet calculation
-        const totalCreditBS = netLoss + equity.overallNetCredit + currentLiabilities.overallNetCredit + nonCurrentLiabilities.overallNetCredit - equity.overallNetDebit - currentLiabilities.overallNetDebit - nonCurrentLiabilities.overallNetDebit;
-        const totalDebitBS = netProfit + currentAssets.overallNetDebit + nonCurrentAssets.overallNetDebit - currentAssets.overallNetCredit - nonCurrentAssets.overallNetCredit + closingStock.total;
+        const totalCreditBS = netProfit + equity.overallNetCredit + currentLiabilities.overallNetCredit + nonCurrentLiabilities.overallNetCredit - equity.overallNetDebit - currentLiabilities.overallNetDebit - nonCurrentLiabilities.overallNetDebit;
+        const totalDebitBS = netLoss + currentAssets.overallNetDebit + nonCurrentAssets.overallNetDebit - currentAssets.overallNetCredit - nonCurrentAssets.overallNetCredit + closingStock.total;
 
         // Calculate final debit and credit totals
         const finalDebit = totalDebitBS;
-        const finalCredit = totalCreditBS;
+        const finalCredit = totalCreditBS;        
 
         // Add closing stock to current assets
         currentAssets.overallNetDebit += closingStock.total;
@@ -1101,13 +1101,15 @@ exports.calculateBalanceSheet = async (req, res) => {
             debit: [
                 { currentAssets },
                 { nonCurrentAssets },
-                ...(netProfit > 0 ? [{ "netProfitCd": netProfit }] : [{ "netProfitCd": 0 }])
+                ...(netLoss > 0 ? [{ "netLossCd": netLoss }] : [{ "netLossCd": 0 }])
+
             ],
             credit: [
                 { equity },
                 { currentLiabilities },
                 { nonCurrentLiabilities },
-                ...(netLoss > 0 ? [{ "netLossCd": netLoss }] : [{ "netLossCd": 0 }])
+                ...(netProfit > 0 ? [{ "netProfitCd": netProfit }] : [{ "netProfitCd": 0 }])
+
             ],
             summary: {
                 grossProfit,
