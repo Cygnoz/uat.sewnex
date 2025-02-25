@@ -39,18 +39,27 @@ exports.addItemSettings = async (req, res) => {
       if (!existingSettings) {
         return res.status(404).json({ message: "Settings not found" });
       }
-      cleanedData.openingStockDate = moment.tz(cleanedData.openingStockDate, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp).toISOString();             
+
+
+      // Calculate openingStockDate as one day before closingDate
+      const openingStockDate = moment.tz(cleanedData.openingStockDate, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp);
+      const closingStockDate = openingStockDate.clone().subtract(1, "day").toISOString();
+          
+      console.log("openingStockDate:", openingStockDate.toISOString());
+      console.log("closingStockDate:", closingStockDate);
+      
+      cleanedData.openingStockDate = openingStockDate.toISOString(); 
   
       
-      Object.assign(existingSettings, cleanedData);
-  
+      Object.assign(existingSettings, cleanedData);  
       await existingSettings.save();
+
 
       // Update createDate for all itemTrack entries
       if (itemTrack.length > 0) {
         await Promise.all(
           itemTrack.map(async (item) => {
-            item.createdDateTime = cleanedData.openingStockDate;
+            item.createdDateTime = closingStockDate;
             await item.save();
           })
         );
