@@ -6,16 +6,18 @@ const TrialBalance = require("../../database/model/trialBalance");
 const ItemTrack = require("../../database/model/itemTrack");
 const { dataExist, validation, calculation, accounts } = require("../Debit Note/debitNoteController");
 const { cleanData } = require("../../services/cleanData");
+const SupplierHistory = require("../../database/model/supplierHistory");
 
 const { ObjectId } = require('mongodb');
 const moment = require("moment-timezone");
+
 
 // Update Debit Note 
 exports.updateDebitNote = async (req, res) => {
     console.log("Update debit note:", req.body);
   
     try {
-      const { organizationId } = req.user;
+      const { organizationId, id: userId, userName } = req.user;
       const { debitId } = req.params;   
       
       // Fetch existing credit note
@@ -88,6 +90,19 @@ exports.updateDebitNote = async (req, res) => {
         return res.status(500).json({ message: "Failed to update debit note" });
       }
 
+      // Add entry to Supplier History
+      const supplierHistoryEntry = new SupplierHistory({
+        organizationId,
+        operationId: savedDebitNote._id,
+        supplierId,
+        title: "Debit Note Updated",
+        description: `Debit Note ${savedDebitNote.debitNote} updated by ${userName}`,  
+        userId: userId,
+        userName: userName,
+      });
+
+      await supplierHistoryEntry.save();
+
       //Journal
       await journal( savedDebitNote, defAcc, supplierAccount, depositAccount );
       
@@ -114,7 +129,7 @@ exports.updateDebitNote = async (req, res) => {
     console.log("Delete debit note request received:", req.params);
 
     try {
-        const { organizationId } = req.user;
+        const { organizationId, id: userId, userName } = req.user;
         const { debitId } = req.params;
 
         // Validate debitId
@@ -152,12 +167,25 @@ exports.updateDebitNote = async (req, res) => {
         // Extract debit note items
         const existingDebitNoteItems = existingDebitNote.items;
 
+        // Add entry to Supplier History
+        const supplierHistoryEntry = new SupplierHistory({
+          organizationId,
+          operationId: existingDebitNote._id,
+          supplierId,
+          title: "Debit Note Deleted",
+          description: `Debit Note ${existingDebitNote.debitNote} deleted by ${userName}`,  
+          userId: userId,
+          userName: userName,
+        });
+
         // Delete the debit note
         const deletedDebitNote = await existingDebitNote.deleteOne();
         if (!deletedDebitNote) {
             console.error("Failed to delete debit note.");
             return res.status(500).json({ message: "Failed to delete debit note" });
         }
+
+        await supplierHistoryEntry.save();
 
         // Update returnQuantity after deletion
         await updateReturnQuantity( existingDebitNoteItems, billId );

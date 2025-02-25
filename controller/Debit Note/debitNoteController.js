@@ -10,11 +10,10 @@ const mongoose = require('mongoose');
 const DefAcc  = require("../../database/model/defaultAccount");
 const Account = require("../../database/model/account");
 const TrialBalance = require("../../database/model/trialBalance");
-
+const SupplierHistory = require("../../database/model/supplierHistory");
 
 const { cleanData } = require("../../services/cleanData");
 const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
-
 
 const { ObjectId } = require('mongodb');
 const moment = require("moment-timezone");
@@ -184,6 +183,19 @@ exports.addDebitNote = async (req, res) => {
     cleanedData.createdDateTime = moment.tz(cleanedData.supplierDebitDate, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp).toISOString();           
 
     const savedDebitNote = await createNewDebitNote(cleanedData, organizationId, userId, userName );
+
+    // Add entry to Supplier History
+    const supplierHistoryEntry = new SupplierHistory({
+      organizationId,
+      operationId: savedDebitNote._id,
+      supplierId,
+      title: "Debit Note Added",
+      description: `Debit Note ${savedDebitNote.debitNote} of amount ${savedDebitNote.grandTotal} created by ${userName}`,  
+      userId: userId,
+      userName: userName,
+    });
+
+    await supplierHistoryEntry.save();
 
     //Journal
     await journal( savedDebitNote, defAcc, supplierAccount, depositAccount );
