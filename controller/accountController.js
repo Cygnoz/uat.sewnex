@@ -65,7 +65,7 @@ exports.addAccount = async (req, res) => {
         return res.status(409).json({ message: "Account with the provided Account Name already exists."});        
       }
       
-      const createdDateTime = moment.tz(cleanedData.createdDateTime, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp).toISOString();           
+      const createdDateTime = moment.tz(cleanedData.createdDate, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp).toISOString();           
       
 
       // Encrypt bankAccNum before storing it
@@ -159,7 +159,7 @@ exports.editAccount = async (req, res) => {
       operationId: savedAccount._id,
     });
     
-    const createdDateTime = moment.tz(cleanedData.createdDateTime, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp).toISOString();           
+    const createdDateTime = moment.tz(cleanedData.createdDate, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp).toISOString();           
 
     // If there is only one TrialBalance entry, delete it
     if (existingTrialBalance) {
@@ -643,7 +643,7 @@ function validateReqFields( data, errors ) {
   validateField(typeof data.accountSubhead === 'undefined', "Account Subhead required", errors);
   validateField(typeof data.accountHead === 'undefined', "Account Head required", errors);
   validateField(typeof data.accountGroup === 'undefined', "Account Group required", errors);
-  validateField(typeof data.createdDateTime === 'undefined', "Opening Balance Date required", errors);
+  validateField(typeof data.createdDate === 'undefined', "Opening Balance Date required", errors);
   
   
   // validateField( typeof data.debitOpeningBalance === 'undefined' && typeof data.creditOpeningBalance === 'undefined', "Opening Balance required", errors );
