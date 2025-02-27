@@ -36,7 +36,7 @@ exports.updateCreditNote = async (req, res) => {
       // Fetch the latest credit note for the given customerId and organizationId
       const latestCreditNote = await getLatestCreditNote(creditId, organizationId, customerId, invoiceId, itemIds, res);
       if (!latestCreditNote) {
-        return; 
+        return res.status(404).json({ message: "No credit note found for this customer." }); 
       }
       
       // Validate _id's
