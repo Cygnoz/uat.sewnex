@@ -202,6 +202,9 @@ exports.addCreditNote = async (req, res) => {
     // Update Sales Invoice
     await updateSalesInvoiceWithCreditNote(invoiceId, items);
 
+    //Update Invoice Balance
+    await updateSalesInvoiceBalance( savedCreditNote, invoiceId ); 
+    
     // Calculate stock 
     await calculateStock(savedCreditNote);
       
@@ -994,6 +997,35 @@ const updateSalesInvoiceWithCreditNote = async (invoiceId, items) => {
     throw new Error("Failed to update Sales Invoice with Credit Note details.");
   }
 };
+
+
+
+
+
+
+// Function to update salesInvoice balance
+const updateSalesInvoiceBalance = async (savedCreditNote, invoiceId) => {
+  try {
+    const { totalAmount } = savedCreditNote;
+    const invoice = await Invoice.findOne({ _id: invoiceId });
+    let newBalance = invoice.balanceAmount - totalAmount; 
+    if (newBalance < 0) {
+      newBalance = 0;
+    }
+    console.log(`Updating salesInvoice balance: ${newBalance}, Total Amount: ${totalAmount}, Old Balance: ${invoice.balanceAmount}`);
+    
+    await Invoice.findOneAndUpdate({ _id: invoiceId }, { $set: { balanceAmount: newBalance } });
+  } catch (error) {
+    console.error("Error updating salesInvoice balance:", error);
+    throw new Error("Failed to update Sales Invoice balance.");
+  }
+};
+
+
+
+
+
+
 
 
 

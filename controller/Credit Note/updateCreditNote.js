@@ -18,7 +18,8 @@ exports.updateCreditNote = async (req, res) => {
   
     try {
       const { organizationId, id: userId, userName } = req.user;
-      const { creditId } = req.params;   
+      const { creditId } = req.params;
+      
       
       // Fetch existing credit note
       const existingCreditNote = await getExistingCreditNote(creditId, organizationId, res);
@@ -34,10 +35,10 @@ exports.updateCreditNote = async (req, res) => {
 
       // Fetch the latest credit note for the given customerId and organizationId
       const latestCreditNote = await getLatestCreditNote(creditId, organizationId, customerId, invoiceId, itemIds, res);
-      if (latestCreditNote) {
+      if (!latestCreditNote) {
         return; 
       }
-    
+      
       // Validate _id's
       const validateAllIds = validateIds({
         customerId,
@@ -109,6 +110,10 @@ exports.updateCreditNote = async (req, res) => {
 
       // Update Sales Invoice
       await updateSalesInvoiceWithCreditNote(invoiceId, items, organizationId, customerId, creditId);
+
+      //Update Invoice Balance      
+      await editUpdateSalesInvoiceBalance( savedCreditNote, invoiceId, existingCreditNote.totalAmount ); 
+      
   
       res.status(200).json({ message: "Credit note updated successfully", savedCreditNote });
       console.log("Credit Note updated successfully:", savedCreditNote);  
@@ -188,6 +193,9 @@ exports.updateCreditNote = async (req, res) => {
 
         // Update returnQuantity after deletion
         await updateReturnQuantity( existingCreditNoteItems, invoiceId );
+
+        //Update Invoice Balance      
+        await deleteUpdateSalesInvoiceBalance( invoiceId, existingCreditNote.totalAmount ); 
 
         // Fetch existing itemTrack entries
         const existingItemTracks = await ItemTrack.find({ organizationId, operationId: creditId });
@@ -339,44 +347,92 @@ async function updateReturnQuantity( existingCreditNoteItems, invoiceId ) {
 
 
 
-  const updateSalesInvoiceWithCreditNote = async (invoiceId, items, organizationId, customerId, creditId) => {
-    try {
-      for (const item of items) {
-        // Step 1: Fetch all credit notes matching the organizationId, customerId, invoiceId, and itemId,
-        // excluding the current creditId
-        const matchingCreditNotes = await CreditNote.find({
-          organizationId,
-          customerId,
-          invoiceId,
-          "items.itemId": item.itemId,
-          _id: { $ne: creditId }, // Exclude the current creditId
-        });
-  
-        // Step 2: Calculate the total quantity from the matched credit notes
-        let previousReturnQuantity = 0;
-        for (const creditNote of matchingCreditNotes) {
-          const matchedItem = creditNote.items.find(i => i.itemId.toString() === item.itemId.toString());
-          if (matchedItem) {
-            previousReturnQuantity += matchedItem.quantity; // Sum up quantities
-          }
+const updateSalesInvoiceWithCreditNote = async (invoiceId, items, organizationId, customerId, creditId) => {
+  try {
+    for (const item of items) {
+      // Step 1: Fetch all credit notes matching the organizationId, customerId, invoiceId, and itemId,
+      // excluding the current creditId
+      const matchingCreditNotes = await CreditNote.find({
+        organizationId,
+        customerId,
+        invoiceId,
+        "items.itemId": item.itemId,
+        _id: { $ne: creditId }, // Exclude the current creditId
+      });
+
+      // Step 2: Calculate the total quantity from the matched credit notes
+      let previousReturnQuantity = 0;
+      for (const creditNote of matchingCreditNotes) {
+        const matchedItem = creditNote.items.find(i => i.itemId.toString() === item.itemId.toString());
+        if (matchedItem) {
+          previousReturnQuantity += matchedItem.quantity; // Sum up quantities
         }
-  
-        // Step 3: Add the quantity of the item being updated to the previous return quantity
-        const newReturnQuantity = previousReturnQuantity + item.quantity;
-  
-        // Step 4: Update the returnQuantity in the sales invoice
-        await Invoice.findOneAndUpdate(
-          { _id: invoiceId, 'items.itemId': item.itemId },
-          {
-            $set: { 'items.$.returnQuantity': newReturnQuantity },
-          }
-        );
       }
-    } catch (error) {
-      console.error("Error updating salesInvoice with returnQuantity:", error);
-      throw new Error("Failed to update Sales Invoice with Credit Note details.");
+
+      // Step 3: Add the quantity of the item being updated to the previous return quantity
+      const newReturnQuantity = previousReturnQuantity + item.quantity;
+
+      // Step 4: Update the returnQuantity in the sales invoice
+      await Invoice.findOneAndUpdate(
+        { _id: invoiceId, 'items.itemId': item.itemId },
+        {
+          $set: { 'items.$.returnQuantity': newReturnQuantity },
+        }
+      );
     }
-  };
+  } catch (error) {
+    console.error("Error updating salesInvoice with returnQuantity:", error);
+    throw new Error("Failed to update Sales Invoice with Credit Note details.");
+  }
+};
+
+
+
+
+
+
+
+
+
+
+// Function to update salesInvoice balance
+const editUpdateSalesInvoiceBalance = async (savedCreditNote, invoiceId, oldTotalAmount) => {
+  try {
+    const { totalAmount } = savedCreditNote;
+    const invoice = await Invoice.findOne({ _id: invoiceId });
+    let newBalance = invoice.balanceAmount + oldTotalAmount - totalAmount; 
+    if (newBalance < 0) {
+      newBalance = 0;
+    }
+    console.log(`Updating salesInvoice balance: ${newBalance}, Total Amount: ${totalAmount}, Old Balance: ${invoice.balanceAmount}`);
+    
+    await Invoice.findOneAndUpdate({ _id: invoiceId }, { $set: { balanceAmount: newBalance } });
+  } catch (error) {
+    console.error("Error updating salesInvoice balance:", error);
+    throw new Error("Failed to update Sales Invoice balance.");
+  }
+};
+
+
+
+
+
+const deleteUpdateSalesInvoiceBalance = async ( invoiceId, oldTotalAmount) => {
+  try {
+    const invoice = await Invoice.findOne({ _id: invoiceId });
+    let newBalance = invoice.balanceAmount + oldTotalAmount; 
+    if (newBalance < 0) {
+      newBalance = 0;
+    }
+    console.log(`Updating salesInvoice balance: ${newBalance}, Old Balance: ${invoice.balanceAmount}`);
+    
+    await Invoice.findOneAndUpdate({ _id: invoiceId }, { $set: { balanceAmount: newBalance } });
+  } catch (error) {
+    console.error("Error updating salesInvoice balance:", error);
+    throw new Error("Failed to update Sales Invoice balance.");
+  }
+};
+
 
 
 
@@ -770,7 +826,7 @@ function capitalize(word) {
       operationId: savedCreditNote._id,
       transactionId: savedCreditNote.creditNote,
       date: savedCreditNote.createdDate,
-      accountId: paidThroughAccount.paidAccount._id || undefined,
+      accountId: paidThroughAccount.paidAccount?._id || undefined,
       action: "Credit Note",
       debitAmount: 0,
       creditAmount: savedCreditNote.totalAmount || 0,
