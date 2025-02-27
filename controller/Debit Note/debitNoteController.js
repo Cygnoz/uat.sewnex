@@ -206,6 +206,9 @@ exports.addDebitNote = async (req, res) => {
     // Update Purchase Bill
     await updateBillWithDebitNote(billId, items);
 
+    //Update Bill Balance
+    await updateBillBalance( savedDebitNote, billId ); 
+
     // Calculate stock 
     await calculateStock(savedDebitNote);
       
@@ -411,7 +414,23 @@ function taxType( cleanedData, supplierExist ) {
 
 
 
-
+// Function to update purchase bill balance
+const updateBillBalance = async (savedDebitNote, billId) => {
+  try {
+    const { grandTotal } = savedDebitNote;
+    const bill = await Bills.findOne({ _id: billId });
+    let newBalance = bill.balanceAmount - grandTotal; 
+    if (newBalance < 0) {
+      newBalance = 0;
+    }
+    console.log(`Updating purchase bill balance: ${newBalance}, Total Amount: ${grandTotal}, Old Balance: ${bill.balanceAmount}`);
+    
+    await Bills.findOneAndUpdate({ _id: billId }, { $set: { balanceAmount: newBalance } });
+  } catch (error) {
+    console.error("Error updating purchase bill balance:", error);
+    throw new Error("Failed to update purchase bill balance.");
+  }
+};
 
 
 

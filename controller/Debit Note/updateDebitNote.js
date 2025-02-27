@@ -111,6 +111,9 @@ exports.updateDebitNote = async (req, res) => {
 
       // Update Purchase Bill
       await updateBillWithDebitNote(billId, items, organizationId, supplierId, debitId);
+      
+      //Update Bill Balance      
+      await editUpdateBillBalance( savedDebitNote, billId, existingDebitNote.grandTotal ); 
   
       res.status(200).json({ message: "Debit note updated successfully", savedDebitNote });
       // console.log("Debit Note updated successfully:", savedDebitNote);  
@@ -189,6 +192,9 @@ exports.updateDebitNote = async (req, res) => {
 
         // Update returnQuantity after deletion
         await updateReturnQuantity( existingDebitNoteItems, billId );
+
+        //Update purchase bill Balance      
+        await deleteUpdateBillBalance( billId, existingDebitNoteItems.grandTotal );
 
         // Fetch existing itemTrack entries
         const existingItemTracks = await ItemTrack.find({ organizationId, operationId: debitId });
@@ -299,6 +305,44 @@ async function updateReturnQuantity( existingDebitNoteItems, billId ) {
   }
 }
 
+
+
+// Function to update purchase bill balance
+const editUpdateBillBalance = async (savedDebitNote, billId, oldGrandTotal) => {
+  try {
+    const { grandTotal } = savedDebitNote;
+    const bill = await Bill.findOne({ _id: billId });
+    let newBalance = bill.balanceAmount + oldGrandTotal - grandTotal; 
+    if (newBalance < 0) {
+      newBalance = 0;
+    }
+    console.log(`Updating purchase bill balance: ${newBalance}, Total Amount: ${grandTotal}, Old Balance: ${bill.balanceAmount}`);
+    
+    await Bill.findOneAndUpdate({ _id: billId }, { $set: { balanceAmount: newBalance } });
+  } catch (error) {
+    console.error("Error updating purchase bill balance:", error);
+    throw new Error("Failed to update purchase bill balance.");
+  }
+};
+
+
+
+// Function to update purchase bill balance
+const deleteUpdateBillBalance = async ( billId, oldGrandTotal) => {
+  try {
+    const bill = await Bill.findOne({ _id: billId });
+    let newBalance = bill.balanceAmount + oldGrandTotal; 
+    if (newBalance < 0) {
+      newBalance = 0;
+    }
+    console.log(`Updating purchase bill balance: ${newBalance}, Old Balance: ${bill.balanceAmount}`);
+    
+    await Bill.findOneAndUpdate({ _id: billId }, { $set: { balanceAmount: newBalance } });
+  } catch (error) {
+    console.error("Error updating purchase bill balance:", error);
+    throw new Error("Failed to update purchase bill balance.");
+  }
+};
 
 
 
