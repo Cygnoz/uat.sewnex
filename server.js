@@ -29,13 +29,13 @@ server.use(helmet());
 server.use(inventoryRouter); 
 server.use(sewnexRouter);
 
-const PORT = 5003
+const PORT = 4003
 
 server.get('/',(req,res)=>{
-    res.status(200).json("Dev Bill BIZZ server started - Inventory v2.0")
+    res.status(200).json("Dev Sewnex server started - Inventory v2.0")
 });
 
 server.listen(PORT,()=>{
-    console.log(`BillBIZZ server Inventory started at port : ${PORT}`);
+    console.log(`Sewnex server Inventory started at port : ${PORT}`);
 });
 

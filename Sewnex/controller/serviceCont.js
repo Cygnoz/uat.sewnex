@@ -12,7 +12,7 @@ const mongoose = require('mongoose');
 
 
 
-const dataExist = async ( organizationId, salesAccountId = null, serviceId ) => {  
+const dataExist = async ( organizationId, serviceId, salesAccountId = null  ) => {  
     const [ organizationExists, taxExists, settingsExist, salesAccount, cpsExist, allService, service ] = await Promise.all([
       Organization.findOne({ organizationId }),
       Tax.findOne({ organizationId }),
@@ -52,7 +52,7 @@ exports.addService = async (req, res) => {
 
         if (await isDuplicateName(serviceName, organizationId, res)) return;
       
-        const { organizationExists, taxExists, salesAccount, cpsExist } = await dataExist( organizationId, salesAccountId );
+        const { organizationExists, taxExists, salesAccount, cpsExist } = await dataExist( organizationId, null, salesAccountId );
 
         // Call the validation function
         const validationError = validateIds(categoryId, salesAccountId, parameterIds, styleIds, cleanedData, cpsExist, res);
@@ -106,7 +106,7 @@ exports.editService = async (req, res) => {
       // Check for duplicate service name (excluding the current service)
       if (await isDuplicateNameExist(serviceName, organizationId, serviceId, res)) return;
 
-      const { organizationExists, taxExists, salesAccount, cpsExist } = await dataExist(organizationId, salesAccountId);
+      const { organizationExists, taxExists, salesAccount, cpsExist } = await dataExist(organizationId, null, salesAccountId);
 
       // Validate IDs
       const validationError = validateIds(categoryId, salesAccountId, parameterIds, styleIds, cleanedData, cpsExist, res);
@@ -143,7 +143,7 @@ exports.getAllServices = async (req, res) => {
     try {
         const organizationId = req.user.organizationId;
 
-        const { organizationExists, allService } = await dataExist( organizationId, null );
+        const { organizationExists, allService } = await dataExist( organizationId, null, null );
     
         if (!organizationExists) return res.status(404).json({ message: "No Organization Found." });
 
