@@ -25,13 +25,13 @@ server.use(helmet());
 server.use(express.json())
 server.use(supplierRouter)
 
-const PORT = 5009
+const PORT = 4009
 
 server.get('/',(req,res)=>{
-    res.status(200).json("Dev Bill BIZZ server started - Supplier v1.6")
+    res.status(200).json("Dev Sewnex server started - Supplier v1.6")
 })
 
 server.listen(PORT,()=>{
-    console.log(`BillBIZZ server Supplier started at port : ${PORT}`);
+    console.log(`Sewnex server Supplier started at port : ${PORT}`);
 })
 
