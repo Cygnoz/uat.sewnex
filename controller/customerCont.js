@@ -25,7 +25,9 @@ const dataExist = async ( organizationId, customerId) => {
       Customer.find({ organizationId },{organizationId:0})
       .populate('referenceCustomerId', 'customerDisplayName')
       .lean(),
-      Customer.findOne({ _id:customerId, organizationId},{organizationId:0}).lean(),
+      Customer.findOne({ _id:customerId, organizationId},{organizationId:0})
+      .populate('referenceCustomerId', 'customerDisplayName')
+      .lean(),
       Account.findOne({ accountId: customerId, organizationId },{organizationId:0}).lean(),
       TrialBalance.findOne({ organizationId, operationId: customerId},{organizationId:0}).lean(),
       CustomerHistory.find({ organizationId, customerId },{organizationId:0})
@@ -218,6 +220,8 @@ exports.getOneCustomer = async (req, res) => {
     if (!existingCustomer) {
       return res.status(404).json({ message: "Customer not found" });
     }
+    console.log("Existing Customer:", existingCustomer.referenceCustomerId);
+    
 
     const transformedExpense = {
       ...existingCustomer,

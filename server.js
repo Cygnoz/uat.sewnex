@@ -29,13 +29,13 @@ server.use(helmet());
 server.use(express.json())
 server.use(customerRouter)
 
-const PORT = 5002
+const PORT = 4002
 
 server.get('/',(req,res)=>{
-    res.status(200).json("Dev Bill BIZZ server started - Customer v1.6")
+    res.status(200).json("Dev Sewnex server started - Customer v1")
 })
 
 const app = server.listen(PORT, () => {
-    console.log(`BillBIZZ server Customer started at port : ${PORT}`);
+    console.log(`Sewnex server Customer started at port : ${PORT}`);
 });
 
