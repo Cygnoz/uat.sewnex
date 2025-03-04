@@ -14,7 +14,7 @@ RUN npm install
 COPY . .
 
 # Expose the port your application will run on
-EXPOSE 5004
+EXPOSE 4004
 
 # Define the command to run your application
 CMD [ "node", "server.js" ]
