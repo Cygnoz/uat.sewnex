@@ -7,38 +7,33 @@ const { Schema } = mongoose;
 const staffSchema = new Schema({
   organizationId: { type: String },
 
-  staffName: { type: String },
   staffImage: { type: String },
-
-  proofImage: { type: String },
-  documentNumber: { type: String },
-  uploadDocument: { type: String },
-
+  staffName: { type: String },
   gender: { type: String },
-  location: { type: String },
-  contact: { type: String },
 
-  department: { type: String },
-  designation: { type: String },
-
+  contactNumber: { type: String },
   email: { type: String },
-  password: { type: String },
-
   address: { type: String },
+
+  enablePortal: { type: Boolean },
+  password: { type: String },
+  
   dob: { type: String },
   doj: { type: String },
   
-  role: { type: String },
+  uploadDocument: { type: String },
 
-  employeeId: { type: String },
+  department: { type: String }, //role
+  
+  workType: { type: String },
+  
+  domainDesignation: { type: String },
 
-  workType: { type: String }, //role
+  salaryType: { type: String },//Monthly , per week
 
-
-  paymentType: { type: String },//Monthly , per week
-  salary: { type: String }
-
-  // service: { type: String }, 
+  service:[{
+    serviceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Service' },
+  }], 
 });
 
 const Staff = mongoose.model("Staff", staffSchema);
