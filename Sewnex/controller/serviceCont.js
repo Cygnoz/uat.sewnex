@@ -252,26 +252,36 @@ const validateIds = (categoryId, salesAccountId, parameterIds, styleIds, cleaned
   if (categoryId && (!mongoose.Types.ObjectId.isValid(categoryId) || categoryId.length !== 24)) {
     return res.status(400).json({ message: `Invalid category ID: ${categoryId}` });
   }
-  const validCategory = cpsExist.find(cps => cps._id.toString() === categoryId && cps.type === 'category');
-  if (!validCategory) {
+
+  const validCategory = categoryId 
+  ? cpsExist.find(cps => cps._id.toString() === String(categoryId) && cps.type === 'category') 
+  : null;
+
+  if (categoryId && !validCategory) {
     return res.status(400).json({ message: `Category ID does not exist in CPS: ${categoryId}` });
   }
-
 
   // Validate Sales Account ID
   if ((!mongoose.Types.ObjectId.isValid(salesAccountId) || salesAccountId.length !== 24) && cleanedData.salesAccountId !== undefined) {
     return res.status(400).json({ message: `Select sales account id` });
   }
 
-  // Validate Parameter IDs
-  const invalidParameterIds = parameterIds.filter(parameterId => !mongoose.Types.ObjectId.isValid(parameterId) || parameterId.length !== 24);
-  if (invalidParameterIds.length > 0) {
-    return res.status(400).json({ message: `Invalid Parameter IDs: ${invalidParameterIds.join(', ')}` });
-  }
-  const invalidParams = parameterIds.filter(parameterId => !cpsExist.find(cps => cps._id.toString() === parameterId && cps.type === 'parameter'));
+
+  // Validate Parameter IDs  
+  const invalidParams = Array.isArray(parameterIds) 
+  ? parameterIds
+      .filter(parameterId => parameterId) // Discard undefined/null values
+      .filter(parameterId => 
+        !cpsExist.find(cps => cps._id.toString() === String(parameterId) && cps.type === 'parameter')
+      ) 
+  : [];
+
   if (invalidParams.length > 0) {
     return res.status(400).json({ message: `Parameter IDs do not exist in CPS: ${invalidParams.join(', ')}` });
   }
+
+
+
   // Check for duplicate Parameter IDs
   const uniqueParameterIds = new Set(parameterIds);
   if (uniqueParameterIds.size !== parameterIds.length) {
@@ -279,14 +289,25 @@ const validateIds = (categoryId, salesAccountId, parameterIds, styleIds, cleaned
   }
 
   // Validate Style IDs
-  const invalidStyleIds = styleIds.filter(styleId => !mongoose.Types.ObjectId.isValid(styleId) || styleId.length !== 24);
+  const validStyleIds = Array.isArray(styleIds) ? styleIds.filter(styleId => styleId) : [];
+  const invalidStyleIds = validStyleIds.filter(styleId => 
+    !mongoose.Types.ObjectId.isValid(styleId) || String(styleId).length !== 24
+  );
+  
   if (invalidStyleIds.length > 0) {
     return res.status(400).json({ message: `Invalid Style IDs: ${invalidStyleIds.join(', ')}` });
   }
-  const invalidStyles = styleIds.filter(styleId => !cpsExist.find(cps => cps._id.toString() === styleId && cps.type === 'style'));
+  
+  
+  const invalidStyles = validStyleIds.filter(styleId => 
+    !cpsExist.find(cps => cps._id.toString() === String(styleId) && cps.type === 'style')
+  );
+  
   if (invalidStyles.length > 0) {
     return res.status(400).json({ message: `Style IDs do not exist in CPS: ${invalidStyles.join(', ')}` });
   }
+
+
   // Check for duplicate Style IDs
   const uniqueStyleIds = new Set(styleIds);
   if (uniqueStyleIds.size !== styleIds.length) {
