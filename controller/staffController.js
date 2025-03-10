@@ -8,6 +8,8 @@ const { cleanData } = require('../services/cleanData');
 const mongoose = require('mongoose');
 const Service = require('../Sewnex/model/service');
 
+const { singleCustomDateTime, multiCustomDateTime } = require("../services/timeConverter");
+
 
 const key = Buffer.from(process.env.ENCRYPTION_KEY, 'utf8'); 
 const iv = Buffer.from(process.env.ENCRYPTION_IV, 'utf8'); 
@@ -154,16 +156,17 @@ exports.getAllStaff = async (req, res) => {
 
       if (!allStaff.length) {
         return res.status(404).json({ message: "No Staff found for the provided organization" });
-      }
+      }      
 
-      const transformedData = allStaff.map(data => {
-        return {
-            ...data,
-            service: data.service.map(item => ({
-              serviceId: item.serviceId?._id,
-              serviceName: item.serviceId?.serviceName,
-            })),  
-        };});
+      const transformedData = allStaff.map(data => ({
+        ...data,
+        service: Array.isArray(data.service)
+            ? data.service.map(item => ({
+                serviceId: item.serviceId?._id || null,
+                serviceName: item.serviceId?.serviceName || null,
+            }))
+            : [] 
+    }));
        
 
       const formattedObjects = multiCustomDateTime(transformedData, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );          
@@ -191,10 +194,12 @@ exports.getOneStaff = async (req, res) => {
 
         const transformedData = {
           ...staff,
-          service: data.service.map(item => ({
-            serviceId: item.serviceId?._id,
-            serviceName: item.serviceId?.serviceName,
-          })),  
+          service: Array.isArray(data.service)
+            ? data.service.map(item => ({
+                serviceId: item.serviceId?._id || null,
+                serviceName: item.serviceId?.serviceName || null,
+            }))
+            : []  
       };
 
 
