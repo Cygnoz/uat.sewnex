@@ -6,29 +6,6 @@ const { Schema } = mongoose
 const serviceSchema = new Schema({
 
   orderServiceId: {type: mongoose.Schema.Types.ObjectId, ref: 'SewnexOrderService'},
-  //itemName
-
-  sellingPrice: {type:Number},
-
-  taxPreference: {type:String},
-  taxGroup: {type:String},
-  cgst: { type: Number },
-  sgst: { type: Number },
-  igst: { type: Number },
-  vat: { type: Number },
-
-  cgstAmount: { type: Number },
-  sgstAmount: { type: Number },
-  igstAmount: { type: Number },
-  vatAmount: { type: Number },
-
-  itemTotalTax: {type:Number},
-
-  discountType: {type:String}, //Currency,Percentage
-  discountAmount: {type:Number}, 
-  itemAmount: {type:Number},
-  // salesAccountId: {type:String}
-
   }, { _id: false });
 
 
@@ -48,37 +25,36 @@ const SewnexOrderSchema = new Schema ({
   placeOfSupply: { type: String },
 
   salesOrder: { type: String }, //prefix
+  saleOrderDate: { type: String },
   
   service: [serviceSchema],  
 
+  saleAmount: { type: Number },
+  subTotal: { type: Number },
+  totalService: { type: Number },
   discountTransactionType: { type: String }, // Currency,Percentage
   discountTransactionAmount: { type: Number },
-  taxType: { type: String },//Intra, Inter, Non-tax, VAT 
-
-  saleAmount: { type: Number },
-  
-  subTotal: { type: Number },
-  totalItem: { type: Number },
 
   cgst: { type: Number },
   sgst: { type: Number },
   igst: { type: Number },
   vat: { type: Number },
+  
+  taxType: { type: String },//Intra, Inter, Non-tax, VAT 
+  
+  totalDiscount: { type: Number },
   totalTax: { type: Number },
   totalAmount: { type: Number },
-  totalDiscount: { type: Number },
-
+  
   paidAmount: { type: Number }, 
   balanceAmount: { type: Number },
   depositAccountId: { type: mongoose.Schema.Types.ObjectId, ref: 'Accounts' },
-
   paymentMethod: { type: String },
+
 
   paidStatus: { type: String },
 
   salesJournal:[ journalSchema ], 
-
-  createdDateTime: { type: Date, default: () => new Date() },
 
   editLimit: {type: Boolean, default: true},   // true - before taxation file date  |  false - after taxation file date
 

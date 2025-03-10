@@ -8,11 +8,12 @@ const SewnexOrderServiceSchema = new Schema ({
 
     organizationId: { type: String, index: true },
     
-    serviceId: { type: mongoose.Schema.Types.ObjectId, ref: 'service' },
+    serviceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Service' },
     //serviceName
 
-    fabric: [
+    orderId: {type:String},
 
+    fabric: [
       {
         itemId: {type: mongoose.Schema.Types.ObjectId, ref: 'Item'},
         //itemName
@@ -22,7 +23,7 @@ const SewnexOrderServiceSchema = new Schema ({
         sellingPrice: {type:Number},
 
         taxPreference: {type:String},
-        taxGroup: {type:String},
+        taxRate: {type:String},
         cgst: { type: Number },
         sgst: { type: Number },
         igst: { type: Number },
@@ -36,10 +37,12 @@ const SewnexOrderServiceSchema = new Schema ({
         itemTotalTax: {type:Number},
 
         itemAmount: {type:Number},
-        salesAccountId: {type:String}
 
       }
     ],  
+
+
+
 
     measurement: [
      { 
@@ -49,31 +52,76 @@ const SewnexOrderServiceSchema = new Schema ({
      }
     ],
 
+
+
+
     style: [
       {
         styleId: {type: mongoose.Schema.Types.ObjectId, ref: 'CPS'},
         //styleName
         styleRate: { type: Number },
+        taxPreference: {type:String},
+        taxRate: {type:String},
+        cgst: { type: Number },
+        sgst: { type: Number },
+        igst: { type: Number },
+        vat: { type: Number },
+        cgstAmount: { type: Number },
+        sgstAmount: { type: Number },
+        igstAmount: { type: Number },
+        vatAmount: { type: Number },
+        styleTax: { type: Number },
+        styleAmount: {type:Number}
       }
     ],
   
+
+
     referenceImage: [
       {
         imageUrl: {type:String}
       }
     ],
     
+
+
+
+    cgst: { type: Number },
+    sgst: { type: Number },
+    igst: { type: Number },
+    vat: { type: Number },
+    taxRate: { type: String },
+    cgstService: { type: Number },
+    sgstService: { type: Number },
+    igstService: { type: Number },
+    vatService: { type: Number },
     
     trialDate: { type: String },
-
     deliveryDate: { type: String }, 
     requiredWorkingDay: { type: Number }, 
 
     serviceRate: { type: Number },
-    fabricRate: { type: Number },
-    styleRate: { type: Number },
+    serviceTax: { type: Number },
+    serviceAmount: { type: Number },
 
-    status: { type: String, default: 'Pending' },
+    fabricRate: { type: Number },
+    fabricTax: { type: Number },
+
+    styleRate: { type: Number },
+    styleTax: { type: Number },
+
+    totalRate: { type: Number },
+    totalTax: { type: Number },
+
+    //Tax
+    cgstAmount: { type: Number },
+    sgstAmount: { type: Number },
+    igstAmount: { type: Number },
+    vatAmount: { type: Number },
+
+    itemTotal: { type: Number },
+
+    status: { type: String, default: 'Order Placed' },
     createDateTime: { type: Date, default: Date.now },
     
   })

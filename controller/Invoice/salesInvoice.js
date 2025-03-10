@@ -427,7 +427,7 @@ const validCountries = {
       "Ajman",
       "Umm Al-Quwain",
       "Fujairah",
-      "Ras Al Khaimah",
+      "Ras Al kaiak",
     ],
     "India": [
       "Andaman and Nicobar Island",

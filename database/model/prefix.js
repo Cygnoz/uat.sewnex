@@ -1,4 +1,4 @@
-// v1.1
+// v1.2
 
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
@@ -42,8 +42,10 @@ const seriesSchema = new Schema({
   deliveryChallanNum: { type: Number },
 
   expense: { type: String },//expense
-  expenseNum: { type: Number }, 
-
+  expenseNum: { type: Number },
+  
+  order: { type: String },//sewnex order
+  orderNum: { type: Number }
 });
 
 const prefixSchema = new Schema({
@@ -54,4 +56,5 @@ const prefixSchema = new Schema({
 });
 
 const Prefix = mongoose.model("Prefix", prefixSchema);
+
 module.exports = Prefix;

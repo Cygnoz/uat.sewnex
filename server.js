@@ -7,6 +7,8 @@ const helmet = require('helmet');
 
 const server = express();
 const salesRouter = require("./router/salesRouter");
+const sewnexRouter = require("./router/sewnexRouter");
+
 require('./database/connection/connection');
 
 server.use(cors({
@@ -25,6 +27,7 @@ server.options('*', (req, res) => {
 server.use(helmet()); 
 server.use(express.json());
 server.use(salesRouter);
+server.use(sewnexRouter);
 
 const PORT = 4007
 
