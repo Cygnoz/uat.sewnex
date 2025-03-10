@@ -186,7 +186,7 @@ exports.getOneStaff = async (req, res) => {
 
         const organizationId = req.user.organizationId;
 
-        const { organizationExists, staff } = await dataExist( organizationId, email, staffId );
+        const { organizationExists, staff } = await dataExist( organizationId, null, staffId );
 
         if(!organizationExists) return res.status(404).json({ message: 'Organization not found' });
 
@@ -194,8 +194,8 @@ exports.getOneStaff = async (req, res) => {
 
         const transformedData = {
           ...staff,
-          service: Array.isArray(data.service)
-            ? data.service.map(item => ({
+          service: Array.isArray(staff.service)
+            ? staff.service.map(item => ({
                 serviceId: item.serviceId?._id || null,
                 serviceName: item.serviceId?.serviceName || null,
             }))
