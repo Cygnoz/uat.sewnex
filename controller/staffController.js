@@ -140,7 +140,7 @@ exports.editStaff = async (req, res) => {
         
     } catch (error) {
       console.error("Error in editStaff:", error);
-        res.status(500).json({ message: 'Server Error', error: error.message });
+      res.status(500).json({ message: 'Server Error', error: error.message });
     }
 };
 
@@ -171,7 +171,8 @@ exports.getAllStaff = async (req, res) => {
       
     res.status(200).json(formattedObjects);
     } catch (error) {
-        res.status(500).json({ message: 'Server Error', error: error.message });
+      console.error("Error in getAllStaff:", error);
+      res.status(500).json({ message: 'Server Error', error: error.message });
     }
 };
 
@@ -200,7 +201,8 @@ exports.getOneStaff = async (req, res) => {
 
         res.status(200).json(transformedData);
     } catch (error) {
-        res.status(500).json({ message: 'Server Error', error: error.message });
+      console.error("Error in getAllStaff:", error);
+      res.status(500).json({ message: 'Server Error', error: error.message });
     }
 };
 
