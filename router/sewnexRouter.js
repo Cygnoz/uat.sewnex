@@ -5,6 +5,7 @@ const router = new express.Router()
 const cpsController = require("../Sewnex/controller/cpsController");
 const serviceController = require("../Sewnex/controller/serviceCont");
 const membershipController = require("../Sewnex/controller/membershipPlanCont");
+const itemController = require("../Sewnex/controller/itemController");
 
 const checkPermission = require('../controller/middleware');
 const { verifyToken } = require('../controller/middleware');
@@ -31,6 +32,9 @@ router.get('/get-all-membership', verifyToken, membershipController.getAllMember
 router.get('/get-one-membership/:membershipId', verifyToken, membershipController.getOneMembershipPlan);
 router.put('/edit-membership/:membershipId', verifyToken, membershipController.editMembershipPlan);
 router.delete('/delete-membership/:membershipId', verifyToken, membershipController.deleteMembershipPlan);
+
+//Order
+router.post('/get-all-fabric-item', verifyToken, itemController.getAllItemFabric);
 
 
 

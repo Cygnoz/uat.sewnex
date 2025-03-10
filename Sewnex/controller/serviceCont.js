@@ -21,8 +21,22 @@ const dataExist = async ( organizationId, serviceId, salesAccountId = null  ) =>
       CPS.find({ organizationId }),
       Service.find({organizationId})
       .populate('categoryId', 'name')
-      .populate('parameter.parameterId', 'name')    
-      .populate('style.styleId', 'name')    
+      .populate({
+        path: 'parameter.parameterId',
+        select: 'name categoryId', 
+        populate: {
+          path: 'categoryId', 
+          select: 'name',
+        },
+      })
+      .populate({
+        path: 'style.styleId',
+        select: 'name categoryId', 
+        populate: {
+          path: 'categoryId', 
+          select: 'name',
+        },
+      })
       .lean(),
       Service.findOne({ organizationId, _id: serviceId })
       .populate('categoryId', 'name')
@@ -31,7 +45,7 @@ const dataExist = async ( organizationId, serviceId, salesAccountId = null  ) =>
       .lean(),
     ]);
     return { organizationExists, taxExists, settingsExist, salesAccount, cpsExist, allService, service };
-  };
+};
 
 
 
@@ -155,14 +169,16 @@ exports.getAllServices = async (req, res) => {
           ...data,
           categoryId: data.categoryId ? data.categoryId._id : undefined,  
           categoryName: data.categoryId ? data.categoryId.name : undefined, 
-          parameter: data.parameter.map(p => ({
-            parameterId: p.parameterId ? p.parameterId._id : undefined,
-            parameterName: p.parameterId ? p.parameterId.name : undefined,
-          })),
+          parameter: data.parameter?.map(p => ({
+            parameterId: p.parameterId?._id,
+            parameterName: p.parameterId?.name,
+            parameterCategoryName: p.parameterId?.categoryId?.name, // Extract category name
+          })) || [],
           style: data.style.map(s => ({
             ...s,
             styleId: s.styleId ? s.styleId._id : undefined,
             styleName: s.styleId ? s.styleId.name : undefined,
+            styleCategoryName : s.styleId?.categoryId?.name
           }))
         };});
           
