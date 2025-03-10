@@ -50,32 +50,36 @@ exports.addStaff = async (req, res) => {
         
         if (existingUser) return res.status(409).json({ message: 'User with this email already exists.' });
 
-        
+        cleanedData.department = "Manufacture";
+      
         if (!validateInputs( cleanedData, organizationExists, allRole, allService, res)) return;
 
-        if(cleanedData.password){ cleanedData.password = encrypt(cleanedData.password); }
+        if(cleanedData.password){ cleanedData.password = encrypt(cleanedData.password); }       
         
-        const hashedPassword = await bcrypt.hash(password, 10);
-
         const staff = await Staff.create({ ...cleanedData, organizationId });
-
+        
         if (!staff) return res.status(500).json({ message: 'Error adding staff' });
-        
-        const user = await Users.create({
-          organizationId,
-          userName: cleanedData.staffName,
-          userNum: cleanedData.contactNumber,
-          userEmail: cleanedData.email,
-          password: hashedPassword,
-          role: cleanedData.department,
-        });
 
-        if (!user) return res.status(500).json({ message: 'Error adding user' });
+        if(cleanedData.enablePortal === true){
+
+          const hashedPassword = await bcrypt.hash(password, 10);
         
+          const user = await Users.create({
+            organizationId,
+            userName: cleanedData.staffName,
+            userNum: cleanedData.contactNumber,
+            userEmail: cleanedData.email,
+            password: hashedPassword,
+            role: cleanedData.department,
+          });
+
+          if (!user) return res.status(500).json({ message: 'Error adding user' });
+        }
+        console.log( "Staff Added Successfully",staff);        
         res.status(201).json({ message: 'Staff added successfully', staff });
     } catch (error) {
         console.error("Error in addStaff:", error);
-        res.status(500).json({ message: 'Server Error', error: error.message });
+        res.status(500).json({ message: 'Error adding staff', error: error.message });
     }
 };
 
@@ -109,23 +113,43 @@ exports.editStaff = async (req, res) => {
         }
 
         //Password Encryption
-        const oldPassword = decrypt(staff.password);
-        
-        if( cleanedData.password != oldPassword ){ cleanedData.password = encrypt(cleanedData.password); }
+        if(staff.enablePortal === true && cleanedData.enablePortal === true){
+          
+          cleanedData.password = encrypt(cleanedData.password); 
+          const hashedPassword = await bcrypt.hash(password, 10);          
+          
+          //User Update
+          if (existingUser) {
+            existingUser.userName = cleanedData.staffName;
+            existingUser.userNum = cleanedData.contactNumber;
+            existingUser.userEmail = cleanedData.email;
+            existingUser.password = hashedPassword;
+            existingUser.role = cleanedData.department;
+            
+            const updateUser = await existingUser.save(); 
+            
+            if (!updateUser) return res.status(500).json({ message: 'Error updating user' });
+            
+          }
+        }else if(staff.enablePortal === false && cleanedData.enablePortal === true){
+          
+          cleanedData.password = encrypt(cleanedData.password); 
+          const hashedPassword = await bcrypt.hash(password, 10);
+          
+          const user = await Users.create({
+            organizationId,
+            userName: cleanedData.staffName,
+            userNum: cleanedData.contactNumber,
+            userEmail: cleanedData.email,
+            password: hashedPassword,
+            role: cleanedData.department,
+          });
 
-        const hashedPassword = await bcrypt.hash(password, 10);
+          if (!user) return res.status(500).json({ message: 'Error adding user' });
 
-        //User Update
-        if (existingUser) {
-          existingUser.userName = cleanedData.staffName;
-          existingUser.userNum = cleanedData.contactNumber;
-          existingUser.userEmail = cleanedData.email;
-          existingUser.password = hashedPassword;
-          existingUser.role = cleanedData.department;
-    
-          const updateUser = await existingUser.save(); 
+        }else if(staff.enablePortal === true && cleanedData.enablePortal === false){
 
-          if (!updateUser) return res.status(500).json({ message: 'Error updating user' });
+          await Users.findOneAndDelete({ userEmail: staff.email });
 
         }
 
@@ -137,12 +161,14 @@ exports.editStaff = async (req, res) => {
         if (!savedStaff) {
           console.error("Staff could not be saved.");
           return res.status(500).json({ message: "Failed to Update Staff." });
-        }       
+        }
         
+        console.log( "Staff Edited Successfully",savedStaff);        
+        res.status(201).json({ message: 'Staff Edited successfully', savedStaff });   
         
     } catch (error) {
       console.error("Error in editStaff:", error);
-      res.status(500).json({ message: 'Server Error', error: error.message });
+      res.status(500).json({ message: 'Error Editing Staff', error: error.message });
     }
 };
 
@@ -194,15 +220,24 @@ exports.getOneStaff = async (req, res) => {
 
         const transformedData = {
           ...staff,
-          password: staff.password ? decrypt(staff.password) : null,
           service: Array.isArray(staff.service)
             ? staff.service.map(item => ({
                 serviceId: item.serviceId?._id || null,
                 serviceName: item.serviceId?.serviceName || null,
             }))
             : []  
-      };
+        };
 
+        if (staff.password && typeof staff.password === "string" && staff.password.trim() !== "") {
+          try {
+              transformedData.password = decrypt(staff.password);
+          } catch (decryptError) {
+              console.error("Decryption error:", decryptError);
+              transformedData.password = null; 
+          }
+        }
+      
+      
         res.status(200).json(transformedData);
     } catch (error) {
       console.error("Error in getAllStaff:", error);
@@ -220,12 +255,16 @@ exports.deleteStaff = async (req, res) => {
       const staff = await Staff.findById(staffId);
       if (!staff) return res.status(404).json({ message: "Staff not found" });
 
-      const user = await Users.findOneAndDelete({ userEmail: staff.email });
-      if (!user) return res.status(404).json({ message: "User not found" });
+      console.log("Staff:", staff.enablePortal);
+      
 
+      if(staff.enablePortal === true){      
+        await Users.findOneAndDelete({ userEmail: staff.email });
+      }
       await Staff.findByIdAndDelete(staffId);
 
-      res.status(200).json({ message: "Staff and associated user deleted successfully" });
+
+      res.status(200).json({ message: "Staff deleted successfully" });
   } catch (error) {
       console.error("Error deleting staff:", error);
       res.status(500).json({ message: "Server Error", error: error.message });
@@ -352,13 +391,13 @@ function validateField(condition, errorMsg, errors) {
 
 
 
-function validateReqFields( data, allRole, errors ) {
+function validateReqFields( data, allRole, errors ) {  
 
   validateField( typeof data.staffName === 'undefined', "Please enter the staff name.", errors  );
   validateField( typeof data.contactNumber === 'undefined', "Please enter the staff contact number.", errors  );
   
   
-  if(cleanData.enablePortal === true){
+  if(data.enablePortal === true){
     validateField( typeof data.email === 'undefined', "Please enter the email.", errors );
     validateField( typeof data.password === 'undefined', "Please enter the password.", errors );
     
