@@ -194,6 +194,7 @@ exports.getOneStaff = async (req, res) => {
 
         const transformedData = {
           ...staff,
+          password: decrypt(staff.password),
           service: Array.isArray(staff.service)
             ? staff.service.map(item => ({
                 serviceId: item.serviceId?._id || null,
