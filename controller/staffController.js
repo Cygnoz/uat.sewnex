@@ -202,8 +202,6 @@ exports.getOneStaff = async (req, res) => {
             : []  
       };
 
-
-
         res.status(200).json(transformedData);
     } catch (error) {
       console.error("Error in getAllStaff:", error);
