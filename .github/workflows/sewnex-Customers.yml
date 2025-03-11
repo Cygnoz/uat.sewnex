@@ -43,7 +43,7 @@ jobs:
 
             # Build and run the container
             docker build -t dev-sewnex-customers .
-            docker run -d --name dev-sewnex-accounts -p 7002:4002 dev-sewnex-customers
+            docker run -d --name dev-sewnex-customers -p 7002:4002 dev-sewnex-customers
 
             # Cleanup Dockerfile
             rm Dockerfile
