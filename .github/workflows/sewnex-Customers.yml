@@ -23,16 +23,28 @@ jobs:
       - name: Deploy to Server
         run: |
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF_SSH'
-            set -e  # Stop script if any command fails
-            
-            echo "📂 Navigating to project directory..."
-            cd ~/sewnex  # Ensure this is the correct project path
-            
-            echo "🔄 Checking out the 'Customers' branch..."
-            git checkout Customers
-            git pull origin Customers
+            cd ~/BillBizz
+            git checkout Accounts
+            git pull
 
-            echo "🛑 Removing old container if it exists..."
-            if docker ps -a --format '{{.Names}}' | grep -q "^dev-sewnex-customer$"; then
-              docker rm -f dev-sewnex-customer
-    
+            # Remove old container if it exists
+            if docker ps -a --format '{{.Names}}' | grep -q "^dev-sewnex-accounts$"; then
+              docker rm -f dev-sewnex-accounts
+            fi
+
+            # Create Dockerfile
+            echo 'FROM node:22.11.0' > Dockerfile
+            echo 'WORKDIR /usr/src/app' >> Dockerfile
+            echo 'COPY package*.json ./' >> Dockerfile
+            echo 'RUN npm install' >> Dockerfile
+            echo 'COPY . .' >> Dockerfile
+            echo 'EXPOSE 4002' >> Dockerfile
+            echo 'CMD ["node", "server.js"]' >> Dockerfile
+
+            # Build and run the container
+            docker build -t dev-sewnex-accounts .
+            docker run -d --name dev-sewnex-accounts -p 7002:4002 dev-sewnex-customers
+
+            # Cleanup Dockerfile
+            rm Dockerfile
+          EOF_SSH
