@@ -29,7 +29,7 @@ jobs:
 
             # Remove old container if it exists
             if docker ps -a --format '{{.Names}}' | grep -q "^dev-sewnex-accounts$"; then
-              docker rm -f dev-sewnex-accounts
+              docker rm -f dev-sewnex-customers
             fi
 
             # Create Dockerfile
@@ -42,7 +42,7 @@ jobs:
             echo 'CMD ["node", "server.js"]' >> Dockerfile
 
             # Build and run the container
-            docker build -t dev-sewnex-accounts .
+            docker build -t dev-sewnex-customers .
             docker run -d --name dev-sewnex-accounts -p 7002:4002 dev-sewnex-customers
 
             # Cleanup Dockerfile
