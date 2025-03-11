@@ -1,0 +1,38 @@
+name: Deploy to Ubuntu Server - Customers
+
+on:
+  push:
+    branches:
+      - Customers
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to Server
+        run: |
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF_SSH'
+            set -e  # Stop script if any command fails
+            
+            echo "📂 Navigating to project directory..."
+            cd ~/sewnex  # Ensure this is the correct project path
+            
+            echo "🔄 Checking out the 'Customers' branch..."
+            git checkout Customers
+            git pull origin Customers
+
+            echo "🛑 Removing old container if it exists..."
+            if docker ps -a --format '{{.Names}}' | grep -q "^dev-sewnex-customer$"; then
+              docker rm -f dev-sewnex-customer
+    
