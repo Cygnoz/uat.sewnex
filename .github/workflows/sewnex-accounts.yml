@@ -26,7 +26,7 @@ jobs:
             set -e  # Stop execution if any command fails
             
             echo "🚀 Navigating to project directory..."
-            cd ~/sewnex
+            cd ~/dev.sewnex
             git checkout Accounts
             git pull
 
