@@ -23,28 +23,45 @@ jobs:
       - name: Deploy to Server
         run: |
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF_SSH'
+            set -e  # Stop execution if any command fails
+            
+            echo "🚀 Navigating to project directory..."
             cd ~/sewnex
             git checkout Accounts
             git pull
 
-            # Remove old container if it exists
+            echo "🛑 Removing old container if it exists..."
             if docker ps -a --format '{{.Names}}' | grep -q "^dev-sewnex-accounts$"; then
               docker rm -f dev-sewnex-accounts
             fi
 
-            # Create Dockerfile
-            echo 'FROM node:22.11.0' > Dockerfile
-            echo 'WORKDIR /usr/src/app' >> Dockerfile
-            echo 'COPY package*.json ./' >> Dockerfile
-            echo 'RUN npm install' >> Dockerfile
-            echo 'COPY . .' >> Dockerfile
-            echo 'EXPOSE 4001' >> Dockerfile
-            echo 'CMD ["node", "server.js"]' >> Dockerfile
+            echo "🧹 Cleaning up old Docker images..."
+            docker image prune -f
 
-            # Build and run the container
+            echo "📄 Creating Dockerfile..."
+            cat <<EOF > Dockerfile
+            FROM node:22.11.0
+            WORKDIR /usr/src/app
+
+            # Copy package files first (better caching)
+            COPY package.json package-lock.json ./
+            RUN ls -l /usr/src/app  # Debugging step to check files
+            RUN npm install
+
+            # Copy rest of the application files
+            COPY . .
+            EXPOSE 4001
+            CMD ["node", "server.js"]
+            EOF
+
+            echo "🐳 Building Docker container..."
             docker build -t dev-sewnex-accounts .
+
+            echo "🚀 Running the container..."
             docker run -d --name dev-sewnex-accounts -p 7001:4001 dev-sewnex-accounts
 
-            # Cleanup Dockerfile
+            echo "🧹 Cleaning up temporary files..."
             rm Dockerfile
+
+            echo "✅ Deployment completed successfully!"
           EOF_SSH
