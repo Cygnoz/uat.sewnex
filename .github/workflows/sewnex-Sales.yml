@@ -23,7 +23,7 @@ jobs:
       - name: Deploy to Server
         run: |
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF_SSH'
-            cd ~/BillBizz
+            cd ~/Sewnex
             git checkout Sales
             git pull
 
