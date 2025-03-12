@@ -61,7 +61,7 @@ const accDataExists = async ( organizationId, otherExpenseAccountId, freightAcco
 
 // Add Sewnex Order
 exports.addOrder = async (req, res) => {
-    // console.log("Add Order", req.body);
+    console.log("Add Order", req.body);
     
     try {
         const { organizationId, id: userId } = req.user;

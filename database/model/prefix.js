@@ -1,4 +1,4 @@
-// v1.2
+// v1.3
 
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
@@ -45,7 +45,10 @@ const seriesSchema = new Schema({
   expenseNum: { type: Number },
   
   order: { type: String },//sewnex order
-  orderNum: { type: Number }
+  orderNum: { type: Number },
+
+  internalOrder: { type: String },//sewnex internal order
+  internalOrderNum: { type: Number },
 });
 
 const prefixSchema = new Schema({
