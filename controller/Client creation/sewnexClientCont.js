@@ -183,6 +183,11 @@ const createRolesForOrganization = async (organizationId) => {
         description: 'Designer',
         roleName: 'Designer',
         permissions: []
+      },{
+        organizationId,
+        description: 'Worker',
+        roleName: 'Worker',
+        permissions: []
       }
       
     ];
@@ -314,7 +319,10 @@ const createPrefixForOrganization = async (organizationId) => {
         invoice:"INV-",invoiceNum: 1,
         quote: "QT-",quoteNum: 1,        
         deliveryChallan: "DC-",deliveryChallanNum: 1,
-        expense: "EX-",expenseNum: 1,  }]},            
+        expense: "EX-",expenseNum: 1,
+        order: "ORD", orderNum: 1,
+        internalOrder:"INTORD",internalOrderNum:1,     
+        }]},            
     ];
 
     await Prefix.insertMany(prefix);
