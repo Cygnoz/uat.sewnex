@@ -25,13 +25,11 @@ const moment = require("moment-timezone");
 
 // Fetch existing data
 const dataExist = async ( organizationId, designerId, serviceIds) => {
-    const [organizationExists, staffExist, settings, existingPrefix, defaultAccount, customerAccount, services, allFabrics, allStyle, allParameter  ] = await Promise.all([
+    const [organizationExists, staffExist, settings, existingPrefix, services, allFabrics, allStyle, allParameter  ] = await Promise.all([
       Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1, timeZoneExp: 1 }),
       Staff.findOne({ organizationId , _id:designerId }),
       Settings.findOne({ organizationId },{ stockBelowZero:1, salesOrderAddress: 1, salesOrderCustomerNote: 1, salesOrderTermsCondition: 1, salesOrderClose: 1, restrictSalesOrderClose: 1, termCondition: 1 ,customerNote: 1 }),
       Prefix.findOne({ organizationId }),
-      DefAcc.findOne({ organizationId },{ salesAccount: 1, salesDiscountAccount: 1, outputCgst: 1, outputSgst: 1, outputIgst: 1 ,outputVat: 1 }),
-      Account.findOne({ organizationId , accountId:customerId },{ _id:1, accountName:1 }),
       Service.find({ organizationId, _id: { $in: serviceIds }})
       .lean(),
       Item.find({ organizationId, type: 'Fabric' })
@@ -39,7 +37,7 @@ const dataExist = async ( organizationId, designerId, serviceIds) => {
       CPS.find({ organizationId, type: 'style' }),
       CPS.find({ organizationId, type: 'parameter'})
     ]);
-    return { organizationExists, staffExist, settings, existingPrefix, defaultAccount, customerAccount, services, allFabrics, allStyle, allParameter };
+    return { organizationExists, staffExist, settings, existingPrefix, services, allFabrics, allStyle, allParameter };
 };
 
 
@@ -90,21 +88,20 @@ exports.addIntOrder = async (req, res) => {
         } 
 
 
-        const { organizationExists, staffExist, existingPrefix, defaultAccount, services, allFabrics, allStyle, allParameter, customerAccount } = await dataExist(organizationId, designerId, serviceIds);
+        const { organizationExists, staffExist, existingPrefix, services, allFabrics, allStyle, allParameter } = await dataExist(organizationId, designerId, serviceIds);
 
         const allData = { allParameter, allFabrics, allStyle, services };
         
-        if (!validateOrganizationTaxCurrency( organizationExists, staffExist, existingPrefix, defaultAccount, res )) return;
+        if (!validateOrganizationTaxCurrency( organizationExists, staffExist, existingPrefix, res )) return;
         
         //Validate Inputs
         if (!validateInputs( cleanedData, allData, res)) return;
 
-
         //Prefix
-        await salesOrderPrefix(cleanedData, existingPrefix );
+        await internalOrderPrefix(cleanedData, existingPrefix );
 
 
-        cleanedData.createdDateTime = moment.tz(cleanedData.saleOrderDate, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp).toISOString();           
+        cleanedData.createdDateTime = moment.tz(cleanedData.internalOrderDate, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp).toISOString();           
         
 
         const orderServices = await Promise.all(service.map(async (serviceItem) => {
@@ -222,7 +219,7 @@ exports.getOneOrder = async (req, res) => {
 
 
 // Validate Organization Tax Currency
-function validateOrganizationTaxCurrency( organizationExists, staffExist, existingPrefix, defaultAccount, res ) {
+function validateOrganizationTaxCurrency( organizationExists, staffExist, existingPrefix, res ) {
     if (!organizationExists) {
       res.status(404).json({ message: "Organization not found" });
       return false;
@@ -233,10 +230,6 @@ function validateOrganizationTaxCurrency( organizationExists, staffExist, existi
     }
     if (!existingPrefix) {
       res.status(404).json({ message: "Prefix not found" });
-      return false;
-    }
-    if (!defaultAccount) {
-      res.status(404).json({ message: "Setup Accounts in settings" });
       return false;
     }
     return true;
@@ -407,14 +400,14 @@ function validateService(data, services, allFabrics, allStyle, allParameter, err
 
 
 // Sales Prefix
-function salesOrderPrefix( cleanData, existingPrefix ) {
+function internalOrderPrefix( cleanData, existingPrefix ) {
   const activeSeries = existingPrefix.series.find(series => series.status === true);
   if (!activeSeries) {
     return res.status(404).json({ message: "No active series found for the organization." });
   }
-  cleanData.salesOrder = `${activeSeries.salesOrder}${activeSeries.salesOrderNum}`;
+  cleanData.internalOrder = `${activeSeries.internalOrder}${activeSeries.internalOrderNum}`;
 
-  activeSeries.salesOrderNum += 1;
+  activeSeries.internalOrderNum += 1;
 
 }
 

@@ -652,7 +652,7 @@ function calculateSalesOrder(cleanedData, res) {
           styleRate += styleTotal;
 
           // Handle tax calculation only for taxable styles
-          if (style.taxPreference === 'Taxable') {
+          if (service.taxRate) {
               switch (taxType) {
                   case 'Intra':
                       calculatedCgstAmount = roundToTwoDecimals((toNumber(style.cgst) / 100) * styleTotal);

@@ -18,7 +18,7 @@ const InternalOrderSchema = new Schema ({
   //staffsName
 
   internalOrder: { type: String }, //prefix
-  saleOrderDate: { type: String },
+  internalOrderDate: { type: String },
   
   service: [serviceSchema],
   
