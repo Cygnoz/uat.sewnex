@@ -15,6 +15,16 @@ const { verifyToken } = require('../controller/middleware');
 //Sewnex Order
 router.post('/add-sewnex-order',verifyToken,sxOrderCont.addOrder);
 
+router.get('/get-all-sewnex-order',verifyToken,sxOrderCont.getAllOrders);
+
+router.get('/get-one-sewnex-order/:orderId',verifyToken,sxOrderCont.getOneOrder);
+
+router.get('/sewnex-order-prefix',verifyToken,checkPermission("Created a New Invoice"),sxOrderCont.getLastOrderPrefix)
+
+router.get('/sewnex-order-journal/:orderId',verifyToken,checkPermission("Viewed Invoice Details"),sxOrderCont.orderJournal)
+
+
+
 
 //Internal order
 router.post('/add-internal-order',verifyToken,internalOrder.addIntOrder)

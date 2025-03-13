@@ -24,8 +24,8 @@ const moment = require("moment-timezone");
 
 // Fetch existing data
 const dataExist = async ( organizationId, customerId, serviceIds) => {
-    const [organizationExists, customerExist, settings, existingPrefix, defaultAccount, customerAccount, services, allFabrics, allStyle, allParameter  ] = await Promise.all([
-      Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1, timeZoneExp: 1 }),
+    const [organizationExists, customerExist, settings, existingPrefix, defaultAccount, customerAccount, services, allFabrics, allStyle, allParameter, allOrder, order  ] = await Promise.all([
+      Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }).lean(),
       Customer.findOne({ organizationId , _id:customerId }, { _id: 1, customerDisplayName: 1, taxType: 1 }),
       Settings.findOne({ organizationId },{ stockBelowZero:1, salesOrderAddress: 1, salesOrderCustomerNote: 1, salesOrderTermsCondition: 1, salesOrderClose: 1, restrictSalesOrderClose: 1, termCondition: 1 ,customerNote: 1 }),
       Prefix.findOne({ organizationId }),
@@ -36,9 +36,22 @@ const dataExist = async ( organizationId, customerId, serviceIds) => {
       Item.find({ organizationId, type: 'Fabric' })
       .lean(),
       CPS.find({ organizationId, type: 'style' }),
-      CPS.find({ organizationId, type: 'parameter'})
+      CPS.find({ organizationId, type: 'parameter'}),
+      SewnexOrder.find({ organizationId })
+      .populate('customerId','customerDisplayName')  
+      .populate('service.orderServiceId.style.styleId').populate({
+        path: 'service.orderServiceId',
+        populate: [
+          { path: 'serviceId', select: 'serviceName' }, 
+          { path: 'fabric.itemId', select: 'itemName' }, 
+          { path: 'style.styleId',select: 'name' }, 
+          { path: 'measurement.parameterId',select: 'name' }, 
+        ]
+       })
+      .lean(),
+      SewnexOrder.findOne({ organizationId }),
     ]);
-    return { organizationExists, customerExist, settings, existingPrefix, defaultAccount, customerAccount, services, allFabrics, allStyle, allParameter };
+    return { organizationExists, customerExist, settings, existingPrefix, defaultAccount, customerAccount, services, allFabrics, allStyle, allParameter, allOrder, order };
 };
 
 
@@ -166,19 +179,72 @@ exports.getAllOrders = async (req, res) => {
     try {
         const { organizationId } = req.user;
 
-        const { organizationExists, orders } = await dataExist(organizationId);
+        const { organizationExists, allOrder } = await dataExist( organizationId, null, null );
 
-        if (!orders?.length) {
+        if (!allOrder?.length) {
             return res.status(404).json({ message: "No orders found" });
         }
 
-        const formattedOrders = multiCustomDateTime(
-            orders,
-            organizationExists.dateFormatExp,
-            organizationExists.timeZoneExp
-        );
+        const transformedOrder = allOrder.map(data => {
+          return {
+              ...data,
+              customerId: data.customerId?._id,  
+              customerDisplayName: data.customerId?.customerDisplayName,
 
-        res.status(200).json(formattedOrders);
+              service: data.service.map(services => ({
+                ...services,
+                _id: services?._id,
+                orderServiceId: services?.orderServiceId?._id,
+                serviceId: services?.orderServiceId?.serviceId?._id,
+                serviceName: services?.orderServiceId?.serviceId?.serviceName,
+
+
+                fabric: services?.orderServiceId?.fabric.map(fabric => ({
+                  ...fabric,
+                  itemId: fabric?.itemId?._id,
+                  itemName: fabric?.itemId?.itemName,      
+                })),
+
+
+                measurement: services?.orderServiceId?.measurement.map(measurement => ({
+                  parameterId: measurement?.parameterId?._id,
+                  parameterName: measurement?.parameterId?.name,
+                  value: measurement?.value
+                })),
+
+
+                style: services?.orderServiceId?.style.map(style => ({
+                  ...style,
+                  styleId: style?.styleId?._id,
+                  styleName: style?.styleId?.name,
+                })),
+
+                trialDate: services?.orderServiceId?.trialDate,
+                deliveryDate: services?.orderServiceId?.deliveryDate,
+                requiredWorkingDay: services?.orderServiceId?.requiredWorkingDay,
+                serviceRate: services?.orderServiceId?.serviceRate,
+                serviceTax: services?.orderServiceId?.serviceTax,
+                serviceAmount: services?.orderServiceId?.serviceAmount,
+                fabricRate: services?.orderServiceId?.fabricRate,
+                fabricTax: services?.orderServiceId?.fabricTax,
+                styleRate: services?.orderServiceId?.styleRate,
+                styleTax: services?.orderServiceId?.styleTax,
+                totalRate: services?.orderServiceId?.totalRate,
+                totalTax: services?.orderServiceId?.totalTax,
+                cgstAmount: services?.orderServiceId?.cgstAmount,
+                sgstAmount: services?.orderServiceId?.sgstAmount,
+                igstAmount: services?.orderServiceId?.igstAmount,
+                vatAmount: services?.orderServiceId?.vatAmount,
+                itemTotal: services?.orderServiceId?.itemTotal,
+                status: services?.orderServiceId?.status,
+                createDateTime: services?.orderServiceId?.createDateTime,
+
+              })),  
+          };});
+
+          const formattedObjects = multiCustomDateTime(transformedOrder, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );       
+
+          res.status(200).json(formattedObjects);
 
     } catch (error) {
         console.error("Error fetching orders:", error);
@@ -214,7 +280,60 @@ exports.getOneOrder = async (req, res) => {
 
 
 
+// Get Last Invoice Prefix
+exports.getLastOrderPrefix = async (req, res) => {
+  try {
+      const organizationId = req.user.organizationId;
 
+      // Find all accounts where organizationId matches
+      const prefix = await Prefix.findOne({ organizationId:organizationId,'series.status': true });
+
+      if (!prefix) {
+          return res.status(404).json({
+              message: "No Prefix found for the provided organization ID.",
+          });
+      }
+      
+      const series = prefix.series[0];     
+      const lastPrefix = series.salesOrder + series.salesOrderNum;
+
+      res.status(200).json(lastPrefix);
+  } catch (error) {
+      console.error("Error fetching accounts:", error);
+      res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+
+
+// Get Invoice Journal
+exports.orderJournal = async (req, res) => {
+  try {
+      const organizationId = req.user.organizationId;
+      const { orderId } = req.params;
+
+      const { orderJournal } = await salesDataExist( organizationId, orderId );      
+
+      if (!orderJournal) {
+          return res.status(404).json({
+              message: "No Journal found for the Invoice.",
+          });
+      }
+
+      const transformedJournal = orderJournal.map(item => {
+        return {
+            ...item,
+            accountId: item.accountId?._id,  
+            accountName: item.accountId?.accountName,  
+        };
+    });
+
+    res.status(200).json(transformedJournal);
+  } catch (error) {
+      console.error("Error fetching journal:", error);
+      res.status(500).json({ message: "Internal server error." });
+  }
+};
 
 
 

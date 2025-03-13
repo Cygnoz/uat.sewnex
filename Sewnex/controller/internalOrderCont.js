@@ -25,7 +25,7 @@ const moment = require("moment-timezone");
 
 // Fetch existing data
 const dataExist = async ( organizationId, designerId, serviceIds) => {
-    const [organizationExists, staffExist, settings, existingPrefix, services, allFabrics, allStyle, allParameter  ] = await Promise.all([
+    const [organizationExists, staffExist, settings, existingPrefix, services, allFabrics, allReadyMade, allStyle, allParameter  ] = await Promise.all([
       Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1, timeZoneExp: 1 }),
       Staff.findOne({ organizationId , _id:designerId }),
       Settings.findOne({ organizationId },{ stockBelowZero:1, salesOrderAddress: 1, salesOrderCustomerNote: 1, salesOrderTermsCondition: 1, salesOrderClose: 1, restrictSalesOrderClose: 1, termCondition: 1 ,customerNote: 1 }),
@@ -34,10 +34,12 @@ const dataExist = async ( organizationId, designerId, serviceIds) => {
       .lean(),
       Item.find({ organizationId, type: 'Fabric' })
       .lean(),
+      Item.find({ organizationId, type: 'Ready Made' })
+      .lean(),
       CPS.find({ organizationId, type: 'style' }),
       CPS.find({ organizationId, type: 'parameter'})
     ]);
-    return { organizationExists, staffExist, settings, existingPrefix, services, allFabrics, allStyle, allParameter };
+    return { organizationExists, staffExist, settings, existingPrefix, services, allFabrics, allReadyMade, allStyle, allParameter };
 };
 
 
@@ -88,9 +90,9 @@ exports.addIntOrder = async (req, res) => {
         } 
 
 
-        const { organizationExists, staffExist, existingPrefix, services, allFabrics, allStyle, allParameter } = await dataExist(organizationId, designerId, serviceIds);
+        const { organizationExists, staffExist, existingPrefix, services, allFabrics, allReadyMade, allStyle, allParameter } = await dataExist(organizationId, designerId, serviceIds);
 
-        const allData = { allParameter, allFabrics, allStyle, services };
+        const allData = { allParameter, allFabrics, allReadyMade, allStyle, services };
         
         if (!validateOrganizationTaxCurrency( organizationExists, staffExist, existingPrefix, res )) return;
         
@@ -258,7 +260,7 @@ function validateOrderData( data, allData ) {
   
     //Basic Info
     validateReqFields( data, errors );
-    validateService( data.service, allData.services, allData.allFabrics, allData.allStyle, allData.allParameter, errors);
+    validateService( data.service, data.productId, allData, errors);
   
   
   
@@ -292,12 +294,20 @@ function validateReqFields( data, errors ) {
 
 
 // Function to Validate Item Table 
-function validateService(data, services, allFabrics, allStyle, allParameter, errors) {      
+function validateService(data, productId, allData, errors) {     
+    
+    const { allParameter, allFabrics, allReadyMade, allStyle, services } = allData;    
 
     // Check for service count mismatch
     validateField(data.length !== services.length, "Mismatch in service count between request and database.", errors);
 
-    // Iterate through each service to validate individual fields
+    const fetchedReadyMade = allReadyMade.find(f => f._id.toString() === productId.toString());
+
+    // Check if product exists 
+    validateField(!fetchedReadyMade, `Product was not found.`, errors);
+    if (!fetchedReadyMade) return;
+
+     // Iterate through each service to validate individual fields
     data.forEach((svc, svcIndex) => {
         const fetchedService = services.find(s => s._id.toString() === svc.serviceId.toString());
 
