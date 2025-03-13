@@ -151,12 +151,12 @@ exports.addOrder = async (req, res) => {
         console.log( "Sale Order created successfully:", savedOrder );
 
         res.status(201).json({
-            message: "Sewnex Order created successfully",
+            message: "Sale Order created successfully",
             data: savedOrder
         });
 
     } catch (error) {
-        console.error("Error creating Sewnex Order:", error);
+        console.error("Error creating Sale Order:", error);
         res.status(500).json({ message: "Internal server error" });
     }
 };
