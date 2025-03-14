@@ -26,6 +26,8 @@ const InternalOrderSchema = new Schema ({
 
   editLimit: {type: Boolean, default: true},   // true - before taxation file date  |  false - after taxation file date
 
+  createDateTime: { type: Date, default: Date.now },
+
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   //userName
 

@@ -4,7 +4,7 @@ const router = new express.Router()
 
 const sxOrderCont = require('../Sewnex/controller/sxOrderCont');
 const internalOrder = require('../Sewnex/controller/internalOrderCont');
-
+const updateInternalOrder = require('../Sewnex/controller/updateInternalOrderCont');
 
 const checkPermission = require('../controller/permission');
 const { verifyToken } = require('../controller/middleware');
@@ -28,6 +28,12 @@ router.get('/sewnex-order-journal/:orderId',verifyToken,sxOrderCont.orderJournal
 
 //Internal order
 router.post('/add-internal-order',verifyToken,internalOrder.addIntOrder)
+
+router.put('/edit-internal-order',verifyToken,updateInternalOrder.editInternalOrder)
+
+router.delete('/delete-internal-order',verifyToken,updateInternalOrder.deleteInternalOrder)
+
+
 
 
 module.exports = router

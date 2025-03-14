@@ -8,13 +8,11 @@ const TrialBalance = require("../../database/model/trialBalance");
 const Item = require("../../database/model/item");
 const Staff = require("../../database/model/staff");
 
-
-
 const SewnexOrder = require("../model/sxOrder");
 const Service = require("../model/service");
 const SewnexOrderService = require("../model/sxOrderService");
+const InternalOrder = require("../model/internalOrder");
 const CPS = require("../model/cps");
-
 
 const { cleanData } = require("../../services/cleanData");
 const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
@@ -41,21 +39,6 @@ const dataExist = async ( organizationId, designerId, serviceIds) => {
     ]);
     return { organizationExists, staffExist, settings, existingPrefix, services, allFabrics, allReadyMade, allStyle, allParameter };
 };
-
-
-// Fetch Acc existing data
-const accDataExists = async ( organizationId, otherExpenseAccountId, freightAccountId, depositAccountId ) => {
-  const [ otherExpenseAcc, freightAcc, depositAcc ] = await Promise.all([
-    Account.findOne({ organizationId , _id: otherExpenseAccountId, accountHead: "Expenses" }, { _id:1, accountName: 1 }),
-    Account.findOne({ organizationId , _id: freightAccountId, accountHead: "Expenses" }, { _id:1, accountName: 1 }),
-    Account.findOne({ organizationId , _id: depositAccountId, accountHead: "Asset" }, { _id:1, accountName: 1 }),
-
-  ]);
-  return { otherExpenseAcc, freightAcc, depositAcc };
-};
-
-
-
 
 
 
@@ -105,7 +88,6 @@ exports.addIntOrder = async (req, res) => {
 
         cleanedData.createdDateTime = moment.tz(cleanedData.internalOrderDate, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp).toISOString();           
         
-
         const orderServices = await Promise.all(service.map(async (serviceItem) => {
             await salesOrderServicePrefix(serviceItem,existingPrefix);
             const newOrderService = new SewnexOrderService({
@@ -122,7 +104,7 @@ exports.addIntOrder = async (req, res) => {
             orderServiceId: service._id,
         }));
 
-        const newOrder = new SewnexOrder({
+        const newOrder = new InternalOrder({
             ...cleanedData,
             organizationId,
             userId,
@@ -443,4 +425,13 @@ async function salesOrderServicePrefix(cleanData,existingPrefix) {
 
 
 
-
+exports.dataExist = {
+    dataExist,
+};
+exports.validation = {
+    validateOrganizationTaxCurrency, 
+    validateInputs
+};
+exports.prefix = {
+    salesOrderServicePrefix
+};
