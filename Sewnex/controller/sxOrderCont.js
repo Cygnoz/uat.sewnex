@@ -219,27 +219,45 @@ exports.getAllOrders = async (req, res) => {
                   styleName: style?.styleId?.name,
                 })),
 
+
+
+                cgst: services?.orderServiceId?.cgst,
+                sgst: services?.orderServiceId?.sgst,
+                igst: services?.orderServiceId?.igst,
+                vat: services?.orderServiceId?.vat,
+                taxRate: services?.orderServiceId?.taxRate,
+                cgstService: services?.orderServiceId?.cgstService,
+                sgstService: services?.orderServiceId?.sgstService,
+                igstService: services?.orderServiceId?.igstService,
+                vatService: services?.orderServiceId?.vatService,               
                 
+                trialDate: services?.orderServiceId?.trialDate,
+                deliveryDate: services?.orderServiceId?.deliveryDate,
+                requiredWorkingDay: services?.orderServiceId?.requiredWorkingDay,
+
+                serviceRate: services?.orderServiceId?.serviceRate,
+                serviceTax: services?.orderServiceId?.serviceTax,
+                serviceAmount: services?.orderServiceId?.serviceAmount,
+
+                fabricRate: services?.orderServiceId?.fabricRate,
+                fabricTax: services?.orderServiceId?.fabricTax,
+
+                styleRate: services?.orderServiceId?.styleRate,
+                styleTax: services?.orderServiceId?.styleTax,
+
+                totalRate: services?.orderServiceId?.totalRate,
+                totalTax: services?.orderServiceId?.totalTax,
+
+                cgstAmount: services?.orderServiceId?.cgstAmount,
+                sgstAmount: services?.orderServiceId?.sgstAmount,
+                igstAmount: services?.orderServiceId?.igstAmount,
+                vatAmount: services?.orderServiceId?.vatAmount,
+
+                itemTotal: services?.orderServiceId?.itemTotal,
+                
+                status: services?.orderServiceId?.status,
+                createDateTime: services?.orderServiceId?.createDateTime,
               })),  
-              trialDate: services?.orderServiceId?.trialDate,
-              deliveryDate: services?.orderServiceId?.deliveryDate,
-              requiredWorkingDay: services?.orderServiceId?.requiredWorkingDay,
-              serviceRate: services?.orderServiceId?.serviceRate,
-              serviceTax: services?.orderServiceId?.serviceTax,
-              serviceAmount: services?.orderServiceId?.serviceAmount,
-              fabricRate: services?.orderServiceId?.fabricRate,
-              fabricTax: services?.orderServiceId?.fabricTax,
-              styleRate: services?.orderServiceId?.styleRate,
-              styleTax: services?.orderServiceId?.styleTax,
-              totalRate: services?.orderServiceId?.totalRate,
-              totalTax: services?.orderServiceId?.totalTax,
-              cgstAmount: services?.orderServiceId?.cgstAmount,
-              sgstAmount: services?.orderServiceId?.sgstAmount,
-              igstAmount: services?.orderServiceId?.igstAmount,
-              vatAmount: services?.orderServiceId?.vatAmount,
-              itemTotal: services?.orderServiceId?.itemTotal,
-              status: services?.orderServiceId?.status,
-              createDateTime: services?.orderServiceId?.createDateTime,
           };});
 
           const formattedObjects = multiCustomDateTime(transformedOrder, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );       
