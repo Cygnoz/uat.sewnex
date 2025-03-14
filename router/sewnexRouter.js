@@ -19,9 +19,9 @@ router.get('/get-all-sewnex-order',verifyToken,sxOrderCont.getAllOrders);
 
 router.get('/get-one-sewnex-order/:orderId',verifyToken,sxOrderCont.getOneOrder);
 
-router.get('/sewnex-order-prefix',verifyToken,checkPermission("Created a New Invoice"),sxOrderCont.getLastOrderPrefix)
+router.get('/sewnex-order-prefix',verifyToken,sxOrderCont.getLastOrderPrefix)
 
-router.get('/sewnex-order-journal/:orderId',verifyToken,checkPermission("Viewed Invoice Details"),sxOrderCont.orderJournal)
+router.get('/sewnex-order-journal/:orderId',verifyToken,sxOrderCont.orderJournal)
 
 
 

@@ -11,6 +11,9 @@ const sewnexRouter = require("./router/sewnexRouter");
 
 require('./database/connection/connection');
 
+server.use(express.json({ limit: '10mb' })); 
+server.use(express.urlencoded({ limit: '10mb', extended: true })); 
+
 server.use(cors({
     origin: "*",
     methods: "GET, POST, PUT, DELETE, OPTIONS",
