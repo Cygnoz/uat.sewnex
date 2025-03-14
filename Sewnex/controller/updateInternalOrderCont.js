@@ -17,7 +17,6 @@ const CPS = require("../model/cps");
 const { dataExist, validation, prefix } = require("../controller/internalOrderCont");
 
 const { cleanData } = require("../../services/cleanData");
-const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
 
 const mongoose = require('mongoose');
 const moment = require("moment-timezone");
