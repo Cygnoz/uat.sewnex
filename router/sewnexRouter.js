@@ -34,6 +34,10 @@ router.delete('/delete-sewnex-order/:orderId',verifyToken,updateSxOrderCont.dele
 //Internal order
 router.post('/add-internal-order',verifyToken,internalOrder.addIntOrder);
 
+router.get('/get-all-internal-order',verifyToken,internalOrder.getAllOrders);
+
+router.get('/get-one-internal-order/:orderId',verifyToken,internalOrder.getOneOrder);
+
 router.put('/edit-internal-order/:orderId',verifyToken,updateInternalOrder.editInternalOrder);
 
 router.delete('/delete-internal-order/:orderId',verifyToken,updateInternalOrder.deleteInternalOrder);
