@@ -344,7 +344,29 @@ exports.getOneOrder = async (req, res) => {
 };
 
 
-
+// Get Last Invoice Prefix
+exports.getLastInternalOrderPrefix = async (req, res) => {
+    try {
+        const organizationId = req.user.organizationId;
+  
+        // Find all accounts where organizationId matches
+        const prefix = await Prefix.findOne({ organizationId:organizationId,'series.status': true });
+  
+        if (!prefix) {
+            return res.status(404).json({
+                message: "No Prefix found for the provided organization ID.",
+            });
+        }
+        
+        const series = prefix.series[0];     
+        const lastPrefix = series.internalOrder + series.internalOrderNum;
+  
+        res.status(200).json(lastPrefix);
+    } catch (error) {
+        console.error("Error fetching prefix:", error);
+        res.status(500).json({ message: "Internal server error." });
+    }
+  };
 
 
 

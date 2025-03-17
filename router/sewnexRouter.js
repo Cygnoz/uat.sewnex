@@ -36,6 +36,8 @@ router.post('/add-internal-order',verifyToken,internalOrder.addIntOrder);
 
 router.get('/get-all-internal-order',verifyToken,internalOrder.getAllOrders);
 
+router.get('/sewnex-internal-order-prefix',verifyToken,internalOrder.getLastInternalOrderPrefix);
+
 router.get('/get-one-internal-order/:orderId',verifyToken,internalOrder.getOneOrder);
 
 router.put('/edit-internal-order/:orderId',verifyToken,updateInternalOrder.editInternalOrder);
