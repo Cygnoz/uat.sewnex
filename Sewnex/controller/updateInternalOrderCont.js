@@ -107,14 +107,14 @@ exports.editInternalOrder = async (req, res) => {
             return res.status(500).json({ message: "Failed to update internal order" });
         }
 
-        console.log( "Internal Order created successfully:", savedInternalOrder );
+        console.log( "Internal Order updated successfully:", savedInternalOrder );
         res.status(201).json({
-            message: "Internal Order created successfully",
+            message: "Internal Order updated successfully",
             data: savedInternalOrder
         });
 
     } catch (error) {
-        console.error("Error creating internal order:", error);
+        console.error("Error updating internal order:", error);
         res.status(500).json({ message: "Internal server error" });
     }
 

@@ -37,7 +37,7 @@ const dataExist = async ( organizationId, designerId, serviceIds, orderId) => {
       CPS.find({ organizationId, type: 'style' }),
       CPS.find({ organizationId, type: 'parameter'}),
       InternalOrder.find({ organizationId })
-      .populate('customerId','customerDisplayName')  
+      .populate('designerId','staffName')  
       .populate('service.orderServiceId.style.styleId').populate({
         path: 'service.orderServiceId',
         populate: [
@@ -49,7 +49,7 @@ const dataExist = async ( organizationId, designerId, serviceIds, orderId) => {
        })
       .lean(),
       InternalOrder.findOne({ organizationId, _id: orderId })
-      .populate('customerId','customerDisplayName')  
+      .populate('designerId','staffName')  
       .populate('service.orderServiceId.style.styleId').populate({
         path: 'service.orderServiceId',
         populate: [
@@ -258,13 +258,12 @@ exports.getOneOrder = async (req, res) => {
             return res.status(404).json({ message: "Order not found" });
         }
 
-        const transformedOrder = internalOrder.map(data => {
-            return {
-                ...data,
-                customerId: data.customerId?._id,  
-                customerDisplayName: data.customerId?.customerDisplayName,
+        const transformedOrder = {
+                ...internalOrder,
+                customerId: internalOrder.customerId?._id,  
+                customerDisplayName: internalOrder.customerId?.customerDisplayName,
   
-                service: data.service.map(services => ({
+                service: internalOrder.service.map(services => ({
                   ...services,
                   _id: services?._id,
                   orderServiceId: services?.orderServiceId?._id,
@@ -331,7 +330,7 @@ exports.getOneOrder = async (req, res) => {
                   status: services?.orderServiceId?.status,
                   createDateTime: services?.orderServiceId?.createDateTime,
                 })),  
-            };});
+            };
   
         const formattedObjects = singleCustomDateTime(transformedOrder, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );       
 
