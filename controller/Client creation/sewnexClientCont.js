@@ -15,6 +15,7 @@ const Tax = require('../../database/model/tax');
 const DefAcc = require("../../database/model/defaultAccount")
 const bcrypt = require('bcrypt');
 
+const SewnexSetting = require('../../Sewnex/model/sxSetting');
 
 const { cleanData } = require("../../services/cleanData");
 
@@ -471,6 +472,77 @@ const createSettingsOrganization = async (organizationId) => {
 
 
 
+
+
+
+
+
+
+// Auto sewnex create settings
+const createSewnexSettingsOrganization = async (organizationId) => {
+  try {
+    
+    // Check if the Settings already exist for the organization
+    const existingSettings = await SewnexSetting.find({ organizationId:organizationId });
+    
+    if (existingSettings.length > 0) {
+      console.log("Settings already exist for this organization.");
+      return { success: true, message: "Settings already exist for this organization." };
+    }
+
+    // Create settings
+    const settings = [
+      {organizationId,
+
+      //order
+      datePreference:"Order Wise",
+      orderTax:"Taxable",
+      orderFabric:true,
+
+      //Order status
+      orderStatus:[
+          {orderStatusName:"Order Placed"},
+          {orderStatusName:"Manufacturing"},
+          {orderStatusName:"Delivery"}
+      ],
+
+      //Manufacturing Status
+      manufacturingStatus:[
+        {manufacturingStatusName:"Cutting"},
+        {manufacturingStatusName:"Stitching"},
+        {manufacturingStatusName:"Embroidery"},
+        {manufacturingStatusName:"Dying"},
+    ],
+
+    //Staff
+    measuringStaff:true,
+
+      
+
+
+
+
+      
+      
+
+    }];
+
+    await SewnexSetting.insertMany(settings);
+    console.log("Sewnex Settings created successfully for organization:", organizationId);
+    return { success: true, message: "Sewnex Settings created successfully." };
+
+  } catch (error) {
+    console.error("Error creating settings:", error);
+    return { success: false, message: "Failed to create settings." };
+  }
+};
+
+
+
+
+
+
+
 // Create New Client, Organization, Prefix, Role
 exports.createOrganizationAndClient = async (req, res) => {
   console.log("Create Organization and Client:", req.body);
@@ -551,6 +623,12 @@ exports.createOrganizationAndClient = async (req, res) => {
     const settingsCreationResult = await createSettingsOrganization(organizationId);
     if (!settingsCreationResult.success) {
       return res.status(500).json({ message: settingsCreationResult.message });
+    }
+
+    // Create Sewnex Settings for the organization
+    const sewnexSettingsCreationResult = await createSewnexSettingsOrganization(organizationId);
+    if (!sewnexSettingsCreationResult.success) {
+      return res.status(500).json({ message: sewnexSettingsCreationResult.message });
     }
     
 

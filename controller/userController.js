@@ -153,7 +153,7 @@ exports.verifyOtp = async (req, res) => {
           userName: user.userName,
           role: user.role,
           organizationName: organization.organizationName,
-          permission: role.permissions,
+          permission: role?.permissions,
           deviceType
         },
       });
