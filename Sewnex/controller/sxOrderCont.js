@@ -7,13 +7,10 @@ const Account = require("../../database/model/account");
 const TrialBalance = require("../../database/model/trialBalance");
 const Item = require("../../database/model/item");
 
-
-
 const SewnexOrder = require("../model/sxOrder");
 const Service = require("../model/service");
 const SewnexOrderService = require("../model/sxOrderService");
 const CPS = require("../model/cps");
-
 
 const { cleanData } = require("../../services/cleanData");
 const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
@@ -1370,3 +1367,36 @@ async function createTrialEntry( data ) {
 });
 await newTrialEntry.save();
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+exports.dataExist = {
+    dataExist,
+};
+exports.validation = {
+    validateOrganizationTaxCurrency, 
+    validateInputs
+};
+exports.prefix = {
+    salesOrderServicePrefix
+};
+exports.calculation = {
+  taxType,
+  calculateSalesOrder
+};
+exports.accounts = {
+  defaultAccounting,
+  salesJournal,
+  journal
+};

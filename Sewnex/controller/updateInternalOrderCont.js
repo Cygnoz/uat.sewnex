@@ -43,7 +43,7 @@ exports.editInternalOrder = async (req, res) => {
         // Ensure `internalOrder` field matches the existing internal order
         if (cleanedData.internalOrder !== existingInternalOrder.internalOrder) {
             return res.status(400).json({
-            message: `The provided internalOrder does not match the existing record. Expected: ${existingInternalOrder.internalOrder}`,
+            message: `The provided prefix does not match the existing record. Expected: ${existingInternalOrder.internalOrder}`,
             });
         }
         
@@ -67,7 +67,7 @@ exports.editInternalOrder = async (req, res) => {
           return res.status(400).json({ message: `Invalid service IDs: ${invalidServiceIds.join(', ')}` });
         } 
 
-        const { organizationExists, staffExist, existingPrefix, services, allFabrics, allReadyMade, allStyle, allParameter } = await dataExist.dataExist(organizationId, designerId, serviceIds);
+        const { organizationExists, staffExist, existingPrefix, services, allFabrics, allReadyMade, allStyle, allParameter } = await dataExist.dataExist(organizationId, designerId, serviceIds, null);
 
         const allData = { allParameter, allFabrics, allReadyMade, allStyle, services };
         
@@ -167,4 +167,4 @@ exports.deleteInternalOrder = async (req, res) => {
         console.error("Error deleting internal order:", error);
         res.status(500).json({ message: "Internal server error" });
     }
-  };
+};

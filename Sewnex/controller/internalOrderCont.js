@@ -22,8 +22,8 @@ const moment = require("moment-timezone");
 
 
 // Fetch existing data
-const dataExist = async ( organizationId, designerId, serviceIds) => {
-    const [organizationExists, staffExist, settings, existingPrefix, services, allFabrics, allReadyMade, allStyle, allParameter  ] = await Promise.all([
+const dataExist = async ( organizationId, designerId, serviceIds, orderId) => {
+    const [organizationExists, staffExist, settings, existingPrefix, services, allFabrics, allReadyMade, allStyle, allParameter, allInternalOrder, internalOrder ] = await Promise.all([
       Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1, timeZoneExp: 1 }),
       Staff.findOne({ organizationId , _id:designerId }),
       Settings.findOne({ organizationId },{ stockBelowZero:1, salesOrderAddress: 1, salesOrderCustomerNote: 1, salesOrderTermsCondition: 1, salesOrderClose: 1, restrictSalesOrderClose: 1, termCondition: 1 ,customerNote: 1 }),
@@ -35,9 +35,33 @@ const dataExist = async ( organizationId, designerId, serviceIds) => {
       Item.find({ organizationId, type: 'Ready Made' })
       .lean(),
       CPS.find({ organizationId, type: 'style' }),
-      CPS.find({ organizationId, type: 'parameter'})
+      CPS.find({ organizationId, type: 'parameter'}),
+      InternalOrder.find({ organizationId })
+      .populate('customerId','customerDisplayName')  
+      .populate('service.orderServiceId.style.styleId').populate({
+        path: 'service.orderServiceId',
+        populate: [
+          { path: 'serviceId', select: 'serviceName' }, 
+          { path: 'fabric.itemId', select: 'itemName' }, 
+          { path: 'style.styleId',select: 'name' }, 
+          { path: 'measurement.parameterId',select: 'name' }, 
+        ]
+       })
+      .lean(),
+      InternalOrder.findOne({ organizationId, _id: orderId })
+      .populate('customerId','customerDisplayName')  
+      .populate('service.orderServiceId.style.styleId').populate({
+        path: 'service.orderServiceId',
+        populate: [
+          { path: 'serviceId', select: 'serviceName' }, 
+          { path: 'fabric.itemId', select: 'itemName' }, 
+          { path: 'style.styleId',select: 'name' }, 
+          { path: 'measurement.parameterId',select: 'name' }, 
+        ]
+       })
+      .lean(),
     ]);
-    return { organizationExists, staffExist, settings, existingPrefix, services, allFabrics, allReadyMade, allStyle, allParameter };
+    return { organizationExists, staffExist, settings, existingPrefix, services, allFabrics, allReadyMade, allStyle, allParameter, allInternalOrder, internalOrder };
 };
 
 
@@ -73,7 +97,7 @@ exports.addIntOrder = async (req, res) => {
         } 
 
 
-        const { organizationExists, staffExist, existingPrefix, services, allFabrics, allReadyMade, allStyle, allParameter } = await dataExist(organizationId, designerId, serviceIds);
+        const { organizationExists, staffExist, existingPrefix, services, allFabrics, allReadyMade, allStyle, allParameter } = await dataExist(organizationId, designerId, serviceIds, null);
 
         const allData = { allParameter, allFabrics, allReadyMade, allStyle, services };
         
@@ -131,19 +155,90 @@ exports.getAllOrders = async (req, res) => {
     try {
         const { organizationId } = req.user;
 
-        const { organizationExists, orders } = await dataExist(organizationId);
+        const { organizationExists, allInternalOrder } = await dataExist(organizationId, null, null, null);
 
-        if (!orders?.length) {
+        if (!allInternalOrder?.length) {
             return res.status(404).json({ message: "No orders found" });
         }
 
-        const formattedOrders = multiCustomDateTime(
-            orders,
-            organizationExists.dateFormatExp,
-            organizationExists.timeZoneExp
-        );
+        const transformedOrder = allInternalOrder.map(data => {
+            return {
+                ...data,
+                customerId: data.customerId?._id,  
+                customerDisplayName: data.customerId?.customerDisplayName,
+  
+                service: data.service.map(services => ({
+                  ...services,
+                  _id: services?._id,
+                  orderServiceId: services?.orderServiceId?._id,
+                  serviceId: services?.orderServiceId?.serviceId?._id,
+                  serviceName: services?.orderServiceId?.serviceId?.serviceName,
+  
+  
+                  fabric: services?.orderServiceId?.fabric.map(fabric => ({
+                    ...fabric,
+                    itemId: fabric?.itemId?._id,
+                    itemName: fabric?.itemId?.itemName,      
+                  })),
+  
+  
+                  measurement: services?.orderServiceId?.measurement.map(measurement => ({
+                    parameterId: measurement?.parameterId?._id,
+                    parameterName: measurement?.parameterId?.name,
+                    value: measurement?.value
+                  })),
+  
+  
+                  style: services?.orderServiceId?.style.map(style => ({
+                    ...style,
+                    styleId: style?.styleId?._id,
+                    styleName: style?.styleId?.name,
+                  })),
+  
+  
+  
+                  cgst: services?.orderServiceId?.cgst,
+                  sgst: services?.orderServiceId?.sgst,
+                  igst: services?.orderServiceId?.igst,
+                  vat: services?.orderServiceId?.vat,
+                  taxRate: services?.orderServiceId?.taxRate,
+                  cgstService: services?.orderServiceId?.cgstService,
+                  sgstService: services?.orderServiceId?.sgstService,
+                  igstService: services?.orderServiceId?.igstService,
+                  vatService: services?.orderServiceId?.vatService,               
+                  
+                  trialDate: services?.orderServiceId?.trialDate,
+                  deliveryDate: services?.orderServiceId?.deliveryDate,
+                  requiredWorkingDay: services?.orderServiceId?.requiredWorkingDay,
+  
+                  serviceRate: services?.orderServiceId?.serviceRate,
+                  serviceTax: services?.orderServiceId?.serviceTax,
+                  serviceAmount: services?.orderServiceId?.serviceAmount,
+  
+                  fabricRate: services?.orderServiceId?.fabricRate,
+                  fabricTax: services?.orderServiceId?.fabricTax,
+  
+                  styleRate: services?.orderServiceId?.styleRate,
+                  styleTax: services?.orderServiceId?.styleTax,
+  
+                  totalRate: services?.orderServiceId?.totalRate,
+                  totalTax: services?.orderServiceId?.totalTax,
+  
+                  cgstAmount: services?.orderServiceId?.cgstAmount,
+                  sgstAmount: services?.orderServiceId?.sgstAmount,
+                  igstAmount: services?.orderServiceId?.igstAmount,
+                  vatAmount: services?.orderServiceId?.vatAmount,
+  
+                  itemTotal: services?.orderServiceId?.itemTotal,
+                  
+                  status: services?.orderServiceId?.status,
+                  createDateTime: services?.orderServiceId?.createDateTime,
+                })),  
+            };});
+  
+        const formattedObjects = multiCustomDateTime(transformedOrder, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );       
 
-        res.status(200).json(formattedOrders);
+        res.status(200).json(formattedObjects);
 
     } catch (error) {
         console.error("Error fetching orders:", error);
@@ -157,19 +252,90 @@ exports.getOneOrder = async (req, res) => {
         const { organizationId } = req.user;
         const { orderId } = req.params;
 
-        const { organizationExists, order } = await dataExist(organizationId, null, orderId);
+        const { organizationExists, internalOrder } = await dataExist(organizationId, null, null, orderId);
 
-        if (!order) {
+        if (!internalOrder) {
             return res.status(404).json({ message: "Order not found" });
         }
 
-        const formattedOrder = singleCustomDateTime(
-            order,
-            organizationExists.dateFormatExp,
-            organizationExists.timeZoneExp
-        );
+        const transformedOrder = internalOrder.map(data => {
+            return {
+                ...data,
+                customerId: data.customerId?._id,  
+                customerDisplayName: data.customerId?.customerDisplayName,
+  
+                service: data.service.map(services => ({
+                  ...services,
+                  _id: services?._id,
+                  orderServiceId: services?.orderServiceId?._id,
+                  serviceId: services?.orderServiceId?.serviceId?._id,
+                  serviceName: services?.orderServiceId?.serviceId?.serviceName,
+  
+  
+                  fabric: services?.orderServiceId?.fabric.map(fabric => ({
+                    ...fabric,
+                    itemId: fabric?.itemId?._id,
+                    itemName: fabric?.itemId?.itemName,      
+                  })),
+  
+  
+                  measurement: services?.orderServiceId?.measurement.map(measurement => ({
+                    parameterId: measurement?.parameterId?._id,
+                    parameterName: measurement?.parameterId?.name,
+                    value: measurement?.value
+                  })),
+  
+  
+                  style: services?.orderServiceId?.style.map(style => ({
+                    ...style,
+                    styleId: style?.styleId?._id,
+                    styleName: style?.styleId?.name,
+                  })),
+  
+  
+  
+                  cgst: services?.orderServiceId?.cgst,
+                  sgst: services?.orderServiceId?.sgst,
+                  igst: services?.orderServiceId?.igst,
+                  vat: services?.orderServiceId?.vat,
+                  taxRate: services?.orderServiceId?.taxRate,
+                  cgstService: services?.orderServiceId?.cgstService,
+                  sgstService: services?.orderServiceId?.sgstService,
+                  igstService: services?.orderServiceId?.igstService,
+                  vatService: services?.orderServiceId?.vatService,               
+                  
+                  trialDate: services?.orderServiceId?.trialDate,
+                  deliveryDate: services?.orderServiceId?.deliveryDate,
+                  requiredWorkingDay: services?.orderServiceId?.requiredWorkingDay,
+  
+                  serviceRate: services?.orderServiceId?.serviceRate,
+                  serviceTax: services?.orderServiceId?.serviceTax,
+                  serviceAmount: services?.orderServiceId?.serviceAmount,
+  
+                  fabricRate: services?.orderServiceId?.fabricRate,
+                  fabricTax: services?.orderServiceId?.fabricTax,
+  
+                  styleRate: services?.orderServiceId?.styleRate,
+                  styleTax: services?.orderServiceId?.styleTax,
+  
+                  totalRate: services?.orderServiceId?.totalRate,
+                  totalTax: services?.orderServiceId?.totalTax,
+  
+                  cgstAmount: services?.orderServiceId?.cgstAmount,
+                  sgstAmount: services?.orderServiceId?.sgstAmount,
+                  igstAmount: services?.orderServiceId?.igstAmount,
+                  vatAmount: services?.orderServiceId?.vatAmount,
+  
+                  itemTotal: services?.orderServiceId?.itemTotal,
+                  
+                  status: services?.orderServiceId?.status,
+                  createDateTime: services?.orderServiceId?.createDateTime,
+                })),  
+            };});
+  
+        const formattedObjects = singleCustomDateTime(transformedOrder, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );       
 
-        res.status(200).json(formattedOrder);
+        res.status(200).json(formattedObjects);
 
     } catch (error) {
         console.error("Error fetching order:", error);
