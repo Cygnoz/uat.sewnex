@@ -67,7 +67,7 @@ exports.editOrder = async (req, res) => {
         } 
 
 
-        const { organizationExists, customerExist, existingPrefix, defaultAccount, services, allFabrics, allStyle, allParameter, customerAccount } = await dataExist.dataExist(organizationId, customerId, serviceIds);
+        const { organizationExists, customerExist, existingPrefix, defaultAccount, services, allFabrics, allStyle, allParameter, customerAccount } = await dataExist.dataExist(organizationId, customerId, serviceIds, null);
 
         const allData = { allParameter, allFabrics, allStyle, services };
         

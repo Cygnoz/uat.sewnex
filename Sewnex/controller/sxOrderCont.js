@@ -20,7 +20,7 @@ const moment = require("moment-timezone");
 
 
 // Fetch existing data
-const dataExist = async ( organizationId, customerId, serviceIds) => {
+const dataExist = async ( organizationId, customerId, serviceIds, orderId) => {
     const [organizationExists, customerExist, settings, existingPrefix, defaultAccount, customerAccount, services, allFabrics, allStyle, allParameter, allOrder, order  ] = await Promise.all([
       Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }).lean(),
       Customer.findOne({ organizationId , _id:customerId }, { _id: 1, customerDisplayName: 1, taxType: 1 }),
@@ -46,7 +46,18 @@ const dataExist = async ( organizationId, customerId, serviceIds) => {
         ]
        })
       .lean(),
-      SewnexOrder.findOne({ organizationId }),
+      SewnexOrder.findOne({ organizationId, _id: orderId })
+      .populate('customerId','customerDisplayName')  
+      .populate('service.orderServiceId.style.styleId').populate({
+        path: 'service.orderServiceId',
+        populate: [
+          { path: 'serviceId', select: 'serviceName' }, 
+          { path: 'fabric.itemId', select: 'itemName' }, 
+          { path: 'style.styleId',select: 'name' }, 
+          { path: 'measurement.parameterId',select: 'name' }, 
+        ]
+       })
+      .lean(),
     ]);
     return { organizationExists, customerExist, settings, existingPrefix, defaultAccount, customerAccount, services, allFabrics, allStyle, allParameter, allOrder, order };
 };
@@ -99,7 +110,7 @@ exports.addOrder = async (req, res) => {
         } 
 
 
-        const { organizationExists, customerExist, existingPrefix, defaultAccount, services, allFabrics, allStyle, allParameter, customerAccount } = await dataExist(organizationId, customerId, serviceIds);
+        const { organizationExists, customerExist, existingPrefix, defaultAccount, services, allFabrics, allStyle, allParameter, customerAccount } = await dataExist(organizationId, customerId, serviceIds, null);
 
         const allData = { allParameter, allFabrics, allStyle, services };
         
@@ -176,7 +187,7 @@ exports.getAllOrders = async (req, res) => {
     try {
         const { organizationId } = req.user;
 
-        const { organizationExists, allOrder } = await dataExist( organizationId, null, null );
+        const { organizationExists, allOrder } = await dataExist( organizationId, null, null, null );
 
         if (!allOrder?.length) {
             return res.status(404).json({ message: "No orders found" });
@@ -273,19 +284,87 @@ exports.getOneOrder = async (req, res) => {
         const { organizationId } = req.user;
         const { orderId } = req.params;
 
-        const { organizationExists, order } = await dataExist(organizationId, null, orderId);
+        const { organizationExists, order } = await dataExist(organizationId, null, null, orderId);
 
         if (!order) {
             return res.status(404).json({ message: "Order not found" });
         }
 
-        const formattedOrder = singleCustomDateTime(
-            order,
-            organizationExists.dateFormatExp,
-            organizationExists.timeZoneExp
-        );
+        const transformedOrder = {
+              ...order,
+              customerId: order.customerId?._id,  
+              customerDisplayName: order.customerId?.customerDisplayName,
 
-        res.status(200).json(formattedOrder);
+              service: order.service.map(services => ({
+                ...services,
+                _id: services?._id,
+                orderServiceId: services?.orderServiceId?._id,
+                serviceId: services?.orderServiceId?.serviceId?._id,
+                serviceName: services?.orderServiceId?.serviceId?.serviceName,
+
+
+                fabric: services?.orderServiceId?.fabric.map(fabric => ({
+                  ...fabric,
+                  itemId: fabric?.itemId?._id,
+                  itemName: fabric?.itemId?.itemName,      
+                })),
+
+
+                measurement: services?.orderServiceId?.measurement.map(measurement => ({
+                  parameterId: measurement?.parameterId?._id,
+                  parameterName: measurement?.parameterId?.name,
+                  value: measurement?.value
+                })),
+
+
+                style: services?.orderServiceId?.style.map(style => ({
+                  ...style,
+                  styleId: style?.styleId?._id,
+                  styleName: style?.styleId?.name,
+                })),
+
+                cgst: services?.orderServiceId?.cgst,
+                sgst: services?.orderServiceId?.sgst,
+                igst: services?.orderServiceId?.igst,
+                vat: services?.orderServiceId?.vat,
+                taxRate: services?.orderServiceId?.taxRate,
+                cgstService: services?.orderServiceId?.cgstService,
+                sgstService: services?.orderServiceId?.sgstService,
+                igstService: services?.orderServiceId?.igstService,
+                vatService: services?.orderServiceId?.vatService,               
+                
+                trialDate: services?.orderServiceId?.trialDate,
+                deliveryDate: services?.orderServiceId?.deliveryDate,
+                requiredWorkingDay: services?.orderServiceId?.requiredWorkingDay,
+
+                serviceRate: services?.orderServiceId?.serviceRate,
+                serviceTax: services?.orderServiceId?.serviceTax,
+                serviceAmount: services?.orderServiceId?.serviceAmount,
+
+                fabricRate: services?.orderServiceId?.fabricRate,
+                fabricTax: services?.orderServiceId?.fabricTax,
+
+                styleRate: services?.orderServiceId?.styleRate,
+                styleTax: services?.orderServiceId?.styleTax,
+
+                totalRate: services?.orderServiceId?.totalRate,
+                totalTax: services?.orderServiceId?.totalTax,
+
+                cgstAmount: services?.orderServiceId?.cgstAmount,
+                sgstAmount: services?.orderServiceId?.sgstAmount,
+                igstAmount: services?.orderServiceId?.igstAmount,
+                vatAmount: services?.orderServiceId?.vatAmount,
+
+                itemTotal: services?.orderServiceId?.itemTotal,
+                
+                status: services?.orderServiceId?.status,
+                createDateTime: services?.orderServiceId?.createDateTime,
+              })),  
+          };
+
+          const formattedObjects = singleCustomDateTime(transformedOrder, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );       
+
+        res.status(200).json(formattedObjects);
 
     } catch (error) {
         console.error("Error fetching order:", error);
