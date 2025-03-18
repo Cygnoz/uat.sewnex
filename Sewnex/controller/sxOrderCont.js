@@ -11,6 +11,7 @@ const SewnexOrder = require("../model/sxOrder");
 const Service = require("../model/service");
 const SewnexOrderService = require("../model/sxOrderService");
 const CPS = require("../model/cps");
+const OrderStatus = require("../model/orderStatus");
 
 const { cleanData } = require("../../services/cleanData");
 const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
@@ -169,12 +170,19 @@ exports.addOrder = async (req, res) => {
         //Journal
         await journal( savedOrder, defAcc, customerAccount );
 
-        console.log( "Sale Order created successfully:", savedOrder );
-
-        res.status(201).json({
-            message: "Sale Order created successfully",
-            data: savedOrder
+        // Add order status entry
+        await OrderStatus.create({
+          organizationId,
+          orderId: savedOrder._id,
+          status: "Order Placed",
+          date: savedOrder.saleOrderDate,
+          remarks: "Order has been successfully placed.",
+          userId,
+          createdDateTime: new Date()
         });
+
+        console.log( "Sale Order created successfully:", savedOrder );
+        res.status(201).json({ message: "Sale Order created successfully", data: savedOrder });
 
     } catch (error) {
         console.error("Error creating Sale Order:", error);
