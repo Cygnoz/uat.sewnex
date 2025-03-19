@@ -45,11 +45,12 @@ const dataExist = async ( organizationId, customerId, serviceIds, orderId) => {
 
 // Fetch Acc existing data
 const accDataExists = async ( organizationId, otherExpenseAccountId, freightAccountId, depositAccountId ) => {
+  console.log("eewe", organizationId, otherExpenseAccountId, freightAccountId, depositAccountId);
+  
   const [ otherExpenseAcc, freightAcc, depositAcc ] = await Promise.all([
     Account.findOne({ organizationId , _id: otherExpenseAccountId, accountHead: "Expenses" }, { _id:1, accountName: 1 }),
     Account.findOne({ organizationId , _id: freightAccountId, accountHead: "Expenses" }, { _id:1, accountName: 1 }),
     Account.findOne({ organizationId , _id: depositAccountId, accountHead: "Asset" }, { _id:1, accountName: 1 }),
-
   ]);
   return { otherExpenseAcc, freightAcc, depositAcc };
 };
@@ -152,7 +153,7 @@ exports.addOrder = async (req, res) => {
         taxType(cleanedData, customerExist, organizationExists );
 
         //Default Account
-        const { defAcc, error } = await defaultAccounting( cleanedData, defaultAccount, organizationExists );
+        const { defAcc, error } = await defaultAccounting( cleanedData, defaultAccount, organizationExists, organizationId );
         if (error) { 
           res.status(400).json({ message: error }); 
           return false; 
@@ -684,8 +685,6 @@ function validateService(data, services, allFabrics, allStyle, allParameter, err
         validateField( typeof svc.itemTotal === 'undefined', "Item Total required", errors  );
         validateField( typeof svc.status === 'undefined', "Status required", errors  );
         validateField( typeof svc.salesAccountId === 'undefined', `Sales Account required for ${svc.serviceName}`, errors  );
-
-        console.log( typeof svc.salesAccountId, svc.salesAccountId, fetchedService.salesAccountId );
         
 
 
@@ -810,14 +809,17 @@ function taxType( cleanedData, customerExist, organizationExists ) {
 
 
 //Default Account
-async function defaultAccounting(data, defaultAccount, organizationExists) {
+async function defaultAccounting( data, defaultAccount, organizationExists, organizationId) {
   // 1. Fetch required accounts
-  const accounts = await accDataExists(
-    organizationExists.organizationId, 
+  const accounts = await accDataExists( 
+    organizationId, 
     data.otherExpenseAccountId, 
     data.freightAccountId, 
     data.depositAccountId
   );
+
+  console.log( accounts );
+  
   
   // 2. Check for missing required accounts
   const errorMessage = getMissingAccountsError(data, defaultAccount, accounts);
