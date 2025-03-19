@@ -14,7 +14,7 @@ const serviceManufactureSchema = new Schema({
 
     staffId: {type: mongoose.Schema.Types.ObjectId, ref: 'Staff'},
 
-    activity:{ type: String },
+    manufacturingStatus:{ type: String },
 
     startDate:{ type: String },
     startTime:{ type: String },
