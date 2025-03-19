@@ -114,11 +114,19 @@ exports.addIntOrder = async (req, res) => {
         cleanedData.createdDateTime = moment.tz(cleanedData.internalOrderDate, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp).toISOString();           
         
         const orderServices = await Promise.all(service.map(async (serviceItem) => {
-            await salesOrderServicePrefix(serviceItem,existingPrefix);
+            await salesOrderServicePrefix(serviceItem, existingPrefix);
             const newOrderService = new SewnexOrderService({
                 ...serviceItem,
                 organizationId
             });
+
+            const fetchedReadyMade = allReadyMade.find(f => f._id.toString() === serviceItem.productId.toString());
+
+            // Check if product exists 
+            if (!fetchedReadyMade) {
+              return res.status(400).json({ message: "Product was not found." });
+            } 
+
             return await newOrderService.save();
         }));
 
@@ -472,11 +480,11 @@ function validateService(data, productId, allData, errors) {
     // Check for service count mismatch
     validateField(data.length !== services.length, "Mismatch in service count between request and database.", errors);
 
-    const fetchedReadyMade = allReadyMade.find(f => f._id.toString() === productId.toString());
+    // const fetchedReadyMade = allReadyMade.find(f => f._id.toString() === productId.toString());
 
-    // Check if product exists 
-    validateField(!fetchedReadyMade, `Product was not found.`, errors);
-    if (!fetchedReadyMade) return;
+    // // Check if product exists 
+    // validateField(!fetchedReadyMade, `Product was not found.`, errors);
+    // if (!fetchedReadyMade) return;
 
      // Iterate through each service to validate individual fields
     data.forEach((svc, svcIndex) => {
