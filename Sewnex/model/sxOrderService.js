@@ -122,6 +122,15 @@ const SewnexOrderServiceSchema = new Schema ({
     itemTotal: { type: Number },
 
     status: { type: String, default: 'Order Placed' },
+
+    //Manufacturing
+    manufacturingStatus: { type: String },//stitching
+    staffId: {type: mongoose.Schema.Types.ObjectId, ref: 'Staff'},
+    startDate:{ type: String },
+    startTime:{ type: String },
+    endDate:{ type: String },
+    endTime:{ type: String },
+    staffWorkUpdate: { type: String },
     
     createDateTime: { type: Date, default: Date.now },
     

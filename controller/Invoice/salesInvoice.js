@@ -168,11 +168,12 @@ exports.addInvoice = async (req, res) => {
       //Data Exist Validation
       if (!validateOrganizationTaxCurrency( organizationExists, customerExist, existingPrefix, defaultAccount, res )) return;
       
+      //Tax Type
+      taxType(cleanedData, customerExist, organizationExists );
+
       //Validate Inputs  
       if (!validateInputs( cleanedData, settings, customerExist, items, itemTable, organizationExists, defaultAccount, res)) return;
 
-      //Tax Type
-      taxType(cleanedData, customerExist, organizationExists );
 
       //Default Account
       const { defAcc, error } = await defaultAccounting( cleanedData, defaultAccount, organizationExists );
@@ -650,7 +651,7 @@ function validateInvoiceData( data, settings, customerExist, items, itemTable, o
 
   //Basic Info
   validateReqFields( data, customerExist, defaultAccount, errors );
-  validateItemTable(items, settings, itemTable, errors);
+  validateItemTable( data, items, settings, itemTable, errors);
   validateDiscountTransactionType(data.discountTransactionType, errors);
   validateShipmentPreference(data.shipmentPreference, errors);
   validatePaymentMode(data.paymentMode, errors);
@@ -705,7 +706,7 @@ validateField( customerExist.taxType === 'VAT' && typeof defaultAccount.outputVa
 }
 
 // Function to Validate Item Table 
-function validateItemTable(items, settings, itemTable, errors) {
+function validateItemTable( data, items, settings, itemTable, errors) {
 
 // Check for item count mismatch
 validateField( items.length !== itemTable.length, "Mismatch in item count between request and database.", errors  );
@@ -725,13 +726,13 @@ items.forEach((item) => {
   // validateField( item.sellingPrice !== fetchedItem.sellingPrice, `Selling price Mismatch for ${item.itemName}:  ${item.sellingPrice}`, errors );
 
   // Validate CGST
-  validateField( item.cgst !== fetchedItem.cgst, `CGST Mismatch for ${item.itemName}: ${item.cgst}`, errors );
+  validateField( data.taxType === 'Intra' && item.cgst !== fetchedItem.cgst, `CGST Mismatch for ${item.itemName}: ${item.cgst}`, errors );
 
   // Validate SGST
-  validateField( item.sgst !== fetchedItem.sgst, `SGST Mismatch for ${item.itemName}: ${item.sgst}`, errors );
+  validateField( data.taxType === 'Intra' && item.sgst !== fetchedItem.sgst, `SGST Mismatch for ${item.itemName}: ${item.sgst}`, errors );
 
   // Validate IGST
-  validateField( item.igst !== fetchedItem.igst, `IGST Mismatch for ${item.itemName}: ${item.igst}`, errors );
+  validateField( data.taxType === 'Inter' && item.igst !== fetchedItem.igst, `IGST Mismatch for ${item.itemName}: ${item.igst}`, errors );
 
   // Validate tax group
   validateField( item.taxGroup !== fetchedItem.taxRate, `Tax Group mismatch for ${item.itemName}: ${item.taxGroup}`, errors );
@@ -740,13 +741,13 @@ items.forEach((item) => {
   validateDiscountTransactionType(item.discountType, errors);
 
   // Validate integer fields
-  validateIntegerFields(['quantity'], item, errors);
+  // validateIntegerFields([''], item, errors);
 
   // Validate Stock Count 
   validateField( settings.stockBelowZero === true && item.quantity > fetchedItem.currentStock, `Insufficient Stock for ${item.itemName}: Requested quantity ${item.quantity}, Available stock ${fetchedItem.currentStock}`, errors );
 
   // Validate float fields
-  validateFloatFields(['sellingPrice', 'itemTotalTax', 'discountAmount', 'itemAmount'], item, errors);
+  validateFloatFields(['sellingPrice', 'itemTotalTax', 'discountAmount', 'itemAmount','quantity'], item, errors);
 });
 }
 

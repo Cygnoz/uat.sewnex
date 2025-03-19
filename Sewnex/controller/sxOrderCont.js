@@ -58,13 +58,13 @@ const accDataExists = async ( organizationId, otherExpenseAccountId, freightAcco
 
 //Get one and All
 const salesDataExist = async ( organizationId, orderId, orderServiceId ) => {    
-  const [organizationExists, orderJournal, allOrder, order ] = await Promise.all([
+  const [organizationExists, orderJournal, allOrder, order, serviceOrder ] = await Promise.all([
     Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1, state: 1 }).lean(),
     TrialBalance.find({ organizationId: organizationId, operationId : orderId })
     .populate('accountId', 'accountName')    
     .lean(),
     SewnexOrder.find({ organizationId })
-    .populate('customerId','customerDisplayName')  
+    .populate('customerId','customerDisplayName mobile')  
     .populate('service.orderServiceId.style.styleId').populate({
       path: 'service.orderServiceId',
         populate: [
@@ -76,7 +76,7 @@ const salesDataExist = async ( organizationId, orderId, orderServiceId ) => {
        })
     .lean(),
     SewnexOrder.findOne({ organizationId, _id: orderId })
-    .populate('customerId','customerDisplayName')  
+    .populate('customerId','customerDisplayName customerEmail mobile membershipCardNumber customerAddress')  
     .populate('service.orderServiceId.style.styleId').populate({
         path: 'service.orderServiceId',
         populate: [
@@ -87,9 +87,9 @@ const salesDataExist = async ( organizationId, orderId, orderServiceId ) => {
         ]
        })
     .lean(),
-    SewnexOrderService.findOne({ organizationId, _id: orderServiceId })
+    SewnexOrderService.find({ organizationId, _id: orderServiceId })
   ]);
-  return { organizationExists, orderJournal, allOrder, order };
+  return { organizationExists, orderJournal, allOrder, order, serviceOrder };
 };
 
 
@@ -217,6 +217,7 @@ exports.getAllOrders = async (req, res) => {
               ...data,
               customerId: data.customerId?._id,  
               customerDisplayName: data.customerId?.customerDisplayName,
+              mobile:  data.customerId?.mobil,
 
               service: data.service.map(services => ({
                 ...services,
@@ -313,6 +314,11 @@ exports.getOneOrder = async (req, res) => {
               ...order,
               customerId: order.customerId?._id,  
               customerDisplayName: order.customerId?.customerDisplayName,
+              customerEmail: order.customerId?.customerEmail,
+              mobile: order.customerId?.mobile,
+              membershipCardNumber: order.customerId?.membershipCardNumber,
+              customerAddress: order.customerId?.customerAddress,
+
 
               service: order.service.map(services => ({
                 ...services,
@@ -463,8 +469,13 @@ exports.manufacturingProcessing = async (req, res) => {
       const organizationId = req.user.organizationId;
       const { orderServiceId } = req.params;
       const cleanedData = cleanData(req.body);
+      dataExist()
+      const { sewnexSetting } = await dataExist(organizationId, null, null, null);
 
       const { serviceOrder } = await salesDataExist(organizationId, null, orderServiceId);
+
+      console.log(sewnexSetting);
+      
 
       if (!serviceOrder) {
         return res.status(404).json({ message: "No Service Order found for the Invoice." });
@@ -474,15 +485,30 @@ exports.manufacturingProcessing = async (req, res) => {
         return res.status(404).json({ message: "Service is not in Manufacturing status." });
       }
 
-      const existingServiceManufacture = await ServiceManufacture.findOne( { organizationId, orderServiceId, status:cleanedData.status } );
+      const existingServiceManufacture = await ServiceManufacture.findOne( { organizationId, orderServiceId, status:cleanedData.manufacturingStatus } );
 
       if(existingServiceManufacture){
-        const updatedServiceManufacture = await ServiceManufacture.updateOne( { organizationId, orderServiceId , status:cleanedData.status }, { $set: cleanedData } );
-        return res.status(200).json(updatedServiceManufacture);
+        //Update existing Service Manufacture
+        const updatedServiceManufacture = await ServiceManufacture.updateOne( { organizationId, orderServiceId , status:cleanedData.manufacturingStatus }, { $set: cleanedData } );
+        
+        //Update service Order
+        const updatedServiceOrder = await SewnexOrderService.updateOne( { organizationId, _id: orderServiceId }, { $set: cleanedData } );
+        if (updatedServiceOrder.nModified === 0){
+          return res.status(404).json({ message: "Service Order is not in Manufacturing status." });
+          }
+        return res.status(200).json( {message: "Manufacturing process updated" , updatedServiceManufacture});
 
       }else{
+        //New Service Manufacture
         const newServiceManufacture = await ServiceManufacture.create( { organizationId, orderServiceId , ...cleanedData } );
-        return res.status(201).json(newServiceManufacture);
+
+        //Update Service Order
+        const updatedServiceOrder = await SewnexOrderService.updateOne( { organizationId, _id: orderServiceId }, { $set: cleanedData } );
+        if (updatedServiceOrder.nModified === 0){
+          return res.status(404).json({ message: "Service Order is not in Manufacturing status." });
+          }
+
+        return res.status(201).json( {message: "Manufacturing process added" ,newServiceManufacture});
       }
 
       
