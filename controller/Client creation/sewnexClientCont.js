@@ -800,8 +800,8 @@ exports.deleteAll = async (req, res) => {
 // Fetch existing data
 const dataExist = async (organizationId) => {
   const [ salesDiscountAccount, purchaseDiscountAccount ] = await Promise.all([
-    Account.findOne({ organizationId, accountName:'Sales Discount(Cash Discount)' }, { _id: 1 }),
-    Account.findOne({ organizationId, accountName:'Purchase Discounts(Cash Discount)' }, { _id: 1 }),
+    Account.findOne({ organizationId, accountName:'Sales Discount' }, { _id: 1 }),
+    Account.findOne({ organizationId, accountName:'Purchase Discount' }, { _id: 1 }),
   ]);
   return { salesDiscountAccount, purchaseDiscountAccount };
 };
@@ -937,7 +937,7 @@ const accounts = [
   { accountName: "Interest Income", accountSubhead: "Indirect Income", accountHead: "Income", accountGroup: "Asset",accountCode:"AC-22",systemAccounts: true,description: "A percentage of your balances and deposits are given as interest to you by your banks and financial institutions. This interest is recorded into the interest income account." },
   { accountName: "Late Fee Income", accountSubhead: "Indirect Income", accountHead: "Income", accountGroup: "Asset",accountCode:"AC-23",systemAccounts: true,description: "Any late fee income is recorded into the late fee income account. The late fee is levied when the payment for an invoice is not received by the due date."},
   { accountName: "Other Charges", accountSubhead: "Indirect Income", accountHead: "Income", accountGroup: "Asset",accountCode:"AC-24",systemAccounts: true,description: "Miscellaneous charges like adjustments made to the invoice can be recorded in this account."},
-  { accountName: "Purchase Discounts(Cash Discount)", accountSubhead: "Indirect Income", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-56",systemAccounts: true,description: "Tracks any reduction that your vendor offers on your purchases. Some vendors also provide them to encourage quick payment settlement." },
+  { accountName: "Purchase Discount", accountSubhead: "Indirect Income", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-56",systemAccounts: true,description: "Tracks any reduction that your vendor offers on your purchases. Some vendors also provide them to encourage quick payment settlement." },
 
   //Current Liability
   { accountName: "Employee Reimbursements", accountSubhead: "Current Liability", accountHead: "Liabilities", accountGroup: "Liability",accountCode:"AC-27",systemAccounts: true,description: "This account can be used to track the reimbursements that are due to be paid out to employees." },
@@ -960,7 +960,7 @@ const accounts = [
   { accountName: "Cost of Goods Sold", accountSubhead: "Cost of Goods Sold", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-65" ,systemAccounts: true,description: "An expense account which tracks the value of the goods sold."},
   
   //Indirect Expense
-  { accountName: "Sales Discount(Cash Discount)", accountSubhead: "Indirect Expense", accountHead: "Income", accountGroup: "Asset",accountCode:"AC-20",systemAccounts: true,description: "Any reduction on your selling price as a discount can be recorded into the discount account."},
+  { accountName: "Sales Discount", accountSubhead: "Indirect Expense", accountHead: "Income", accountGroup: "Asset",accountCode:"AC-20",systemAccounts: true,description: "Any reduction on your selling price as a discount can be recorded into the discount account."},
   { accountName: "Advertising and Marketing", accountSubhead: "Indirect Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-36",systemAccounts: false,description: "Your expenses on promotional, marketing and advertising activities like banners, web-adds, trade shows, etc. are recorded in advertising and marketing account." },
   { accountName: "Exchange Gain or Loss", accountSubhead: "Indirect Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-66" ,systemAccounts: true,description: "Changing the conversion rate can result in a gain or a loss. You can record this into the exchange gain or loss account."},
   { accountName: "Bad Debt", accountSubhead: "Indirect Expense", accountHead: "Expenses", accountGroup: "Liability",accountCode:"AC-38" ,systemAccounts: true,description: "Any amount which is lost and is unrecoverable is recorded into the bad debt account."},

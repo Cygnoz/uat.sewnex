@@ -13,14 +13,15 @@ const sxSettingSchema = new Schema({
     orderTax:{ type: String },//Taxable/Non-Taxable
 
     orderFabric:{type:Boolean},//true - include fabric in order, false - exclude fabric from order
-    orderFabric:{type:Boolean},//true - include fabric in order, false - exclude fabric from order
 
     orderStatus:[{
         orderStatusName: { type: String },
+        _id: false
     }],
 
     manufacturingStatus:[{
         manufacturingStatusName: { type: String },
+        _id: false
     }],
 
     measuringStaff:{type:Boolean},//true - include measuring Staff in order, false - exclude measuring Staff from order
