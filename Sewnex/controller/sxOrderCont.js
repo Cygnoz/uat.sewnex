@@ -108,10 +108,19 @@ exports.addOrder = async (req, res) => {
         const { organizationId, id: userId } = req.user;
 
         const cleanedData = cleanData(req.body);
-        
+
         cleanedData.service = cleanedData.service
-        ?.map(data => cleanData(data))
-        .filter(service => service.serviceId !== undefined && service.serviceId !== '') || [];
+          ?.map(data => {
+            const cleanedService = cleanData(data);
+          
+            ['fabric', 'measurement', 'style', 'referenceImage'].forEach(key => {
+              cleanedService[key] = cleanedService[key]?.map(item => cleanData(item)) ?? [];
+            });
+          
+            return cleanedService;
+          })
+          .filter(service => service.serviceId) || [];
+        
         
         const { customerId, service } = cleanedData;
         

@@ -28,7 +28,9 @@ exports.editOrder = async (req, res) => {
     
     try {
         const { organizationId, id: userId } = req.user;
-        const { orderId } = req.params; 
+        const { orderId } = req.params;
+        
+        
         
         // Fetch existing order
         const existingOrder = await SewnexOrder.findOne({ _id: orderId, organizationId });
@@ -47,8 +49,17 @@ exports.editOrder = async (req, res) => {
         }
         
         cleanedData.service = cleanedData.service
-        ?.map(data => cleanData(data))
-        .filter(service => service.serviceId !== undefined && service.serviceId !== '') || [];
+          ?.map(data => {
+            const cleanedService = cleanData(data);
+          
+            ['fabric', 'measurement', 'style', 'referenceImage'].forEach(key => {
+              cleanedService[key] = cleanedService[key]?.map(item => cleanData(item)) ?? [];
+            });
+          
+            return cleanedService;
+          })
+          .filter(service => service.serviceId) || [];
+        
         
         const { customerId, service } = cleanedData;
         
