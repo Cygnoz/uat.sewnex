@@ -48,6 +48,7 @@ exports.editOrder = async (req, res) => {
             });
         }
         
+
         cleanedData.service = cleanedData.service
           ?.map(data => {
             const cleanedService = cleanData(data);
@@ -87,8 +88,8 @@ exports.editOrder = async (req, res) => {
         //Validate Inputs
         if (!validation.validateInputs( cleanedData, customerExist, defaultAccount, allData, res)) return;
 
-         //Tax Type
-         calculation.taxType(cleanedData, customerExist, organizationExists );
+        //Tax Type
+        calculation.taxType(cleanedData, customerExist, organizationExists );
 
         //Default Account
         const { defAcc, error } = await accounts.defaultAccounting( cleanedData, defaultAccount, organizationExists );

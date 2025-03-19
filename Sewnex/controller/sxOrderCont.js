@@ -81,7 +81,7 @@ const salesDataExist = async ( organizationId, orderId, orderServiceId ) => {
     .populate('service.orderServiceId.style.styleId').populate({
         path: 'service.orderServiceId',
         populate: [
-          { path: 'serviceId', select: 'serviceName' }, 
+          { path: 'serviceId', select: 'serviceName salesAccountId' }, 
           { path: 'fabric.itemId', select: 'itemName salesAccountId' }, 
           { path: 'style.styleId',select: 'name' }, 
           { path: 'measurement.parameterId',select: 'name' }, 
@@ -253,7 +253,6 @@ exports.getAllOrders = async (req, res) => {
                   ...fabric,
                   itemId: fabric?.itemId?._id,
                   itemName: fabric?.itemId?.itemName,
-                  salesAccountId: fabric?.itemId?.salesAccountId,  
                 })),
 
 
@@ -349,12 +348,15 @@ exports.getOneOrder = async (req, res) => {
                 orderServiceId: services?.orderServiceId?._id,
                 serviceId: services?.orderServiceId?.serviceId?._id,
                 serviceName: services?.orderServiceId?.serviceId?.serviceName,
+                salesAccountId: services?.orderServiceId?.serviceId?.salesAccountId,
 
 
                 fabric: services?.orderServiceId?.fabric.map(fabric => ({
                   ...fabric,
                   itemId: fabric?.itemId?._id,
-                  itemName: fabric?.itemId?.itemName,      
+                  itemName: fabric?.itemId?.itemName,
+                  salesAccountId: fabric?.itemId?.salesAccountId,
+      
                 })),
 
 
@@ -683,6 +685,9 @@ function validateService(data, services, allFabrics, allStyle, allParameter, err
         validateField( typeof svc.status === 'undefined', "Status required", errors  );
         validateField( typeof svc.salesAccountId === 'undefined', `Sales Account required for ${svc.serviceName}`, errors  );
 
+        console.log( typeof svc.salesAccountId, svc.salesAccountId, fetchedService.salesAccountId );
+        
+
 
         validateField(svc.taxRate !== fetchedService.taxRate, `Service tax rate mismatch for service ${svc.serviceName}: ${svc.taxRate}`, errors);
         validateField( svc.cgst !== undefined && fetchedService.cgst !== undefined && Number(svc.cgst) !== Number(fetchedService.cgst), `Service cgst mismatch for service ${svc.serviceName}: ${svc.cgst} ${fetchedService.cgst}`, errors );
@@ -746,7 +751,6 @@ function validateService(data, services, allFabrics, allStyle, allParameter, err
 
             validateField( typeof style.styleName === 'undefined', "Please select a valid style", errors  );
             validateField( typeof style.styleRate === 'undefined', "Selling Rate required", errors );
-            validateField( typeof style.taxPreference === 'undefined', "Tax Preference required", errors  );
             validateField( typeof style.taxRate === 'undefined', "Style Tax required", errors  );
             validateField( typeof style.styleTax === 'undefined', "Style Total Tax required", errors );
             validateField( typeof style.styleAmount === 'undefined', "Style Amount required", errors  );
