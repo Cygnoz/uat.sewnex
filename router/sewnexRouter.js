@@ -6,6 +6,7 @@ const sxOrderCont = require('../Sewnex/controller/sxOrderCont');
 const internalOrder = require('../Sewnex/controller/internalOrderCont');
 const updateInternalOrder = require('../Sewnex/controller/updateInternalOrderCont');
 const updateSxOrderCont = require('../Sewnex/controller/updateSxOrderCont');
+const sxOrderStatusCont = require('../Sewnex/controller/orderStatusCont');
 
 const checkPermission = require('../controller/permission');
 const { verifyToken } = require('../controller/middleware');
@@ -29,6 +30,11 @@ router.put('/edit-sewnex-order/:orderId',verifyToken,updateSxOrderCont.editOrder
 router.put('/manufacturing-process/:orderServiceId',verifyToken,sxOrderCont.manufacturingProcessing);
 
 router.delete('/delete-sewnex-order/:orderId',verifyToken,updateSxOrderCont.deleteOrder);
+
+
+
+//Sewnex Order Status Change
+router.post('/sewnex-order-status-change',verifyToken,sxOrderStatusCont.addOrderStatus);
 
 
 

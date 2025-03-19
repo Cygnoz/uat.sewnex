@@ -22,7 +22,7 @@ const InternalOrderSchema = new Schema ({
   
   service: [serviceSchema],
   
-  productId: { type: String },
+  // productId: { type: String },
 
   editLimit: {type: Boolean, default: true},   // true - before taxation file date  |  false - after taxation file date
 

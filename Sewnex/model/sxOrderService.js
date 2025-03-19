@@ -132,6 +132,8 @@ const SewnexOrderServiceSchema = new Schema ({
     endTime:{ type: String },
     staffWorkUpdate: { type: String },
     
+    productId: {type: mongoose.Schema.Types.ObjectId, ref: 'Item'},
+
     createDateTime: { type: Date, default: Date.now },
     
   })
@@ -140,3 +142,5 @@ const SewnexOrderServiceSchema = new Schema ({
   const SewnexOrderService = mongoose.model("SewnexOrderService", SewnexOrderServiceSchema);
   
   module.exports = SewnexOrderService;
+
+
