@@ -13,7 +13,7 @@ const orderStatusSchema = new mongoose.Schema({
 
     orderServiceId: {type: mongoose.Schema.Types.ObjectId, ref: 'SewnexOrderService'},
 
-    status: [statusSchema],
+    orderStatus: [statusSchema],
     
     remarks: { type: String },
 

@@ -1,6 +1,8 @@
 const Organization = require("../../database/model/organization");
 
 const OrderStatus = require("../model/orderStatus");
+const SewnexSetting = require("../model/sxSetting");
+const sxOrderService = require("../model/sxOrderService");
 
 const { cleanData } = require("../../services/cleanData");
 const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
@@ -11,154 +13,187 @@ const moment = require("moment-timezone");
 
 // Fetch existing data
 const dataExist = async ( organizationId, statusId) => {
-    const [organizationExists, allOrderStatus, orderStatus ] = await Promise.all([
+    const [organizationExists, orderStatus, sewnexSetting ] = await Promise.all([
       Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }).lean(),
-      OrderStatus.find({ organizationId })
-      .lean(),
-      OrderStatus.findOne({ organizationId, _id: statusId })
-      .lean(),
+      OrderStatus.findOne({ organizationId, _id: statusId }).lean(),
+      SewnexSetting.findOne({ organizationId }).lean(),
     ]);
-    return { organizationExists, allOrderStatus, orderStatus };
+    return { organizationExists, orderStatus, sewnexSetting };
 };
 
 
 
-
 // Add Order Status
-exports.addOrEditOrderStatus = async (req, res) => {
+// exports.addOrderStatus = async (req, res) => {
+//     console.log("Add or Edit Order Status", req.body);
+
+//     try {
+//         const { organizationId, id: userId } = req.user;
+//         const cleanedData = cleanData(req.body);
+//         const { orderServiceId, orderStatus, remarks } = cleanedData;
+
+//         // Check organization
+//         const { organizationExists, sewnexSetting } = await dataExist(organizationId, null);
+
+//         if (!validateOrganizationSetting(organizationExists, sewnexSetting, res)) return;
+
+//         // Validate inputs
+//         if (!validateInputs(cleanedData, orderStatus, sewnexSetting, res)) return;
+
+//         // Check if order status entry exists
+//         const existingOrderStatus = await OrderStatus.findOne({
+//             organizationId,
+//             orderServiceId
+//         });
+
+//         if (!existingOrderStatus) {
+//             return res.status(404).json({ message: "Order status entry not found for this service." });
+//         }
+
+//         const statuses = Array.isArray(orderStatus) ? orderStatus : [orderStatus];
+//         let addedStatuses = [];
+
+//         statuses.forEach(statusEntry => {
+//             const alreadyExists = existingOrderStatus.orderStatus.some(existing =>
+//                 existing.status === statusEntry.status
+//             );
+
+//             if (!alreadyExists) {
+//                 existingOrderStatus.orderStatus.push({
+//                     status: statusEntry.status,
+//                     date: statusEntry.date
+//                 });
+//                 addedStatuses.push(statusEntry.status);
+//             } else {
+//                 console.log(`Status "${statusEntry.status}" already exists, skipping.`);
+//             }
+//         });
+
+//         if (addedStatuses.length === 0) {
+//             return res.status(200).json({ message: "No new statuses added; all were duplicates." });
+//         }
+
+//         // Update remarks
+//         existingOrderStatus.remarks = remarks;
+
+//         // Save
+//         await existingOrderStatus.save();
+
+//         // Get the latest status (last in the array)
+//         const latestStatus = existingOrderStatus.orderStatus[existingOrderStatus.orderStatus.length - 1]?.status;
+
+//         // Update status in SewnexOrderService
+//         if (latestStatus) {
+//             await sxOrderService.findOneAndUpdate(
+//                 { organizationId, _id: orderServiceId },
+//                 { status: latestStatus },
+//                 { new: true }
+//             );
+//         }
+
+//         res.status(200).json({
+//             message: `Order status updated successfully. Added statuses: ${addedStatuses.join(", ")}`,
+//             data: existingOrderStatus
+//         });
+
+//     } catch (error) {
+//         console.error("Error in addOrderStatus:", error);
+//         res.status(500).json({ message: "Internal server error" });
+//     }
+// };
+exports.addOrderStatus = async (req, res) => {
     console.log("Add or Edit Order Status", req.body);
 
     try {
         const { organizationId, id: userId } = req.user;
         const cleanedData = cleanData(req.body);
+        const { orderServiceId, orderStatus, remarks } = cleanedData;
 
-        const { orderServiceId, id: orderStatusId } = cleanedData;
+        // Check organization
+        const { organizationExists, sewnexSetting } = await dataExist(organizationId, null);
 
-        const { organizationExists } = await dataExist(organizationId, orderStatusId);
-        if (!validateOrganization(organizationExists, res)) return;
+        if (!validateOrganizationSetting(organizationExists, sewnexSetting, res)) return;
 
-        // Validate orderServiceId only if creating new
-        if (!orderStatusId) {
-            if (!mongoose.Types.ObjectId.isValid(orderServiceId) || orderServiceId.length !== 24) {
-                return res.status(400).json({ message: `Invalid Order Service ID: ${orderServiceId}` });
-            }
+        if (!validateInputs(cleanedData, orderStatus, sewnexSetting, res)) return;
+
+        // Check if order status entry exists
+        const existingOrderStatus = await OrderStatus.findOne({
+            organizationId,
+            orderServiceId
+        });
+
+        if (!existingOrderStatus) {
+            return res.status(404).json({ message: "Order status entry not found for this service." });
         }
 
-        if (!validateInputs(cleanedData, res)) return;
+        const statuses = Array.isArray(orderStatus) ? orderStatus : [orderStatus];
+        let addedOrUpdatedStatuses = [];
 
-        if (orderStatusId) {
-            // -------- Edit flow ----------
-            const existingStatus = await OrderStatus.findOne({ _id: orderStatusId, organizationId });
-
-            if (!existingStatus) {
-                return res.status(404).json({ message: "Order status not found for update." });
-            }
-
-            cleanedData.createdDateTime = moment.tz(cleanedData.saleOrderDate, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp).toISOString();
-
-            const updatedStatus = await OrderStatus.findByIdAndUpdate(orderStatusId, { ...cleanedData, userId }, { new: true });
-
-            return res.status(200).json({
-                message: "Order status updated successfully",
-                data: updatedStatus,
-            });
-
-        } else {
-            // -------- Add flow ----------
-            const existingStatus = await OrderStatus.findOne({
-                organizationId,
-                orderServiceId,
-                status: { $regex: new RegExp("^" + cleanedData.status + "$", "i") }
-            });
+        statuses.forEach(statusEntry => {
+            const existingStatus = existingOrderStatus.orderStatus.find(existing =>
+                existing.status === statusEntry.status
+            );
 
             if (existingStatus) {
-                return res.status(400).json({ message: "This status already exists for the organization." });
+                // Update date and remarks if status exists
+                existingStatus.date = statusEntry.date;
+                addedOrUpdatedStatuses.push(`${statusEntry.status} (updated)`);
+            } else {
+                // Push new status
+                existingOrderStatus.orderStatus.push({
+                    status: statusEntry.status,
+                    date: statusEntry.date
+                });
+                addedOrUpdatedStatuses.push(`${statusEntry.status} (added)`);
             }
+        });
 
-            cleanedData.createdDateTime = moment.tz(cleanedData.saleOrderDate, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp).toISOString();
+        // Update remarks at the root level
+        existingOrderStatus.remarks = remarks;
 
-            const newOrderStatus = new OrderStatus({
-                ...cleanedData,
-                organizationId,
-                userId,
-            });
+        // Save
+        await existingOrderStatus.save();
 
-            const savedOrderStatus = await newOrderStatus.save();
+        // Update sewnexOrderService with the latest status
+        const latestStatus = existingOrderStatus.orderStatus[existingOrderStatus.orderStatus.length - 1]?.status;
 
-            return res.status(201).json({
-                message: "Order status created successfully",
-                data: savedOrderStatus,
-            });
+        if (latestStatus) {
+            await sxOrderService.findOneAndUpdate(
+                { organizationId, _id: orderServiceId },
+                { status: latestStatus },
+                { new: true }
+            );
         }
+
+        res.status(200).json({
+            message: `Order status successfully updated. Changed statuses: ${addedOrUpdatedStatuses.join(", ")}`,
+            data: existingOrderStatus
+        });
+
     } catch (error) {
-        console.error("Error in add or edit order status:", error);
+        console.error("Error in addOrderStatus:", error);
         res.status(500).json({ message: "Internal server error" });
     }
 };
 
-
-// Get All Orders Status (Filtered by orderId if provided)
-exports.getAllOrderStatus = async (req, res) => {
-    try {
-        const { organizationId } = req.user;
-        const { orderId } = req.query;
-
-        if (orderId && (!mongoose.Types.ObjectId.isValid(orderId) || orderId.length !== 24)) {
-            return res.status(400).json({ message: `Invalid Order ID: ${orderId}` });
-        }
-
-        const { organizationExists } = await dataExist(organizationId, null);
-
-        const filter = { organizationId };
-        if (orderId) {
-            filter.orderId = orderId;
-        }
-
-        const allOrderStatus = await OrderStatus.find(filter).lean();
-
-        if (!allOrderStatus?.length) {
-            return res.status(404).json({ message: "No order status found" });
-        }
-
-        const formattedObjects = multiCustomDateTime(
-            allOrderStatus,
-            organizationExists.dateFormatExp,
-            organizationExists.timeZoneExp,
-            organizationExists.dateSplit
-        );
-
-        res.status(200).json(formattedObjects);
-
-    } catch (error) {
-        console.error("Error fetching order status:", error);
-        res.status(500).json({ message: "Internal server error" });
-    }
-};
 
 // Get One Order Status (Filtered by orderId if provided)
 exports.getOneOrderStatus = async (req, res) => {
     try {
         const { organizationId } = req.user;
-        const { statusId } = req.params;
-        const { orderId } = req.query;
+        const { orderServiceId, statusId } = req.params;
 
         // Validate statusId
         if (!mongoose.Types.ObjectId.isValid(statusId) || statusId.length !== 24) {
             return res.status(400).json({ message: `Invalid Order Status ID: ${statusId}` });
         }
 
-        if (orderId && (!mongoose.Types.ObjectId.isValid(orderId) || orderId.length !== 24)) {
-            return res.status(400).json({ message: `Invalid Order ID: ${orderId}` });
+        // Validate orderServiceId
+        if (orderServiceId && (!mongoose.Types.ObjectId.isValid(orderServiceId) || orderServiceId.length !== 24)) {
+            return res.status(400).json({ message: `Invalid Order Service ID: ${orderServiceId}` });
         }
 
-        const filter = { _id: statusId, organizationId };
-        if (orderId) {
-            filter.orderId = orderId;
-        }
-
-        const { organizationExists } = await dataExist(organizationId, null);
-
-        const orderStatus = await OrderStatus.findOne(filter).lean();
+        const { organizationExists, orderStatus } = await dataExist(organizationId, statusId);
 
         if (!orderStatus) {
             return res.status(404).json({ message: "Order status not found!" });
@@ -179,111 +214,7 @@ exports.getOneOrderStatus = async (req, res) => {
     }
 };
 
-// // Edit Order Status
-// exports.editOrderStatus = async (req, res) => {
-//     console.log("Edit Order Status", req.body);
-    
-//     try {
-//         const { organizationId, id: userId } = req.user;
-//         const { statusId } = req.params;
 
-//         // Validate statusId
-//         if (!mongoose.Types.ObjectId.isValid(statusId) || statusId.length !== 24) {
-//             return res.status(400).json({ message: `Invalid Order Status ID: ${statusId}` });
-//         }
-
-//         const { orderId } = cleanedData;
-
-//         // Validate orderId
-//         if (!mongoose.Types.ObjectId.isValid(orderId) || orderId.length !== 24) {
-//             return res.status(400).json({ message: `Invalid Order ID: ${orderId}` });
-//         }
-
-//         // Fetch existing order status
-//         const existingOrderStatus = await OrderStatus.findOne({ _id: statusId, organizationId, orderId });
-//         if (!existingOrderStatus) {
-//             console.log("Order status not found with ID:", statusId);
-//             return res.status(404).json({ message: "Order status not found!" });
-//         }
-
-//         const cleanedData = cleanData(req.body);
-
-//         const { organizationExists } = await dataExist(organizationId, null);
-        
-//         if (!validateOrganization( organizationExists, res )) return;
-        
-//         //Validate Inputs
-//         if (!validateInputs( cleanedData, res)) return;
-
-//         const existingStatus = await OrderStatus.findOne({
-//             organizationId,
-//             orderId,
-//             status: { $regex: new RegExp("^" + cleanedData.status + "$", "i") },
-//             _id: { $ne: statusId } // exclude the current one
-//         });
-          
-//         if (existingStatus) {
-//             return res.status(400).json({ message: "This status already exists for the organization." });
-//         }          
-
-//         cleanedData.createdDateTime = moment.tz(cleanedData.saleOrderDate, "YYYY-MM-DDTHH:mm:ss.SSS[Z]", organizationExists.timeZoneExp).toISOString();           
-
-//         //Update Order Status
-//         const mongooseDocument = OrderStatus.hydrate(existingOrderStatus);
-//         Object.assign(mongooseDocument, cleanedData);
-//         const savedOrderStatus = await mongooseDocument.save();
-//         if (!savedOrderStatus) {
-//             return res.status(500).json({ message: "Failed to update order status" });
-//         }
-
-//         console.log( "Order status updated successfully:", savedOrderStatus );
-
-//         res.status(201).json({
-//             message: "Order status updated successfully",
-//             data: savedOrderStatus
-//         });
-
-//     } catch (error) {
-//         console.error("Error updating order status:", error);
-//         res.status(500).json({ message: "Internal server error" });
-//     }
-// };
-
-// // Delete Order Status
-// exports.deleteOrderStatus = async (req, res) => {
-//     console.log("Delete order status request received:", req.params);
-
-//     try {
-//         const { organizationId, id: userId } = req.user;
-//         const { statusId } = req.params;
-
-//         // Validate statusId
-//         if (!mongoose.Types.ObjectId.isValid(statusId) || statusId.length !== 24) {
-//             return res.status(400).json({ message: `Invalid Order Status ID: ${statusId}` });
-//         }
-
-//         // Fetch existing order status
-//         const existingOrderStatus = await OrderStatus.findOne({ _id: statusId, organizationId });
-//         if (!existingOrderStatus) {
-//             console.log("Order status not found with ID:", statusId);
-//             return res.status(404).json({ message: "Order status not found!" });
-//         }
-
-//         // Delete the order status
-//         const deletedOrderStatus = await existingOrderStatus.deleteOne();
-//         if (!deletedOrderStatus) {
-//             console.error("Failed to delete order status.");
-//             return res.status(500).json({ message: "Failed to delete order status" });
-//         }
-    
-//         res.status(200).json({ message: "Order status deleted successfully" });
-//         console.log("Order status deleted successfully with ID:", statusId);
-
-//     } catch (error) {
-//         console.error("Error deleting order status:", error);
-//         res.status(500).json({ message: "Internal server error" });
-//     }
-// };
 
 
 
@@ -293,18 +224,22 @@ exports.getOneOrderStatus = async (req, res) => {
 
 
 // Validate Organization 
-function validateOrganization( organizationExists, res ) {
+function validateOrganizationSetting( organizationExists, SewnexSetting, res ) {
     if (!organizationExists) {
       res.status(404).json({ message: "Organization not found" });
       return false;
     }
+    // if (!SewnexSetting) {
+    //     res.status(404).json({ message: "SewnexSetting not found" });
+    //     return false;
+    // }
     return true;
   }
 
 
   //Validate inputs
-function validateInputs( cleanedData, res) {
-    const validationErrors = validateData( cleanedData );
+function validateInputs( cleanedData, orderStatus, SewnexSetting, res) {
+    const validationErrors = validateData( cleanedData, orderStatus, SewnexSetting );
 
     if (validationErrors.length > 0) {
       res.status(400).json({ message: validationErrors.join(", ") });
@@ -314,10 +249,10 @@ function validateInputs( cleanedData, res) {
  }
 
 //Validate Data
-function validateData( data ) {
+function validateData( data, orderStatus, settings ) {
     const errors = [];    
     //Basic Info
-    validateReqFields( data, errors );
+    validateReqFields( data, orderStatus, settings, errors );
     return errors;
 }
 
@@ -327,9 +262,22 @@ function validateField(condition, errorMsg, errors) {
 }
 
 //Valid Req Fields
-function validateReqFields( data, errors ) {
-    validateField( typeof data.orderId === 'undefined', "orderId is required!", errors  );
-    validateField( typeof data.status === 'undefined', "Please enter the status!", errors  );
-    validateField( typeof data.date === 'undefined', "Please select the date!", errors  );
+function validateReqFields( data, orderStatus, settings, errors ) {
+    validateField( typeof data.orderServiceId === 'undefined', "orderServiceId is required!", errors  );
+
+    if (!orderStatus || !Array.isArray(orderStatus) || orderStatus.length === 0) {
+        errors.push("orderStatus array is required.");
+        return;
+    }
+
+    // const validStatuses = settings.orderStatus.map(s => s.orderStatusName);
+
+    orderStatus.forEach((OS) => {
+        validateField( typeof OS.status === 'undefined', "Please select the status!", errors  );
+        validateField( typeof OS.date === 'undefined', "Please select the date!", errors  );
+        // validateField( !validStatuses.includes(OS.status), `Invalid status: ${OS.status}`, errors );
+    });
 }
+
+
 

@@ -57,6 +57,7 @@ const dataExist = async ( organizationId, designerId, serviceIds, orderId) => {
           { path: 'fabric.itemId', select: 'itemName' }, 
           { path: 'style.styleId',select: 'name' }, 
           { path: 'measurement.parameterId',select: 'name' }, 
+          { path: 'productId', select: 'itemName' }, 
         ]
        })
       .lean(),
@@ -260,8 +261,8 @@ exports.getOneOrder = async (req, res) => {
 
         const transformedOrder = {
                 ...internalOrder,
-                customerId: internalOrder.customerId?._id,  
-                customerDisplayName: internalOrder.customerId?.customerDisplayName,
+                designerId: internalOrder.designerId?._id,  
+                designerName: internalOrder.designerId?.staffName,
   
                 service: internalOrder.service.map(services => ({
                   ...services,
@@ -291,7 +292,8 @@ exports.getOneOrder = async (req, res) => {
                     styleName: style?.styleId?.name,
                   })),
   
-  
+                  productId: services?.orderServiceId?.productId?._id,
+                  productName: services?.orderServiceId?.productId?.itemName,
   
                   cgst: services?.orderServiceId?.cgst,
                   sgst: services?.orderServiceId?.sgst,

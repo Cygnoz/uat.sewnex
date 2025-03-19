@@ -12,6 +12,7 @@ const Service = require("../model/service");
 const SewnexOrderService = require("../model/sxOrderService");
 const CPS = require("../model/cps");
 const OrderStatus = require("../model/orderStatus");
+const SewnexSetting = require("../model/sxSetting");
 
 const { cleanData } = require("../../services/cleanData");
 const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
@@ -22,7 +23,7 @@ const moment = require("moment-timezone");
 
 // Fetch existing data
 const dataExist = async ( organizationId, customerId, serviceIds, orderId) => {
-    const [organizationExists, customerExist, settings, existingPrefix, defaultAccount, customerAccount, services, allFabrics, allStyle, allParameter, allOrder, order  ] = await Promise.all([
+    const [organizationExists, customerExist, settings, existingPrefix, defaultAccount, customerAccount, services, allFabrics, allStyle, allParameter, sewnexSetting ] = await Promise.all([
       Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }).lean(),
       Customer.findOne({ organizationId , _id:customerId }, { _id: 1, customerDisplayName: 1, taxType: 1 }),
       Settings.findOne({ organizationId },{ stockBelowZero:1, salesOrderAddress: 1, salesOrderCustomerNote: 1, salesOrderTermsCondition: 1, salesOrderClose: 1, restrictSalesOrderClose: 1, termCondition: 1 ,customerNote: 1 }),
@@ -35,32 +36,9 @@ const dataExist = async ( organizationId, customerId, serviceIds, orderId) => {
       .lean(),
       CPS.find({ organizationId, type: 'style' }),
       CPS.find({ organizationId, type: 'parameter'}),
-      SewnexOrder.find({ organizationId })
-      .populate('customerId','customerDisplayName')  
-      .populate('service.orderServiceId.style.styleId').populate({
-        path: 'service.orderServiceId',
-        populate: [
-          { path: 'serviceId', select: 'serviceName' }, 
-          { path: 'fabric.itemId', select: 'itemName' }, 
-          { path: 'style.styleId',select: 'name' }, 
-          { path: 'measurement.parameterId',select: 'name' }, 
-        ]
-       })
-      .lean(),
-      SewnexOrder.findOne({ organizationId, _id: orderId })
-      .populate('customerId','customerDisplayName')  
-      .populate('service.orderServiceId.style.styleId').populate({
-        path: 'service.orderServiceId',
-        populate: [
-          { path: 'serviceId', select: 'serviceName' }, 
-          { path: 'fabric.itemId', select: 'itemName' }, 
-          { path: 'style.styleId',select: 'name' }, 
-          { path: 'measurement.parameterId',select: 'name' }, 
-        ]
-       })
-      .lean(),
+      SewnexSetting.findOne({ organizationId })      
     ]);
-    return { organizationExists, customerExist, settings, existingPrefix, defaultAccount, customerAccount, services, allFabrics, allStyle, allParameter, allOrder, order };
+    return { organizationExists, customerExist, settings, existingPrefix, defaultAccount, customerAccount, services, allFabrics, allStyle, allParameter, sewnexSetting };
 };
 
 
@@ -74,6 +52,45 @@ const accDataExists = async ( organizationId, otherExpenseAccountId, freightAcco
   ]);
   return { otherExpenseAcc, freightAcc, depositAcc };
 };
+
+
+
+
+//Get one and All
+const salesDataExist = async ( organizationId, orderId ) => {    
+  const [organizationExists, orderJournal, allOrder, order ] = await Promise.all([
+    Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }).lean(),
+    TrialBalance.find({ organizationId: organizationId, operationId : orderId })
+    .populate('accountId', 'accountName')    
+    .lean(),
+    SewnexOrder.find({ organizationId })
+    .populate('customerId','customerDisplayName')  
+    .populate('service.orderServiceId.style.styleId').populate({
+      path: 'service.orderServiceId',
+        populate: [
+          { path: 'serviceId', select: 'serviceName' }, 
+          { path: 'fabric.itemId', select: 'itemName' }, 
+          { path: 'style.styleId',select: 'name' }, 
+          { path: 'measurement.parameterId',select: 'name' }, 
+        ]
+       })
+    .lean(),
+    SewnexOrder.findOne({ organizationId, _id: orderId })
+    .populate('customerId','customerDisplayName')  
+    .populate('service.orderServiceId.style.styleId').populate({
+        path: 'service.orderServiceId',
+        populate: [
+          { path: 'serviceId', select: 'serviceName' }, 
+          { path: 'fabric.itemId', select: 'itemName' }, 
+          { path: 'style.styleId',select: 'name' }, 
+          { path: 'measurement.parameterId',select: 'name' }, 
+        ]
+       })
+    .lean(),
+  ]);
+  return { organizationExists, orderJournal, allOrder, order };
+};
+
 
 
 
@@ -171,16 +188,21 @@ exports.addOrder = async (req, res) => {
         await journal( savedOrder, defAcc, customerAccount );
 
         // Add order status entry
-        await OrderStatus.create({
-          organizationId,
-          orderId: savedOrder._id,
-          status: "Order Placed",
-          date: savedOrder.saleOrderDate,
-          remarks: "Order has been successfully placed.",
-          userId,
-          createdDateTime: new Date()
-        });
-
+        for (const service of savedOrder.service) {
+          const orderStatusEntry = await OrderStatus.create({
+            organizationId,
+            orderServiceId: service.orderServiceId,
+            orderStatus: [{
+              status: "Order Placed",
+              date: savedOrder.saleOrderDate,
+            }],
+            remarks: "Order has been successfully placed.",
+            userId,
+            createdDateTime: new Date()
+          });
+          console.log("orderStatusEntry:",orderStatusEntry);
+        }
+          
         console.log( "Sale Order created successfully:", savedOrder );
         res.status(201).json({ message: "Sale Order created successfully", data: savedOrder });
 
@@ -195,7 +217,7 @@ exports.getAllOrders = async (req, res) => {
     try {
         const { organizationId } = req.user;
 
-        const { organizationExists, allOrder } = await dataExist( organizationId, null, null, null );
+        const { organizationExists, allOrder } = await salesDataExist( organizationId, null );
 
         if (!allOrder?.length) {
             return res.status(404).json({ message: "No orders found" });
@@ -292,7 +314,7 @@ exports.getOneOrder = async (req, res) => {
         const { organizationId } = req.user;
         const { orderId } = req.params;
 
-        const { organizationExists, order } = await dataExist(organizationId, null, null, orderId);
+        const { organizationExists, order } = await salesDataExist(organizationId, orderId);
 
         if (!order) {
             return res.status(404).json({ message: "Order not found" });
@@ -443,6 +465,29 @@ exports.orderJournal = async (req, res) => {
 
 
 
+
+
+// Get Invoice Journal
+exports.manufacturingProcessing = async (req, res) => {
+  console.log("Manufacturing Processing", req.body);
+  try {
+      const organizationId = req.user.organizationId;
+      const { orderId } = req.params;
+      const cleanedData = cleanData(req.body);
+
+      const { order } = await salesDataExist(organizationId, orderId);
+
+      if (!order) {
+          return res.status(404).json({ message: "No Order found for the Invoice." });
+      }
+
+      
+    res.status(200).json(transformedJournal);
+  } catch (error) {
+      console.error("Error fetching journal:", error);
+      res.status(500).json({ message: "Internal server error." });
+  }
+};
 
 
 
