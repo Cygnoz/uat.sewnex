@@ -13,7 +13,7 @@ const prefixController = require("../controller/settings/prefixController")
 const settingController = require("../controller/settings/settingController")
 const taxController = require("../controller/settings/taxController")
 const userController = require("../controller/userController")
-
+const dashboardController = require("../controller/dashboardCont")
 
 
 const checkPermission = require('../controller/permission');
@@ -146,6 +146,13 @@ router.post('/login',userController.login)
 
 router.post('/verify-otp',userController.verifyOtp)
 
+
+// dashboard
+router.get('/get-dashboard-overview', verifyToken, dashboardController.getTodayOverview)
+
+router.get('/get-dashboard-getExpenseByCategory', verifyToken, dashboardController.getExpenseByCategory)
+
+router.get("/sales-expense-comparison", verifyToken, dashboardController.getSalesExpenseComparison);
 
 
 
