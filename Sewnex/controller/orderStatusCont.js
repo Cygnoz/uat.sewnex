@@ -12,95 +12,17 @@ const moment = require("moment-timezone");
 
 
 // Fetch existing data
-const dataExist = async ( organizationId, statusId) => {
-    const [organizationExists, orderStatus, sewnexSetting ] = await Promise.all([
+const dataExist = async ( organizationId) => {
+    const [organizationExists, sewnexSetting ] = await Promise.all([
       Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }).lean(),
-      OrderStatus.findOne({ organizationId, _id: statusId }).lean(),
       SewnexSetting.findOne({ organizationId }).lean(),
     ]);
-    return { organizationExists, orderStatus, sewnexSetting };
+    return { organizationExists, sewnexSetting };
 };
 
 
 
 // Add Order Status
-// exports.addOrderStatus = async (req, res) => {
-//     console.log("Add or Edit Order Status", req.body);
-
-//     try {
-//         const { organizationId, id: userId } = req.user;
-//         const cleanedData = cleanData(req.body);
-//         const { orderServiceId, orderStatus, remarks } = cleanedData;
-
-//         // Check organization
-//         const { organizationExists, sewnexSetting } = await dataExist(organizationId, null);
-
-//         if (!validateOrganizationSetting(organizationExists, sewnexSetting, res)) return;
-
-//         // Validate inputs
-//         if (!validateInputs(cleanedData, orderStatus, sewnexSetting, res)) return;
-
-//         // Check if order status entry exists
-//         const existingOrderStatus = await OrderStatus.findOne({
-//             organizationId,
-//             orderServiceId
-//         });
-
-//         if (!existingOrderStatus) {
-//             return res.status(404).json({ message: "Order status entry not found for this service." });
-//         }
-
-//         const statuses = Array.isArray(orderStatus) ? orderStatus : [orderStatus];
-//         let addedStatuses = [];
-
-//         statuses.forEach(statusEntry => {
-//             const alreadyExists = existingOrderStatus.orderStatus.some(existing =>
-//                 existing.status === statusEntry.status
-//             );
-
-//             if (!alreadyExists) {
-//                 existingOrderStatus.orderStatus.push({
-//                     status: statusEntry.status,
-//                     date: statusEntry.date
-//                 });
-//                 addedStatuses.push(statusEntry.status);
-//             } else {
-//                 console.log(`Status "${statusEntry.status}" already exists, skipping.`);
-//             }
-//         });
-
-//         if (addedStatuses.length === 0) {
-//             return res.status(200).json({ message: "No new statuses added; all were duplicates." });
-//         }
-
-//         // Update remarks
-//         existingOrderStatus.remarks = remarks;
-
-//         // Save
-//         await existingOrderStatus.save();
-
-//         // Get the latest status (last in the array)
-//         const latestStatus = existingOrderStatus.orderStatus[existingOrderStatus.orderStatus.length - 1]?.status;
-
-//         // Update status in SewnexOrderService
-//         if (latestStatus) {
-//             await sxOrderService.findOneAndUpdate(
-//                 { organizationId, _id: orderServiceId },
-//                 { status: latestStatus },
-//                 { new: true }
-//             );
-//         }
-
-//         res.status(200).json({
-//             message: `Order status updated successfully. Added statuses: ${addedStatuses.join(", ")}`,
-//             data: existingOrderStatus
-//         });
-
-//     } catch (error) {
-//         console.error("Error in addOrderStatus:", error);
-//         res.status(500).json({ message: "Internal server error" });
-//     }
-// };
 exports.addOrderStatus = async (req, res) => {
     console.log("Add or Edit Order Status", req.body);
 
@@ -110,7 +32,7 @@ exports.addOrderStatus = async (req, res) => {
         const { orderServiceId, orderStatus, remarks } = cleanedData;
 
         // Check organization
-        const { organizationExists, sewnexSetting } = await dataExist(organizationId, null);
+        const { organizationExists, sewnexSetting } = await dataExist(organizationId);
 
         if (!validateOrganizationSetting(organizationExists, sewnexSetting, res)) return;
 
@@ -177,43 +99,60 @@ exports.addOrderStatus = async (req, res) => {
 };
 
 
-// Get One Order Status (Filtered by orderId if provided)
-exports.getOneOrderStatus = async (req, res) => {
+// Get One Order Status 
+exports.getOrderStatus = async (req, res) => {
     try {
         const { organizationId } = req.user;
-        const { orderServiceId, statusId } = req.params;
-
-        // Validate statusId
-        if (!mongoose.Types.ObjectId.isValid(statusId) || statusId.length !== 24) {
-            return res.status(400).json({ message: `Invalid Order Status ID: ${statusId}` });
-        }
+        const { orderServiceId, statusName } = req.query;
 
         // Validate orderServiceId
-        if (orderServiceId && (!mongoose.Types.ObjectId.isValid(orderServiceId) || orderServiceId.length !== 24)) {
+        if (!mongoose.Types.ObjectId.isValid(orderServiceId) || orderServiceId.length !== 24) {
             return res.status(400).json({ message: `Invalid Order Service ID: ${orderServiceId}` });
         }
 
-        const { organizationExists, orderStatus } = await dataExist(organizationId, statusId);
+        // Check organization
+        const { organizationExists } = await dataExist(organizationId);
+        if (!organizationExists) {
+            return res.status(404).json({ message: "Organization not found!" });
+        }
+        console.log("organizationExists:",organizationExists);
 
-        if (!orderStatus) {
-            return res.status(404).json({ message: "Order status not found!" });
+        const orderStatusDoc = await OrderStatus.findOne({
+            organizationId,
+            orderServiceId
+        }).lean();
+
+        if (!orderStatusDoc) {
+            return res.status(404).json({ message: "Order status not found for this service!" });
         }
 
-        const formattedObject = singleCustomDateTime(
-            orderStatus,
+        // If statusId is provided, find that specific status object
+        let statusData = orderStatusDoc;
+        if (statusName) {
+            const singleStatus = orderStatusDoc.orderStatus.find(
+                (statusEntry) => statusEntry.status === statusName
+            );
+
+            if (!singleStatus) {
+                return res.status(404).json({ message: "Status entry not found in order status array!" });
+            }
+            statusData = { ...singleStatus, remarks: orderStatusDoc.remarks };
+        }
+
+        const formattedData = singleCustomDateTime(
+            statusData,
             organizationExists.dateFormatExp,
             organizationExists.timeZoneExp,
             organizationExists.dateSplit
         );
 
-        res.status(200).json(formattedObject);
+        res.status(200).json(formattedData);
 
     } catch (error) {
         console.error("Error fetching order status:", error);
         res.status(500).json({ message: "Internal server error" });
     }
 };
-
 
 
 

@@ -34,7 +34,9 @@ router.delete('/delete-sewnex-order/:orderId',verifyToken,updateSxOrderCont.dele
 
 
 //Sewnex Order Status Change
-router.post('/sewnex-order-status-change',verifyToken,sxOrderStatusCont.addOrderStatus);
+router.post('/add-order-status-change',verifyToken,sxOrderStatusCont.addOrderStatus);
+
+router.get('/get-order-status-change',verifyToken,sxOrderStatusCont.getOrderStatus);
 
 
 
