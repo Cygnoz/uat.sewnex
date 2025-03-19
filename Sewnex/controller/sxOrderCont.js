@@ -230,7 +230,7 @@ exports.getAllOrders = async (req, res) => {
               ...data,
               customerId: data.customerId?._id,  
               customerDisplayName: data.customerId?.customerDisplayName,
-              mobile:  data.customerId?.mobil,
+              mobile:  data.customerId?.mobile,
 
               service: data.service.map(services => ({
                 ...services,
