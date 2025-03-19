@@ -82,7 +82,7 @@ const salesDataExist = async ( organizationId, orderId, orderServiceId ) => {
         path: 'service.orderServiceId',
         populate: [
           { path: 'serviceId', select: 'serviceName' }, 
-          { path: 'fabric.itemId', select: 'itemName' }, 
+          { path: 'fabric.itemId', select: 'itemName salesAccountId' }, 
           { path: 'style.styleId',select: 'name' }, 
           { path: 'measurement.parameterId',select: 'name' }, 
         ]
@@ -108,10 +108,19 @@ exports.addOrder = async (req, res) => {
         const { organizationId, id: userId } = req.user;
 
         const cleanedData = cleanData(req.body);
-        
+
         cleanedData.service = cleanedData.service
-        ?.map(data => cleanData(data))
-        .filter(service => service.serviceId !== undefined && service.serviceId !== '') || [];
+          ?.map(data => {
+            const cleanedService = cleanData(data);
+          
+            ['fabric', 'measurement', 'style', 'referenceImage'].forEach(key => {
+              cleanedService[key] = cleanedService[key]?.map(item => cleanData(item)) ?? [];
+            });
+          
+            return cleanedService;
+          })
+          .filter(service => service.serviceId) || [];
+        
         
         const { customerId, service } = cleanedData;
         
@@ -230,7 +239,7 @@ exports.getAllOrders = async (req, res) => {
               ...data,
               customerId: data.customerId?._id,  
               customerDisplayName: data.customerId?.customerDisplayName,
-              mobile:  data.customerId?.mobil,
+              mobile:  data.customerId?.mobile,
 
               service: data.service.map(services => ({
                 ...services,
@@ -243,7 +252,8 @@ exports.getAllOrders = async (req, res) => {
                 fabric: services?.orderServiceId?.fabric.map(fabric => ({
                   ...fabric,
                   itemId: fabric?.itemId?._id,
-                  itemName: fabric?.itemId?.itemName,      
+                  itemName: fabric?.itemId?.itemName,
+                  salesAccountId: fabric?.itemId?.salesAccountId,  
                 })),
 
 
