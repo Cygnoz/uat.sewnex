@@ -82,7 +82,7 @@ const salesDataExist = async ( organizationId, orderId, orderServiceId ) => {
         path: 'service.orderServiceId',
         populate: [
           { path: 'serviceId', select: 'serviceName' }, 
-          { path: 'fabric.itemId', select: 'itemName' }, 
+          { path: 'fabric.itemId', select: 'itemName salesAccountId' }, 
           { path: 'style.styleId',select: 'name' }, 
           { path: 'measurement.parameterId',select: 'name' }, 
         ]
@@ -243,7 +243,8 @@ exports.getAllOrders = async (req, res) => {
                 fabric: services?.orderServiceId?.fabric.map(fabric => ({
                   ...fabric,
                   itemId: fabric?.itemId?._id,
-                  itemName: fabric?.itemId?.itemName,      
+                  itemName: fabric?.itemId?.itemName,
+                  salesAccountId: fabric?.itemId?.salesAccountId,  
                 })),
 
 
