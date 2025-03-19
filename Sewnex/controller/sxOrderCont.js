@@ -12,6 +12,7 @@ const Service = require("../model/service");
 const SewnexOrderService = require("../model/sxOrderService");
 const CPS = require("../model/cps");
 const SewnexSetting = require("../model/sxSetting");
+const ServiceManufacture = require("../model/serviceManufacture")
 
 const { cleanData } = require("../../services/cleanData");
 const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
@@ -23,7 +24,7 @@ const moment = require("moment-timezone");
 // Fetch existing data
 const dataExist = async ( organizationId, customerId, serviceIds, orderId) => {
     const [organizationExists, customerExist, settings, existingPrefix, defaultAccount, customerAccount, services, allFabrics, allStyle, allParameter, sewnexSetting ] = await Promise.all([
-      Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }).lean(),
+      Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1, state : 1 }).lean(),
       Customer.findOne({ organizationId , _id:customerId }, { _id: 1, customerDisplayName: 1, taxType: 1 }),
       Settings.findOne({ organizationId },{ stockBelowZero:1, salesOrderAddress: 1, salesOrderCustomerNote: 1, salesOrderTermsCondition: 1, salesOrderClose: 1, restrictSalesOrderClose: 1, termCondition: 1 ,customerNote: 1 }),
       Prefix.findOne({ organizationId }),
@@ -56,9 +57,9 @@ const accDataExists = async ( organizationId, otherExpenseAccountId, freightAcco
 
 
 //Get one and All
-const salesDataExist = async ( organizationId, orderId ) => {    
+const salesDataExist = async ( organizationId, orderId, orderServiceId ) => {    
   const [organizationExists, orderJournal, allOrder, order ] = await Promise.all([
-    Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1 }).lean(),
+    Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1, state: 1 }).lean(),
     TrialBalance.find({ organizationId: organizationId, operationId : orderId })
     .populate('accountId', 'accountName')    
     .lean(),
@@ -86,6 +87,7 @@ const salesDataExist = async ( organizationId, orderId ) => {
         ]
        })
     .lean(),
+    SewnexOrderService.findOne({ organizationId, _id: orderServiceId })
   ]);
   return { organizationExists, orderJournal, allOrder, order };
 };
@@ -204,7 +206,7 @@ exports.getAllOrders = async (req, res) => {
     try {
         const { organizationId } = req.user;
 
-        const { organizationExists, allOrder } = await salesDataExist( organizationId, null );
+        const { organizationExists, allOrder } = await salesDataExist( organizationId, null, null );
 
         if (!allOrder?.length) {
             return res.status(404).json({ message: "No orders found" });
@@ -290,7 +292,7 @@ exports.getAllOrders = async (req, res) => {
           res.status(200).json(formattedObjects);
 
     } catch (error) {
-        console.error("Error fetching orders:", error);
+        console.error("Error fetching orders1:", error);
         res.status(500).json({ message: "Internal server error" });
     }
 };
@@ -301,7 +303,7 @@ exports.getOneOrder = async (req, res) => {
         const { organizationId } = req.user;
         const { orderId } = req.params;
 
-        const { organizationExists, order } = await salesDataExist(organizationId, orderId);
+        const { organizationExists, order } = await salesDataExist(organizationId, orderId, null);
 
         if (!order) {
             return res.status(404).json({ message: "Order not found" });
@@ -384,7 +386,7 @@ exports.getOneOrder = async (req, res) => {
         res.status(200).json(formattedObjects);
 
     } catch (error) {
-        console.error("Error fetching order:", error);
+        console.error("Error fetching order2:", error);
         res.status(500).json({ message: "Internal server error" });
     }
 };
@@ -423,7 +425,7 @@ exports.orderJournal = async (req, res) => {
       const organizationId = req.user.organizationId;
       const { orderId } = req.params;
 
-      const { orderJournal } = await salesDataExist( organizationId, orderId );      
+      const { orderJournal } = await salesDataExist( organizationId, orderId, null );      
 
       if (!orderJournal) {
           return res.status(404).json({
@@ -459,17 +461,31 @@ exports.manufacturingProcessing = async (req, res) => {
   console.log("Manufacturing Processing", req.body);
   try {
       const organizationId = req.user.organizationId;
-      const { orderId } = req.params;
+      const { orderServiceId } = req.params;
       const cleanedData = cleanData(req.body);
 
-      const { order } = await salesDataExist(organizationId, orderId);
+      const { serviceOrder } = await salesDataExist(organizationId, null, orderServiceId);
 
-      if (!order) {
-          return res.status(404).json({ message: "No Order found for the Invoice." });
+      if (!serviceOrder) {
+        return res.status(404).json({ message: "No Service Order found for the Invoice." });
+      }
+
+      if (!serviceOrder.status === 'Manufacturing') {
+        return res.status(404).json({ message: "Service is not in Manufacturing status." });
+      }
+
+      const existingServiceManufacture = await ServiceManufacture.findOne( { organizationId, orderServiceId, status:cleanedData.status } );
+
+      if(existingServiceManufacture){
+        const updatedServiceManufacture = await ServiceManufacture.updateOne( { organizationId, orderServiceId , status:cleanedData.status }, { $set: cleanedData } );
+        return res.status(200).json(updatedServiceManufacture);
+
+      }else{
+        const newServiceManufacture = await ServiceManufacture.create( { organizationId, orderServiceId , ...cleanedData } );
+        return res.status(201).json(newServiceManufacture);
       }
 
       
-    res.status(200).json(transformedJournal);
   } catch (error) {
       console.error("Error fetching journal:", error);
       res.status(500).json({ message: "Internal server error." });
@@ -719,7 +735,7 @@ function validateService(data, services, allFabrics, allStyle, allParameter, err
 
 
 // Tax Type
-function taxType( cleanedData, customerExist, organizationExists ) {
+function taxType( cleanedData, customerExist, organizationExists ) {  
     if(customerExist.taxType === 'GST' ){
       if(cleanedData.placeOfSupply === organizationExists.state){
         cleanedData.taxType ='Intra';
@@ -844,9 +860,10 @@ function calculateSalesOrder(cleanedData, res) {
           let itemTotal = (toNumber(item.sellingPrice) * toNumber(item.quantity)) - toNumber(discountAmount);
           saleAmount += (toNumber(item.sellingPrice) * toNumber(item.quantity));
           fabricRate += itemTotal; 
+          
 
           // Handle tax calculation only for taxable items
-          if (item.taxPreference === 'Taxable') {
+          if (item.taxPreference.trim() === 'Taxable') {            
               switch (taxType) {
                   case 'Intra':
                       calculatedCgstAmount = roundToTwoDecimals((toNumber(item.cgst) / 100) * itemTotal);
@@ -864,6 +881,7 @@ function calculateSalesOrder(cleanedData, res) {
                       itemTotal += calculatedVatAmount;
                       break;
               }
+
               calculatedTaxAmount = calculatedCgstAmount + calculatedSgstAmount + calculatedIgstAmount + calculatedVatAmount;
 
               // Check tax amounts

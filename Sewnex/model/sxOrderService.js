@@ -122,6 +122,7 @@ const SewnexOrderServiceSchema = new Schema ({
     itemTotal: { type: Number },
 
     status: { type: String, default: 'Order Placed' },
+    
     createDateTime: { type: Date, default: Date.now },
     
   })
