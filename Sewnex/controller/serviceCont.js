@@ -217,6 +217,7 @@ exports.getService = async (req, res) => {
             ...s,
             styleId: s.styleId ? s.styleId._id : undefined,
             styleName: s.styleId ? s.styleId.name : undefined,
+            styleCategoryName : s.styleId ? s.styleId.categoryId : undefined, 
           }))
         };
         
@@ -252,7 +253,36 @@ exports.deleteService = async (req, res) => {
 
 
 
+// Get One Service Style
+exports.getServiceStyle = async (req, res) => {
+  try {
+      const { serviceId } = req.params;
+      
+      const organizationId = req.user.organizationId;
+      
+      const { organizationExists, service } = await dataExist( organizationId, null, serviceId );
+      
+      if (!organizationExists) return res.status(404).json({ message: "No Organization Found." });
+              
+      if (!service) return res.status(404).json({ message: "Service not found." });
 
+      const transformedExpense = {
+        style: service.style.map(s => ({
+          ...s,
+          styleId: s.styleId ? s.styleId._id : undefined,
+          styleName: s.styleId ? s.styleId.name : undefined,
+          styleCategoryName : s.styleId ? s.styleId.categoryId : undefined, 
+        }))
+      };
+      
+      const formattedObjects = singleCustomDateTime(transformedExpense, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
+
+      res.status(200).json(formattedObjects);
+  } catch (error) {
+      console.error("Error fetching service:", error);
+      res.status(500).json({ message: "Internal server error." });
+  }
+};
 
 
 

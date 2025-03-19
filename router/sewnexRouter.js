@@ -22,6 +22,7 @@ router.delete('/delete-cps/:type/:cpsId', verifyToken, cpsController.deleteCPS);
 router.post('/add-service', verifyToken, serviceController.addService);
 router.get('/get-all-service', verifyToken, serviceController.getAllServices);
 router.get('/get-one-service/:serviceId', verifyToken, serviceController.getService);
+router.get('/get-one-service-style/:serviceId', verifyToken, serviceController.getServiceStyle);
 router.put('/edit-service/:serviceId', verifyToken, serviceController.editService);
 router.delete('/delete-service/:serviceId', verifyToken, serviceController.deleteService);
 
