@@ -167,14 +167,16 @@ exports.addBills = async (req, res) => {
       //Data Exist Validation
       if (!validateOrganizationSupplierOrder( organizationExists, supplierExist, existingPrefix, defaultAccount, res )) return;
       
+      //Tax Type
+      taxType(cleanedData, supplierExist );
+      
       //Validate Inputs  
       if (!validateInputs( cleanedData, supplierExist, items, itemTable, organizationExists, defaultAccount, res)) return;
       
       //Check Bill Exist
       // if (await checkExistingBill(cleanedData.billNumber, organizationId, res)) return;
   
-      //Tax Type
-      taxType(cleanedData, supplierExist );
+
 
       //Default Account
       const { defAcc, error } = await defaultAccounting( cleanedData, defaultAccount, organizationExists );
@@ -807,7 +809,7 @@ function validateInputs( data, supplierExist, items, itemExists, organizationExi
   
     //Basic Info
     validateReqFields( data, supplierExist, defaultAccount, errors );
-    validateItemTable(items, itemTable, errors);
+    validateItemTable( data, items, itemTable, errors);
     // Activate `validatePurchaseOrderData` only when `purchaseOrderId` is present
     // if (data.purchaseOrderId) {
     //   validatePurchaseOrderData(data, purchaseOrderExist, items, errors);
@@ -877,7 +879,7 @@ function validateInputs( data, supplierExist, items, itemExists, organizationExi
 }
   
   // Function to Validate Item Table 
-  function validateItemTable(items, itemTable, errors) {
+  function validateItemTable( data, items, itemTable, errors) {
   // Check for item count mismatch
   validateField( items.length !== itemTable.length, "Mismatch in item count between request and database.", errors  );
   
@@ -896,13 +898,13 @@ function validateInputs( data, supplierExist, items, itemExists, organizationExi
     // validateField( item.itemCostPrice !== fetchedItem.costPrice, `Cost price Mismatch for ${item.itemName}:  ${item.itemCostPrice}`, errors );
   
     // Validate CGST
-    validateField( item.itemCgst !== fetchedItem.cgst, `CGST Mismatch for ${item.itemName}: ${item.itemCgst}`, errors );
+    validateField( data.taxType === 'Intra' && item.itemCgst !== fetchedItem.cgst, `CGST Mismatch for ${item.itemName}: ${item.itemCgst}`, errors );
   
     // Validate SGST
-    validateField( item.itemSgst !== fetchedItem.sgst, `SGST Mismatch for ${item.itemName}: ${item.itemSgst}`, errors );
+    validateField( data.taxType === 'Intra' && item.itemSgst !== fetchedItem.sgst, `SGST Mismatch for ${item.itemName}: ${item.itemSgst}`, errors );
   
     // Validate IGST
-    validateField( item.itemIgst !== fetchedItem.igst, `IGST Mismatch for ${item.itemName}: ${item.itemIgst}`, errors );
+    validateField( data.taxType === 'Inter' && item.itemIgst !== fetchedItem.igst, `IGST Mismatch for ${item.itemName}: ${item.itemIgst}`, errors );
 
     // Validate tax preference
     validateField( item.taxPreference !== fetchedItem.taxPreference, `Tax Preference mismatch for ${item.itemName}: ${item.taxPreference}`, errors );
@@ -911,10 +913,10 @@ function validateInputs( data, supplierExist, items, itemExists, organizationExi
     validateItemDiscountType(item.itemDiscountType, errors);
   
     // Validate integer fields
-    validateIntegerFields(['itemQuantity'], item, errors);
+    // validateIntegerFields([''], item, errors);
   
     // Validate float fields
-    validateFloatFields(['itemCostPrice', 'itemTotalTax', 'itemAmount'], item, errors);
+    validateFloatFields(['itemCostPrice', 'itemTotalTax', 'itemAmount', 'itemQuantity'], item, errors);
   });
   }
   
