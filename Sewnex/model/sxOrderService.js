@@ -121,9 +121,14 @@ const SewnexOrderServiceSchema = new Schema ({
 
     itemTotal: { type: Number },
 
+<<<<<<< HEAD
     productId: {type: mongoose.Schema.Types.ObjectId, ref: 'Item'},
 
     status: { type: String },   
+=======
+    status: { type: String, default: 'Order Placed' },
+    
+>>>>>>> 4f54af9779143b10334b9b15bd2d0b264b7c6bb7
     createDateTime: { type: Date, default: Date.now },
     
   })
