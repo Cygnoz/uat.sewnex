@@ -365,7 +365,7 @@ try {
     });
   }
 
-  if (!invoice) {
+  if (!invoice || !invoiceId) {
     return res.status(404).json({
       message: "No Invoice found",
     });
