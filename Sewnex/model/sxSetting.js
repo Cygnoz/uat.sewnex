@@ -26,8 +26,6 @@ const sxSettingSchema = new Schema({
 
     measuringStaff:{type:Boolean},//true - include measuring Staff in order, false - exclude measuring Staff from order
 
-
-
 });
 
 const SewnexSetting = mongoose.model("SewnexSetting", sxSettingSchema);

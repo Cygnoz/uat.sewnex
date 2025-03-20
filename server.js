@@ -7,6 +7,7 @@ const helmet = require('helmet');
 
 const server = express();
 const organizationRouter = require('./router/organizationRouter');
+const sewnexRouter = require('./router/sewnexRouter');
 require('./database/connection/connection');
 
 
@@ -29,6 +30,7 @@ server.options('*', (req, res) => {
 server.use(helmet()); 
 server.use(express.json());
 server.use(organizationRouter);
+server.use(sewnexRouter);
 
 const PORT = process.env.PORT || 4004;
 
