@@ -89,7 +89,8 @@ const salesDataExist = async ( organizationId, orderId, orderServiceId ) => {
         ]
        })
     .lean(),
-    SewnexOrderService.find({ organizationId, _id: orderServiceId })
+    SewnexOrderService.findOne({ organizationId, _id: orderServiceId })
+    .lean()
   ]);
   return { organizationExists, orderJournal, allOrder, order, serviceOrder };
 };
@@ -488,27 +489,40 @@ exports.orderJournal = async (req, res) => {
 
 
 
-// Get Invoice Journal
+// manufacturingProcessing
 exports.manufacturingProcessing = async (req, res) => {
   console.log("Manufacturing Processing", req.body);
   try {
       const organizationId = req.user.organizationId;
       const { orderServiceId } = req.params;
       const cleanedData = cleanData(req.body);
-      dataExist()
+
       const { sewnexSetting } = await dataExist(organizationId, null, null, null);
 
       const { serviceOrder } = await salesDataExist(organizationId, null, orderServiceId);
 
-      console.log(sewnexSetting);
+      const { manufacturingStatus } = sewnexSetting;
+      console.log(serviceOrder.status);
       
 
       if (!serviceOrder) {
+        console.log("No Service Order found for the Invoice." );        
         return res.status(404).json({ message: "No Service Order found for the Invoice." });
       }
 
-      if (!serviceOrder.status === 'Manufacturing') {
+      if (serviceOrder.status !== 'Manufacturing') {
+        console.log("Service is not in Manufacturing status.");        
         return res.status(404).json({ message: "Service is not in Manufacturing status." });
+      }
+
+      // Check if cleanedData.manufacturingStatus exists in manufacturingStatus array
+      const isValidManufacturingStatus = manufacturingStatus.some(
+        status => status.manufacturingStatusName === cleanedData.manufacturingStatus
+      );
+
+      if (!isValidManufacturingStatus) {
+        console.log("Invalid manufacturing status.");        
+        return res.status(400).json({ message: "Invalid manufacturing status." });
       }
 
       const existingServiceManufacture = await ServiceManufacture.findOne( { organizationId, orderServiceId, status:cleanedData.manufacturingStatus } );
