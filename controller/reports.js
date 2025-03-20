@@ -235,9 +235,9 @@ async function getReportAccount(organizationExists,organizationId, startDate, en
                 }
                 
                 entry.transactions = entry.transactions.map(transaction => {
-                    const { dateFormatExp, timeZoneExp, dateSplit } = organizationExists;
+                    const { dateFormatExp, timeZoneExp, dateSplit } = organizationExists;                   
                     
-                    const formattedData = singleCustomDateTime( transaction.createdDateTime, dateFormatExp, timeZoneExp, dateSplit );
+                    const formattedData = singleCustomDateTime( transaction, dateFormatExp, timeZoneExp, dateSplit );
         
                     return {
                         ...transaction,
@@ -485,7 +485,7 @@ async function getReportAccountForAssets( organizationExists, organizationId, st
                 entry.transactions = entry.transactions.map(transaction => {
                     const { dateFormatExp, timeZoneExp, dateSplit } = organizationExists;
                     
-                    const formattedData = singleCustomDateTime( transaction.createdDateTime, dateFormatExp, timeZoneExp, dateSplit );
+                    const formattedData = singleCustomDateTime( transaction, dateFormatExp, timeZoneExp, dateSplit );
         
                     return {
                         ...transaction,
@@ -730,7 +730,7 @@ async function getReportAccountForLiability( organizationExists, organizationId,
                 entry.transactions = entry.transactions.map(transaction => {
                     const { dateFormatExp, timeZoneExp, dateSplit } = organizationExists;
                     
-                    const formattedData = singleCustomDateTime( transaction.createdDateTime, dateFormatExp, timeZoneExp, dateSplit );
+                    const formattedData = singleCustomDateTime( transaction, dateFormatExp, timeZoneExp, dateSplit );
         
                     return {
                         ...transaction,
