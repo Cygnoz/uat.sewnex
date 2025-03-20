@@ -144,6 +144,8 @@ router.post('/create-sewnex-client',sewnexClientCont.createOrganizationAndClient
 //Login
 router.post('/login',userController.login)
 
+router.post('/login-otp',userController.loginOTP)
+
 router.post('/verify-otp',userController.verifyOtp)
 
 
