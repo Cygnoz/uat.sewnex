@@ -10,9 +10,15 @@ const { nexVerifyToken } = require('../controller/nexMiddleware');
 
 
 // Sewnex order settings
-router.post('/add-sewnex-order-settings',verifyToken,sxSettingCont.addSewnexOrderSetting)
+router.put('/update-sewnex-order-settings',verifyToken,sxSettingCont.updateOrderSetting)
 
-router.get('/get-sewnex-order-settings',verifyToken,sxSettingCont.getSewnexOrderSetting)
+router.put('/update-sewnex-staff-settings',verifyToken,sxSettingCont.updateStaffSetting)
+
+router.put('/update-sewnex-orderStatus-settings',verifyToken,sxSettingCont.updateOrderStatusSetting)
+
+router.put('/update-sewnex-manufacturingStatus-settings',verifyToken,sxSettingCont.updateManufacturingStatusSetting)
+
+router.get('/get-sewnex-order-settings',verifyToken,sxSettingCont.getOrderSetting)
 
 
 
