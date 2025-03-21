@@ -39,7 +39,38 @@ const SewnexOrderServiceSchema = new Schema ({
         itemAmount: {type:Number},
 
       }
-    ],  
+    ],
+    
+    
+
+
+    rawMaterial: [
+      {
+        itemId: {type: mongoose.Schema.Types.ObjectId, ref: 'Item'},
+        //itemName
+
+        quantity: {type:Number},
+        returnQuantity: { type: Number, default: 0 }, 
+        sellingPrice: {type:Number},
+
+        taxPreference: {type:String},
+        taxRate: {type:String},
+        cgst: { type: Number },
+        sgst: { type: Number },
+        igst: { type: Number },
+        vat: { type: Number },
+
+        cgstAmount: { type: Number },
+        sgstAmount: { type: Number },
+        igstAmount: { type: Number },
+        vatAmount: { type: Number },
+
+        itemTotalTax: {type:Number},
+
+        itemAmount: {type:Number},
+
+      }
+    ], 
 
 
 
@@ -82,9 +113,8 @@ const SewnexOrderServiceSchema = new Schema ({
         imageUrl: {type:String}
       }
     ],
-    
 
-
+    note:{type:String},    
 
     cgst: { type: Number },
     sgst: { type: Number },
@@ -106,6 +136,9 @@ const SewnexOrderServiceSchema = new Schema ({
 
     fabricRate: { type: Number },
     fabricTax: { type: Number },
+
+    rawMaterialRate: { type: Number },
+    rawMaterialTax: { type: Number },
 
     styleRate: { type: Number },
     styleTax: { type: Number },

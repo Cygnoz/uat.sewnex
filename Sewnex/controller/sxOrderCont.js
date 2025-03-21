@@ -24,7 +24,7 @@ const moment = require("moment-timezone");
 
 // Fetch existing data
 const dataExist = async ( organizationId, customerId, serviceIds, orderId) => {
-    const [organizationExists, customerExist, settings, existingPrefix, defaultAccount, customerAccount, services, allFabrics, allStyle, allParameter, sewnexSetting ] = await Promise.all([
+    const [organizationExists, customerExist, settings, existingPrefix, defaultAccount, customerAccount, services, allFabrics, allRawMaterial, allStyle, allParameter, sewnexSetting ] = await Promise.all([
       Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1, state : 1 }).lean(),
       Customer.findOne({ organizationId , _id:customerId }, { _id: 1, customerDisplayName: 1, taxType: 1 }),
       Settings.findOne({ organizationId },{ stockBelowZero:1, salesOrderAddress: 1, salesOrderCustomerNote: 1, salesOrderTermsCondition: 1, salesOrderClose: 1, restrictSalesOrderClose: 1, termCondition: 1 ,customerNote: 1 }),
@@ -35,17 +35,19 @@ const dataExist = async ( organizationId, customerId, serviceIds, orderId) => {
       .lean(),
       Item.find({ organizationId, type: 'Fabric' })
       .lean(),
+      Item.find({ organizationId, type: 'Raw Material' })
+      .lean(),
       CPS.find({ organizationId, type: 'style' }),
       CPS.find({ organizationId, type: 'parameter'}),
       SewnexSetting.findOne({ organizationId })      
     ]);
-    return { organizationExists, customerExist, settings, existingPrefix, defaultAccount, customerAccount, services, allFabrics, allStyle, allParameter, sewnexSetting };
+    return { organizationExists, customerExist, settings, existingPrefix, defaultAccount, customerAccount, services, allFabrics, allRawMaterial, allStyle, allParameter, sewnexSetting };
 };
 
 
 // Fetch Acc existing data
 const accDataExists = async ( organizationId, otherExpenseAccountId, freightAccountId, depositAccountId ) => {
-  console.log("eewe", organizationId, otherExpenseAccountId, freightAccountId, depositAccountId);
+  console.log("accDataExists", organizationId, otherExpenseAccountId, freightAccountId, depositAccountId);
   
   const [ otherExpenseAcc, freightAcc, depositAcc ] = await Promise.all([
     Account.findOne({ organizationId , _id: otherExpenseAccountId, accountHead: "Expenses" }, { _id:1, accountName: 1 }),
@@ -71,7 +73,8 @@ const salesDataExist = async ( organizationId, orderId, orderServiceId ) => {
       path: 'service.orderServiceId',
         populate: [
           { path: 'serviceId', select: 'serviceName' }, 
-          { path: 'fabric.itemId', select: 'itemName' }, 
+          { path: 'fabric.itemId', select: 'itemName' },
+          { path: 'rawMaterial.itemId', select: 'itemName' },  
           { path: 'style.styleId',select: 'name' }, 
           { path: 'measurement.parameterId',select: 'name' }, 
         ]
@@ -83,7 +86,8 @@ const salesDataExist = async ( organizationId, orderId, orderServiceId ) => {
         path: 'service.orderServiceId',
         populate: [
           { path: 'serviceId', select: 'serviceName salesAccountId' }, 
-          { path: 'fabric.itemId', select: 'itemName salesAccountId' }, 
+          { path: 'fabric.itemId', select: 'itemName salesAccountId' },
+          { path: 'rawMaterial.itemId', select: 'itemName salesAccountId' },  
           { path: 'style.styleId',select: 'name' }, 
           { path: 'measurement.parameterId',select: 'name' }, 
         ]
@@ -141,9 +145,9 @@ exports.addOrder = async (req, res) => {
         } 
 
 
-        const { organizationExists, customerExist, existingPrefix, defaultAccount, services, allFabrics, allStyle, allParameter, customerAccount } = await dataExist(organizationId, customerId, serviceIds, null);
+        const { organizationExists, customerExist, existingPrefix, defaultAccount, services, allFabrics, allRawMaterial, allStyle, allParameter, customerAccount } = await dataExist(organizationId, customerId, serviceIds, null);
 
-        const allData = { allParameter, allFabrics, allStyle, services };
+        const allData = { allParameter, allFabrics, allRawMaterial, allStyle, services };
         
         if (!validateOrganizationTaxCurrency( organizationExists, customerExist, existingPrefix, defaultAccount, res )) return;
         
@@ -239,11 +243,11 @@ exports.getAllOrders = async (req, res) => {
         const transformedOrder = allOrder.map(data => {
           return {
               ...data,
-              customerId: data.customerId?._id,  
-              customerDisplayName: data.customerId?.customerDisplayName,
-              mobile:  data.customerId?.mobile,
+              customerId: data?.customerId?._id,  
+              customerDisplayName: data?.customerId?.customerDisplayName,
+              mobile:  data?.customerId?.mobile,
 
-              service: data.service.map(services => ({
+              service: data?.service?.map(services => ({
                 ...services,
                 _id: services?._id,
                 orderServiceId: services?.orderServiceId?._id,
@@ -251,21 +255,27 @@ exports.getAllOrders = async (req, res) => {
                 serviceName: services?.orderServiceId?.serviceId?.serviceName,
 
 
-                fabric: services?.orderServiceId?.fabric.map(fabric => ({
+                fabric: services?.orderServiceId?.fabric?.map(fabric => ({
                   ...fabric,
                   itemId: fabric?.itemId?._id,
                   itemName: fabric?.itemId?.itemName,
                 })),
 
+                rawMaterial: services?.orderServiceId?.rawMaterial?.map(rawMaterial => ({
+                  ...rawMaterial,
+                  itemId: rawMaterial?.itemId?._id,
+                  itemName: rawMaterial?.itemId?.itemName,
+                })),
 
-                measurement: services?.orderServiceId?.measurement.map(measurement => ({
+
+                measurement: services?.orderServiceId?.measurement?.map(measurement => ({
                   parameterId: measurement?.parameterId?._id,
                   parameterName: measurement?.parameterId?.name,
                   value: measurement?.value
                 })),
 
 
-                style: services?.orderServiceId?.style.map(style => ({
+                style: services?.orderServiceId?.style?.map(style => ({
                   ...style,
                   styleId: style?.styleId?._id,
                   styleName: style?.styleId?.name,
@@ -293,6 +303,9 @@ exports.getAllOrders = async (req, res) => {
 
                 fabricRate: services?.orderServiceId?.fabricRate,
                 fabricTax: services?.orderServiceId?.fabricTax,
+
+                rawMaterialRate: services?.orderServiceId?.rawMaterialRate,
+                rawMaterialTax: services?.orderServiceId?.rawMaterialTax,
 
                 styleRate: services?.orderServiceId?.styleRate,
                 styleTax: services?.orderServiceId?.styleTax,
@@ -336,15 +349,15 @@ exports.getOneOrder = async (req, res) => {
 
         const transformedOrder = {
               ...order,
-              customerId: order.customerId?._id,  
-              customerDisplayName: order.customerId?.customerDisplayName,
-              customerEmail: order.customerId?.customerEmail,
-              mobile: order.customerId?.mobile,
-              membershipCardNumber: order.customerId?.membershipCardNumber,
-              customerAddress: order.customerId?.customerAddress,
+              customerId: order?.customerId?._id,  
+              customerDisplayName: order?.customerId?.customerDisplayName,
+              customerEmail: order?.customerId?.customerEmail,
+              mobile: order?.customerId?.mobile,
+              membershipCardNumber: order?.customerId?.membershipCardNumber,
+              customerAddress: order?.customerId?.customerAddress,
 
 
-              service: order.service.map(services => ({
+              service: order?.service?.map(services => ({
                 ...services,
                 _id: services?._id,
                 orderServiceId: services?.orderServiceId?._id,
@@ -353,7 +366,7 @@ exports.getOneOrder = async (req, res) => {
                 salesAccountId: services?.orderServiceId?.serviceId?.salesAccountId,
 
 
-                fabric: services?.orderServiceId?.fabric.map(fabric => ({
+                fabric: services?.orderServiceId?.fabric?.map(fabric => ({
                   ...fabric,
                   itemId: fabric?.itemId?._id,
                   itemName: fabric?.itemId?.itemName,
@@ -361,15 +374,23 @@ exports.getOneOrder = async (req, res) => {
       
                 })),
 
+                rawMaterial: services?.orderServiceId?.rawMaterial?.map(rawMaterial => ({
+                  ...rawMaterial,
+                  itemId: rawMaterial?.itemId?._id,
+                  itemName: rawMaterial?.itemId?.itemName,
+                  salesAccountId: rawMaterial?.itemId?.salesAccountId,
+      
+                })),
 
-                measurement: services?.orderServiceId?.measurement.map(measurement => ({
+
+                measurement: services?.orderServiceId?.measurement?.map(measurement => ({
                   parameterId: measurement?.parameterId?._id,
                   parameterName: measurement?.parameterId?.name,
                   value: measurement?.value
                 })),
 
 
-                style: services?.orderServiceId?.style.map(style => ({
+                style: services?.orderServiceId?.style?.map(style => ({
                   ...style,
                   styleId: style?.styleId?._id,
                   styleName: style?.styleId?.name,
@@ -395,6 +416,9 @@ exports.getOneOrder = async (req, res) => {
 
                 fabricRate: services?.orderServiceId?.fabricRate,
                 fabricTax: services?.orderServiceId?.fabricTax,
+
+                rawMaterialRate: services?.orderServiceId?.rawMaterialRate,
+                rawMaterialTax: services?.orderServiceId?.rawMaterialTax,
 
                 styleRate: services?.orderServiceId?.styleRate,
                 styleTax: services?.orderServiceId?.styleTax,
@@ -502,13 +526,13 @@ exports.manufacturingProcessing = async (req, res) => {
       const { serviceOrder } = await salesDataExist(organizationId, null, orderServiceId);
 
       const { manufacturingStatus } = sewnexSetting;
-      console.log(serviceOrder.status);
-      
-
+            
       if (!serviceOrder) {
         console.log("No Service Order found for the Invoice." );        
         return res.status(404).json({ message: "No Service Order found for the Invoice." });
       }
+      
+      console.log(serviceOrder.status);
 
       if (serviceOrder.status !== 'Manufacturing') {
         console.log("Service is not in Manufacturing status.");        
@@ -554,7 +578,7 @@ exports.manufacturingProcessing = async (req, res) => {
       
   } catch (error) {
       console.error("Error fetching journal:", error);
-      res.status(500).json({ message: "Internal server error." });
+      res.status(500).json({ message: "Internal server error.", error: error.message, stack: error.stack });
   }
 };
 
@@ -616,7 +640,7 @@ function validateOrderData( data, customerExist, defaultAccount, allData ) {
   
     //Basic Info
     validateReqFields( data, customerExist, defaultAccount, errors );
-    validateService( data.service, allData.services, allData.allFabrics, allData.allStyle, allData.allParameter, errors);
+    validateService( data.service, allData, errors);
   
   
   
@@ -666,7 +690,9 @@ function validateReqFields( data, customerExist, defaultAccount, errors ) {
 
 
 // Function to Validate Item Table 
-function validateService(data, services, allFabrics, allStyle, allParameter, errors) {      
+function validateService(data, allData, errors) {
+  
+    const { allParameter, allFabrics, allRawMaterial, allStyle, services } = allData;
 
     // Check for service count mismatch
     validateField(data.length !== services.length, "Mismatch in service count between request and database.", errors);
@@ -692,6 +718,8 @@ function validateService(data, services, allFabrics, allStyle, allParameter, err
         validateField( typeof svc.serviceTax === 'undefined', "Service Tax required", errors  );
         validateField( typeof svc.fabricRate === 'undefined', "Fabric Rate required", errors  );
         validateField( typeof svc.fabricTax === 'undefined', "Fabric Tax required", errors  );
+        validateField( typeof svc.rawMaterialRate === 'undefined', "Raw Material Rate required", errors  );
+        validateField( typeof svc.rawMaterialTax === 'undefined', "Raw Material Tax required", errors  );
         validateField( typeof svc.styleRate === 'undefined', "Style Rate required", errors  );
         validateField( typeof svc.styleTax === 'undefined', "Style Tax required", errors  );
         validateField( typeof svc.totalRate === 'undefined', "Total Rate required", errors  );
@@ -714,7 +742,6 @@ function validateService(data, services, allFabrics, allStyle, allParameter, err
 
 
         // Validate fabrics within the service
-
         svc.fabric.forEach((fabric) => {
             const fetchedFabric = allFabrics.find(f => f._id.toString() === fabric.itemId.toString());
 
@@ -745,6 +772,41 @@ function validateService(data, services, allFabrics, allStyle, allParameter, err
             validateField( fabric.salesAccountId.toString() !== fetchedFabric.salesAccountId.toString(), `Sales Account mismatch for fabric ${fabric.itemName}`, errors);
 
         });
+
+
+
+
+
+        // Validate raw material within the service
+        svc.rawMaterial.forEach((rawMaterial) => {
+          const fetchedRawMaterial = allRawMaterial.find(f => f._id.toString() === rawMaterial.itemId.toString());
+
+          // Check if raw material exists in the raw material table
+          validateField(!fetchedRawMaterial, `Raw Material with ID ${rawMaterial.itemId} was not found.`, errors);
+          if (!fetchedRawMaterial) return;
+         
+
+          // Validate individual raw material fields
+          validateField( typeof rawMaterial.itemName === 'undefined', "Please select a valid Raw Material", errors  );
+          validateField( typeof rawMaterial.quantity === 'undefined', "Quantity required", errors  );
+          validateField( typeof rawMaterial.sellingPrice === 'undefined', "Selling Price required", errors  );
+          validateField( typeof rawMaterial.taxPreference === 'undefined', "Tax Preference required", errors  );
+          validateField( typeof rawMaterial.taxRate === 'undefined', "Raw Material Tax required", errors  );
+          validateField( typeof rawMaterial.itemTotalTax === 'undefined', "Item Total Tax required", errors  );
+          validateField( typeof rawMaterial.itemAmount === 'undefined', "Item Amount required", errors  );
+          validateField( typeof rawMaterial.salesAccountId === 'undefined', `Sales Amount required for ${rawMaterial.itemName}`, errors  );
+
+
+          // validateField(rawMaterial.sellingPrice !== fetchedRawMaterial.sellingPrice, `Selling price mismatch for raw material ${rawMaterial.itemName}: ${rawMaterial.sellingPrice}`, errors);
+          validateField(rawMaterial.taxPreference !== fetchedRawMaterial.taxPreference, `Tax preference mismatch for raw material ${rawMaterial.itemName}: ${rawMaterial.taxPreference}`, errors);
+          validateField(rawMaterial.taxRate !== fetchedRawMaterial.taxRate, `Tax rate mismatch for raw material ${rawMaterial.itemName}: ${rawMaterial.taxRate}`, errors);
+          validateField( svc.cgst !== undefined && fetchedService.cgst !== undefined && Number(rawMaterial.cgst) !== Number(fetchedRawMaterial.cgst), `CGST mismatch for raw material ${rawMaterial.itemName}: ${rawMaterial.cgst}`, errors);
+          validateField( svc.sgst !== undefined && fetchedService.sgst !== undefined && Number(rawMaterial.sgst) !== Number(fetchedRawMaterial.sgst), `SGST mismatch for raw material ${rawMaterial.itemName}: ${rawMaterial.sgst}`, errors);
+          validateField( svc.igst !== undefined && fetchedService.igst !== undefined && Number(rawMaterial.igst) !== Number(fetchedRawMaterial.igst), `IGST mismatch for raw material ${rawMaterial.itemName}: ${rawMaterial.igst}`, errors);
+          validateField( svc.vat !== undefined && fetchedService.vat !== undefined && Number(rawMaterial.vat) !== Number(fetchedRawMaterial.vat), `VAT mismatch for raw material ${rawMaterial.itemName}: ${rawMaterial.vat}`, errors);
+          validateField( rawMaterial.salesAccountId.toString() !== fetchedRawMaterial.salesAccountId.toString(), `Sales Account mismatch for raw material ${rawMaterial.itemName}`, errors);
+
+      });
 
 
 
@@ -906,8 +968,12 @@ function calculateSalesOrder(cleanedData, res) {
 
       let fabricRate = 0;
       let fabricTax = 0;
+      
       let styleRate = 0;
       let styleTax = 0;
+      
+      let rawMaterialRate = 0;
+      let rawMaterialTax = 0;
 
 
 
@@ -977,6 +1043,75 @@ function calculateSalesOrder(cleanedData, res) {
           console.log(`${item.itemName} Total Tax: ${calculatedTaxAmount} , Provided ${item.itemTotalTax || 0}`);
           console.log("");
       });
+
+
+
+      // Checking raw material items
+      service.rawMaterial.forEach(item => {
+        let calculatedCgstAmount = 0;
+        let calculatedSgstAmount = 0;
+        let calculatedIgstAmount = 0;
+        let calculatedVatAmount = 0;
+        let calculatedTaxAmount = 0;
+        let taxType = cleanedData.taxType;
+
+        // Calculate item line discount 
+        const discountAmount = calculateDiscount(item);
+
+        totalDiscount += toNumber(discountAmount);
+        totalItemCount += toNumber(item.quantity);
+
+        let itemTotal = (toNumber(item.sellingPrice) * toNumber(item.quantity)) - toNumber(discountAmount);
+        saleAmount += (toNumber(item.sellingPrice) * toNumber(item.quantity));
+        rawMaterialRate += itemTotal; 
+        
+
+        // Handle tax calculation only for taxable items
+        if (item.taxPreference.trim() === 'Taxable') {            
+            switch (taxType) {
+                case 'Intra':
+                    calculatedCgstAmount = roundToTwoDecimals((toNumber(item.cgst) / 100) * itemTotal);
+                    calculatedSgstAmount = roundToTwoDecimals((toNumber(item.sgst) / 100) * itemTotal);
+                    itemTotal += calculatedCgstAmount + calculatedSgstAmount;
+                    break;
+
+                case 'Inter':
+                    calculatedIgstAmount = roundToTwoDecimals((toNumber(item.igst) / 100) * itemTotal);
+                    itemTotal += calculatedIgstAmount;
+                    break;
+
+                case 'VAT':
+                    calculatedVatAmount = roundToTwoDecimals((toNumber(item.vat) / 100) * itemTotal);
+                    itemTotal += calculatedVatAmount;
+                    break;
+            }
+
+            calculatedTaxAmount = calculatedCgstAmount + calculatedSgstAmount + calculatedIgstAmount + calculatedVatAmount;
+
+            // Check tax amounts
+            checkAmount(calculatedCgstAmount, toNumber(item.cgstAmount), item.itemName, 'CGST', errors);
+            checkAmount(calculatedSgstAmount, toNumber(item.sgstAmount), item.itemName, 'SGST', errors);
+            checkAmount(calculatedIgstAmount, toNumber(item.igstAmount), item.itemName, 'IGST', errors);
+            checkAmount(calculatedVatAmount, toNumber(item.vatAmount), item.itemName, 'VAT', errors);
+            checkAmount(calculatedTaxAmount, toNumber(item.itemTotalTax), item.itemName, 'Total tax', errors);
+
+            totalTax += calculatedCgstAmount + calculatedSgstAmount + calculatedIgstAmount + calculatedVatAmount || 0;
+            rawMaterialTax += calculatedCgstAmount + calculatedSgstAmount + calculatedIgstAmount + calculatedVatAmount || 0;
+            
+        } else {
+            console.log(`Skipping Tax for Non-Taxable item: ${item.itemName}`);
+            console.log(`Item: ${item.itemName}, Calculated Discount: ${totalDiscount}`);
+        }
+
+        // Update total values
+        subTotal += toNumber(itemTotal);
+
+        checkAmount(itemTotal, toNumber(item.itemAmount), item.itemName, 'Item Total', errors);
+
+        console.log(`${item.itemName} Item Total: ${itemTotal} , Provided ${item.itemAmount}`);
+        console.log(`${item.itemName} Total Tax: ${calculatedTaxAmount} , Provided ${item.itemTotalTax || 0}`);
+        console.log("");
+    });
 
       // Checking style rates
       service.style.forEach(style => {
@@ -1080,10 +1215,15 @@ function calculateSalesOrder(cleanedData, res) {
 
       console.log("  ");
       checkAmount(serviceTotal, toNumber(service.serviceAmount), service.serviceName, 'Service Total', errors);
+      
       checkAmount(fabricRate, toNumber(service.fabricRate), service.serviceName, 'Fabric Rate', errors);
       checkAmount(fabricTax, toNumber(service.fabricTax), service.serviceName, 'Fabric Tax', errors);
+      
       checkAmount(styleRate, toNumber(service.styleRate), service.serviceName, 'Style Rate', errors);
       checkAmount(styleTax, toNumber(service.styleTax), service.serviceName, 'Style Tax', errors);
+
+      checkAmount(rawMaterialRate, toNumber(service.rawMaterialRate), service.serviceName, 'Raw Material Rate', errors);
+      checkAmount(rawMaterialTax, toNumber(service.rawMaterialTax), service.serviceName, 'Raw Material Tax', errors);
   });
 
   // Sale amount
@@ -1246,6 +1386,21 @@ function salesJournal(cleanedData, res) {
           }
           accountEntries[fabricSalesAccountId].creditAmount += fabricRate;
       });
+      // Iterate through fabrics
+      service.rawMaterial?.forEach(rawMaterial => {
+        const rawMaterialSalesAccountId = rawMaterial.salesAccountId;
+        if (!rawMaterialSalesAccountId) {
+            errors.push({ message: `Sales Account not found for fabric ${rawMaterial.itemName}` });
+            return;
+        }
+        // Calculate fabric amount excluding tax
+        const rawMaterialRate = roundToTwoDecimals(parseFloat(rawMaterial.sellingPrice || 0) * parseInt(rawMaterial.quantity || 0));
+        
+        if (!accountEntries[rawMaterialSalesAccountId]) {
+            accountEntries[rawMaterialSalesAccountId] = { accountId: rawMaterialSalesAccountId, creditAmount: 0 };
+        }
+        accountEntries[rawMaterialSalesAccountId].creditAmount += rawMaterialRate;
+    });
   });
   // Store results
   cleanedData.salesJournal = Object.values(accountEntries);
