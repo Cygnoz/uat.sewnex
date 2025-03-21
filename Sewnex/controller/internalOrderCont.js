@@ -9,6 +9,7 @@ const Item = require("../../database/model/item");
 const Staff = require("../../database/model/staff");
 
 const SewnexOrder = require("../model/sxOrder");
+const OrderStatus = require("../model/orderStatus");
 const Service = require("../model/service");
 const SewnexOrderService = require("../model/sxOrderService");
 const InternalOrder = require("../model/internalOrder");
