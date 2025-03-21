@@ -347,8 +347,8 @@ exports.getOneOrder = async (req, res) => {
         res.status(200).json(formattedObjects);
 
     } catch (error) {
-        console.error("Error fetching order:", error);
-        res.status(500).json({ message: "Internal server error" });
+      console.log("Error fetching order:", error);
+      res.status(500).json({ message: "Internal server error", error });
     }
 };
 
@@ -422,9 +422,9 @@ function validateOrganizationTaxCurrency( organizationExists, staffExist, existi
 function validateInputs( cleanedData, allData, res) {
     const validationErrors = validateOrderData( cleanedData, allData  );
 
-
-  
+      
     if (validationErrors.length > 0) {
+      console.log(validationErrors);      
       res.status(400).json({ message: validationErrors.join(", ") });
       return false;
     }
@@ -475,7 +475,10 @@ function validateReqFields( data, errors ) {
 // Function to Validate Item Table 
 function validateService(data, productId, allData, errors) {     
     
-    const { allParameter, allFabrics, allReadyMade, allStyle, services } = allData;    
+    const { allParameter, allFabrics, allReadyMade, allStyle, services } = allData;
+    
+    console.log(allFabrics);
+    
 
     // Check for service count mismatch
     validateField(data.length !== services.length, "Mismatch in service count between request and database.", errors);
