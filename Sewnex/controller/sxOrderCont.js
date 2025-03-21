@@ -532,7 +532,7 @@ exports.manufacturingProcessing = async (req, res) => {
         return res.status(404).json({ message: "No Service Order found for the Invoice." });
       }
       
-      console.log(serviceOrder.status);
+      console.log(serviceOrder);
 
       if (serviceOrder.status !== 'Manufacturing') {
         console.log("Service is not in Manufacturing status.");        
@@ -546,33 +546,49 @@ exports.manufacturingProcessing = async (req, res) => {
 
       if (!isValidManufacturingStatus) {
         console.log("Invalid manufacturing status.");        
-        return res.status(400).json({ message: "Invalid manufacturing status." });
+        return res.status(400).json({ message: `Invalid manufacturing status : ${cleanedData.manufacturingStatus}` });
       }
 
-      const existingServiceManufacture = await ServiceManufacture.findOne( { organizationId, orderServiceId, status:cleanedData.manufacturingStatus } );
+      const existingServiceManufacture = await ServiceManufacture.findOne( { organizationId, orderServiceId, manufacturingStatus:cleanedData.manufacturingStatus } );
 
       if(existingServiceManufacture){
+
         //Update existing Service Manufacture
-        const updatedServiceManufacture = await ServiceManufacture.updateOne( { organizationId, orderServiceId , status:cleanedData.manufacturingStatus }, { $set: cleanedData } );
+        const updatedServiceManufacture = await ServiceManufacture.findOneAndUpdate(
+          { organizationId, orderServiceId, manufacturingStatus: cleanedData.manufacturingStatus }, // Search criteria
+          { $set: cleanedData }, // Update data
+          { new: true } // Ensures the updated document is returned
+        );
+        
         
         //Update service Order
-        const updatedServiceOrder = await SewnexOrderService.updateOne( { organizationId, _id: orderServiceId }, { $set: cleanedData } );
-        if (updatedServiceOrder.nModified === 0){
+        const updatedServiceOrder = await SewnexOrderService.findOneAndUpdate( 
+          { organizationId, _id: orderServiceId }, 
+          { $set: { ...cleanedData, staffProgress: "Not started"} }, 
+          { new: true } );
+        if (!updatedServiceOrder) {
           return res.status(404).json({ message: "Service Order is not in Manufacturing status." });
-          }
+        }
         return res.status(200).json( {message: "Manufacturing process updated" , updatedServiceManufacture});
 
       }else{
+
+
         //New Service Manufacture
         const newServiceManufacture = await ServiceManufacture.create( { organizationId, orderServiceId , ...cleanedData } );
 
+        
         //Update Service Order
-        const updatedServiceOrder = await SewnexOrderService.updateOne( { organizationId, _id: orderServiceId }, { $set: cleanedData } );
-        if (updatedServiceOrder.nModified === 0){
+        const updatedServiceOrder = await SewnexOrderService.findOneAndUpdate( 
+          { organizationId, _id: orderServiceId }, 
+          { $set: { ...cleanedData, staffProgress: "Not started"} }, 
+          { new: true } );
+        if (!updatedServiceOrder) {
           return res.status(404).json({ message: "Service Order is not in Manufacturing status." });
-          }
+        }
 
         return res.status(201).json( {message: "Manufacturing process added" ,newServiceManufacture});
+      
       }
 
       
