@@ -13,6 +13,7 @@ const Service = require("../model/service");
 const SewnexOrderService = require("../model/sxOrderService");
 const InternalOrder = require("../model/internalOrder");
 const CPS = require("../model/cps");
+const OrderStatus = require("../model/orderStatus");
 
 const { cleanData } = require("../../services/cleanData");
 const { singleCustomDateTime, multiCustomDateTime } = require("../../services/timeConverter");
@@ -70,8 +71,7 @@ const dataExist = async ( organizationId, designerId, serviceIds, orderId) => {
 
 // Add Sewnex Internal Order
 exports.addIntOrder = async (req, res) => {
-    console.log("Add Order", req.body);
-    
+    console.log("Add Internal Order", req.body);
     try {
         const { organizationId, id: userId } = req.user;
 
@@ -170,8 +170,8 @@ exports.addIntOrder = async (req, res) => {
 
     } catch (error) {
         console.error("Error creating Internal Order:", error);
-        res.status(500).json({ message: "Internal server error" });
-    }
+        res.status(500).json({ message: "Internal server error.", error: error.message, stack: error.stack });
+      }
 };
 
 // Get All Orders

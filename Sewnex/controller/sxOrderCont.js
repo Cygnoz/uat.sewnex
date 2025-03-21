@@ -526,13 +526,13 @@ exports.manufacturingProcessing = async (req, res) => {
       const { serviceOrder } = await salesDataExist(organizationId, null, orderServiceId);
 
       const { manufacturingStatus } = sewnexSetting;
-      console.log(serviceOrder.status);
-      
-
+            
       if (!serviceOrder) {
         console.log("No Service Order found for the Invoice." );        
         return res.status(404).json({ message: "No Service Order found for the Invoice." });
       }
+      
+      console.log(serviceOrder.status);
 
       if (serviceOrder.status !== 'Manufacturing') {
         console.log("Service is not in Manufacturing status.");        
@@ -578,7 +578,7 @@ exports.manufacturingProcessing = async (req, res) => {
       
   } catch (error) {
       console.error("Error fetching journal:", error);
-      res.status(500).json({ message: "Internal server error." });
+      res.status(500).json({ message: "Internal server error.", error: error.message, stack: error.stack });
   }
 };
 
