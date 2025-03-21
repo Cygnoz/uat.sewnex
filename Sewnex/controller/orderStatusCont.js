@@ -43,8 +43,11 @@ exports.addOrderStatus = async (req, res) => {
             organizationId,
             orderServiceId
         });
+        console.log("cleanedData and orderStatus:",cleanedData, orderStatus);
+        console.log("existingOrderStatus:",existingOrderStatus);
 
         if (!existingOrderStatus) {
+            console.log("Order status entry not found for this service.");
             return res.status(404).json({ message: "Order status entry not found for this service." });
         }
 
@@ -115,7 +118,6 @@ exports.getOrderStatus = async (req, res) => {
         if (!organizationExists) {
             return res.status(404).json({ message: "Organization not found!" });
         }
-        console.log("organizationExists:",organizationExists);
 
         const orderStatusDoc = await OrderStatus.findOne({
             organizationId,
