@@ -24,6 +24,8 @@ const dataExist = async ( organizationId, email, staffId ) => {
       .lean(),
       Staff.findOne({ _id: staffId, organizationId })
       .populate('service.serviceId', 'serviceName')
+      .populate('service.serviceId', 'serviceImage')
+      .populate('service.serviceId', 'grandTotal')
       .lean(),
       Service.find({ organizationId },{ serviceName: 1 })
       .lean(),
@@ -224,6 +226,8 @@ exports.getOneStaff = async (req, res) => {
             ? staff.service.map(item => ({
                 serviceId: item.serviceId?._id || null,
                 serviceName: item.serviceId?.serviceName || null,
+                serviceImage: item.serviceId?.serviceImage || null,
+                grandTotal: item.serviceId?.grandTotal || null,
             }))
             : []  
         };
