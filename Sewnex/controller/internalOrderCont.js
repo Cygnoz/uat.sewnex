@@ -478,7 +478,7 @@ function validateField(condition, errorMsg, errors) {
 
 //Valid Req Fields
 function validateReqFields( data, errors ) {
-    validateField( typeof data.saleOrderDate === 'undefined', "Sale Order Date required", errors  );
+    validateField( typeof data.internalOrderDate === 'undefined', "Internal Order Date required", errors  );
 }
 
 
@@ -490,10 +490,7 @@ function validateReqFields( data, errors ) {
 // Function to Validate Item Table 
 function validateService(data, productId, allData, errors) {     
     
-    const { allParameter, allFabrics, allReadyMade, allStyle, services } = allData;
-    
-    console.log(allFabrics);
-    
+    const { allParameter, allFabrics, allStyle, services } = allData;    
 
     // Check for service count mismatch
     validateField(data.length !== services.length, "Mismatch in service count between request and database.", errors);

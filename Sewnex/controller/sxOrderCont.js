@@ -47,7 +47,7 @@ const dataExist = async ( organizationId, customerId, serviceIds, orderId) => {
 
 // Fetch Acc existing data
 const accDataExists = async ( organizationId, otherExpenseAccountId, freightAccountId, depositAccountId ) => {
-  console.log("eewe", organizationId, otherExpenseAccountId, freightAccountId, depositAccountId);
+  console.log("accDataExists", organizationId, otherExpenseAccountId, freightAccountId, depositAccountId);
   
   const [ otherExpenseAcc, freightAcc, depositAcc ] = await Promise.all([
     Account.findOne({ organizationId , _id: otherExpenseAccountId, accountHead: "Expenses" }, { _id:1, accountName: 1 }),
