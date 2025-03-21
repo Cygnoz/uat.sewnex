@@ -243,11 +243,11 @@ exports.getAllOrders = async (req, res) => {
         const transformedOrder = allOrder.map(data => {
           return {
               ...data,
-              customerId: data.customerId?._id,  
-              customerDisplayName: data.customerId?.customerDisplayName,
-              mobile:  data.customerId?.mobile,
+              customerId: data?.customerId?._id,  
+              customerDisplayName: data?.customerId?.customerDisplayName,
+              mobile:  data?.customerId?.mobile,
 
-              service: data.service.map(services => ({
+              service: data?.service?.map(services => ({
                 ...services,
                 _id: services?._id,
                 orderServiceId: services?.orderServiceId?._id,
@@ -255,27 +255,27 @@ exports.getAllOrders = async (req, res) => {
                 serviceName: services?.orderServiceId?.serviceId?.serviceName,
 
 
-                fabric: services?.orderServiceId?.fabric.map(fabric => ({
+                fabric: services?.orderServiceId?.fabric?.map(fabric => ({
                   ...fabric,
                   itemId: fabric?.itemId?._id,
                   itemName: fabric?.itemId?.itemName,
                 })),
 
-                rawMaterial: services?.orderServiceId?.rawMaterial.map(rawMaterial => ({
+                rawMaterial: services?.orderServiceId?.rawMaterial?.map(rawMaterial => ({
                   ...rawMaterial,
                   itemId: rawMaterial?.itemId?._id,
                   itemName: rawMaterial?.itemId?.itemName,
                 })),
 
 
-                measurement: services?.orderServiceId?.measurement.map(measurement => ({
+                measurement: services?.orderServiceId?.measurement?.map(measurement => ({
                   parameterId: measurement?.parameterId?._id,
                   parameterName: measurement?.parameterId?.name,
                   value: measurement?.value
                 })),
 
 
-                style: services?.orderServiceId?.style.map(style => ({
+                style: services?.orderServiceId?.style?.map(style => ({
                   ...style,
                   styleId: style?.styleId?._id,
                   styleName: style?.styleId?.name,
@@ -349,15 +349,15 @@ exports.getOneOrder = async (req, res) => {
 
         const transformedOrder = {
               ...order,
-              customerId: order.customerId?._id,  
-              customerDisplayName: order.customerId?.customerDisplayName,
-              customerEmail: order.customerId?.customerEmail,
-              mobile: order.customerId?.mobile,
-              membershipCardNumber: order.customerId?.membershipCardNumber,
-              customerAddress: order.customerId?.customerAddress,
+              customerId: order?.customerId?._id,  
+              customerDisplayName: order?.customerId?.customerDisplayName,
+              customerEmail: order?.customerId?.customerEmail,
+              mobile: order?.customerId?.mobile,
+              membershipCardNumber: order?.customerId?.membershipCardNumber,
+              customerAddress: order?.customerId?.customerAddress,
 
 
-              service: order.service.map(services => ({
+              service: order?.service?.map(services => ({
                 ...services,
                 _id: services?._id,
                 orderServiceId: services?.orderServiceId?._id,
@@ -366,7 +366,7 @@ exports.getOneOrder = async (req, res) => {
                 salesAccountId: services?.orderServiceId?.serviceId?.salesAccountId,
 
 
-                fabric: services?.orderServiceId?.fabric.map(fabric => ({
+                fabric: services?.orderServiceId?.fabric?.map(fabric => ({
                   ...fabric,
                   itemId: fabric?.itemId?._id,
                   itemName: fabric?.itemId?.itemName,
@@ -374,7 +374,7 @@ exports.getOneOrder = async (req, res) => {
       
                 })),
 
-                rawMaterial: services?.orderServiceId?.rawMaterial.map(rawMaterial => ({
+                rawMaterial: services?.orderServiceId?.rawMaterial?.map(rawMaterial => ({
                   ...rawMaterial,
                   itemId: rawMaterial?.itemId?._id,
                   itemName: rawMaterial?.itemId?.itemName,
@@ -383,14 +383,14 @@ exports.getOneOrder = async (req, res) => {
                 })),
 
 
-                measurement: services?.orderServiceId?.measurement.map(measurement => ({
+                measurement: services?.orderServiceId?.measurement?.map(measurement => ({
                   parameterId: measurement?.parameterId?._id,
                   parameterName: measurement?.parameterId?.name,
                   value: measurement?.value
                 })),
 
 
-                style: services?.orderServiceId?.style.map(style => ({
+                style: services?.orderServiceId?.style?.map(style => ({
                   ...style,
                   styleId: style?.styleId?._id,
                   styleName: style?.styleId?.name,
