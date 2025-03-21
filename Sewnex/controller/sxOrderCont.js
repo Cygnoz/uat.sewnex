@@ -73,7 +73,8 @@ const salesDataExist = async ( organizationId, orderId, orderServiceId ) => {
       path: 'service.orderServiceId',
         populate: [
           { path: 'serviceId', select: 'serviceName' }, 
-          { path: 'fabric.itemId', select: 'itemName' }, 
+          { path: 'fabric.itemId', select: 'itemName' },
+          { path: 'rawMaterial.itemId', select: 'itemName' },  
           { path: 'style.styleId',select: 'name' }, 
           { path: 'measurement.parameterId',select: 'name' }, 
         ]
@@ -85,7 +86,8 @@ const salesDataExist = async ( organizationId, orderId, orderServiceId ) => {
         path: 'service.orderServiceId',
         populate: [
           { path: 'serviceId', select: 'serviceName salesAccountId' }, 
-          { path: 'fabric.itemId', select: 'itemName salesAccountId' }, 
+          { path: 'fabric.itemId', select: 'itemName salesAccountId' },
+          { path: 'rawMaterial.itemId', select: 'itemName salesAccountId' },  
           { path: 'style.styleId',select: 'name' }, 
           { path: 'measurement.parameterId',select: 'name' }, 
         ]
