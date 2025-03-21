@@ -259,6 +259,12 @@ exports.getAllOrders = async (req, res) => {
                   itemName: fabric?.itemId?.itemName,
                 })),
 
+                rawMaterial: services?.orderServiceId?.rawMaterial.map(rawMaterial => ({
+                  ...rawMaterial,
+                  itemId: rawMaterial?.itemId?._id,
+                  itemName: rawMaterial?.itemId?.itemName,
+                })),
+
 
                 measurement: services?.orderServiceId?.measurement.map(measurement => ({
                   parameterId: measurement?.parameterId?._id,
@@ -363,6 +369,14 @@ exports.getOneOrder = async (req, res) => {
                   itemId: fabric?.itemId?._id,
                   itemName: fabric?.itemId?.itemName,
                   salesAccountId: fabric?.itemId?.salesAccountId,
+      
+                })),
+
+                rawMaterial: services?.orderServiceId?.rawMaterial.map(rawMaterial => ({
+                  ...rawMaterial,
+                  itemId: rawMaterial?.itemId?._id,
+                  itemName: rawMaterial?.itemId?.itemName,
+                  salesAccountId: rawMaterial?.itemId?.salesAccountId,
       
                 })),
 
