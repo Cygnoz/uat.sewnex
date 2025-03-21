@@ -145,6 +145,21 @@ exports.addIntOrder = async (req, res) => {
 
         const savedOrder = await newOrder.save();
 
+        // Add order status entry
+        for (const service of savedOrder.service) {
+          const orderStatusEntry = await OrderStatus.create({
+            organizationId,
+            orderServiceId: service.orderServiceId,
+            orderStatus: [{
+              status: "Order Placed",
+              date: savedOrder.internalOrderDate,
+            }],
+            remarks: "Internal order has been successfully placed.",
+            userId,
+            createdDateTime: new Date()
+          });
+          console.log("orderStatusEntry:",orderStatusEntry);
+        }
 
         console.log( "Internal Order created successfully:", savedOrder );
 

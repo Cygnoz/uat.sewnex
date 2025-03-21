@@ -115,7 +115,6 @@ exports.getOrderStatus = async (req, res) => {
         if (!organizationExists) {
             return res.status(404).json({ message: "Organization not found!" });
         }
-        console.log("organizationExists:",organizationExists);
 
         const orderStatusDoc = await OrderStatus.findOne({
             organizationId,
