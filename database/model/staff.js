@@ -23,7 +23,7 @@ const staffSchema = new Schema({
   
   uploadDocument: { type: String },
 
-  department: { type: String }, //role - admin, manufacture, designer, worker
+  department: { type: String }, //role 
   
   workType: { type: String },
   

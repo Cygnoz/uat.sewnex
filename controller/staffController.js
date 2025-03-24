@@ -23,9 +23,7 @@ const dataExist = async ( organizationId, email, staffId ) => {
       .populate('service.serviceId', 'serviceName')
       .lean(),
       Staff.findOne({ _id: staffId, organizationId })
-      .populate('service.serviceId', 'serviceName')
-      .populate('service.serviceId', 'serviceImage')
-      .populate('service.serviceId', 'grandTotal')
+      .populate('service.serviceId', 'serviceName serviceImage grandTotal')
       .lean(),
       Service.find({ organizationId },{ serviceName: 1 })
       .lean(),
@@ -47,12 +45,14 @@ exports.addStaff = async (req, res) => {
         const { email, password } = cleanedData;
 
         const { organizationExists, existingUser, allRole, allService } = await dataExist( organizationId, email, null );   
+
+        console.log("existingUser....2.:",existingUser);
         
         if (!validateDataExist( organizationExists, res )) return;
         
         if (existingUser) return res.status(409).json({ message: 'User with this email already exists.' });
 
-        cleanedData.department = "Manufacture";
+        // cleanedData.department = "Manufacture";
       
         if (!validateInputs( cleanedData, organizationExists, allRole, allService, res)) return;
 
@@ -88,91 +88,96 @@ exports.addStaff = async (req, res) => {
 // Edit Staff
 exports.editStaff = async (req, res) => {
   console.log("Edit Staff:", req.body);
-    try {
-        const { staffId } = req.params;
+  try {
+    const { staffId } = req.params;
+    const { organizationId } = req.user;
 
-        const { organizationId } = req.user;
+    const cleanedData = cleanData(req.body);
+    const { email, password } = cleanedData;
 
-        const cleanedData = cleanData(req.body);
-        const { email, password } = cleanedData;
+    const { organizationExists, allRole, allService, staff } = await dataExist( organizationId, email, staffId ); 
 
-        const { organizationExists, existingUser, allRole, allService, staff } = await dataExist( organizationId, email, staffId );  
-        
-        if (!validateDataExist( organizationExists, res )) return;
+    if (!validateDataExist(organizationExists, res)) return;
 
-        if (!staff) return res.status(409).json({ message: 'Staff not found' });
+    if (!staff) return res.status(409).json({ message: "Staff not found" });
 
-        if (!validateInputs( cleanedData, organizationExists, allRole, allService, res)) return;
+    if (!validateInputs(cleanedData, organizationExists, allRole, allService, res))
+      return;
 
-        // Check if email exists in Users collection (excluding the current user)
-        const emailExists = await Users.findOne({
-          userEmail: email,
-          _id: { $ne: existingUser?._id }, 
-        });
-      
-        if (emailExists) {
-          return res.status(400).json({ message: "Email already in use by another user" });
-        }
+    // Find existing user by old email (from staff record)
+    const existingUserByOldEmail = await Users.findOne({
+      organizationId,
+      userEmail: staff.email,
+    });
 
-        //Password Encryption
-        if(staff.enablePortal === true && cleanedData.enablePortal === true){
-          
-          cleanedData.password = encrypt(cleanedData.password); 
-          const hashedPassword = await bcrypt.hash(password, 10);          
-          
-          //User Update
-          if (existingUser) {
-            existingUser.userName = cleanedData.staffName;
-            existingUser.userNum = cleanedData.contactNumber;
-            existingUser.userEmail = cleanedData.email;
-            existingUser.password = hashedPassword;
-            existingUser.role = cleanedData.department;
-            
-            const updateUser = await existingUser.save(); 
-            
-            if (!updateUser) return res.status(500).json({ message: 'Error updating user' });
-            
-          }
-        }else if(staff.enablePortal === false && cleanedData.enablePortal === true){
-          
-          cleanedData.password = encrypt(cleanedData.password); 
-          const hashedPassword = await bcrypt.hash(password, 10);
-          
-          const user = await Users.create({
-            organizationId,
-            userName: cleanedData.staffName,
-            userNum: cleanedData.contactNumber,
-            userEmail: cleanedData.email,
-            password: hashedPassword,
-            role: cleanedData.department,
-          });
+    // Check if email already exists in another user (except current one)
+    const emailExists = await Users.findOne({
+      userEmail: email,
+      _id: { $ne: existingUserByOldEmail?._id },
+    });
 
-          if (!user) return res.status(500).json({ message: 'Error adding user' });
-
-        }else if(staff.enablePortal === true && cleanedData.enablePortal === false){
-
-          await Users.findOneAndDelete({ userEmail: staff.email });
-
-        }
-
-        const mongooseDocument = Staff.hydrate(staff);
-
-        Object.assign(mongooseDocument, cleanedData);
-        const savedStaff = await mongooseDocument.save();
-        
-        if (!savedStaff) {
-          console.error("Staff could not be saved.");
-          return res.status(500).json({ message: "Failed to Update Staff." });
-        }
-        
-        console.log( "Staff Edited Successfully",savedStaff);        
-        res.status(201).json({ message: 'Staff Edited successfully', savedStaff });   
-        
-    } catch (error) {
-      console.error("Error in editStaff:", error);
-      res.status(500).json({ message: 'Error Editing Staff', error: error.message });
+    if (emailExists) {
+      return res.status(400).json({ message: "Email already in use by another user" });
     }
+
+    // Password Encryption & User Updates
+    if (staff.enablePortal === true && cleanedData.enablePortal === true) {
+      cleanedData.password = encrypt(cleanedData.password);
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      // Update user using `existingUserByOldEmail`
+      if (existingUserByOldEmail) {
+        existingUserByOldEmail.userName = cleanedData.staffName;
+        existingUserByOldEmail.userNum = cleanedData.contactNumber;
+        existingUserByOldEmail.userEmail = cleanedData.email;
+        existingUserByOldEmail.password = hashedPassword;
+        existingUserByOldEmail.role = cleanedData.department;
+
+        const updateUser = await existingUserByOldEmail.save();
+
+        console.log("updateUser:", updateUser);
+
+        if (!updateUser)
+          return res.status(500).json({ message: "Error updating user" });
+      }
+    } else if (staff.enablePortal === false && cleanedData.enablePortal === true) {
+      cleanedData.password = encrypt(cleanedData.password);
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      const user = await Users.create({
+        organizationId,
+        userName: cleanedData.staffName,
+        userNum: cleanedData.contactNumber,
+        userEmail: cleanedData.email,
+        password: hashedPassword,
+        role: cleanedData.department,
+      });
+
+      if (!user) return res.status(500).json({ message: "Error adding user" });
+    } else if (staff.enablePortal === true && cleanedData.enablePortal === false) {
+      await Users.findOneAndDelete({ userEmail: staff.email });
+    }
+
+    const mongooseDocument = Staff.hydrate(staff);
+
+    Object.assign(mongooseDocument, cleanedData);
+    const savedStaff = await mongooseDocument.save();
+
+    if (!savedStaff) {
+      console.error("Staff could not be saved.");
+      return res.status(500).json({ message: "Failed to Update Staff." });
+    }
+
+    console.log("Staff Edited Successfully", savedStaff);
+    res.status(201).json({ message: "Staff Edited successfully", savedStaff });
+  } catch (error) {
+    console.error("Error in editStaff:", error);
+    res
+      .status(500)
+      .json({ message: "Error Editing Staff", error: error.message });
+  }
 };
+
 
 
 // Get All Staff
@@ -241,8 +246,9 @@ exports.getOneStaff = async (req, res) => {
           }
         }
       
+        const formattedObjects = singleCustomDateTime(transformedData, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );          
       
-        res.status(200).json(transformedData);
+        res.status(200).json(formattedObjects);
     } catch (error) {
       console.error("Error in getAllStaff:", error);
       res.status(500).json({ message: 'Server Error', error: error.message });
