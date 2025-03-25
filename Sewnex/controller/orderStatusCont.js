@@ -1,4 +1,6 @@
 const Organization = require("../../database/model/organization");
+const Item = require("../../database/model/item");
+const ItemTrack = require("../../database/model/itemTrack");
 
 const OrderStatus = require("../model/orderStatus");
 const SewnexSetting = require("../model/sxSetting");
@@ -22,6 +24,55 @@ const dataExist = async ( organizationId) => {
 
 
 
+//Fetch Item Data
+const itemDataExists = async (organizationId, items) => {
+  // Retrieve items with specified fields
+  const itemIds = items.map(item => new mongoose.Types.ObjectId(item.itemId));
+
+  console.log("itemIds:",itemIds);
+
+  const [newItems] = await Promise.all([
+    Item.find( { organizationId, _id: { $in: itemIds } },
+    { _id: 1, itemName: 1, sellingPrice: 1, costPrice: 1, type: 1 }
+    ).lean()
+  ]);
+
+  // Aggregate ItemTrack data to calculate current stock
+  const itemTracks = await ItemTrack.aggregate([
+    { $match: { itemId: { $in: itemIds } } },
+    {
+        $group: {
+            _id: "$itemId",
+            totalCredit: { $sum: "$creditQuantity" },
+            totalDebit: { $sum: "$debitQuantity" },
+            lastEntry: { $max: "$createdDateTime" } // Capture the latest entry time for each item
+        }
+    }
+  ]);
+
+  // Map itemTracks for easier lookup
+  const itemTrackMap = itemTracks.reduce((acc, itemTrack) => {
+      acc[itemTrack._id.toString()] = {
+          currentStock: itemTrack.totalDebit - itemTrack.totalCredit, // Calculate stock as debit - credit
+          lastEntry: itemTrack.lastEntry
+      };
+      return acc;
+    }, {});
+
+  // Enrich newItems with currentStock data
+  const orderService = newItems.map(item => ({
+      ...item,
+      currentStock: itemTrackMap[item._id.toString()]?.currentStock ?? 0, // Use 0 if no track data
+      // lastEntry: itemTrackMap[item._id.toString()]?.lastEntry || null // Include the latest entry timestamp
+  }));
+
+return { orderService };
+};
+
+
+
+
+
 // Add Order Status
 exports.addOrderStatus = async (req, res) => {
     console.log("Add or Edit Order Status", req.body);
@@ -31,8 +82,27 @@ exports.addOrderStatus = async (req, res) => {
         const cleanedData = cleanData(req.body);
         const { orderServiceId, orderStatus, remarks } = cleanedData;
 
+        // Check if orderServiceId exists in sxOrderService
+        const service = await sxOrderService.findOne({
+            organizationId,
+            _id: orderServiceId
+        }).lean();
+
+        if (!service) {
+            return res.status(404).json({ message: "Order service not found for this orderServiceId." });
+        }
+
+        const { orderId, productId } = service;
+
+        // Combine fabric and rawMaterial arrays into items array
+        const items = [...(service.fabric || []), ...(service.rawMaterial || []), ...(service.readyMade || [])];
+        console.log("Fetched items (fabric + rawMaterial + readyMade):", items);
+
         // Check organization
         const { organizationExists, sewnexSetting } = await dataExist(organizationId);
+
+        // Item Track Data Exist
+        const { orderService } = await itemDataExists( organizationId, items );
 
         if (!validateOrganizationSetting(organizationExists, sewnexSetting, res)) return;
 
@@ -55,13 +125,16 @@ exports.addOrderStatus = async (req, res) => {
         let addedOrUpdatedStatuses = [];
 
         statuses.forEach(statusEntry => {
-            const existingStatus = existingOrderStatus.orderStatus.find(existing =>
+            const existingStatus = existingOrderStatus.orderStatus.findIndex(existing =>
                 existing.status === statusEntry.status
             );
 
-            if (existingStatus) {
+            if (existingStatus !== -1) {
+                // Delete all entries after the existing status entry
+                existingOrderStatus.orderStatus = existingOrderStatus.orderStatus.slice(0, existingStatus + 1);
+
                 // Update date and remarks if status exists
-                existingStatus.date = statusEntry.date;
+                existingOrderStatus.orderStatus[existingStatus].date = statusEntry.date;
                 addedOrUpdatedStatuses.push(`${statusEntry.status} (updated)`);
             } else {
                 // Push new status
@@ -94,6 +167,9 @@ exports.addOrderStatus = async (req, res) => {
             message: `Order status successfully updated. Changed statuses: ${addedOrUpdatedStatuses.join(", ")}`,
             data: existingOrderStatus
         });
+
+        //Item Track
+        await itemTrack( existingOrderStatus, items, orderService, orderId, productId );
 
     } catch (error) {
         console.error("Error in addOrderStatus:", error);
@@ -160,6 +236,83 @@ exports.getOrderStatus = async (req, res) => {
 
 
 
+// Item Track Function
+async function itemTrack(existingOrderStatus, items, services, orderId, productId) {
+    console.log("existingOrderStatus:", existingOrderStatus);
+    console.log("items:", items);
+    console.log("services:", services);
+    console.log("orderId and productId:", orderId, productId);
+
+    const hasValidType = services.some(service =>
+        ["Fabric", "Raw Material", "Ready Made"].includes(service.type)
+    );
+
+    if (!hasValidType) {
+        console.log(`No applicable service type found for item tracking. Skipping itemTrack creation.`);
+        return;
+    }
+    
+    const lastStatusEntry = existingOrderStatus.orderStatus[existingOrderStatus.orderStatus.length - 1];
+
+    if (!lastStatusEntry || lastStatusEntry.status !== "Delivery") {
+        console.log("Last order status is not 'Delivery'; skipping itemTrack creation.");
+
+        // Delete previous ItemTrack entries for this operationId (orderServiceId)
+        const deleteItemTrack = await ItemTrack.deleteMany({
+            organizationId: existingOrderStatus.organizationId,
+            operationId: existingOrderStatus.orderServiceId
+        });
+        console.log("Delete ItemTrack entries:", deleteItemTrack);
+
+        return;
+    }
+
+
+    console.log("Creating ItemTrack entries since last status is 'Delivery'...");
+    for (const item of items) {
+        const matchingServiceItem = services.find(s => s._id.toString() === item.itemId.toString());
+    
+        if (!matchingServiceItem) {
+            console.warn(`Item with ID ${item.itemId} not found in fetched services`);
+            continue;
+        }
+
+        if (productId) {
+            const newItemTrack = new ItemTrack({
+                organizationId: existingOrderStatus.organizationId,
+                operationId: existingOrderStatus.orderServiceId,  
+                transactionId: orderId,                           
+                action: "Internal Order",
+                itemId: item.itemId,                              
+                sellingPrice: item.sellingPrice || 0,
+                costPrice: matchingServiceItem.costPrice || 0,
+                debitQuantity: item.quantity,                                     
+                createdDateTime: existingOrderStatus.createdDateTime            
+            });
+
+            const savedItemTrack = await newItemTrack.save();
+            console.log("Saved ItemTrack:", savedItemTrack);
+
+        } else {
+            const newItemTrack = new ItemTrack({
+                organizationId: existingOrderStatus.organizationId,
+                operationId: existingOrderStatus.orderServiceId,  
+                transactionId: orderId,                           
+                action: "Order",
+                itemId: item.itemId,                              
+                sellingPrice: item.sellingPrice || 0,
+                costPrice: matchingServiceItem.costPrice || 0,
+                creditQuantity: item.quantity,                                  
+                createdDateTime: existingOrderStatus.createdDateTime            
+            });
+
+            const savedItemTrack = await newItemTrack.save();
+            console.log("Saved ItemTrack:", savedItemTrack);
+        }
+    } 
+  }
+
+
 
 
 
@@ -211,12 +364,12 @@ function validateReqFields( data, orderStatus, settings, errors ) {
         return;
     }
 
-    // const validStatuses = settings.orderStatus.map(s => s.orderStatusName);
+    const validStatuses = settings.orderStatus.map(s => s.orderStatusName);
 
     orderStatus.forEach((OS) => {
         validateField( typeof OS.status === 'undefined', "Please select the status!", errors  );
         validateField( typeof OS.date === 'undefined', "Please select the date!", errors  );
-        // validateField( !validStatuses.includes(OS.status), `Invalid status: ${OS.status}`, errors );
+        validateField( !validStatuses.includes(OS.status), `Invalid status: ${OS.status}`, errors );
     });
 }
 

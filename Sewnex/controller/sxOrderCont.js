@@ -45,6 +45,8 @@ const dataExist = async ( organizationId, customerId, serviceIds, orderId) => {
 };
 
 
+
+
 // Fetch Acc existing data
 const accDataExists = async ( organizationId, otherExpenseAccountId, freightAccountId, depositAccountId ) => {
   console.log("accDataExists", organizationId, otherExpenseAccountId, freightAccountId, depositAccountId);
@@ -1440,11 +1442,6 @@ async function salesOrderServicePrefix(cleanData,existingPrefix) {
   activeSeries.orderNum += 1;
 
 }
-
-
-
-
-
 
 
 

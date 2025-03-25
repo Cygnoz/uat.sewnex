@@ -11,7 +11,7 @@ const SewnexOrderServiceSchema = new Schema ({
     serviceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Service' },
     //serviceName
 
-    orderId: {type:String},
+    orderId: {type:String}, //prefix
 
     fabric: [
       {
