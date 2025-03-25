@@ -25,6 +25,8 @@ router.get('/sewnex-order-prefix',verifyToken,sxOrderCont.getLastOrderPrefix);
 
 router.get('/sewnex-order-journal/:orderId',verifyToken,sxOrderCont.orderJournal);
 
+router.get('/staff-order-service/:staffId',verifyToken,sxOrderCont.getAllStaffServiceOrders);
+
 router.put('/edit-sewnex-order/:orderId',verifyToken,updateSxOrderCont.editOrder);
 
 router.put('/manufacturing-process/:orderServiceId',verifyToken,sxOrderCont.manufacturingProcessing);
@@ -53,6 +55,9 @@ router.get('/get-one-internal-order/:orderId',verifyToken,internalOrder.getOneOr
 router.put('/edit-internal-order/:orderId',verifyToken,updateInternalOrder.editInternalOrder);
 
 router.delete('/delete-internal-order/:orderId',verifyToken,updateInternalOrder.deleteInternalOrder);
+
+
+
 
 
 

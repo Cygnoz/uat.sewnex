@@ -159,11 +159,12 @@ const SewnexOrderServiceSchema = new Schema ({
     //Manufacturing
     manufacturingStatus: { type: String },//stitching
     staffId: {type: mongoose.Schema.Types.ObjectId, ref: 'Staff'},
+    //staffName
     startDate:{ type: String },
     startTime:{ type: String },
     endDate:{ type: String },
     endTime:{ type: String },
-    staffWorkUpdate: { type: String },
+    staffProgress: { type: String }, //Not started, In Progress, Completed
     
     productId: {type: mongoose.Schema.Types.ObjectId, ref: 'Item'},
 
