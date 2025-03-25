@@ -61,8 +61,8 @@ const accDataExists = async ( organizationId, otherExpenseAccountId, freightAcco
 
 
 //Get one and All
-const salesDataExist = async ( organizationId, orderId, orderServiceId ) => {    
-  const [organizationExists, orderJournal, allOrder, order, serviceOrder ] = await Promise.all([
+const salesDataExist = async ( organizationId, orderId, orderServiceId, staffId ) => {    
+  const [ organizationExists, orderJournal, allOrder, order, serviceOrder, staffServiceOrder ] = await Promise.all([
     Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1, state: 1 }).lean(),
     TrialBalance.find({ organizationId: organizationId, operationId : orderId })
     .populate('accountId', 'accountName')    
@@ -94,9 +94,18 @@ const salesDataExist = async ( organizationId, orderId, orderServiceId ) => {
        })
     .lean(),
     SewnexOrderService.findOne({ organizationId, _id: orderServiceId })
-    .lean()
+    .lean(),
+    SewnexOrderService.find({ organizationId, staffId: staffId })
+    .populate('serviceId','serviceName')  
+    .populate('fabric.itemId','itemName')  
+    .populate('rawMaterial.itemId','itemName')  
+    .populate('style.styleId','name')  
+    .populate('measurement.parameterId','name')
+    .populate('staffId','staffName')    
+    .lean(),
+    
   ]);
-  return { organizationExists, orderJournal, allOrder, order, serviceOrder };
+  return { organizationExists, orderJournal, allOrder, order, serviceOrder, staffServiceOrder };
 };
 
 
@@ -225,7 +234,7 @@ exports.addOrder = async (req, res) => {
 
     } catch (error) {
         console.error("Error creating Sale Order:", error);
-        res.status(500).json({ message: "Internal server error" });
+      res.status(500).json({ message: "Internal server error", error: error.message, stack: error.stack });
     }
 };
 
@@ -234,7 +243,7 @@ exports.getAllOrders = async (req, res) => {
     try {
         const { organizationId } = req.user;
 
-        const { organizationExists, allOrder } = await salesDataExist( organizationId, null, null );
+        const { organizationExists, allOrder } = await salesDataExist( organizationId, null, null. null );
 
         if (!allOrder?.length) {
             return res.status(404).json({ message: "No orders found" });
@@ -331,7 +340,7 @@ exports.getAllOrders = async (req, res) => {
 
     } catch (error) {
         console.error("Error fetching orders1:", error);
-        res.status(500).json({ message: "Internal server error" });
+      res.status(500).json({ message: "Internal server error", error: error.message, stack: error.stack });
     }
 };
 
@@ -341,7 +350,7 @@ exports.getOneOrder = async (req, res) => {
         const { organizationId } = req.user;
         const { orderId } = req.params;
 
-        const { organizationExists, order } = await salesDataExist(organizationId, orderId, null);
+        const { organizationExists, order } = await salesDataExist( organizationId, orderId, null, null );
 
         if (!order) {
             return res.status(404).json({ message: "Order not found" });
@@ -444,7 +453,7 @@ exports.getOneOrder = async (req, res) => {
 
     } catch (error) {
         console.error("Error fetching order2:", error);
-        res.status(500).json({ message: "Internal server error" });
+      res.status(500).json({ message: "Internal server error", error: error.message, stack: error.stack });
     }
 };
 
@@ -470,7 +479,7 @@ exports.getLastOrderPrefix = async (req, res) => {
       res.status(200).json(lastPrefix);
   } catch (error) {
       console.error("Error fetching accounts:", error);
-      res.status(500).json({ message: "Internal server error." });
+      res.status(500).json({ message: "Internal server error", error: error.message, stack: error.stack });
   }
 };
 
@@ -482,7 +491,7 @@ exports.orderJournal = async (req, res) => {
       const organizationId = req.user.organizationId;
       const { orderId } = req.params;
 
-      const { orderJournal } = await salesDataExist( organizationId, orderId, null );      
+      const { orderJournal } = await salesDataExist( organizationId, orderId, null, null );      
 
       if (!orderJournal) {
           return res.status(404).json({
@@ -501,14 +510,9 @@ exports.orderJournal = async (req, res) => {
     res.status(200).json(transformedJournal);
   } catch (error) {
       console.error("Error fetching journal:", error);
-      res.status(500).json({ message: "Internal server error." });
+      res.status(500).json({ message: "Internal server error", error: error.message, stack: error.stack });
   }
 };
-
-
-
-
-
 
 
 
@@ -523,7 +527,7 @@ exports.manufacturingProcessing = async (req, res) => {
 
       const { sewnexSetting } = await dataExist(organizationId, null, null, null);
 
-      const { serviceOrder } = await salesDataExist(organizationId, null, orderServiceId);
+      const { serviceOrder } = await salesDataExist( organizationId, null, orderServiceId, null );
 
       const { manufacturingStatus } = sewnexSetting;
             
@@ -532,8 +536,6 @@ exports.manufacturingProcessing = async (req, res) => {
         return res.status(404).json({ message: "No Service Order found for the Invoice." });
       }
       
-      console.log(serviceOrder);
-
       if (serviceOrder.status !== 'Manufacturing') {
         console.log("Service is not in Manufacturing status.");        
         return res.status(404).json({ message: "Service is not in Manufacturing status." });
@@ -600,7 +602,68 @@ exports.manufacturingProcessing = async (req, res) => {
 
 
 
+// Get All Staff Orders
+exports.getAllStaffServiceOrders = async (req, res) => {
+  try {
+      const { organizationId } = req.user;
 
+      const { staffId } = req.params;
+
+      const { organizationExists, staffServiceOrder } = await salesDataExist( organizationId, null, null, staffId );
+
+      if (!staffServiceOrder?.length) {
+          return res.status(404).json({ message: "No orders found" });
+      }
+
+      const transformedOrder = staffServiceOrder.map(data => {
+        return {
+            ...data,
+            serviceId: data?.serviceId?._id,
+            serviceName: data?.serviceId?.serviceName,
+
+            fabric: data?.fabric?.map(fabric => ({
+              ...fabric,
+              itemId: fabric?.itemId?._id,
+              itemName: fabric?.itemId?.itemName,
+            })),
+
+            rawMaterial: data?.rawMaterial?.map(rawMaterial => ({
+              ...rawMaterial,
+              itemId: rawMaterial?.itemId?._id,
+              itemName: rawMaterial?.itemId?.itemName,
+            })),
+
+
+            measurement: data?.measurement?.map(measurement => ({
+              parameterId: measurement?.parameterId?._id,
+              parameterName: measurement?.parameterId?.name,
+              value: measurement?.value
+            })),
+
+
+            style: data?.style?.map(style => ({
+              ...style,
+              styleId: style?.styleId?._id,
+              styleName: style?.styleId?.name,
+            })),
+
+            staffId: data?.staffId?._id,
+            staffName: data?.staffId?.staffName,
+
+            productId: data?.productId?._id,
+            productName: data?.productId?.itemName,
+            
+        };});
+
+        const formattedObjects = multiCustomDateTime(transformedOrder, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );       
+
+        res.status(200).json(formattedObjects);
+
+  } catch (error) {
+      console.error("Error fetching orders:", error);
+      res.status(500).json({ message: "Internal server error", error: error.message, stack: error.stack });
+  }
+};
 
 
 
