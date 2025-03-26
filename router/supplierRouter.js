@@ -3,7 +3,7 @@ const router = new express.Router()
 
 const supplierCont = require('../controller/supplierController');
 const supplierSettings = require('../controller/supplierSettings')
-const importController = require('../controller/importSupplier')
+// const importController = require('../controller/importSupplier')
 const dashboardController = require("../controller/dashboardController")
 
 const checkPermission = require('../controller/permission')
@@ -27,7 +27,7 @@ router.put('/update-supplier-status/:supplierId' ,verifyToken,checkPermission('V
 
 router.get('/supplier-additional-data',verifyToken,checkPermission('Viewed Supplier Details'), supplierCont.getSupplierAdditionalData);
 
-router.post('/import-supplier',verifyToken,checkPermission('Import New Suppliers'),importController.importSupplier);
+// router.post('/import-supplier',verifyToken,checkPermission('Import New Suppliers'),importController.importSupplier);
 
 router.get('/get-one-supplier-history/:supplierId',verifyToken,checkPermission('Viewed Supplier Details'),supplierCont.getOneSupplierHistory)
 

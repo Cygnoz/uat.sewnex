@@ -57,7 +57,7 @@ exports.getSupplierStats = async (req, res) => {
       newSuppliersCount: recentlyAddedSuppliers.length,
     });
   } catch (error) {
-    res.status(500).json({ message: "Error fetching Supplier stats", error });
+    res.status(500).json({ message: "Internal server error.",error:error.message, stack:error.stack });
   }
 };
 
@@ -100,6 +100,6 @@ exports.supplierBills = async (req, res) => {
     res.status(200).json( formattedObjects );    
   } catch (error) {
     console.log(error);    
-    return res.status(500).json({ message: "Error fetching supplier bill history", error });
+    res.status(500).json({ message: "Internal server error.",error:error.message, stack:error.stack });
   }
 };
