@@ -85,7 +85,7 @@ exports.getCustomerStats = async (req, res) => {
     });
 
   } catch (error) {
-    res.status(500).json({ message: "Error fetching customer stats", error });
+    res.status(500).json({ message: "Internal server error.",error:error.message, stack:error.stack });
   }
 };
 
@@ -123,7 +123,7 @@ exports.getOneCustomerStats = async (req, res) => {
       totalSales,
     });
   } catch (error) {
-    res.status(500).json({ message: "Error fetching customer stats", error });
+    res.status(500).json({ message: "Internal server error.",error:error.message, stack:error.stack });
   }
 };
 
@@ -163,7 +163,7 @@ exports.customerSaleHistory = async (req, res) => {
     res.status(200).json( formattedObjects );    
   } catch (error) {
     console.log(error);    
-    return res.status(500).json({ message: "Error fetching sales history", error });
+    res.status(500).json({ message: "Internal server error.",error:error.message, stack:error.stack });
   }
 };
 
@@ -198,7 +198,7 @@ exports.customerSalesReceipt = async (req, res) => {
 
   } catch (error) {
     console.error("Error fetching purchase paymentMade:", error);
-    res.status(500).json({ message: "Internal server error." });
+    res.status(500).json({ message: "Internal server error.",error:error.message, stack:error.stack });
   }
 };
 
