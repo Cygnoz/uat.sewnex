@@ -63,7 +63,7 @@ const accDataExists = async ( organizationId, otherExpenseAccountId, freightAcco
 
 
 //Get one and All
-const salesDataExist = async ( organizationId, orderId, orderServiceId, staffId ) => {    
+const salesDataExist = async ( organizationId, orderId, orderServiceId, staffId ) => {      
   const [ organizationExists, orderJournal, allOrder, order, serviceOrder, staffServiceOrder ] = await Promise.all([
     Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1, state: 1 }).lean(),
     TrialBalance.find({ organizationId: organizationId, operationId : orderId })
@@ -682,8 +682,8 @@ exports.getOneStaffServiceOrders = async (req, res) => {
       const { orderServiceId } = req.params;
 
       const { organizationExists, serviceOrder } = await salesDataExist( organizationId, null, orderServiceId, null );
-
-      if (!serviceOrder?.length) {
+      
+      if (!serviceOrder) {
           return res.status(404).json({ message: "No orders found" });
       }
 
@@ -726,7 +726,7 @@ exports.getOneStaffServiceOrders = async (req, res) => {
             
         };
 
-        const formattedObjects = multiCustomDateTime(transformedOrder, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );       
+        const formattedObjects = singleCustomDateTime(transformedOrder, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );       
 
         res.status(200).json(formattedObjects);
 
