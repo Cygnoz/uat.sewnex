@@ -27,6 +27,8 @@ router.get('/sewnex-order-journal/:orderId',verifyToken,sxOrderCont.orderJournal
 
 router.get('/staff-order-service/:staffId',verifyToken,sxOrderCont.getAllStaffServiceOrders);
 
+router.get('/get-one-sewnex-service-order/:orderServiceId',verifyToken,sxOrderCont.getOneStaffServiceOrders);
+
 router.put('/edit-sewnex-order/:orderId',verifyToken,updateSxOrderCont.editOrder);
 
 router.put('/manufacturing-process/:orderServiceId',verifyToken,sxOrderCont.manufacturingProcessing);

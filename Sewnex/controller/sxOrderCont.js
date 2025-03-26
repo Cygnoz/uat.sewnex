@@ -63,7 +63,7 @@ const accDataExists = async ( organizationId, otherExpenseAccountId, freightAcco
 
 
 //Get one and All
-const salesDataExist = async ( organizationId, orderId, orderServiceId, staffId ) => {    
+const salesDataExist = async ( organizationId, orderId, orderServiceId, staffId ) => {      
   const [ organizationExists, orderJournal, allOrder, order, serviceOrder, staffServiceOrder ] = await Promise.all([
     Organization.findOne({ organizationId },{ timeZoneExp: 1, dateFormatExp: 1, dateSplit: 1, organizationCountry: 1, state: 1 }).lean(),
     TrialBalance.find({ organizationId: organizationId, operationId : orderId })
@@ -96,6 +96,12 @@ const salesDataExist = async ( organizationId, orderId, orderServiceId, staffId 
        })
     .lean(),
     SewnexOrderService.findOne({ organizationId, _id: orderServiceId })
+    .populate('serviceId','serviceName')  
+    .populate('fabric.itemId','itemName')  
+    .populate('rawMaterial.itemId','itemName')  
+    .populate('style.styleId','name')  
+    .populate('measurement.parameterId','name')
+    .populate('staffId','staffName')    
     .lean(),
     SewnexOrderService.find({ organizationId, staffId: staffId })
     .populate('serviceId','serviceName')  
@@ -731,6 +737,69 @@ exports.getAllStaffServiceOrders = async (req, res) => {
         };});
 
         const formattedObjects = multiCustomDateTime(transformedOrder, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );       
+
+        res.status(200).json(formattedObjects);
+
+  } catch (error) {
+      console.error("Error fetching orders:", error);
+      res.status(500).json({ message: "Internal server error", error: error.message, stack: error.stack });
+  }
+};
+
+
+//Get one staff order
+exports.getOneStaffServiceOrders = async (req, res) => {
+  try {
+      const { organizationId } = req.user;
+
+      const { orderServiceId } = req.params;
+
+      const { organizationExists, serviceOrder } = await salesDataExist( organizationId, null, orderServiceId, null );
+      
+      if (!serviceOrder) {
+          return res.status(404).json({ message: "No orders found" });
+      }
+
+      const transformedOrder = {
+            ...serviceOrder,
+            serviceId: serviceOrder?.serviceId?._id,
+            serviceName: serviceOrder?.serviceId?.serviceName,
+
+            fabric: serviceOrder?.fabric?.map(fabric => ({
+              ...fabric,
+              itemId: fabric?.itemId?._id,
+              itemName: fabric?.itemId?.itemName,
+            })),
+
+            rawMaterial: serviceOrder?.rawMaterial?.map(rawMaterial => ({
+              ...rawMaterial,
+              itemId: rawMaterial?.itemId?._id,
+              itemName: rawMaterial?.itemId?.itemName,
+            })),
+
+
+            measurement: serviceOrder?.measurement?.map(measurement => ({
+              parameterId: measurement?.parameterId?._id,
+              parameterName: measurement?.parameterId?.name,
+              value: measurement?.value
+            })),
+
+
+            style: serviceOrder?.style?.map(style => ({
+              ...style,
+              styleId: style?.styleId?._id,
+              styleName: style?.styleId?.name,
+            })),
+
+            staffId: serviceOrder?.staffId?._id,
+            staffName: serviceOrder?.staffId?.staffName,
+
+            productId: serviceOrder?.productId?._id,
+            productName: serviceOrder?.productId?.itemName,
+            
+        };
+
+        const formattedObjects = singleCustomDateTime(transformedOrder, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );       
 
         res.status(200).json(formattedObjects);
 
