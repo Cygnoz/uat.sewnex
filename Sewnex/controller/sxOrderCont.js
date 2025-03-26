@@ -666,6 +666,69 @@ exports.getAllStaffServiceOrders = async (req, res) => {
 };
 
 
+//Get one staff order
+exports.getOneStaffServiceOrders = async (req, res) => {
+  try {
+      const { organizationId } = req.user;
+
+      const { orderServiceId } = req.params;
+
+      const { organizationExists, serviceOrder } = await salesDataExist( organizationId, null, orderServiceId, null );
+
+      if (!serviceOrder?.length) {
+          return res.status(404).json({ message: "No orders found" });
+      }
+
+      const transformedOrder = {
+            ...serviceOrder,
+            serviceId: serviceOrder?.serviceId?._id,
+            serviceName: serviceOrder?.serviceId?.serviceName,
+
+            fabric: serviceOrder?.fabric?.map(fabric => ({
+              ...fabric,
+              itemId: fabric?.itemId?._id,
+              itemName: fabric?.itemId?.itemName,
+            })),
+
+            rawMaterial: serviceOrder?.rawMaterial?.map(rawMaterial => ({
+              ...rawMaterial,
+              itemId: rawMaterial?.itemId?._id,
+              itemName: rawMaterial?.itemId?.itemName,
+            })),
+
+
+            measurement: serviceOrder?.measurement?.map(measurement => ({
+              parameterId: measurement?.parameterId?._id,
+              parameterName: measurement?.parameterId?.name,
+              value: measurement?.value
+            })),
+
+
+            style: serviceOrder?.style?.map(style => ({
+              ...style,
+              styleId: style?.styleId?._id,
+              styleName: style?.styleId?.name,
+            })),
+
+            staffId: serviceOrder?.staffId?._id,
+            staffName: serviceOrder?.staffId?.staffName,
+
+            productId: serviceOrder?.productId?._id,
+            productName: serviceOrder?.productId?.itemName,
+            
+        };
+
+        const formattedObjects = multiCustomDateTime(transformedOrder, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );       
+
+        res.status(200).json(formattedObjects);
+
+  } catch (error) {
+      console.error("Error fetching orders:", error);
+      res.status(500).json({ message: "Internal server error", error: error.message, stack: error.stack });
+  }
+};
+
+
 
 
 
