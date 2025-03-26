@@ -30,13 +30,28 @@ exports.editOrder = async (req, res) => {
         const { organizationId, id: userId } = req.user;
         const { orderId } = req.params;
         
-        
-        
         // Fetch existing order
         const existingOrder = await SewnexOrder.findOne({ _id: orderId, organizationId });
         if (!existingOrder) {
             console.log("Order not found with ID:", orderId);
             return res.status(404).json({ message: "Order not found!" });
+        }
+
+        // Validate that none of the services have status = 'Delivery'
+        const existingOrderServices = await SewnexOrderService.find({ 
+          _id: { $in: existingOrder.service.map(s => s.orderServiceId) },
+          organizationId
+        });
+        console.log("existingOrderServices:",existingOrderServices);
+
+        const deliveryLockedServices = existingOrderServices.filter(service => service.status === 'Delivery');
+
+        console.log("deliveryLockedServices:",deliveryLockedServices);
+
+        if (deliveryLockedServices) {
+          return res.status(400).json({
+            message: `Delivered services cannot be edited.`,
+          });
         }
 
         const cleanedData = cleanData(req.body);
@@ -172,6 +187,23 @@ exports.deleteOrder = async (req, res) => {
         if (!existingOrder) {
             console.log("Order not found with ID:", orderId);
             return res.status(404).json({ message: "Order not found!" });
+        }
+
+        // Validate that none of the services have status = 'Delivery'
+        const existingOrderServices = await SewnexOrderService.find({ 
+          _id: { $in: existingOrder.service.map(s => s.orderServiceId) },
+          organizationId
+        });
+        console.log("existingOrderServices:",existingOrderServices);
+
+        const deliveryLockedServices = existingOrderServices.filter(service => service.status === 'Delivery');
+
+        console.log("deliveryLockedServices:",deliveryLockedServices);
+
+        if (deliveryLockedServices) {
+          return res.status(400).json({
+            message: `Delivered services cannot be deleted.`,
+          });
         }
 
         // Delete associated order services

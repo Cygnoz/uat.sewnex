@@ -43,7 +43,7 @@ const dataExist = async ( organizationId, designerId, serviceIds, orderId) => {
         path: 'service.orderServiceId',
         populate: [
           { path: 'serviceId', select: 'serviceName' }, 
-          { path: 'fabric.itemId', select: 'itemName' }, 
+          { path: 'fabric.itemId', select: 'itemName categories' }, 
           { path: 'style.styleId',select: 'name' }, 
           { path: 'measurement.parameterId',select: 'name' }, 
         ]
@@ -55,7 +55,7 @@ const dataExist = async ( organizationId, designerId, serviceIds, orderId) => {
         path: 'service.orderServiceId',
         populate: [
           { path: 'serviceId', select: 'serviceName' }, 
-          { path: 'fabric.itemId', select: 'itemName' }, 
+          { path: 'fabric.itemId', select: 'itemName categories' }, 
           { path: 'style.styleId',select: 'name' }, 
           { path: 'measurement.parameterId',select: 'name' }, 
           { path: 'productId', select: 'itemName' }, 
@@ -202,7 +202,8 @@ exports.getAllOrders = async (req, res) => {
                   fabric: services?.orderServiceId?.fabric.map(fabric => ({
                     ...fabric,
                     itemId: fabric?.itemId?._id,
-                    itemName: fabric?.itemId?.itemName,      
+                    itemName: fabric?.itemId?.itemName,  
+                    categories: fabric?.itemId?.categories    
                   })),
   
   
@@ -299,6 +300,7 @@ exports.getOneOrder = async (req, res) => {
                     ...fabric,
                     itemId: fabric?.itemId?._id,
                     itemName: fabric?.itemId?.itemName,      
+                    categories: fabric?.itemId?.categories 
                   })),
   
   

@@ -323,10 +323,10 @@ function validateOrganizationSetting( organizationExists, SewnexSetting, res ) {
       res.status(404).json({ message: "Organization not found" });
       return false;
     }
-    // if (!SewnexSetting) {
-    //     res.status(404).json({ message: "SewnexSetting not found" });
-    //     return false;
-    // }
+    if (!SewnexSetting) {
+        res.status(404).json({ message: "SewnexSetting not found" });
+        return false;
+    }
     return true;
   }
 

@@ -38,6 +38,23 @@ exports.editInternalOrder = async (req, res) => {
             return res.status(404).json({ message: "Internal order not found!" });
         }
 
+        // Validate that none of the services have status = 'Delivery'
+        const existingOrderServices = await SewnexOrderService.find({ 
+            _id: { $in: existingInternalOrder.service.map(s => s.orderServiceId) },
+            organizationId
+          });
+          console.log("existingOrderServices:",existingOrderServices);
+  
+          const deliveryLockedServices = existingOrderServices.filter(service => service.status === 'Delivery');
+  
+          console.log("deliveryLockedServices:",deliveryLockedServices);
+  
+          if (deliveryLockedServices) {
+            return res.status(400).json({
+              message: `Delivered services cannot be edited.`,
+            });
+          }
+
         const cleanedData = cleanData(req.body);
 
         // Ensure `internalOrder` field matches the existing internal order
@@ -145,6 +162,23 @@ exports.deleteInternalOrder = async (req, res) => {
             console.log("Internal order not found with ID:", orderId);
             return res.status(404).json({ message: "Internal order not found!" });
         }
+
+        // Validate that none of the services have status = 'Delivery'
+        const existingOrderServices = await SewnexOrderService.find({ 
+            _id: { $in: existingInternalOrder.service.map(s => s.orderServiceId) },
+            organizationId
+          });
+          console.log("existingOrderServices:",existingOrderServices);
+  
+          const deliveryLockedServices = existingOrderServices.filter(service => service.status === 'Delivery');
+  
+          console.log("deliveryLockedServices:",deliveryLockedServices);
+  
+          if (deliveryLockedServices) {
+            return res.status(400).json({
+              message: `Delivered services cannot be deleted.`,
+            });
+          }
 
         // Delete associated order services
         const deleteServicesResult = await SewnexOrderService.deleteMany({ 

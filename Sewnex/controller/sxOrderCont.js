@@ -75,8 +75,8 @@ const salesDataExist = async ( organizationId, orderId, orderServiceId, staffId 
       path: 'service.orderServiceId',
         populate: [
           { path: 'serviceId', select: 'serviceName' }, 
-          { path: 'fabric.itemId', select: 'itemName' },
-          { path: 'rawMaterial.itemId', select: 'itemName' },  
+          { path: 'fabric.itemId', select: 'itemName categories' },
+          { path: 'rawMaterial.itemId', select: 'itemName categories' },  
           { path: 'style.styleId',select: 'name' }, 
           { path: 'measurement.parameterId',select: 'name' }, 
         ]
@@ -88,8 +88,8 @@ const salesDataExist = async ( organizationId, orderId, orderServiceId, staffId 
         path: 'service.orderServiceId',
         populate: [
           { path: 'serviceId', select: 'serviceName salesAccountId' }, 
-          { path: 'fabric.itemId', select: 'itemName salesAccountId' },
-          { path: 'rawMaterial.itemId', select: 'itemName salesAccountId' },  
+          { path: 'fabric.itemId', select: 'itemName categories salesAccountId' },
+          { path: 'rawMaterial.itemId', select: 'itemName categories salesAccountId' },  
           { path: 'style.styleId',select: 'name' }, 
           { path: 'measurement.parameterId',select: 'name' }, 
         ]
@@ -276,12 +276,14 @@ exports.getAllOrders = async (req, res) => {
                   ...fabric,
                   itemId: fabric?.itemId?._id,
                   itemName: fabric?.itemId?.itemName,
+                  categories: fabric?.itemId?.categories
                 })),
 
                 rawMaterial: services?.orderServiceId?.rawMaterial?.map(rawMaterial => ({
                   ...rawMaterial,
                   itemId: rawMaterial?.itemId?._id,
                   itemName: rawMaterial?.itemId?.itemName,
+                  categories: rawMaterial?.itemId?.categories
                 })),
 
 
@@ -387,16 +389,16 @@ exports.getOneOrder = async (req, res) => {
                   ...fabric,
                   itemId: fabric?.itemId?._id,
                   itemName: fabric?.itemId?.itemName,
+                  categories: fabric?.itemId?.categories,
                   salesAccountId: fabric?.itemId?.salesAccountId,
-      
                 })),
 
                 rawMaterial: services?.orderServiceId?.rawMaterial?.map(rawMaterial => ({
                   ...rawMaterial,
                   itemId: rawMaterial?.itemId?._id,
                   itemName: rawMaterial?.itemId?.itemName,
+                  categories: rawMaterial?.itemId?.categories,
                   salesAccountId: rawMaterial?.itemId?.salesAccountId,
-      
                 })),
 
 
