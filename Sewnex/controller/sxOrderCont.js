@@ -619,7 +619,7 @@ exports.getAllManufacturingProcess = async (req, res) => {
 
     // Find all manufacturing processes related to the orderServiceId and organizationId
     const manufacturingProcesses = await ServiceManufacture.find({ organizationId, orderServiceId })
-      .populate('staffId', 'staffName') 
+      .populate('staffId', 'staffName staffImage') 
 
     if (!manufacturingProcesses || manufacturingProcesses.length === 0) {
       return res.status(404).json({ message: "No manufacturing process found for this order service." });
