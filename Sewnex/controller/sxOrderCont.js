@@ -245,7 +245,7 @@ exports.getAllOrders = async (req, res) => {
     try {
         const { organizationId } = req.user;
 
-        const { organizationExists, allOrder } = await salesDataExist( organizationId, null, null. null );
+        const { organizationExists, allOrder } = await salesDataExist( organizationId, null, null, null );
 
         if (!allOrder?.length) {
             return res.status(404).json({ message: "No orders found" });
@@ -601,6 +601,79 @@ exports.manufacturingProcessing = async (req, res) => {
       res.status(500).json({ message: "Internal server error.", error: error.message, stack: error.stack });
   }
 };
+
+
+// Get all manufacturing processes for a specific orderServiceId
+exports.getAllManufacturingProcess = async (req, res) => {
+  try {
+    const organizationId = req.user.organizationId;
+    const { orderServiceId } = req.params;
+
+    // Find all manufacturing processes related to the orderServiceId and organizationId
+    const manufacturingProcesses = await ServiceManufacture.find({ organizationId, orderServiceId })
+      .populate('staffId', 'staffName') 
+
+    if (!manufacturingProcesses || manufacturingProcesses.length === 0) {
+      return res.status(404).json({ message: "No manufacturing process found for this order service." });
+    }
+
+    return res.status(200).json({ manufacturingProcesses });
+  } catch (error) {
+    console.error("Error fetching manufacturing processes:", error);
+    res.status(500).json({ message: "Internal server error.", error: error.message, stack: error.stack });
+  }
+};
+
+
+
+// Update staff progress in order service 
+exports.updateStaffProgress = async (req, res) => {
+  try {
+    const organizationId = req.user.organizationId;
+    const { orderServiceId } = req.params;
+    const { staffProgress } = req.body;
+
+    // Define allowed values
+    const allowedStatuses = ["Not Started", "In Progress", "Completed"];
+
+    // Validate staffProgress value
+    if (!allowedStatuses.includes(staffProgress)) {
+      return res.status(400).json({ 
+        message: `Invalid staff progress status. Allowed values: ${allowedStatuses.join(", ")}` 
+      });
+    }
+
+    // Check if the order service exists
+    const orderService = await SewnexOrderService.findOne({ organizationId, _id: orderServiceId });
+
+    if (!orderService) {
+      return res.status(404).json({ message: "Order service not found." });
+    }
+
+    // Update staffProgress
+    const updatedOrderService = await SewnexOrderService.findOneAndUpdate(
+      { organizationId, _id: orderServiceId },
+      { $set: { staffProgress } },
+      { new: true }
+    );
+
+    return res.status(200).json({
+      message: "Staff progress updated successfully.",
+      staffProgress: updatedOrderService.staffProgress,
+    });
+
+  } catch (error) {
+    console.error("Error updating staff progress:", error);
+    res.status(500).json({ message: "Internal server error.", error: error.message });
+  }
+};
+
+
+
+
+
+
+
 
 
 

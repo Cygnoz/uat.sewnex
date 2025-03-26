@@ -31,6 +31,10 @@ router.put('/edit-sewnex-order/:orderId',verifyToken,updateSxOrderCont.editOrder
 
 router.put('/manufacturing-process/:orderServiceId',verifyToken,sxOrderCont.manufacturingProcessing);
 
+router.get('/get-manufacturing-process/:orderServiceId',verifyToken,sxOrderCont.getAllManufacturingProcess);
+
+router.put('/update-staff-progress/:orderServiceId',verifyToken,sxOrderCont.updateStaffProgress);
+
 router.delete('/delete-sewnex-order/:orderId',verifyToken,updateSxOrderCont.deleteOrder);
 
 
