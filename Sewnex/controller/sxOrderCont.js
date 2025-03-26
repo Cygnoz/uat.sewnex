@@ -95,7 +95,7 @@ const salesDataExist = async ( organizationId, orderId, orderServiceId, staffId 
         ]
        })
     .lean(),
-    SewnexOrderService.findOne({ organizationId, serviceId: orderServiceId })
+    SewnexOrderService.findOne({ organizationId, _id: orderServiceId })
     .populate('serviceId','serviceName')  
     .populate('fabric.itemId','itemName')  
     .populate('rawMaterial.itemId','itemName')  
