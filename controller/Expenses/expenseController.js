@@ -151,9 +151,9 @@ exports.addExpense = async (req, res) => {
 
     res.status(201).json({ message: "Expense created successfully." });
   } catch (error) {
-      console.error("Error adding expense:", error);
-      res.status(400).json({ error: error.message });
-  }
+      console.error("Error adding expense:", error.message, error.stack);
+      res.status(500).json({ message: "Internal Server error", error: error.message, stack: error.stack });
+    }
 };
 
 //get all expense
@@ -192,7 +192,7 @@ exports.getAllExpense = async (req, res) => {
       res.status(200).json(formattedObjects);
     } catch (error) {
       console.error("Error fetching Expense:", error);
-      res.status(500).json({ message: "Internal server error." });
+      res.status(500).json({ message: "Internal Server error", error: error.message, stack: error.stack });
     }
   };
 
@@ -228,7 +228,7 @@ exports.getOneExpense = async (req, res) => {
       res.status(200).json(formattedObjects);
     } catch (error) {
       console.error("Error fetching expense:", error);
-      res.status(500).json({ message: "Internal server error." });
+      res.status(500).json({ message: "Internal Server error", error: error.message, stack: error.stack });
     }
   };
 
@@ -258,7 +258,11 @@ exports.addCategory = async (req, res) => {
 
         // Check if any category in categoryExists has the same expenseCategory
         const duplicateCategory = categoryExists.some(
-            (category) => category.expenseCategory.toLowerCase().replace(/\s+/g, "") === expenseCategory.toLowerCase().replace(/\s+/g, "")
+          (category) => 
+              category.expenseCategory &&
+              expenseCategory &&
+              category.expenseCategory.toLowerCase().replace(/\s+/g, "") === 
+              expenseCategory.toLowerCase().replace(/\s+/g, "")
         );
 
         if (duplicateCategory) {
@@ -274,7 +278,7 @@ exports.addCategory = async (req, res) => {
         res.status(201).json({ message: "Category created successfully", newCategory});
     } catch (error) {
         console.error("Error adding category:", error);
-        res.status(500).json({ message: "Server error", error: error.message });
+        res.status(500).json({ message: "Internal Server error", error: error.message, stack: error.stack });
     }
 };
 
@@ -306,7 +310,7 @@ exports.getAllCategory = async (req, res) => {
         res.status(200).json(AllCategories);
     } catch (error) {
         console.error("Error fetching category:", error);
-        res.status(500).json({ message: "Internal server error." });
+        res.status(500).json({ message: "Internal server error.", error: error.message, stack: error.stack });
     }
 };
 
@@ -341,7 +345,7 @@ exports.getACategory = async (req, res) => {
       res.status(200).json(category);
     } catch (error) {
       console.error("Error fetching category:", error);
-      res.status(500).json({ message: "Internal server error." });
+      res.status(500).json({ message: "Internal server error.", error: error.message, stack: error.stack });
     }
   };
 
@@ -395,7 +399,7 @@ exports.updateCategory = async (req, res) => {
         console.log("Category updated successfully:", updatedCategory);
     } catch (error) {
         console.error("Error updating category:", error);
-        res.status(500).json({ message: "Internal server error" });
+        res.status(500).json({ message: "Internal server error", error: error.message, stack: error.stack });
     }
 };
 
@@ -428,7 +432,7 @@ exports.deleteCategory = async (req, res) => {
         console.log("Category deleted successfully:", categoryId);
     } catch (error) {
         console.error("Error deleting category:", error);
-        res.status(500).json({ message: "Internal server error." });
+        res.status(500).json({ message: "Internal server error.", error: error.message, stack: error.stack });
     }
 };
 
@@ -460,9 +464,39 @@ exports.expenseJournal = async (req, res) => {
       res.status(200).json(transformedJournal);
   } catch (error) {
       console.error("Error fetching journal:", error);
-      res.status(500).json({ message: "Internal server error." });
+      res.status(500).json({ message: "Internal server error.", error: error.message, stack: error.stack });
   }
 };
+
+
+
+
+// Get last expense prefix
+exports.getLastExpensePrefix = async (req, res) => {
+  try {
+    const organizationId = req.user.organizationId;
+
+      // Find all accounts where organizationId matches
+      const prefix = await Prefix.findOne({ organizationId:organizationId,'series.status': true });
+
+      if (!prefix) {
+          return res.status(404).json({
+              message: "No Prefix found for the provided organization ID.",
+          });
+      }
+      
+      const series = prefix.series[0];     
+      const lastPrefix = series.expense + series.expenseNum;
+      
+      lastPrefix.organizationId = undefined;
+
+      res.status(200).json(lastPrefix);
+  } catch (error) {
+      console.error("Error fetching accounts:", error);
+      res.status(500).json({ message: "Internal Server error", error: error.message, stack: error.stack });
+    }
+};
+
 
 
 function removeSpaces(body) {
@@ -484,31 +518,6 @@ function removeSpaces(body) {
 
 
 
-// Get last expense prefix
-exports.getLastExpensePrefix = async (req, res) => {
-  try {
-    const organizationId = req.user.organizationId;
-
-      // Find all accounts where organizationId matches
-      const prefix = await Prefix.findOne({ organizationId:organizationId,'series.status': true });
-
-      if (!prefix) {
-          return res.status(404).json({
-              message: "No Prefix found for the provided organization ID.",
-          });
-      }
-      
-      const series = prefix.series[0];     
-      const lastPrefix = series.expense + series.expenseNum;
-
-      lastPrefix.organizationId = undefined;
-
-      res.status(200).json(lastPrefix);
-  } catch (error) {
-      console.error("Error fetching accounts:", error);
-      res.status(500).json({ message: "Internal server error." });
-  }
-};
 
 // Expense Prefix
 function expensePrefix( cleanData, existingPrefix ) {
