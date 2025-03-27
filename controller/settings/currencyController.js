@@ -18,8 +18,8 @@ exports.getCurrency = async (req, res) => {
         res.status(404).json({ message: "Currencies not found" });
       }
     } catch (error) {
-      console.error("Error fetching Currencies:", error);
-      res.status(500).json({ message: "Internal server error" });
+      console.log("Error fetching Currencies:", error);
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
 };
   
@@ -39,8 +39,8 @@ exports.viewCurrency = async (req, res) => {
         res.status(404).json({ message: "Currency not found" });
       }
     } catch (error) {
-      console.error("Error fetching currency:", error);
-      res.status(500).json({ message: "Internal server error" });
+      console.log("Error fetching currency:", error);
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
 };
   
@@ -76,8 +76,8 @@ exports.addCurrency = async (req, res) => {
   
       res.status(201).json("Currency added successfully");
     } catch (error) {
-      console.error("Error adding Currency:", error);
-      res.status(500).json({ message: "Internal server error" });
+      console.log("Error adding Currency:", error);
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
 };
   
@@ -100,8 +100,8 @@ exports.editCurrency = async (req, res) => {
         res.status(404).json({ message: "Currency not found" });
       }
     } catch (error) {
-      console.error("Error editing Currency:", error);
-      res.status(500).json({ message: "Internal server error" });
+      console.log("Error editing Currency:", error);
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
 };
   
@@ -133,8 +133,8 @@ exports.deleteCurrency = async (req, res) => {
         res.status(400).json({ message: "Cannot delete a base currency" });
       }
     } catch (error) {
-      console.error("Error deleting Currency:", error);
-      res.status(500).json({ message: "Internal server error" });
+      console.log("Error deleting Currency:", error);
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
 };
   

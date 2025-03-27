@@ -3,7 +3,6 @@
 const User = require('../database/model/user');
 const Organization = require('../database/model/organization');
 const Role = require('../database/model/role');
-const Staff = require('../database/model/staff');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
@@ -71,7 +70,7 @@ exports.login = async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ success: false, message: 'Internal Server Error' });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -166,7 +165,7 @@ exports.verifyOtp = async (req, res) => {
     }
   } catch (error) {
     console.error('Error in verifyOtp:', error);
-    res.status(500).json({ success: false, message: 'Internal Server Error' });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -289,9 +288,7 @@ exports.loginOTP = async (req, res) => {
 
     console.log("Device Type:", deviceType);  
     
-    const role = await Role.findOne({ organizationId: user.organizationId ,roleName: user.role }).lean();
-    
-    const staff = await Staff.findOne({ organizationId: user.organizationId, email: user.userEmail }).lean();
+    const role = await Role.findOne({ organizationId: user.organizationId ,roleName: user.role }).lean();      
 
     
     // Create JWT token with user ID and organizationId
@@ -324,16 +321,13 @@ exports.loginOTP = async (req, res) => {
         role: user.role,
         organizationName: organization.organizationName,
         permission: role?.permissions,
-        deviceType,
-        staffName: staff?.staffName,
-        staffImage: staff?.staffImage,
-        staffId: staff?._id,
+        deviceType
       },
     });
 
     
   } catch (error) {
     console.error(error);
-    res.status(500).json({ success: false, message: 'Internal Server Error' });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };

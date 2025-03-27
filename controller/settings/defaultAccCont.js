@@ -86,8 +86,8 @@ exports.addDefaultAccount = async (req, res) => {
       res.status(201).json({ message: "Default Account created successfully" });
     }
   } catch (error) {
-    console.error("Error adding Default Account:", error);
-    res.status(500).json({ message: "Internal server error" });
+    console.log("Error adding Default Account:", error);
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
   
@@ -105,8 +105,8 @@ exports.getDefaultAccount  = async (req, res) => {
       res.status(404).json({ message: "Default Account not found" });
     }
   } catch (error) {
-    console.error("Error fetching Default Account:", error);
-    res.status(500).json({ message: "Internal server error" });
+    console.log("Error fetching Default Account:", error);
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 

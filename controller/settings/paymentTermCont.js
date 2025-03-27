@@ -30,8 +30,8 @@ exports.addPaymentTerm = async (req, res) => {
 
     res.status(201).json("Payment Term added successfully");
   } catch (error) {
-    console.error("Error adding Payment Term:", error);
-    res.status(500).json({ message: "Internal server error" });
+    console.log("Error adding Payment Term:", error);
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -54,8 +54,8 @@ exports.editPaymentTerm = async (req, res) => {
 
     res.status(200).json("Payment Term updated successfully");
   } catch (error) {
-    console.error("Error updating Payment Term:", error);
-    res.status(500).json({ message: "Internal server error" });
+    console.log("Error updating Payment Term:", error);
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -72,8 +72,8 @@ exports.deletePaymentTerm = async (req, res) => {
 
     res.status(200).json("Payment Term deleted successfully");
   } catch (error) {
-    console.error("Error deleting Payment Term:", error);
-    res.status(500).json({ message: "Internal server error" });
+    console.log("Error deleting Payment Term:", error);
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -89,7 +89,7 @@ exports.getAllPaymentTerms = async (req, res) => {
 
     res.status(200).json(paymentTerms);
   } catch (error) {
-    console.error("Error fetching Payment Terms:", error);
-    res.status(500).json({ message: "Internal server error" });
+    console.log("Error fetching Payment Terms:", error);
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };

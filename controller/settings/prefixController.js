@@ -65,8 +65,8 @@ exports.addPrefix = async (req, res) => {
     const updatedPrefix = await prefix.save();
     res.status(201).json({ message: "Prefix added successfully", updatedPrefix });
   } catch (error) {
-    console.error("Error adding prefix to existing collection:", error);
-    res.status(500).json({ message: "Internal server error" });
+    console.log("Error adding prefix to existing collection:", error);
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
     
@@ -80,8 +80,8 @@ exports.getPrefix = async (req, res) => {
 
     res.status(200).json({ prefix });
   } catch (error) {
-    console.error("Error fetching prefix:", error);
-    res.status(500).json({ message: "Internal server error" });
+    console.log("Error fetching prefix:", error);
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -115,8 +115,8 @@ exports.updatePrefix = async (req, res) => {
     const updatedPrefix = await prefix.save();
     res.status(200).json({ message: "Series updated successfully", updatedPrefix });
   } catch (error) {
-    console.error("Error updating series by ID:", error);
-    res.status(500).json({ message: "Internal server error" });
+    console.log("Error updating series by ID:", error);
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -159,8 +159,8 @@ exports.deletePrefix = async (req, res) => {
 
     res.status(200).json({ message: "Series deleted successfully", updatedPrefix });
   } catch (error) {
-    console.error("Error deleting series by ID:", error);
-    res.status(500).json({ message: "Internal server error" });
+    console.log("Error deleting series by ID:", error);
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -186,8 +186,8 @@ exports.setPrefixSeriesStatusTrue = async (req, res) => {
 
     res.status(200).json({ message: "Series status updated successfully", updatedPrefix });
   } catch (error) {
-    console.error("Error updating series status:", error);
-    res.status(500).json({ message: "Internal server error" });
+    console.log("Error updating series status:", error);
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 

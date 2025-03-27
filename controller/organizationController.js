@@ -18,8 +18,8 @@ exports.getAllOrganization = async (req, res) => {
       res.status(404).json("No organizations found");
     }
   } catch (error) {
-    console.error(error);
-    res.status(500).json("Internal server error");
+    console.log("Error fetching organization:", error);
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -36,8 +36,8 @@ exports.getOneOrganization = async (req, res) => {
       res.status(404).json({ message: "Organization not found" });
     }
   } catch (error) {
-    console.error("Error fetching organization:", error);
-    res.status(500).json({ message: "Internal server error" });
+    console.log("Error fetching organization:", error);
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -65,8 +65,8 @@ exports.deleteOrganization = async (req, res) => {
     });
     console.log("Organization deleted successfully:", id);
   } catch (error) {
-    console.error("Error deleting Organization:", error);
-    res.status(500).json({ message: "Internal server error." });
+    console.log("Error deleting Organization:", error);
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -90,8 +90,8 @@ exports.getAdditionalData = (req, res) => {
       res.status(404).json("No Additional Data found");
     }
   } catch (error) {
-    console.error(error);
-    res.status(500).json("Internal server error");
+    console.log(error);
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -145,8 +145,8 @@ exports.getCountriesData = (req, res) => {
       res.status(404).json("No Additional Data found");
     }
   } catch (error) {
-    console.error(error);
-    res.status(500).json("Internal server error");
+    console.log(error);
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -206,8 +206,8 @@ exports.setupOrganization = async (req, res) => {
     });
     console.log("Organization updated successfully");
   } catch (error) {
-    console.error("Error updating Organization:", error);
-    res.status(500).json({ message: "Internal server error." });
+    console.log("Error updating Organization:", error);
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 

@@ -688,7 +688,7 @@ exports.createOrganizationAndClient = async (req, res) => {
     console.log("Organization, Client, User, Prefix, Currency, Role created successfully:", { organizationId });
   } catch (error) {
     console.error("Error creating Organization, Client, and User:", error);
-    res.status(500).json({ message: "Internal server error." });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -706,7 +706,7 @@ exports.getAllClient = async (req, res) => {
     }
   } catch (error) {
     console.error(error);
-    res.status(500).json("Internal server error");
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -723,59 +723,13 @@ exports.getOneOrganizationNex = async (req, res) => {
     
   } catch (error) {
     console.error("Error fetching organization:", error);
-    res.status(500).json({ message: "Internal server error" });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
 
 
-// Flush DB
-exports.deleteAll = async (req, res) => {
-  try {
-    await Organization.deleteMany({});
-    console.log("Organization data deleted.");
 
-    await Client.deleteMany({});
-    console.log("Client data deleted.");
-
-    await User.deleteMany({});
-    console.log("User data deleted.");
-
-    await Prefix.deleteMany({});
-    console.log("Prefix data deleted.");
-
-    await Account.deleteMany({});
-    console.log("Account data deleted.");
-
-    await Journal.deleteMany({});
-    console.log("Journal data deleted.");
-
-    await TrialBalance.deleteMany({});
-    console.log("Trial Balance data deleted.");
-
-    await Role.deleteMany({});
-    console.log("Role data deleted.");
-
-    await Currency.deleteMany({});
-    console.log("Currency data deleted.");
-
-    await PaymentTerms.deleteMany({});
-    console.log("Payment Terms data deleted.");
-
-    await Setting.deleteMany({});
-    console.log("Payment Terms data deleted.");
-
-    await Tax.deleteMany({});
-    console.log("Tax data deleted.");
-
-
-    res.status(200).json("Database Flushed Successfully");
-
-  } catch (error) {
-    console.error(error);
-    res.status(500).json("Internal server error");
-  }
-};
 
 
 
