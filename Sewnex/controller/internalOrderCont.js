@@ -24,7 +24,7 @@ const moment = require("moment-timezone");
 
 // Fetch existing data
 const dataExist = async ( organizationId, designerId, serviceIds, orderId) => {
-    const [organizationExists, staffExist, settings, existingPrefix, services, allFabrics, allReadyMade, allStyle, allParameter, allInternalOrder, internalOrder ] = await Promise.all([
+    const [organizationExists, staffExist, settings, existingPrefix, services, allFabrics, allRawMaterial, allReadyMade, allStyle, allParameter, allInternalOrder, internalOrder ] = await Promise.all([
       Organization.findOne({ organizationId }, { organizationId: 1, organizationCountry: 1, state: 1, timeZoneExp: 1 }),
       Staff.findOne({ organizationId , _id:designerId }),
       Settings.findOne({ organizationId },{ stockBelowZero:1, salesOrderAddress: 1, salesOrderCustomerNote: 1, salesOrderTermsCondition: 1, salesOrderClose: 1, restrictSalesOrderClose: 1, termCondition: 1 ,customerNote: 1 }),
@@ -32,6 +32,8 @@ const dataExist = async ( organizationId, designerId, serviceIds, orderId) => {
       Service.find({ organizationId, _id: { $in: serviceIds }})
       .lean(),
       Item.find({ organizationId, type: 'Fabric' })
+      .lean(),
+      Item.find({ organizationId, type: 'Raw Material' })
       .lean(),
       Item.find({ organizationId, type: 'Ready Made' })
       .lean(),
@@ -63,7 +65,7 @@ const dataExist = async ( organizationId, designerId, serviceIds, orderId) => {
        })
       .lean(),
     ]);
-    return { organizationExists, staffExist, settings, existingPrefix, services, allFabrics, allReadyMade, allStyle, allParameter, allInternalOrder, internalOrder };
+    return { organizationExists, staffExist, settings, existingPrefix, services, allFabrics, allRawMaterial, allReadyMade, allStyle, allParameter, allInternalOrder, internalOrder };
 };
 
 
@@ -98,9 +100,9 @@ exports.addIntOrder = async (req, res) => {
         } 
 
 
-        const { organizationExists, staffExist, existingPrefix, services, allFabrics, allReadyMade, allStyle, allParameter } = await dataExist(organizationId, designerId, serviceIds, null);
+        const { organizationExists, staffExist, existingPrefix, services, allFabrics, allRawMaterial, allReadyMade, allStyle, allParameter } = await dataExist(organizationId, designerId, serviceIds, null);
 
-        const allData = { allParameter, allFabrics, allReadyMade, allStyle, services };
+        const allData = { allParameter, allFabrics, allRawMaterial, allReadyMade, allStyle, services };
         
         if (!validateOrganizationTaxCurrency( organizationExists, staffExist, existingPrefix, res )) return;
         
@@ -492,7 +494,7 @@ function validateReqFields( data, errors ) {
 // Function to Validate Item Table 
 function validateService(data, productId, allData, errors) {     
     
-    const { allParameter, allFabrics, allStyle, services } = allData;    
+    const { allParameter, allFabrics, allRawMaterial, allStyle, services } = allData;    
 
     // Check for service count mismatch
     validateField(data.length !== services.length, "Mismatch in service count between request and database.", errors);
@@ -517,7 +519,6 @@ function validateService(data, productId, allData, errors) {
         // validateField(svc.serviceCharge !== fetchedService.serviceCharge, `Service rate mismatch for service ${svc.serviceName}: ${svc.serviceCharge}`, errors);
         validateField( typeof svc.serviceName === 'undefined', "Please select a valid service", errors  );
         validateField( typeof svc.status === 'undefined', "Status required", errors  );
-
       
 
 
@@ -542,11 +543,23 @@ function validateService(data, productId, allData, errors) {
         });
 
 
+         // Validate raw material within the service
+         svc.rawMaterial.forEach((rawMaterial) => {
+          const fetchedRawMaterial = allRawMaterial.find(f => f._id.toString() === rawMaterial.itemId.toString());
 
+          // Check if raw material exists in the raw material table
+          validateField(!fetchedRawMaterial, `Raw Material with ID ${rawMaterial.itemId} was not found.`, errors);
+          if (!fetchedRawMaterial) return;
+         
+
+          // Validate individual raw material fields
+          validateField( typeof rawMaterial.itemName === 'undefined', "Please select a valid Raw Material", errors  );
+          validateField( typeof rawMaterial.quantity === 'undefined', "Quantity required", errors  );
+
+      });
 
 
         // Validate styles within the service
-
         svc.style.forEach((style) => {
             const fetchedStyle = allStyle.find(st => st._id.toString() === style.styleId.toString());
 
