@@ -88,7 +88,7 @@ exports.getItemDropDown = async (req, res) => {
 
     } catch (error) {
         console.error("Error fetching brands:", error);
-        res.status(500).json({ message: "Internal server error." });
+        res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
 };
 

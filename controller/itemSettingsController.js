@@ -68,7 +68,7 @@ exports.addItemSettings = async (req, res) => {
       res.status(200).json("Item settings updated successfully");
     } catch (error) {
       console.error("Error updating item settings:", error);
-      res.status(500).json({ message: "Internal server error" });
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
   };
 
@@ -100,7 +100,7 @@ exports.getAllItemTrack = async (req, res) => {
     }
   } catch (error) {
     console.error("Error fetching Items:", error);
-    res.status(500).json({ message: "Internal server error." });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -122,6 +122,6 @@ exports.itemTransaction = async (req, res) => {
     }
   } catch (error) {
     console.error("Error fetching item transactions:", error);
-    return res.status(500).json({ message: "Internal server error." });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };

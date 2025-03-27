@@ -2,24 +2,32 @@ const Organization = require("../database/model/organization");
 const Unit = require("../database/model/unit");
 const Item = require("../database/model/item");
 
+const { cleanData } = require("../services/cleanData");
 
 //1. Add unit
 exports.addUnit = async (req, res) => {
     console.log("Add Unit:", req.body);
-    const organizationId = req.user.organizationId;
     try {
+    const organizationId = req.user.organizationId;
+    
+    const cleanedData = cleanData(req.body);      
+    
       const {          
         unitName,
         symbol,
         quantityCode,
         precision
-      } = req.body;
+      } = cleanedData;
   
       // // Check if an unit with the same organizationId already exists
       const existingUnit = await Unit.findOne({
         unitName,
         organizationId,
       });
+
+      if (!unitName) {
+        return res.status(400).json({ message: "Unit name is required" });
+        }
 
       if (existingUnit) {
           return res.status(409).json({
@@ -47,7 +55,7 @@ exports.addUnit = async (req, res) => {
       console.log("New unit created successfully:");
     } catch (error) {
       console.error("Error creating unit:", error);
-      res.status(500).json({ message: "Internal server error." });
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
   };
 
@@ -75,8 +83,8 @@ exports.getAllUnit = async (req, res) => {
         }
     } catch (error) {
         console.error("Error fetching unit:", error);
-        res.status(500).json({ message: "Internal server error." });
-    }
+        res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
+      }
 };
 
 
@@ -107,7 +115,7 @@ exports.getOneUnit = async (req, res) => {
     }
   } catch (error) {
     console.error("Error fetching a unit:", error);
-    res.status(500).json({ message: "Internal server error" });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
   
@@ -115,8 +123,9 @@ exports.getOneUnit = async (req, res) => {
 //4. edit unit
 exports.updateUnit = async (req, res) => {
   console.log("Received request to update unit:", req.body);
-
   try {
+    const cleanedData = cleanData(req.body);      
+
     const organizationId = req.user.organizationId;
     const { _id } = req.params;
     const {      
@@ -124,13 +133,15 @@ exports.updateUnit = async (req, res) => {
       symbol,
       quantityCode,
       precision,
-    } = req.body;
+    } = cleanedData;
 
-    // Log the ID being updated
-    console.log("Updating unit with ID:", _id);
 
     // Find the unit by its ID to get the current unitName
     const currentUnit = await Unit.findById(_id);
+
+    if (!unitName) {
+      return res.status(400).json({ message: "Unit name is required" });
+    }
 
     // if (!currentUnit) {
     //   console.log("Unit not found with ID:", _id);
@@ -151,6 +162,7 @@ exports.updateUnit = async (req, res) => {
         });
       }
     }
+    
 
     // Update the unit
     const updatedUnit = await Unit.findByIdAndUpdate(
@@ -174,7 +186,7 @@ exports.updateUnit = async (req, res) => {
     console.log("Unit updated successfully:", updatedUnit);
   } catch (error) {
     console.error("Error updating unit:", error);
-    res.status(500).json({ message: "Internal server error" });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -216,7 +228,7 @@ exports.deleteUnit = async (req, res) => {
       console.log("Unit deleted successfully:", id);
     } catch (error) {
       console.error("Error deleting Unit:", error);
-      res.status(500).json({ message: "Internal server error." });
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
   };
 
@@ -264,7 +276,7 @@ exports.addUnitConversion = async (req, res) => {
     // console.log("New unit conversion created successfully:", unit);
   } catch (error) {
     // console.error("Error creating unit conversion:", error);
-    res.status(500).json({ message: "Internal server error." });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -285,8 +297,8 @@ exports.getAllUnitConversion = async (req, res) => {
       }
   } catch (error) {
       console.error("Error fetching unit conversion:", error);
-      res.status(500).json({ message: "Internal server error." });
-  }
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
+    }
 };
 
 
@@ -323,7 +335,7 @@ exports.getOneUnitConversion = async (req, res) => {
     }
   } catch (error) {
     console.error("Error fetching a unit conversion:", error);
-    res.status(500).json({ message: "Internal server error" });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -380,7 +392,7 @@ exports.updateUnitConversion = async (req, res) => {
     }
   } catch (error) {
     console.error("Error updating unit conversion:", error);
-    res.status(500).json({ message: "Internal server error" });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -417,6 +429,6 @@ exports.deleteUnitConversion = async (req, res) => {
     console.log("Unit Conversion deleted successfully:", id);
   } catch (error) {
     console.error("Error deleting Unit Conversion:", error);
-    res.status(500).json({ message: "Internal server error." });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };

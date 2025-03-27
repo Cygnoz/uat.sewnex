@@ -270,7 +270,7 @@ exports.addItem = async (req, res) => {
       console.log( "New Item created successfully:", savedItem );
     } catch (error) {
       console.error("Error creating Item:", error);
-      res.status(500).json({ message: "Internal server error." });
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
 };
 
@@ -288,7 +288,7 @@ exports.getAllItem = async (req, res) => {
     
   } catch (error) {
     console.error("Error fetching Items:", error);
-    res.status(500).json({ message: "Internal server error." });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -310,7 +310,7 @@ exports.getAllItemXS = async (req, res) => {
     }
   } catch (error) {
     console.error("Error fetching Items:", error);
-    res.status(500).json({ message: "Internal server error." });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -332,7 +332,7 @@ exports.getAllItemM = async (req, res) => {
     }
   } catch (error) {
     console.error("Error fetching Items:", error);
-    res.status(500).json({ message: "Internal server error." });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -376,7 +376,7 @@ exports.getAItem = async (req, res) => {
       res.status(200).json(transformedItems);
     } catch (error) {
       console.error("Error fetching Item:", error);
-      res.status(500).json({ message: "Internal server error." });
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
 };
 
@@ -430,7 +430,7 @@ exports.updateItem = async (req, res) => {
     console.log("Item updated successfully:", savedItem);
   } catch (error) {
     console.error("Error updating item:", error);
-    res.status(500).json({ message: "Internal server error" });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -488,7 +488,7 @@ exports.deleteItem = async (req, res) => {
       console.log("Item deleted successfully with ID:", itemId);
   } catch (error) {
     console.error("Error deleting item:", error);
-    res.status(500).json({ message: "Internal server error" });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -881,3 +881,7 @@ function isAlphanumeric(value) {
 const validItemTypes = [ "goods", "service" ];
 const validTaxPreference = [ "Non-taxable", "Taxable" ]; 
 const validType = [ "Fabric", "Raw Material", "Ready Made" ];   //sewnex variable
+
+
+
+

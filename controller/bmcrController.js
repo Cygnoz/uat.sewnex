@@ -8,6 +8,7 @@ const Item = require("../database/model/item");
 
 exports.addBmcr = async (req, res) => {
     console.log("Add BMCR:", req.body);
+    try {
     const organizationId = req.user.organizationId;
     const { type, name, description, uploadImage } = req.body;
 
@@ -20,7 +21,6 @@ exports.addBmcr = async (req, res) => {
         return res.status(400).json({ message: `The ${type} name is required.` });
     }
 
-    try {
         // Check if an Organization exists
         const existingOrganization = await Organization.findOne({ organizationId });
 
@@ -76,7 +76,7 @@ exports.addBmcr = async (req, res) => {
         res.status(201).json(`${type.charAt(0).toUpperCase() + type.slice(1)} added successfully.`);
     } catch (error) {
         console.error(`Error adding ${type}:`, error);
-        res.status(400).json({ error: error.message });
+        res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
 };
 
@@ -84,11 +84,11 @@ exports.addBmcr = async (req, res) => {
 
 // Get all BMCR
 exports.getAllBmcr = async (req, res) => {
+    try {
     const organizationId = req.user.organizationId;
     const { type } = req.body;
     
 
-    try {
         // Check if the Organization exists
         const existingOrganization = await Organization.findOne({ organizationId });
 
@@ -128,7 +128,7 @@ exports.getAllBmcr = async (req, res) => {
         res.status(200).json(response);
     } catch (error) {
         console.error("Error fetching BMCR data:", error);
-        res.status(500).json({ message: "Internal server error." });
+        res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
 };
 
@@ -136,10 +136,10 @@ exports.getAllBmcr = async (req, res) => {
 
 //Get one bmcr
 exports.getABmcr = async (req, res) => {
+    try {
     const { id } = req.params; // Get the BMCR document ID from the route parameters
     const organizationId = req.user.organizationId;
 
-    try {
         // Check if the Organization exists
         const existingOrganization = await Organization.findOne({ organizationId });
 
@@ -166,7 +166,7 @@ exports.getABmcr = async (req, res) => {
 
     } catch (error) {
         console.error("Error fetching BMCR data:", error);
-        res.status(500).json({ message: "Internal server error." });
+        res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
 };
 
@@ -382,10 +382,10 @@ exports.getABmcr = async (req, res) => {
 //New Edit BMCR
 exports.updateBmcr = async (req, res) => {
     console.log("Update BMCR:", req.body);
+    try {
     const organizationId = req.user.organizationId;
     const { _id, type, name, description, uploadImage } = req.body;
 
-    try {
         const validTypes = {
             brand: "brandName",
             manufacturer: "manufacturerName",
@@ -430,7 +430,7 @@ exports.updateBmcr = async (req, res) => {
         res.status(200).json({ message: `${type.charAt(0).toUpperCase() + type.slice(1)} updated successfully.` });
     } catch (error) {
         console.error(`Error updating ${type}:`, error);
-        res.status(500).json({ message: "Internal server error." });
+        res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
 };
 
@@ -479,7 +479,7 @@ exports.deleteBmcr = async (req, res) => {
         console.log(`${type.charAt(0).toUpperCase() + type.slice(1)} deleted successfully:`, id);
     } catch (error) {
         console.error(`Error deleting BMCR:`, error);
-        res.status(500).json({ message: "Internal server error." });
+        res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
 };
 
