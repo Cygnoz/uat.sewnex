@@ -95,7 +95,7 @@ const creditDataExist = async ( organizationId, creditId ) => {
     .populate('customerId', 'customerDisplayName')
     .lean(),
     CreditNote.findOne({ organizationId , _id: creditId })
-    .populate('items.itemId', 'itemName')
+    .populate('items.itemId', 'itemName itemImage')
     .populate('customerId', 'customerDisplayName')
     .lean(),
     TrialBalance.find({ organizationId: organizationId, operationId : creditId })
@@ -133,7 +133,7 @@ exports.addCreditNote = async (req, res) => {
 
     //Validate Customer
     if (!mongoose.Types.ObjectId.isValid(customerId) || customerId.length !== 24) {
-      return res.status(400).json({ message: `Invalid supplier ID: ${customerId}` });
+      return res.status(400).json({ message: `Invalid customer ID: ${customerId}` });
     }
 
     //Validate invoice
@@ -149,17 +149,18 @@ exports.addCreditNote = async (req, res) => {
 
     const { organizationExists, customerExist, invoiceExist, existingPrefix, defaultAccount, customerAccount } = await dataExist( organizationId, customerId, invoiceId );
 
+    
     //Data Exist Validation
     if (!validateOrganizationTaxCurrency( organizationExists, customerExist, invoiceExist, existingPrefix, res )) return;
-
+    
     const { itemTable } = await itemDataExists( organizationId, items );   
- 
+    
     //Validate Inputs  
     if (!validateInputs( cleanedData, customerExist, invoiceExist, items, itemTable, organizationExists, res)) return;
-
+    
     //Tax Type
     taxType(cleanedData, customerExist, organizationExists );
-
+    
     //Default Account
     const { defAcc, paidThroughAccount, error } = await defaultAccounting( cleanedData, defaultAccount, organizationExists );
     if (error) { 
@@ -273,8 +274,9 @@ try {
     customerDisplayName: creditNote.customerId?.customerDisplayName,
     items: creditNote.items.map(item => ({
       ...item,
-      itemId: item.itemId?._id,
-      itemName: item.itemId?.itemName,
+      itemId: item?.itemId?._id,
+      itemName: item?.itemId?.itemName,
+      itemImage: item?.itemId?.itemImage,
     })),  
 };
 
@@ -690,17 +692,20 @@ function validateInputs( data, customerExist, invoiceExist, items, itemExists, o
 function validateCreditNoteData( data, customerExist, invoiceExist, items, itemTable, organizationExists ) {
   
   const errors = [];
-
+  
+  
   //Basic Info
   validateReqFields( data, customerExist, errors );
   validateItemTable(items, itemTable, errors);
   validateInvoiceData(data, items, invoiceExist, errors);
 
+
+  
   //OtherDetails
   validateIntegerFields(['totalItem'], data, errors);
   validateFloatFields(['subTotal','cgst','sgst','igst','vat','totalTax','totalAmount'], data, errors);
   //validateAlphabetsFields(['department', 'designation'], data, errors);
-
+  
   //Tax Details
   //validateTaxType(data.taxType, validTaxTypes, errors);
   validatePlaceOfSupply(data.placeOfSupply, organizationExists, errors);
@@ -728,7 +733,7 @@ function validateReqFields( data, customerExist, errors ) {
   validateField( typeof data.items === 'undefined', "Select an item", errors  );
   validateField( Array.isArray(data.items) && data.items.length === 0, "Select an item", errors );
   
-  validateField( data.invoiceNumber === 'undefined', "Select an invoice number", errors  );
+  // validateField( data.invoiceNumber === 'undefined', "Select an invoice number", errors  );
   validateField( typeof data.paymentMode === 'undefined', "Select payment mode", errors  );
   validateField( data.paymentMode === 'Cash' && typeof data.totalAmount === 'undefined', "Enter the amount paid", errors  );
   validateField( data.paymentMode === 'Cash' && typeof data.paidThroughAccountId === 'undefined', "Select an paid through account", errors  );  
@@ -737,6 +742,7 @@ function validateReqFields( data, customerExist, errors ) {
 
 // Function to Validate Item Table 
 function validateItemTable(items, itemTable, errors) {
+  
   // Check for item count mismatch
   validateField( items.length !== itemTable.length, "Mismatch in item count between request and database.", errors  );
   
@@ -758,14 +764,30 @@ function validateItemTable(items, itemTable, errors) {
     // validateField( item.sellingPrice !== fetchedItem.sellingPrice, `Cost price Mismatch for ${item.itemName}:  ${item.sellingPrice}`, errors );
   
     // Validate CGST
-    validateField( item.cgst !== fetchedItem.cgst, `CGST Mismatch for ${item.itemName}: ${item.cgst}`, errors );
+    validateField(
+      fetchedItem.cgst !== undefined && fetchedItem.cgst !== 0 && Number(item.cgst) !== Number(fetchedItem.cgst),
+      `CGST Mismatch for ${item.itemName}: ${item.cgst}`,
+      errors
+    );
   
     // Validate SGST
-    validateField( item.sgst !== fetchedItem.sgst, `SGST Mismatch for ${item.itemName}: ${item.sgst}`, errors );
-  
+    validateField(
+      fetchedItem.sgst !== undefined && fetchedItem.sgst !== 0 && Number(item.sgst) !== Number(fetchedItem.sgst),
+      `SGST Mismatch for ${item.itemName}: ${item.sgst}`,
+      errors
+    );  
     // Validate IGST
-    validateField( item.igst !== fetchedItem.igst, `IGST Mismatch for ${item.itemName}: ${item.igst}`, errors );
-  
+    validateField(
+      fetchedItem.igst !== undefined && fetchedItem.igst !== 0 && Number(item.igst) !== Number(fetchedItem.igst),
+      `IGST Mismatch for ${item.itemName}: ${item.igst}`,
+      errors
+    );
+    //Validate VAT
+    validateField(
+      fetchedItem.vat !== undefined && fetchedItem.vat !== 0 && Number(item.vat) !== Number(fetchedItem.vat),
+      `VAT Mismatch for ${item.itemName}: ${item.vat}`,
+      errors
+    );  
     // Validate tax preference
     validateField( item.taxPreference !== fetchedItem.taxPreference, `Tax Preference mismatch for ${item.itemName}: ${item.taxPreference}`, errors );
   
@@ -773,7 +795,7 @@ function validateItemTable(items, itemTable, errors) {
     validateIntegerFields(['itemQuantity'], item, errors);
     
     // Validate float fields
-    validateFloatFields(['sellingPrice', 'itemTotalTax', 'itemAmount'], item, errors);
+    validateFloatFields(['sellingPrice', 'itemTotalTax', 'itemAmount'], item, errors); 
   });
   }
 
@@ -956,7 +978,7 @@ function capitalize(word) {
         transactionId: savedCreditNote.creditNote,
         action: "Credit Note",
         itemId: matchingItem._id,
-        sellingPrice: matchingItem.sellingPrice || 0,
+        sellingPrice: item.sellingPrice || 0,
         costPrice: matchingItem.costPrice || 0, 
         debitQuantity: item.quantity,
         createdDateTime: savedCreditNote.createdDateTime  

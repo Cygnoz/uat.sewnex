@@ -7,6 +7,7 @@ const CustomerHistory = require("../../database/model/customerHistory");
 const { dataExist, validation, calculation, accounts } = require("../Receipt/salesReceipt");
 const { cleanData } = require("../../services/cleanData");
 
+const moment = require("moment-timezone");
 
 
 // Update Sales Receipt 
@@ -31,9 +32,10 @@ exports.updateReceipt = async (req, res) => {
       const invoiceIds = invoice.map(inv => inv.invoiceId);
 
       // Fetch the latest receipt for the given customerId and organizationId
-      const latestReceipt = await getLatestReceipt(receiptId, organizationId, customerId, invoiceIds, res);
-      if (latestReceipt) {
-        return; 
+      const result = await getLatestReceipt(receiptId, organizationId, customerId, invoiceIds, res);
+      
+      if (result.error) {
+        return res.status(400).json({ message: result.error });
       }
     
       // Validate _id's
@@ -226,14 +228,12 @@ async function getLatestReceipt(receiptId, organizationId, customerId, invoiceId
 
   if (!latestReceipt) {
       console.log("No sales receipts found for this customer.");
-      return res.status(404).json({ message: "No sales receipts found for this customer." });
-  }
+      return { error: "No sales receipts found for this customer." };
+    }
 
   // Check if the provided receiptId matches the latest one
   if (latestReceipt._id.toString() !== receiptId) {
-    return res.status(400).json({
-      message: "Only the latest sales receipt can be edited."
-    });
+    return { error: "Only the latest sales receipt can be edited" };
   }
 
   return latestReceipt;

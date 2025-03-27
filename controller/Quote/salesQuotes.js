@@ -43,7 +43,7 @@ const dataExist = async ( organizationId, items, customerId ) => {
         .populate('customerId', 'customerDisplayName')    
         .lean(),
         Quotes.findOne({ organizationId , _id: quoteId })
-        .populate('items.itemId', 'itemName')    
+        .populate('items.itemId', 'itemName itemImage')    
         .populate('customerId', 'customerDisplayName')    
         .lean()
       ]);
@@ -205,6 +205,7 @@ exports.getOneSalesQuote = async (req, res) => {
         ...item,
         itemId: item.itemId?._id,
         itemName: item.itemId?.itemName,
+        itemImage: item.itemId?.itemImage,
       })),  
   };
   

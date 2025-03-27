@@ -77,7 +77,7 @@ const salesDataExist = async ( organizationId, orderId ) => {
     .populate('customerId', 'customerDisplayName')    
     .lean(),
     Order.findOne({ organizationId , _id: orderId })
-    .populate('items.itemId', 'itemName cgst sgst igst vat salesAccountId')    
+    .populate('items.itemId', 'itemName cgst sgst igst vat salesAccountId itemImage')    
     .populate('customerId', 'customerDisplayName')    
     .lean(),
   ]);
@@ -248,6 +248,7 @@ try {
       igst: item.itemId?.igst,
       vat: item.itemId?.vat,      
       salesAccountId: item.itemId?.salesAccountId,
+      itemImage: item.itemId?.itemImage,
     })),  
 };
 
