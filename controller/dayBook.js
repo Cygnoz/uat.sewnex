@@ -160,8 +160,9 @@ exports.getDayBook = async (req, res) => {
 
             // Extract date from the first entry's createdDateTime and format it
             const date = transaction.entries.length > 0 && transaction.entries[0].createdDateTime 
-                ? moment(transaction.entries[0].createdDateTime).format(organizationExists.dateFormatExp) 
+                ? moment(transaction.entries[0].createdDateTime).tz(orgTimezone).format(organizationExists.dateFormatExp.split('-').join(organizationExists.dateSplit)) 
                 : null;
+
 
             // Safely find account details
             const entries = transaction.entries.map(entry => {

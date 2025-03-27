@@ -36,8 +36,8 @@ function parseDate( timezone, dateStr, isEndDate = false ) {
 }
 
 // 1. Opening Balance
-async function getOpeningBalance(organizationId, startDate) {
-    const openingStock = await calculateOpeningStock(organizationId, startDate);
+async function getOpeningBalance( organizationExists, organizationId, startDate) {
+    const openingStock = await calculateOpeningStock( organizationExists, organizationId, startDate);
     return {
         items: openingStock.items,
         total: openingStock.total
@@ -45,8 +45,8 @@ async function getOpeningBalance(organizationId, startDate) {
 }
 
 // 2. Closing Balance
-async function getClosingBalance(organizationId, endDate) {
-    const closingStock = await calculateClosingStock(organizationId, endDate);
+async function getClosingBalance( organizationExists, organizationId, endDate) {
+    const closingStock = await calculateClosingStock( organizationExists, organizationId, endDate);
     return {
         items: closingStock.items,
         total: closingStock.total
@@ -75,7 +75,14 @@ async function getReportAccount(organizationExists,organizationId, startDate, en
                 }
             },
             { $unwind: "$accountDetails" },
-            { $match: { "accountDetails.accountSubhead": accountSubHead } },
+            { 
+                $match: { 
+                    "accountDetails.accountSubhead": accountSubHead,
+                    "accountDetails.accountName": { 
+                        $nin: ["Sales Discount", "Purchase Discount","Sales Discount(Cash Discount)","Purchase Discounts(Cash Discount)"] 
+                    } 
+                } 
+            },
             {
                 $group: {
                     _id: "$accountId",
@@ -121,7 +128,14 @@ async function getReportAccount(organizationExists,organizationId, startDate, en
                 }
             },
             { $unwind: "$accountDetails" },
-            { $match: { "accountDetails.accountSubhead": accountSubHead } },
+            { 
+                $match: { 
+                    "accountDetails.accountSubhead": accountSubHead,
+                    "accountDetails.accountName": { 
+                        $nin: ["Sales Discount", "Purchase Discount","Sales Discount(Cash Discount)","Purchase Discounts(Cash Discount)"] 
+                    } 
+                } 
+            },
             {
                 $match: {
                     $or: [{ debitAmount: { $ne: 0 } }, { creditAmount: { $ne: 0 } }]
@@ -855,8 +869,8 @@ exports.calculateTradingAccount = async (req, res) => {
         
         validateDates(start, end);
 
-        const openingStock = await getOpeningBalance(organizationId, start);
-        const closingStock = await getClosingBalance(organizationId, end);
+        const openingStock = await getOpeningBalance( organizationExists, organizationId, start);
+        const closingStock = await getClosingBalance( organizationExists, organizationId, end);
 
         const purchases = await getReportAccount( organizationExists, organizationId, start, end,'Cost of Goods Sold');
         const sales = await getReportAccount( organizationExists, organizationId, start, end,'Sales');
@@ -923,8 +937,8 @@ exports.calculateProfitAndLoss = async (req, res) => {
         validateDates(start, end);
 
         // Trading Account Calculations
-        const openingStock = await getOpeningBalance(organizationId, start);
-        const closingStock = await getClosingBalance(organizationId, end);
+        const openingStock = await getOpeningBalance( organizationExists, organizationId, start);
+        const closingStock = await getClosingBalance( organizationExists, organizationId, end);
 
         const purchases = await getReportAccount( organizationExists, organizationId, start, end,'Cost of Goods Sold');
         const sales = await getReportAccount( organizationExists, organizationId, start, end,'Sales');
@@ -1038,8 +1052,8 @@ exports.calculateBalanceSheet = async (req, res) => {
         validateDates(start, end);
 
         // Trading Account Calculations
-        const openingStock = await getOpeningBalance(organizationId, start);
-        const closingStock = await getClosingBalance(organizationId, end);
+        const openingStock = await getOpeningBalance( organizationExists, organizationId, start);
+        const closingStock = await getClosingBalance( organizationExists, organizationId, end);
 
         const purchases = await getReportAccount(organizationExists, organizationId, start, end, 'Cost of Goods Sold');
         const sales = await getReportAccount(organizationExists, organizationId, start, end, 'Sales');
@@ -1142,7 +1156,7 @@ exports.calculateBalanceSheet = async (req, res) => {
 
 
 
-async function calculateOpeningStock(organizationId, startDate) {
+async function calculateOpeningStock( organizationExists, organizationId, startDate) {
     try {
         
         if (!startDate || isNaN(new Date(startDate).getTime())) {
@@ -1152,12 +1166,15 @@ async function calculateOpeningStock(organizationId, startDate) {
         // Ensure startDate is a Date object
         const formattedStartDate = new Date(startDate);
 
+        // Convert the date to the organization's timezone and format
+        const convertedStartDate = convertToOrganizationTime(formattedStartDate, organizationExists.timeZoneExp, organizationExists.dateFormatExp, organizationExists.dateSplit);
+
         // Aggregate to calculate opening stock
         const itemStocks = await ItemTrack.aggregate([
             {
                 $match: {
                     organizationId: organizationId, 
-                    createdDateTime: { $lt: formattedStartDate }
+                    createdDateTime: { $lt: convertedStartDate }
                 }
             },
             {
@@ -1235,19 +1252,26 @@ async function calculateOpeningStock(organizationId, startDate) {
 }
 
 
-async function calculateClosingStock(organizationId, endDate) {
+async function calculateClosingStock( organizationExists, organizationId, endDate) {
     try {
         // Validate input
         if (!organizationId || !endDate || isNaN(endDate)) {
             throw new Error("Invalid organizationId or endDate.");
         }
 
+        // Ensure endDate is a Date object
+        const formattedEndDate = new Date(endDate);
+
+        // Convert the date to the organization's timezone and format
+        const convertedEndDate = convertToOrganizationTime(formattedEndDate, organizationExists.timeZoneExp, organizationExists.dateFormatExp, organizationExists.dateSplit);
+
+
         // Aggregate to calculate closing stock
         const itemStocks = await ItemTrack.aggregate([
             {
                 $match: {
                     organizationId: organizationId,
-                    createdDateTime: { $lte: endDate }
+                    createdDateTime: { $lte: convertedEndDate }
                 }
             },
             {
@@ -1325,6 +1349,13 @@ async function calculateClosingStock(organizationId, endDate) {
 
 
 
+
+function convertToOrganizationTime(date, timeZone, dateFormat, dateSplit) {
+    // Use moment-timezone to convert the date to the organization's timezone and format
+    const format = dateFormat.replace(/-/g, dateSplit);
+    const convertedDate = moment(date).tz(timeZone).format(format);
+    return new Date(convertedDate);
+}
 
 
 
