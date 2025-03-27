@@ -27,7 +27,7 @@ exports.updatePurchaseSettings = async (req, res) => {
       res.status(200).json("Purchase settings updated successfully");
     } catch (error) {
       console.error("Error updating purchase settings:", error);
-      res.status(500).json({ message: "Internal server error" });
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
   };
   

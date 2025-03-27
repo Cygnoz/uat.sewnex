@@ -95,7 +95,7 @@ const debitDataExist = async ( organizationId, debitId ) => {
     .populate('supplierId', 'supplierDisplayName')
     .lean(),
     DebitNote.findOne({ organizationId , _id: debitId })
-    .populate('items.itemId', 'itemName')
+    .populate('items.itemId', 'itemName itemImage')
     .populate('supplierId', 'supplierDisplayName')
     .lean(),
     TrialBalance.find({ organizationId: organizationId, operationId : debitId })
@@ -216,7 +216,7 @@ exports.addDebitNote = async (req, res) => {
     // console.log( "Debit Note created successfully:", savedDebitNote );
   } catch (error) {
     console.error("Error Creating Debit Note:", error);
-    res.status(500).json({ message: "Internal server error." });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 }
 
@@ -245,7 +245,7 @@ exports.getAllDebitNote = async (req, res) => {
     res.status(200).json(formattedObjects);
   } catch (error) {
     console.error("Error fetching Debit Note:", error);
-    res.status(500).json({ message: "Internal server error." });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -268,8 +268,9 @@ try {
     supplierDisplayName: debitNote.supplierId?.supplierDisplayName,
     items: debitNote.items.map(item => ({
       ...item,
-      itemId: item.itemId?._id,
-      itemName: item.itemId?.itemName,
+      itemId: item?.itemId?._id,
+      itemName: item?.itemId?.itemName,
+      itemImage: item?.itemId?.itemImage,
     })),  
 };
 
@@ -279,7 +280,7 @@ const formattedObjects = singleCustomDateTime(transformedData, organizationExist
   res.status(200).json(formattedObjects);
 } catch (error) {
   console.error("Error fetching Debit Note:", error);
-  res.status(500).json({ message: "Internal server error." });
+  res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
 }
 };
 
@@ -309,8 +310,8 @@ exports.debitNoteJournal = async (req, res) => {
       res.status(200).json(transformedJournal);
   } catch (error) {
       console.error("Error fetching journal:", error);
-      res.status(500).json({ message: "Internal server error." });
-  }
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
+    }
 };
 
 
@@ -336,8 +337,8 @@ exports.getLastDebitNotePrefix = async (req, res) => {
       res.status(200).json(lastPrefix);
   } catch (error) {
       console.error("Error fetching accounts:", error);
-      res.status(500).json({ message: "Internal server error." });
-  }
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
+    }
 };
 
 // Debit Note Prefix
@@ -1025,8 +1026,8 @@ async function itemTrack(savedDebitNote, itemTable) {
       transactionId: savedDebitNote.debitNote,
       action: "Debit Note",
       itemId: matchingItem._id,
-      sellingPrice: matchingItem.itemSellingPrice || 0,
-      costPrice: matchingItem.itemCostPrice || 0, 
+      sellingPrice: matchingItem.sellingPrice || 0,
+      costPrice: item.itemCostPrice || 0, 
       creditQuantity: item.itemQuantity,
       createdDateTime: savedDebitNote.createdDateTime  
     });

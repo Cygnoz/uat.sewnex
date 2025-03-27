@@ -154,7 +154,7 @@ exports.addPayment = async (req, res) => {
 
   } catch (error) {
     console.error('Error adding payment:', error);
-    return res.status(500).json({ message: 'Internal server error' });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -185,7 +185,7 @@ exports.getAllPayment = async (req, res) => {
     res.status(200).json({allPayments: formattedObjects});
   } catch (error) {
     console.error("Error fetching purchase paymentMade:", error);
-    res.status(500).json({ message: "Internal server error." });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -215,7 +215,7 @@ exports.getPurchasePayment = async (req, res) => {
     res.status(200).json(formattedObjects);
   } catch (error) {
     console.error("Error fetching Payments:", error);
-    res.status(500).json({ message: "Internal server error." });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -248,8 +248,8 @@ exports.paymentJournal = async (req, res) => {
       res.status(200).json(transformedJournal);
   } catch (error) {
       console.error("Error fetching journal:", error);
-      res.status(500).json({ message: "Internal server error." });
-  }
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
+    }
 };
 
 
@@ -278,8 +278,8 @@ exports.getLastPaymentMadePrefix = async (req, res) => {
       res.status(200).json(lastPrefix);
   } catch (error) {
       console.error("Error fetching accounts:", error);
-      res.status(500).json({ message: "Internal server error." });
-  }
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
+    }
 };
 
 

@@ -27,6 +27,12 @@ exports.updateDebitNote = async (req, res) => {
 
       // Clean input data
       const cleanedData = cleanData(req.body);
+      
+      cleanedData.items = cleanedData.items?.map(data => cleanData(data)) || [];
+      
+      cleanedData.items = cleanedData.items
+      ?.map(data => cleanData(data))
+      .filter(item => item.itemId !== undefined && item.itemId !== '') || [];
 
       // cleanedData.depositAccountId = cleanedData.depositTo || undefined;
 
@@ -35,9 +41,10 @@ exports.updateDebitNote = async (req, res) => {
       const itemIds = items.map(item => item.itemId);
 
       // Fetch the latest debit note for the given supplierId and organizationId
-      const latestDebitNote = await getLatestDebitNote(debitId, organizationId, supplierId, billId, itemIds, res);
-      if (latestDebitNote) {
-        return; 
+      const result  = await getLatestDebitNote(debitId, organizationId, supplierId, billId, itemIds, res);
+      
+      if (result.error) {
+        return res.status(400).json({ message: result.error });
       }
     
       // Validate _id's
@@ -119,7 +126,7 @@ exports.updateDebitNote = async (req, res) => {
       // console.log("Debit Note updated successfully:", savedDebitNote);  
     } catch (error) {
       console.error("Error updating debit note:", error);
-      res.status(500).json({ message: "Internal server error" });
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
   };
 
@@ -153,7 +160,7 @@ exports.updateDebitNote = async (req, res) => {
           supplierId,
           billId,
           "items.itemId": { $in: itemIds }, 
-        }).sort({ createdDateTime: -1 }); // Sort by createdDateTime in descending order
+        }).sort({ createdDateTime: -1, _id: -1 });
       
         if (!latestDebitNote) {
             console.log("No debit note found for this supplier.");
@@ -194,7 +201,7 @@ exports.updateDebitNote = async (req, res) => {
         await updateReturnQuantity( existingDebitNoteItems, billId );
 
         //Update purchase bill Balance      
-        await deleteUpdateBillBalance( billId, existingDebitNoteItems.grandTotal );
+        await deleteUpdateBillBalance( billId, existingDebitNote.grandTotal );
 
         // Fetch existing itemTrack entries
         const existingItemTracks = await ItemTrack.find({ organizationId, operationId: debitId });
@@ -223,7 +230,7 @@ exports.updateDebitNote = async (req, res) => {
 
     } catch (error) {
         console.error("Error deleting debit note:", error);
-        res.status(500).json({ message: "Internal server error" });
+        res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
   };
 
@@ -254,18 +261,15 @@ async function getLatestDebitNote(debitId, organizationId, supplierId, billId, i
       supplierId,
       billId, 
       "items.itemId": { $in: itemIds },
-  }).sort({ createdDateTime: -1 }); // Sort by createdDateTime in descending order
+  }).sort({ createdDateTime: -1, _id: -1 });
 
   if (!latestDebitNote) {
-      console.log("No debit note found for this supplier.");
-      return res.status(404).json({ message: "No debit note found for this supplier." });
+    return { error: "No debit note found for this supplier." };
   }
 
   // Check if the provided debitId matches the latest one
   if (latestDebitNote._id.toString() !== debitId) {
-    return res.status(400).json({
-      message: "Only the latest debit note can be edited."
-    });
+    return { error: "Only the latest debit note can be edited." };
   }
 
   return latestDebitNote;
@@ -331,16 +335,20 @@ const editUpdateBillBalance = async (savedDebitNote, billId, oldGrandTotal) => {
 const deleteUpdateBillBalance = async ( billId, oldGrandTotal) => {
   try {
     const bill = await Bill.findOne({ _id: billId });
-    let newBalance = bill.balanceAmount + oldGrandTotal; 
-    if (newBalance < 0) {
-      newBalance = 0;
+
+    if (!bill) {
+      throw new Error(`Bill with ID ${billId} not found.`);
     }
+
+    let newBalance = bill.balanceAmount + oldGrandTotal; 
+    newBalance = Math.max(newBalance, 0);
+    
     console.log(`Updating purchase bill balance: ${newBalance}, Old Balance: ${bill.balanceAmount}`);
     
     await Bill.findOneAndUpdate({ _id: billId }, { $set: { balanceAmount: newBalance } });
   } catch (error) {
     console.error("Error updating purchase bill balance:", error);
-    throw new Error("Failed to update purchase bill balance.");
+    throw new Error("Failed to update purchase bill balance.", error.message, error.stack);
   }
 };
 
@@ -719,8 +727,8 @@ function capitalize(word) {
         action: "Debit Note",
         date: savedDebitNote.supplierDebitDate,
         itemId: matchingItem._id,
-        sellingPrice: matchingItem.itemSellingPrice || 0,
-        costPrice: matchingItem.itemCostPrice || 0, 
+        sellingPrice: matchingItem.sellingPrice || 0,
+        costPrice: item.itemCostPrice || 0, 
         creditQuantity: item.itemQuantity, 
         createdDateTime: savedDebitNote.createdDateTime 
       });  
@@ -825,7 +833,7 @@ function capitalize(word) {
         operationId: savedDebitNote._id,
         transactionId: savedDebitNote.debitNote,
         date: savedDebitNote.createdDate,
-        accountId: depositAccount._id || undefined,
+        accountId: depositAccount?._id || undefined,
         action: "Debit Note",
         debitAmount: savedDebitNote.grandTotal || 0,
         creditAmount: 0,

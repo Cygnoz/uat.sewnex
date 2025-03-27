@@ -102,7 +102,7 @@ exports.updatePurchaseOrder = async (req, res) => {
   
     } catch (error) {
       console.error("Error updating purchase order:", error);
-      res.status(500).json({ message: "Internal server error" });
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
   };
 
@@ -158,6 +158,6 @@ exports.deletePurchaseOrder = async (req, res) => {
 
   } catch (error) {
       console.error("Error deleting purchase order:", error);
-      res.status(500).json({ message: "Internal server error" });
-  }
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
+    }
 };

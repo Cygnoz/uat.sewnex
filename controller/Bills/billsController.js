@@ -226,9 +226,9 @@ exports.addBills = async (req, res) => {
       console.log( "Bills created successfully:", savedBills );
     } catch (error) {
       console.error("Error Creating Bills:", error);
-      res.status(500).json({ message: "Internal server error." });
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
-  }
+}
   
   
   
@@ -264,35 +264,39 @@ exports.addBills = async (req, res) => {
         // Get current date for comparison
         const currentDate = new Date();
 
+
+
+
+        const updatedData = await Promise.all(transformedBill.map(async (bill) => {
+         const { organizationId, balanceAmount, dueDate, paidStatus: currentStatus, ...rest } = bill;
+         
+         let newStatus;
+         if (balanceAmount === 0) {
+           newStatus = 'Completed';
+         } else if (dueDate && new Date(dueDate) < currentDate) {
+           newStatus = 'Overdue';
+         } else {
+           newStatus = 'Pending';
+         }
+     
+         if (newStatus !== currentStatus) {
+           await Bills.updateOne({ _id: bill._id }, { paidStatus: newStatus });
+         }
+     
+         return { ...rest, balanceAmount, dueDate, paidStatus: newStatus };
+       }));   
+
       
 
-        // Map through purchase bills and update paidStatus if needed
-        for (const bill of allBills) {
-        const { balanceAmount, dueDate, paidStatus: currentStatus } = bill;
-        
-        // Determine the correct paidStatus based on balanceAmount and dueDate
-        let newStatus;
-        if (balanceAmount === 0) {
-            newStatus = 'Completed';
-        } else if (dueDate && new Date(dueDate) < currentDate) {
-            newStatus = 'Overdue';
-        } else {
-            newStatus = 'Pending';
-        }
 
-        // Update the bill's status only if it differs from the current status in the database
-        if (newStatus !== currentStatus) {
-            await Bills.updateOne({ _id: bill._id }, { paidStatus: newStatus });
-        }
-        }
 
-        const formattedObjects = multiCustomDateTime(transformedBill, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
+        const formattedObjects = multiCustomDateTime(updatedData, organizationExists.dateFormatExp, organizationExists.timeZoneExp, organizationExists.dateSplit );    
 
   
       res.status(200).json({allBills: formattedObjects});
     } catch (error) {
       console.error("Error fetching bills:", error);
-      res.status(500).json({ message: "Internal server error." });
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
   };
   
@@ -326,7 +330,7 @@ exports.addBills = async (req, res) => {
     res.status(200).json(formattedObjects);
   } catch (error) {
     console.error("Error fetching bill:", error);
-    res.status(500).json({ message: "Internal server error." });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
   };
 
@@ -360,8 +364,8 @@ exports.billJournal = async (req, res) => {
       res.status(200).json(transformedJournal);
   } catch (error) {
       console.error("Error fetching journal:", error);
-      res.status(500).json({ message: "Internal server error." });
-  }
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
+    }
 };
 
 
@@ -819,8 +823,8 @@ function validateInputs( data, supplierExist, items, itemExists, organizationExi
     // console.log("billExist Data:", billExist.billNumber, billExist.billDate, billExist.orderNumber)
   
     //OtherDetails
-    validateIntegerFields(['totalItem'], data, errors);
-    validateFloatFields(['transactionDiscountAmount','subTotal','cgst','sgst','igst','vat','totalTaxAmount','grandTotal'], data, errors);
+    // validateIntegerFields([''], data, errors);
+    validateFloatFields(['totalItem','transactionDiscountAmount','subTotal','cgst','sgst','igst','vat','totalTaxAmount','grandTotal'], data, errors);
     //validateAlphabetsFields(['department', 'designation'], data, errors);
   
     //Tax Details
@@ -907,7 +911,7 @@ function validateInputs( data, supplierExist, items, itemExists, organizationExi
     validateField( data.taxType === 'Inter' && item.itemIgst !== fetchedItem.igst, `IGST Mismatch for ${item.itemName}: ${item.itemIgst}`, errors );
 
     // Validate tax preference
-    validateField( item.taxPreference !== fetchedItem.taxPreference, `Tax Preference mismatch for ${item.itemName}: ${item.taxPreference}`, errors );
+    // validateField( item.taxPreference !== fetchedItem.taxPreference, `Tax Preference mismatch for ${item.itemName}: ${item.taxPreference}`, errors );
   
     // Validate discount type
     validateItemDiscountType(item.itemDiscountType, errors);

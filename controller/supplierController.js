@@ -21,7 +21,7 @@ exports.getPurchaseOrderSupplier = async (req, res) => {
           }
     } catch (error) {
         console.error(error);
-        res.status(500).json({ message: 'Server error' });
+        res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
 };
 
@@ -45,6 +45,6 @@ exports.getBillsSupplier = async (req, res) => {
           }
     } catch (error) {
         console.error(error);
-        res.status(500).json({ message: 'Server error' });
+        res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
 };
