@@ -199,7 +199,7 @@ exports.getService = async (req, res) => {
         
         const organizationId = req.user.organizationId;
         
-        const { organizationExists, service } = await dataExist( organizationId, null, serviceId );
+        const { organizationExists, service } = await dataExist( organizationId, serviceId, null  );
         
         if (!organizationExists) return res.status(404).json({ message: "No Organization Found." });
                 

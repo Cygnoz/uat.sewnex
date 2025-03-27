@@ -362,12 +362,12 @@ function calculateMembershipPlan(cleanedData, res) {
     if (cleanedData.planType === "Percentage") {
       calculatedTotal += service.price - roundToTwoDecimals(discountAmount);
       actualRate += service.price;
-      sellingPrice += calculatedTotal || 0;
+      sellingPrice += parseFloat(calculatedTotal || 0);
     } else {
       calculatedTotal += (service.price * parseFloat(service.count));
       actualRate += calculatedTotal || 0;
       // sellingPrice = (actualRate - roundToTwoDecimals(discountAmount)) || 0;
-      sellingPrice = (cleanedData.sellingPrice) || 0;
+      sellingPrice = parseFloat(cleanedData.sellingPrice) || 0;
 
     }
 
@@ -382,6 +382,9 @@ function calculateMembershipPlan(cleanedData, res) {
     console.log(`Actual Rate, Calculated: ${sellingPrice} , Provided ${cleanedData.sellingPrice}`);
     
   });
+
+  console.log(typeof sellingPrice, sellingPrice);
+
 
   checkAmount(actualRate, cleanedData.actualRate, 'Actual Rate', errors);
   checkAmount(sellingPrice, cleanedData.sellingPrice, 'Selling Price', errors);
