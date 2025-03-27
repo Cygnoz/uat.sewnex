@@ -32,7 +32,7 @@ server.use(customerRouter)
 const PORT = 4002
 
 server.get('/',(req,res)=>{
-    res.status(200).json("Dev Sewnex server started - Customer v1")
+    res.status(200).json("UAT Sewnex server started - Customer v1")
 })
 
 const app = server.listen(PORT, () => {
