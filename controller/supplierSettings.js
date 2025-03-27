@@ -36,7 +36,7 @@ exports.updateSupplierCustomerSettings = async (req, res) => {
     res.status(200).json({ message: "Settings updated successfully" });
   } catch (error) {
     console.error("Error updating supplier settings:", error);
-    res.status(500).json({ message: "Internal server error.",error:error.message, stack:error.stack });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 

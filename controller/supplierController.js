@@ -78,7 +78,7 @@ exports.addSupplier = async (req, res) => {
     res.status(201).json({ message: "Supplier created successfully." });
   } catch (error) {
     console.error("Error creating Supplier:", error);
-    res.status(500).json({ message: "Internal server error.",error:error.message, stack:error.stack });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -156,7 +156,7 @@ exports.updateSupplier = async (req, res) => {
       });
     } catch (error) {
       console.error("Error updating supplier:", error);
-      res.status(500).json({ message: "Internal server error.",error:error.message, stack:error.stack });
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
 };
 
@@ -179,7 +179,7 @@ exports.getAllSuppliers = async (req, res) => {
       res.status(200).json(formattedObjects);
     } catch (error) {
       console.error("Error fetching Suppliers:", error);
-      res.status(500).json({ message: "Internal server error.",error:error.message, stack:error.stack });
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
   };
   
@@ -205,7 +205,7 @@ exports.getOneSupplier = async (req, res) => {
     res.status(200).json(formattedObjects);
   } catch (error) {
     console.error("Error fetching customer:", error);
-    res.status(500).json({ message: "Internal server error.",error:error.message, stack:error.stack });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -238,7 +238,7 @@ exports.getSupplierTransactions = async (req, res) => {
       return res.status(200).json({ data: formattedData });
   } catch (error) {
       console.error("Error fetching customer transactions:", error);
-      res.status(500).json({ message: "Internal server error.",error:error.message, stack:error.stack });
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
 };
 
@@ -286,7 +286,7 @@ exports.updateSupplierStatus = async (req, res) => {
     });
   } catch (error) {
     console.error("Error updating supplier status:", error);
-    res.status(500).json({ message: "Internal server error.",error:error.message, stack:error.stack });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
   
@@ -347,7 +347,7 @@ exports.getSupplierAdditionalData = async (req, res) => {
     return res.status(200).json(response);
   } catch (error) {
     console.error("Error fetching supplier additional data:", error);
-    res.status(500).json({ message: "Internal server error.",error:error.message, stack:error.stack });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
   
@@ -389,7 +389,7 @@ exports.getOneSupplierHistory = async (req, res) => {
     res.status(200).json(formattedObjects);
   } catch (error) {
     console.error("Error fetching Supplier:", error);
-    res.status(500).json({ message: "Internal server error.",error:error.message, stack:error.stack });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -467,7 +467,7 @@ exports.deleteSupplier = async (req, res) => {
 
   } catch (error) {
       console.error("Error deleting supplier:", error);
-      res.status(500).json({ message: "Internal server error.",error:error.message, stack:error.stack });
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
 };
 
