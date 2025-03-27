@@ -116,6 +116,14 @@ router.put('/status-prefix',verifyToken,checkPermission('Edited Setting details'
 
 
 
+//Main Dashboard
+router.get('/get-mainDashboard-overview', verifyToken, dashboardController.getOverviewData)
+router.get('/get-mainDashboard-salesOverTime', verifyToken, dashboardController.getSalesOverTime)
+router.get('/get-mainDashboard-expenseByCategory', verifyToken, dashboardController.getExpenseByCategory)
+router.get('/get-mainDashboard-topProductCustomer', verifyToken, dashboardController.getTopProductCustomer)
+
+
+
 
 
 
@@ -127,8 +135,6 @@ router.get('/get-all-organization',nexVerifyToken,organizationController.getAllO
 router.get('/get-all-client',nexVerifyToken,billBizzClientCont.getAllClient)
 
 router.delete('/delete-organization/:organizationId',nexVerifyToken,organizationController.deleteOrganization)
-
-router.delete('/delete-all',nexVerifyToken,billBizzClientCont.deleteAll)
 
 
 
@@ -149,12 +155,6 @@ router.post('/login-otp',userController.loginOTP)
 router.post('/verify-otp',userController.verifyOtp)
 
 
-// dashboard
-router.get('/get-dashboard-overview', verifyToken, dashboardController.getTodayOverview)
-
-router.get('/get-dashboard-getExpenseByCategory', verifyToken, dashboardController.getExpenseByCategory)
-
-router.get("/sales-expense-comparison", verifyToken, dashboardController.getSalesExpenseComparison);
 
 
 

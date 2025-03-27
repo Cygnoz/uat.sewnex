@@ -17,7 +17,7 @@ const customerSchema = new Schema({
     //Basic Info
     organizationId: {type:String},
     customerType: {type:String},
-    customerProfile: {type:String},
+    customerProfile: {type:String},   //image
     salutation: {type:String},
     firstName: {type:String},
     lastName: {type:String},
@@ -28,15 +28,13 @@ const customerSchema = new Schema({
     workPhone: {type:String},
     mobile: {type:String},
     
-
-    dob : {type:String},
+    dob: {type:String},
     cardNumber: {type:String},
 
     //Opening Balance
     debitOpeningBalance: {type:Number},
     creditOpeningBalance: {type:Number},
 
-    
     //Other Details
     pan: {type:String},
     currency: {type:String},
@@ -49,7 +47,6 @@ const customerSchema = new Schema({
     department: {type:String},
     designation: {type:String},
     websiteURL: {type:String},
-
 
     //Taxes
     taxPreference: {type:String},
@@ -98,6 +95,22 @@ const customerSchema = new Schema({
 
     //lastModifiedDate
     lastModifiedDate:{type:String},
+
+    // *Sewnex variables
+    customerAddress: {type:String},  
+
+    companyAddress: {type:String},  
+
+    membershipCardNumber: {type:String}, 
+    referenceCustomerId: {type: mongoose.Schema.Types.ObjectId, ref: 'Customer'},    
+
+    anniversary: {type:String},  
+    profession: {type:String},  
+    
+    twitter: {type:String}, 
+    instagram: {type:String},  
+    snapchat: {type:String}, 
+    facebook: {type:String},  
 
 });
 
