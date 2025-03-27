@@ -914,7 +914,7 @@ exports.calculateTradingAccount = async (req, res) => {
 
         res.status(200).json({ success: true, data: result });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
 };
 
@@ -1018,7 +1018,7 @@ exports.calculateProfitAndLoss = async (req, res) => {
         res.status(200).json({ success: true, data: result });
     } catch (error) {
         console.error(error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
 };
 
@@ -1138,7 +1138,7 @@ exports.calculateBalanceSheet = async (req, res) => {
 
         res.status(200).json({ success: true, data: result });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
 };
 

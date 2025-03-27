@@ -210,13 +210,7 @@ exports.getDayBook = async (req, res) => {
 
     } catch (error) {
         console.error('Error in getDayBook:', error);
-        res.status(500).json({
-            success: false,
-            message: error.message,
-            debug: {
-                stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-            }
-        });
+        res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
 };
 
