@@ -16,8 +16,12 @@ const { verifyToken } = require('../controller/middleware');
 //item Drop Down
 router.get('/get-itemDropdown',verifyToken, itemDropdownController.getItemDropDown);
 
-router.get('/get-inventory-Dashboard/:date',verifyToken, dashboardController.calculateTotalInventoryValue);
-
+// Dashboard
+router.get('/get-inventoryDashboard-overview',verifyToken, dashboardController.getOverviewData);
+router.get('/get-inventoryDashboard-topSellingProducts',verifyToken, dashboardController.getTopSellingProducts);
+router.get('/get-inventoryDashboard-topSellingProductsByCategories',verifyToken, dashboardController.getTopSellingProductsByCategories);
+router.get('/get-inventoryDashboard-stockLevelOverCategory',verifyToken, dashboardController.getStockLevelOverCategory);
+router.get('/get-inventoryDashboard-mostFrequentlyReorderedItems',verifyToken, dashboardController.getFrequentlyReorderedItems);
 
 
 // Item
