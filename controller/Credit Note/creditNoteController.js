@@ -213,7 +213,7 @@ exports.addCreditNote = async (req, res) => {
     console.log( "Credit Note created successfully:", savedCreditNote );
   } catch (error) {
     console.error("Error Creating Credit Note:", error);
-    res.status(500).json({ message: "Internal server error." });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 }
 
@@ -251,7 +251,7 @@ exports.getAllCreditNote = async (req, res) => {
     res.status(200).json(formattedObjects);
   } catch (error) {
     console.error("Error fetching credit note:", error);
-    res.status(500).json({ message: "Internal server error." });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -286,7 +286,7 @@ const formattedObjects = singleCustomDateTime(transformedData, organizationExist
   res.status(200).json(formattedObjects);
 } catch (error) {
   console.error("Error fetching credit note:", error);
-  res.status(500).json({ message: "Internal server error."});
+  res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
 }
 };
 
@@ -318,8 +318,8 @@ exports.creditNoteJournal = async (req, res) => {
       res.status(200).json(transformedJournal);
   } catch (error) {
       console.error("Error fetching journal:", error);
-      res.status(500).json({ message: "Internal server error." });
-  }
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
+    }
 };
 
 
@@ -348,8 +348,8 @@ exports.getLastCreditNotePrefix = async (req, res) => {
       res.status(200).json(lastPrefix);
   } catch (error) {
       console.error("Error fetching accounts:", error);
-      res.status(500).json({ message: "Internal server error." });
-  }
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
+    }
 };
 
 

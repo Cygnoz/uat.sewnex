@@ -160,7 +160,7 @@ exports.getOverviewData = async (req, res) => {
 
     } catch (error) {
         console.error("Error fetching overview data:", error);
-        res.status(500).json({ message: "Internal server error." });
+        res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
 };
 
@@ -244,7 +244,7 @@ exports.getTopSalesOrder = async (req, res) => {
 
     } catch (error) {
         console.error("Error fetching top sales order:", error);
-        res.status(500).json({ message: "Internal server error." });
+        res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
 };
 
@@ -379,7 +379,7 @@ exports.getRecentTransactions = async (req, res) => {
 
     } catch (error) {
         console.error("Error fetching recent transactions data:", error);
-        res.status(500).json({ message: "Internal server error." });
+        res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
 };
 

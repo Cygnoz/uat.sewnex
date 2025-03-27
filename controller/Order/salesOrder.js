@@ -153,7 +153,7 @@ exports.addOrder = async (req, res) => {
       console.log( "Sale Order created successfully:", savedOrder );
     } catch (error) {
       console.error("Error Creating Sales Order:", error);
-      res.status(500).json({ message: "Internal server error." });
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
   };
 
@@ -180,8 +180,8 @@ exports.getLastOrderPrefix = async (req, res) => {
       res.status(200).json(lastPrefix);
   } catch (error) {
       console.error("Error fetching accounts:", error);
-      res.status(500).json({ message: "Internal server error." });
-  }
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
+    }
 };
 
 
@@ -215,7 +215,7 @@ exports.getAllSalesOrder = async (req, res) => {
     res.status(200).json(formattedObjects);
   } catch (error) {
     console.error("Error fetching Order:", error);
-    res.status(500).json({ message: "Internal server error." });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -259,7 +259,7 @@ const formattedObjects = singleCustomDateTime(transformedInvoice, organizationEx
   res.status(200).json(formattedObjects);
 } catch (error) {
   console.error("Error fetching Order:", error);
-  res.status(500).json({ message: "Internal server error." });
+  res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
 }
 };
 

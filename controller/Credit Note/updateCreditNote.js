@@ -14,8 +14,7 @@ const moment = require("moment-timezone");
 
 // Update Credit Note 
 exports.updateCreditNote = async (req, res) => {
-    console.log("Update credit note:", req.body);
-  
+    console.log("Update credit note:", req.body);  
     try {
       const { organizationId, id: userId, userName } = req.user;
       const { creditId } = req.params;
@@ -120,7 +119,7 @@ exports.updateCreditNote = async (req, res) => {
       console.log("Credit Note updated successfully:", savedCreditNote);  
     } catch (error) {
       console.error("Error updating credit note:", error);
-      res.status(500).json({ message: "Internal server error" });
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
   };
 
@@ -132,7 +131,6 @@ exports.updateCreditNote = async (req, res) => {
   // Delete Credit Note
   exports.deleteCreditNote = async (req, res) => {
     console.log("Delete credit note request received:", req.params);
-
     try {
         const { organizationId, id: userId, userName } = req.user;
         const { creditId } = req.params;
@@ -226,8 +224,8 @@ exports.updateCreditNote = async (req, res) => {
 
     } catch (error) {
         console.error("Error deleting credit note:", error);
-        res.status(500).json({ message: "Internal server error" });
-    }
+        res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
+      }
   };
 
 

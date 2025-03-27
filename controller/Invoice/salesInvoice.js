@@ -226,7 +226,7 @@ exports.addInvoice = async (req, res) => {
       console.log( "Sale Invoice created successfully:", savedInvoice );
     } catch (error) {
       console.error("Error Creating Sales Invoice:", error);
-      res.status(500).json({ message: "Internal server error." });
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
   };
 
@@ -253,8 +253,8 @@ exports.getLastInvoicePrefix = async (req, res) => {
       res.status(200).json(lastPrefix);
   } catch (error) {
       console.error("Error fetching accounts:", error);
-      res.status(500).json({ message: "Internal server error." });
-  }
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
+    }
 };
 
 
@@ -284,8 +284,8 @@ exports.invoiceJournal = async (req, res) => {
     res.status(200).json(transformedJournal);
   } catch (error) {
       console.error("Error fetching journal:", error);
-      res.status(500).json({ message: "Internal server error." });
-  }
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
+    }
 };
 
 
@@ -345,7 +345,7 @@ exports.getAllSalesInvoice = async (req, res) => {
     res.status(200).json( formattedObjects );
   } catch (error) {
     console.error("Error fetching Invoice:", error);
-    res.status(500).json({ message: "Internal server error." });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -388,7 +388,7 @@ try {
   res.status(200).json(formattedObjects);
 } catch (error) {
   console.error("Error fetching Invoice:", error);
-  res.status(500).json({ message: "Internal server error." });
+  res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
 }
 };
 

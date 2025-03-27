@@ -93,7 +93,7 @@ exports.createSalesDashboard = async (req, res) => {
         });
     } catch (error) {
         console.error("Error creating sales dashboard:", error.message);
-        res.status(500).json({ message: "Internal server error", error: error.message });
+        res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
 };
 

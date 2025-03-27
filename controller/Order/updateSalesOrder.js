@@ -102,7 +102,7 @@ exports.updateSalesOrder = async (req, res) => {
   
     } catch (error) {
       console.error("Error updating sale order:", error);
-      res.status(500).json({ message: "Internal server error" });
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
   };
 
@@ -159,6 +159,6 @@ exports.deleteSalesOrder = async (req, res) => {
 
   } catch (error) {
       console.error("Error deleting sales order:", error);
-      res.status(500).json({ message: "Internal server error" });
-  }
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
+    }
 };

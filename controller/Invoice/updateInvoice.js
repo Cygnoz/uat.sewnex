@@ -146,7 +146,7 @@ exports.updateInvoice = async (req, res) => {
   
     } catch (error) {
       console.error("Error updating sale invoice:", error);
-      res.status(500).json({ message: "Internal server error" });
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
   };
 
@@ -234,8 +234,8 @@ exports.updateInvoice = async (req, res) => {
 
     } catch (error) {
         console.error("Error deleting sales invoice:", error);
-        res.status(500).json({ message: "Internal server error" });
-    }
+        res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
+      }
   };
 
 

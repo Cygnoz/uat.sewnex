@@ -100,7 +100,7 @@ exports.updateSalesQuote = async (req, res) => {
   
     } catch (error) {
       console.error("Error updating sale quote:", error);
-      res.status(500).json({ message: "Internal server error" });
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
   };
 
@@ -155,6 +155,6 @@ exports.deleteSalesQuote = async (req, res) => {
 
   } catch (error) {
       console.error("Error deleting sales quote:", error);
-      res.status(500).json({ message: "Internal server error" });
-  }
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
+    }
 };

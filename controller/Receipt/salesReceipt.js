@@ -148,7 +148,7 @@ exports.addReceipt = async (req, res) => {
     
 } catch (error) {
   console.error('Error adding receipt:', error);
-  return res.status(500).json({ message: 'Internal server error' });
+  res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
 }
 };
 
@@ -178,8 +178,8 @@ exports.receiptJournal = async (req, res) => {
       res.status(200).json(transformedJournal);
   } catch (error) {
       console.error("Error fetching journal:", error);
-      res.status(500).json({ message: "Internal server error." });
-  }
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
+    }
 };
 
 
@@ -212,7 +212,7 @@ exports.getAllSalesReceipt = async (req, res) => {
 
   } catch (error) {
     console.error("Error fetching purchase paymentMade:", error);
-    res.status(500).json({ message: "Internal server error." });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -245,7 +245,7 @@ exports.getSalesReceipt = async (req, res) => {
     res.status(200).json(formattedObjects);
   } catch (error) {
     console.error("Error fetching receipt:", error);
-    res.status(500).json({ message: "Internal server error." });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
@@ -272,8 +272,8 @@ exports.getLastSalesReceiptPrefix = async (req, res) => {
       res.status(200).json(lastPrefix);
   } catch (error) {
       console.error("Error fetching accounts:", error);
-      res.status(500).json({ message: "Internal server error." });
-  }
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
+    }
 };
 
 // Debit Note Prefix

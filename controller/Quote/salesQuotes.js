@@ -116,7 +116,7 @@ exports.addQuotes = async (req, res) => {
       console.log( "Sale Quote created successfully:", savedQuote );
     } catch (error) {
       console.error("Error Creating Sales Quote:", error);
-      res.status(500).json({ message: "Internal server error." });
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
 };
 
@@ -140,8 +140,8 @@ exports.getLastQuotesPrefix = async (req, res) => {
       res.status(200).json(lastPrefix);
   } catch (error) {
       console.error("Error fetching accounts:", error);
-      res.status(500).json({ message: "Internal server error." });
-  }
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
+    }
 };
 
 
@@ -175,7 +175,7 @@ exports.getAllSalesQuote = async (req, res) => {
       
     } catch (error) {
       console.error("Error fetching Quotes:", error);
-      res.status(500).json({ message: "Internal server error." });
+      res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
     }
   };
 
@@ -215,7 +215,7 @@ exports.getOneSalesQuote = async (req, res) => {
     res.status(200).json(formattedObjects);
   } catch (error) {
     console.error("Error fetching Quotes:", error);
-    res.status(500).json({ message: "Internal server error." });
+    res.status(500).json({ message: "Internal server error.", error : error.message, stack: error.stack });
   }
 };
 
